@@ -1,0 +1,66 @@
+# Altitude Maps - Cursor Rules
+
+## Project Context
+This is a climate visualization project focused on showing temperature and climate patterns by altitude across the globe using Python 3.13.
+
+## Development Patterns
+
+### Environment
+- Always use Python 3.13 virtual environment (`venv`)
+- Activate with `.\venv\Scripts\Activate.ps1` in PowerShell
+- Dependencies managed via `requirements.txt`
+
+### Code Style
+- Use type hints for function parameters and returns
+- Keep functions focused and single-purpose
+- Document complex data transformations with inline comments
+- Use meaningful variable names (prefer `elevation_data` over `ed`)
+
+### Data Handling
+- Store raw data in `data/` directory (gitignored)
+- Cache processed data to avoid re-downloading
+- Use xarray for multi-dimensional climate data
+- Use pandas for tabular data
+- Always validate data ranges and handle missing values
+
+### Visualization
+- Save outputs to `output/` directory
+- Create both static (matplotlib) and interactive (plotly) versions when appropriate
+- Use clear, colorblind-friendly color schemes
+- Add proper titles, labels, and legends
+- Include data source citations in visualizations
+
+### Testing
+- Test with small data samples first before processing large datasets
+- Verify coordinate systems and projections
+- Check data units and conversions
+- Validate output visualizations manually
+
+### Documentation
+- Update README.md for major feature additions
+- Document significant learnings in `learnings/learnings_N_<topic>.md`
+- Keep inline code comments focused on "why" not "what"
+
+## Data Sources Priority
+1. **ERA5 Climate Reanalysis**: Comprehensive global climate data
+2. **SRTM Elevation**: 30m-90m resolution global elevation
+3. **WorldClim**: Bioclimatic variables at various resolutions
+
+## Common Commands
+```powershell
+# Setup/activate environment
+.\setup.ps1
+
+# Run visualization
+python visualize.py
+
+# Run with specific parameters
+python visualize.py --region global --variable temperature
+```
+
+## Automation Goals
+- Minimize manual steps
+- Make data acquisition automatic and cached
+- Enable one-command visualization generation
+- Support parametric variations (regions, variables, time periods)
+

@@ -1,0 +1,38 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Data files
+data/
+*.nc
+*.tif
+*.hdf
+*.he5
+
+# Output
+output/
+generated/
+*.png
+*.jpg
+*.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Learnings (as per user pattern)
+learnings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+
