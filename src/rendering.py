@@ -10,6 +10,15 @@ from matplotlib.colors import LightSource, LinearSegmentedColormap
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
+from typing import Union, List, Optional
+
+try:
+    import rasterio
+    HAS_RASTERIO = True
+except ImportError:
+    HAS_RASTERIO = False
+
+from src.borders import get_border_manager
 
 def auto_crop_black_borders(image_path: Path, border_percent: float = 2.0, color_threshold: int = 30) -> tuple:
     """
@@ -95,7 +104,10 @@ def render_visualization(data: dict, output_dir: str = "generated",
                         background_color: str = '#000000', light_azimuth: float = 315,
                         light_altitude: float = 60, filename_prefix: str = None,
                         show_overlays: bool = True, autocrop: bool = True, 
-                        open_browser: bool = True, command_line_str: str = None):
+                        open_browser: bool = True, command_line_str: str = None,
+                        draw_borders: Union[bool, str, List[str]] = False,
+                        border_color: str = '#FF4444', border_width: float = 1.5,
+                        border_resolution: str = '110m', tif_path: Optional[str] = None):
     """
     Renders the elevation map and saves it to PNG and HTML files.
 
@@ -119,6 +131,12 @@ def render_visualization(data: dict, output_dir: str = "generated",
         show_overlays: Show text overlays. Default: True
         autocrop: Auto-crop black borders. Default: True
         open_browser: Open HTML file in browser after rendering. Default: True
+        draw_borders: Draw country borders on map. Can be True (auto-detect from bbox), 
+                     a country name, or list of country names. Default: False
+        border_color: Color for border lines (hex). Default: '#FF4444' (red)
+        border_width: Width of border lines. Default: 1.5
+        border_resolution: Natural Earth border resolution ('10m', '50m', or '110m'). Default: '110m'
+        tif_path: Path to source GeoTIFF (needed for border drawing). Default: None
     """
     overall_start = time.time()
     print("\n" + "=" * 70, flush=True)
@@ -137,9 +155,9 @@ def render_visualization(data: dict, output_dir: str = "generated",
         render_as_bars = is_bucketed
     
     if render_as_bars:
-        print(f"\n📊 Rendering mode: 3D RECTANGULAR PRISMS (bar chart style)", flush=True)
+        print(f"\n[*] Rendering mode: 3D RECTANGULAR PRISMS (bar chart style)", flush=True)
     else:
-        print(f"\n🗻 Rendering mode: SMOOTH SURFACE", flush=True)
+        print(f"\n[*] Rendering mode: SMOOTH SURFACE", flush=True)
 
     # --- Configuration ---
     CAMERA_ELEVATION = camera_elevation  # Angled view from above (90 = overhead, 0 = horizon)
@@ -152,7 +170,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
 
     # --- 1. Downsample and Prepare Grid ---
     step_start = time.time()
-    print("\n🎨 Downsampling and preparing grid...", flush=True)
+    print("\n[*] Downsampling and preparing grid...", flush=True)
     
     if elevation_viz.shape[0] > VISUALIZATION_MAX_SIZE or elevation_viz.shape[1] > VISUALIZATION_MAX_SIZE:
         step_y = max(1, elevation_viz.shape[0] // VISUALIZATION_MAX_SIZE)
@@ -183,11 +201,11 @@ def render_visualization(data: dict, output_dir: str = "generated",
     print(f"   - Aspect ratio: {x_size/y_size:.3f} (width/height)")
     if coordinate_scale != 1.0:
         print(f"   - Scaled display size: {x_size_display:.0f} × {y_size_display:.0f} units")
-    print(f"   ⏱️  Time: {time.time() - step_start:.2f}s")
+    print(f"   Time: {time.time() - step_start:.2f}s")
 
     # --- 2. Setup Figure and Plot Surface ---
     step_start = time.time()
-    print("\n🖼️  Setting up figure and plotting 3D surface...", flush=True)
+    print("\n[*] Setting up figure and plotting 3D surface...", flush=True)
 
     # Calculate figure size based on ACTUAL data dimensions (in pixels)
     # Scale up from the data resolution for a crisp output
@@ -281,6 +299,82 @@ def render_visualization(data: dict, output_dir: str = "generated",
     ax.set_xlim(0, x_size_display)
     ax.set_ylim(0, y_size_display)
     ax.set_zlim(Z_masked.min(), Z_masked.max())
+    
+    # --- Draw Borders (Optional) ---
+    if draw_borders and tif_path and HAS_RASTERIO:
+        step_start_border = time.time()
+        print(f"\n[*] Drawing country borders...", flush=True)
+        
+        try:
+            border_manager = get_border_manager()
+            
+            # Determine which countries to draw
+            if draw_borders is True:
+                # Auto-detect countries from bbox
+                with rasterio.open(tif_path) as src:
+                    bbox = src.bounds
+                    bbox_tuple = (bbox.left, bbox.bottom, bbox.right, bbox.top)
+                    countries_gdf = border_manager.get_countries_in_bbox(bbox_tuple, resolution=border_resolution)
+                    countries_to_draw = countries_gdf.ADMIN.tolist()
+                    print(f"   - Auto-detected {len(countries_to_draw)} countries in view: {', '.join(countries_to_draw)}")
+            elif isinstance(draw_borders, str):
+                countries_to_draw = [draw_borders]
+            else:
+                countries_to_draw = draw_borders
+            
+            # Get border coordinates and draw them
+            with rasterio.open(tif_path) as src:
+                for country_name in countries_to_draw:
+                    border_coords = border_manager.get_border_coordinates(
+                        country_name, 
+                        target_crs=src.crs,
+                        resolution=border_resolution
+                    )
+                    
+                    if not border_coords:
+                        print(f"   - WARNING: No borders found for '{country_name}'")
+                        continue
+                    
+                    # Transform border coordinates to match visualization
+                    # Need to map from geographic coords to pixel coords
+                    for lon_coords, lat_coords in border_coords:
+                        # Convert lon/lat to pixel coordinates
+                        transform = src.transform
+                        
+                        # Convert geographic to pixel space
+                        px_coords = []
+                        py_coords = []
+                        for lon, lat in zip(lon_coords, lat_coords):
+                            col, row = ~transform * (lon, lat)
+                            
+                            # No transformations applied to elevation data anymore
+                            # GeoTIFF natural orientation: row=North→South, col=West→East
+                            # Map directly to visualization coordinates
+                            final_x = col * coordinate_scale
+                            final_y = row * coordinate_scale
+                            
+                            px_coords.append(final_x)
+                            py_coords.append(final_y)
+                        
+                        # Draw border line at maximum elevation for visibility
+                        z_line = np.full(len(px_coords), Z_masked.max() * 1.01)
+                        
+                        # Plot the border
+                        ax.plot(py_coords, px_coords, z_line, 
+                               color=border_color, linewidth=border_width, 
+                               alpha=0.8, zorder=100)
+                    
+                    print(f"   - Drew borders for '{country_name}' ({len(border_coords)} segments)")
+            
+            print(f"   Time: {time.time() - step_start_border:.2f}s")
+        
+        except Exception as e:
+            print(f"   - WARNING: Failed to draw borders: {e}")
+            print(f"   - Continuing without borders...")
+    elif draw_borders and not tif_path:
+        print(f"\n[!] Cannot draw borders: tif_path not provided")
+    elif draw_borders and not HAS_RASTERIO:
+        print(f"\n[!] Cannot draw borders: rasterio not installed")
     
     # Adjust box aspect based on camera angle
     # For angled/lateral views, make Z more prominent to show terrain relief
@@ -426,7 +520,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     ax.dist = best_dist
     print(f"   ✓ Camera distance applied")
     
-    print(f"   ⏱️  Time: {time.time() - step_start:.2f}s")
+    print(f"   Time: {time.time() - step_start:.2f}s")
 
     # --- 3. Add Text Overlays ---
     if show_overlays:
@@ -483,7 +577,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
         
         # Aggressive margin reduction to maximize map area in the figure
         plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
-        print(f"   ⏱️  Time: {time.time() - step_start:.2f}s")
+        print(f"   Time: {time.time() - step_start:.2f}s")
     else:
         print("\n✍️  Skipping text overlays (--no-overlays)")
         # Even without overlays, adjust margins for better framing
@@ -491,7 +585,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     
     # --- 4. Save Output Files ---
     step_start = time.time()
-    print("\n💾 Saving output files...")
+    print("\n[*] Saving output files...")
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -533,7 +627,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     # if open_browser:
     #     webbrowser.open(str(html_path.absolute()))
     #     print(f"   - Opening HTML in browser...")
-    print(f"   ⏱️  Time: {time.time() - step_start:.2f}s")
+    print(f"   Time: {time.time() - step_start:.2f}s")
     
     print("\n" + "=" * 70)
     print(f"  RENDERING COMPLETE. Total time: {time.time() - overall_start:.2f}s")

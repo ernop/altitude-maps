@@ -32,6 +32,46 @@ python visualize_usa_overhead.py --gen-nine
 
 **Outputs**: PNG images (default 100 DPI) with geographic labeling.
 
+### 2. Draw National Borders & Mask by Country
+
+Overlay country boundaries and clip elevation data to specific countries:
+
+```python
+# Draw USA borders on elevation map
+render_visualization(
+    data,
+    draw_borders="United States of America",
+    border_color="#FF0000",
+    tif_path="data/usa_elevation/nationwide_usa_elevation.tif"
+)
+
+# Mask data to show only USA territory
+data = prepare_visualization_data(
+    "data/usa_elevation/nationwide_usa_elevation.tif",
+    mask_country="United States of America"
+)
+```
+
+**Features**:
+- Draw borders for any country or auto-detect from region
+- Clip/mask data to country boundaries
+- Support for multiple countries
+- Three detail levels (10m, 50m, 110m resolution)
+
+**Utility tools**:
+```bash
+# List available countries
+python border_utils.py --list
+
+# Find countries in a region
+python border_utils.py --bbox "-125,25,-65,50"
+
+# Test borders on your data
+python border_utils.py --test your_data.tif
+```
+
+See [BORDERS_GUIDE.md](BORDERS_GUIDE.md) for complete documentation.
+
 ### 3. Work With Real Data
 
 Download elevation data from:

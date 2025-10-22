@@ -12,7 +12,8 @@ except ImportError as e:
     print(f"Error importing modules: {e}")
     sys.exit(1)
 
-def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0):
+def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0, 
+                         mask_country: str = None, export_borders: bool = False):
     """
     Export elevation data to JSON format for web viewer.
     Exports raw data (optionally downsampled) so bucketing can be done client-side.
@@ -21,14 +22,22 @@ def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0):
         tif_path: Path to GeoTIFF file
         output_path: Output JSON file path
         max_size: Maximum dimension (will downsample if larger). Use 0 for full resolution.
+        mask_country: Optional country name to mask data to
+        export_borders: If True, also export borders to a separate file
     """
-    print(f"\n🗺️  Exporting RAW elevation data for interactive web viewer...")
+    print(f"\n[*] Exporting RAW elevation data for interactive web viewer...")
     print(f"   Input: {tif_path}")
     print(f"   Output: {output_path}")
     print(f"   Max dimension: {max_size if max_size > 0 else 'FULL RESOLUTION'}")
+    if mask_country:
+        print(f"   Masking to: {mask_country}")
     
-    # Load and process data WITHOUT bucketing (we'll do that client-side)
-    data = prepare_visualization_data(tif_path)
+    # Load and process data
+    data = prepare_visualization_data(
+        tif_path, 
+        mask_usa=False,
+        mask_country=mask_country
+    )
     
     elevation_viz = data["elevation_viz"]
     bounds = data["bounds"]
@@ -38,12 +47,12 @@ def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0):
         step_y = max(1, elevation_viz.shape[0] // max_size)
         step_x = max(1, elevation_viz.shape[1] // max_size)
         elevation_viz = elevation_viz[::step_y, ::step_x]
-        print(f"   Downsampled to {elevation_viz.shape} (step: {step_y}×{step_x})")
+        print(f"   Downsampled to {elevation_viz.shape} (step: {step_y}x{step_x})")
     
     # Get dimensions
     height, width = elevation_viz.shape
     
-    print(f"\n📊 Data dimensions: {width} × {height}")
+    print(f"\n[*] Data dimensions: {width} x {height}")
     print(f"   Elevation range: {data['z_min']:.0f}m to {data['z_max']:.0f}m")
     print(f"   Total data points: {width * height:,}")
     
@@ -84,9 +93,24 @@ def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0):
         json.dump(export_data, f, separators=(',', ':'))
     
     file_size_mb = output_file.stat().st_size / (1024 * 1024)
-    print(f"\n✅ Exported to: {output_file}")
+    print(f"\n[+] Exported to: {output_file}")
     print(f"   File size: {file_size_mb:.2f} MB")
     print(f"   Data points: {width * height:,}")
+    
+    # Optionally export borders
+    if export_borders:
+        try:
+            from export_borders_for_viewer import export_borders_for_region
+            borders_path = str(output_file).replace('.json', '_borders.json')
+            print(f"\n[*] Exporting borders...")
+            export_borders_for_region(
+                tif_path,
+                borders_path,
+                countries=mask_country if mask_country else None,
+                auto_detect=(mask_country is None)
+            )
+        except Exception as e:
+            print(f"\n[!] Failed to export borders: {e}")
     
     return export_data
 
@@ -111,18 +135,30 @@ def main():
         default=0,
         help='Maximum dimension (will downsample if larger). Use 0 for full resolution. Default: 0 (FULL RES)'
     )
+    parser.add_argument(
+        '--mask-country',
+        type=str,
+        help='Mask elevation data to specific country (e.g., "United States of America")'
+    )
+    parser.add_argument(
+        '--export-borders',
+        action='store_true',
+        help='Also export border data for the web viewer'
+    )
     
     args = parser.parse_args()
     
     tif_file_path = Path(args.tif_file)
     if not tif_file_path.exists():
-        print(f"\n❌ Error: File not found: {tif_file_path}")
+        print(f"\n[X] Error: File not found: {tif_file_path}")
         return 1
     
     export_elevation_data(
         str(tif_file_path),
         args.output,
-        max_size=args.max_size
+        max_size=args.max_size,
+        mask_country=args.mask_country,
+        export_borders=args.export_borders
     )
     
     return 0

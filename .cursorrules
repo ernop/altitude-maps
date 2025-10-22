@@ -18,10 +18,12 @@ This is a climate visualization project focused on showing temperature and clima
 
 ### Data Handling
 - Store raw data in `data/` directory (gitignored)
-- Cache processed data to avoid re-downloading
+- Cache processed data to avoid re-downloading (including masked/bordered data)
 - Use xarray for multi-dimensional climate data
 - Use pandas for tabular data
 - Always validate data ranges and handle missing values
+- GeoTIFF data uses natural orientation (North up, East right) - no transformations needed
+- Use geopandas for geographic borders and masking operations
 
 ### Visualization
 - Save outputs to `output/` directory
@@ -48,6 +50,7 @@ This is a climate visualization project focused on showing temperature and clima
 1. **ERA5 Climate Reanalysis**: Comprehensive global climate data
 2. **SRTM Elevation**: 30m-90m resolution global elevation
 3. **WorldClim**: Bioclimatic variables at various resolutions
+4. **Natural Earth**: Country borders (public domain, 10m/50m/110m resolution)
 
 ## Common Commands
 ```powershell
@@ -59,6 +62,16 @@ python visualize.py
 
 # Run with specific parameters
 python visualize.py --region global --variable temperature
+
+# Interactive 3D viewer (primary interface)
+python serve_viewer.py  # Visit http://localhost:8001
+
+# Export data for web viewer with borders
+python export_for_web_viewer.py data/usa.tif --export-borders
+
+# Work with borders
+python border_utils.py --list  # List available countries
+python border_utils.py --test your_data.tif  # Test borders on data
 ```
 
 ## Automation Goals
@@ -66,4 +79,14 @@ python visualize.py --region global --variable temperature
 - Make data acquisition automatic and cached
 - Enable one-command visualization generation
 - Support parametric variations (regions, variables, time periods)
+
+## Border Features
+- **Drawing borders**: Overlay country boundaries on maps
+- **Masking data**: Clip elevation to country boundaries
+- **177 countries available** from Natural Earth (10m/50m/110m resolution)
+- **Automatic caching** of borders and masked data
+- **Interactive viewer support**: Export borders for web viewer
+- Use `mask_country` parameter to clip data (e.g., "United States of America")
+- Use `draw_borders` parameter in rendering to overlay border lines
+- Primary workflow: Interactive 3D viewer at localhost:8001
 

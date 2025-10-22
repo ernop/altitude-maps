@@ -8,10 +8,15 @@ import io
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-# Fix Windows console encoding
+# Fix Windows console encoding  
 if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        if hasattr(sys.stdout, 'buffer') and not isinstance(sys.stdout, io.TextIOWrapper):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        if hasattr(sys.stderr, 'buffer') and not isinstance(sys.stderr, io.TextIOWrapper):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    except (AttributeError, ValueError, OSError):
+        pass
 
 
 def load_settings(settings_file: str = "settings.json") -> Dict[str, Any]:

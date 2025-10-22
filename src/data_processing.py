@@ -15,8 +15,11 @@ try:
 except ImportError:
     HAS_GEOPANDAS = False
 
+from src.borders import get_border_manager
+
 def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None, 
-                             square_bucket_pixels: int = None):
+                             square_bucket_pixels: int = None, mask_usa: bool = True,
+                             mask_country: str = None, border_resolution: str = '110m'):
     """
     Loads, processes, and transforms all data needed for the visualization.
 
@@ -28,6 +31,10 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
         square_bucket_pixels: If set, divides the map into square buckets of this size (in pixels)
                             and takes the MAX elevation within each bucket. Simpler method that ignores
                             geographic distances. E.g., 100 for 100x100 pixel buckets.
+        mask_usa: If True, applies USA border masking (legacy, use mask_country='United States of America' instead).
+        mask_country: If set, masks data to this country's borders (e.g., 'Canada', 'Mexico'). 
+                     Can also be a list of countries for multi-country regions.
+        border_resolution: Natural Earth border resolution ('10m', '50m', or '110m'). Default: '110m'
         Note: Only one of square_bucket_miles or square_bucket_pixels should be set.
               If both are set, square_bucket_miles takes precedence.
               None (default) means no bucketing - use all data points.
@@ -42,7 +49,7 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
 
     # --- 1. Load Elevation Data ---
     step_start = time.time()
-    print(f"\n📂 Loading GeoTIFF: {tif_path}", flush=True)
+    print(f"\n[*] Loading GeoTIFF: {tif_path}", flush=True)
     with rasterio.open(tif_path) as src:
         elevation = src.read(1)
         bounds = src.bounds
@@ -53,49 +60,65 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
         
         print(f"   - Shape: {elevation.shape}", flush=True)
         print(f"   - Elevation: {np.nanmin(elevation):.0f}m to {np.nanmax(elevation):.0f}m", flush=True)
-        print(f"   ⏱️  Time: {time.time() - step_start:.2f}s", flush=True)
+        print(f"   Time: {time.time() - step_start:.2f}s", flush=True)
 
         # --- 2. Load Borders & Mask Data (with Caching) ---
-        step_start = time.time()
+        # Convert legacy mask_usa parameter
+        if mask_usa and mask_country is None:
+            mask_country = 'United States of America'
         
-        cache_dir = Path("data/.cache")
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{Path(tif_path).stem}_masked.pkl"
-        
-        if cache_file.exists():
-            print("\n🗺️  Loading masked data from cache...", flush=True)
-            with open(cache_file, 'rb') as f:
-                cached_data = pickle.load(f)
-            elevation = cached_data['elevation']
-            print(f"   - Loaded from: {cache_file}", flush=True)
-            print(f"   ⏱️  Cache load time: {time.time() - step_start:.2f}s", flush=True)
-        elif HAS_GEOPANDAS:
-            print("\n🗺️  Loading USA borders and masking data (first run)...", flush=True)
-            border_start = time.time()
-            ne_url = "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
-            world = gpd.read_file(ne_url)
-            print(f"   - Natural Earth download/load: {time.time() - border_start:.2f}s")
+        if mask_country:
+            step_start = time.time()
             
-            usa = world[world.ADMIN == 'United States of America']
-            if not usa.empty:
-                usa = usa.to_crs(crs)
+            # Create country-specific cache filename
+            if isinstance(mask_country, list):
+                country_str = "_".join([c.replace(' ', '_') for c in mask_country])
+            else:
+                country_str = mask_country.replace(' ', '_')
+            
+            cache_dir = Path("data/.cache")
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = cache_dir / f"{Path(tif_path).stem}_masked_{country_str}_{border_resolution}.pkl"
+            
+            if cache_file.exists():
+                print(f"\n[*] Loading masked data from cache...", flush=True)
+                with open(cache_file, 'rb') as f:
+                    cached_data = pickle.load(f)
+                elevation = cached_data['elevation']
+                print(f"   - Loaded from: {cache_file}", flush=True)
+                print(f"   Time: {time.time() - step_start:.2f}s", flush=True)
+            elif HAS_GEOPANDAS:
+                country_display = mask_country if isinstance(mask_country, str) else ', '.join(mask_country)
+                print(f"\n[*] Loading {country_display} borders and masking data (first run)...", flush=True)
                 
-                mask_start = time.time()
-                geoms = [mapping(usa.geometry.iloc[0])]
-                out_image, _ = mask(src, geoms, crop=False, nodata=np.nan)
-                elevation_masked = out_image[0]
+                border_start = time.time()
+                border_manager = get_border_manager()
                 
-                if np.any(~np.isnan(elevation_masked)):
-                    elevation = elevation_masked
-                    print(f"   - Masked data to USA boundaries: {time.time() - mask_start:.2f}s")
-
-                print("   - Saving to cache...")
-                with open(cache_file, 'wb') as f:
-                    pickle.dump({'elevation': elevation}, f)
-                print(f"   - Cache saved to: {cache_file}")
-            print(f"   ⏱️  Total border/mask time: {time.time() - step_start:.2f}s")
+                try:
+                    mask_start = time.time()
+                    elevation_masked, _ = border_manager.mask_raster_to_country(
+                        src, mask_country, resolution=border_resolution
+                    )
+                    
+                    if np.any(~np.isnan(elevation_masked)):
+                        elevation = elevation_masked
+                        print(f"   - Masked data to {country_display} boundaries: {time.time() - mask_start:.2f}s")
+                        
+                        print("   - Saving to cache...")
+                        with open(cache_file, 'wb') as f:
+                            pickle.dump({'elevation': elevation}, f)
+                        print(f"   - Cache saved to: {cache_file}")
+                    else:
+                        print(f"   - WARNING: Masking resulted in no valid data. Using unmasked data.")
+                    
+                    print(f"   Time: {time.time() - step_start:.2f}s")
+                except Exception as e:
+                    print(f"   - ERROR during masking: {e}")
+                    print(f"   - Continuing with unmasked data")
+            else:
+                print("\n[!] Geopandas not found. Skipping masking. Install with: pip install geopandas")
         else:
-            print("\n⚠️ Geopandas not found. Skipping masking. Install with: pip install geopandas")
+            print("\n[*] No country masking applied", flush=True)
 
     # --- 3. Square Bucketing (Optional) ---
     if square_bucket_miles is not None or square_bucket_pixels is not None:
@@ -104,7 +127,7 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
         # Determine bucket size in pixels
         if square_bucket_miles is not None:
             # Geographic bucketing (accounts for Earth's curvature)
-            print(f"\n🔲 Applying {square_bucket_miles}x{square_bucket_miles} mile square bucketing (MAX, geographic)...", flush=True)
+            print(f"\n[*] Applying {square_bucket_miles}x{square_bucket_miles} mile square bucketing (MAX, geographic)...", flush=True)
             
             # Calculate approximate degrees per mile (at mid-latitude ~39°N for continental USA)
             # At 39°N: 1 degree latitude ≈ 69 miles, 1 degree longitude ≈ 54 miles
@@ -131,7 +154,7 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
             print(f"   - Bucket size: {bucket_size_px_lat}x{bucket_size_px_lon} pixels")
         else:
             # Simple pixel-based bucketing (ignores geographic distances)
-            print(f"\n🔲 Applying {square_bucket_pixels}x{square_bucket_pixels} pixel square bucketing (MAX, simple)...")
+            print(f"\n[*] Applying {square_bucket_pixels}x{square_bucket_pixels} pixel square bucketing (MAX, simple)...")
             bucket_size_px_lat = square_bucket_pixels
             bucket_size_px_lon = square_bucket_pixels
             print(f"   - Original shape: {elevation.shape}")
@@ -158,22 +181,21 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
         
         print(f"   - Bucketed shape: {elevation.shape} ({bucketed_height}x{bucketed_width} buckets)")
         print(f"   - Data reduction: {(1 - elevation.size / (height_px * width_px)) * 100:.1f}%")
-        print(f"   ⏱️  Bucketing time: {time.time() - step_start:.2f}s")
+        print(f"   Time: {time.time() - step_start:.2f}s")
 
     # --- 4. Prepare Data for Visualization ---
     step_start = time.time()
-    print("\n⚙️  Preparing data for visualization...")
+    print("\n[*] Preparing data for visualization...")
     original_shape = elevation.shape
 
-    # Transformations
-    elevation_viz = np.fliplr(elevation)
-    elevation_viz = np.rot90(elevation_viz, k=-1)
-    elevation_viz = np.rot90(elevation_viz, k=2)
+    # Use data as-is from GeoTIFF (it's already in correct geographic orientation)
+    # GeoTIFF standard: rows go North to South, columns go West to East
+    elevation_viz = elevation
     
     z_min, z_max = np.nanmin(elevation_viz), np.nanmax(elevation_viz)
     
-    print(f"   - Applied flip and 2 rotations")
-    print(f"   ⏱️  Preparation time: {time.time() - step_start:.2f}s")
+    print(f"   - Using natural GeoTIFF orientation (North up, East right)")
+    print(f"   Time: {time.time() - step_start:.2f}s")
     
     print("\n" + "=" * 70)
     print(f"  DATA PROCESSING COMPLETE. Total time: {time.time() - overall_start:.2f}s")
