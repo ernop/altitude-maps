@@ -36,3 +36,7 @@ Thumbs.db
 # Environment variables
 .env
 
+# Settings with API keys (use settings.example.json as template)
+settings.json
+.opentopo_key
+

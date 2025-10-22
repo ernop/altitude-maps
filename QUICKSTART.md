@@ -1,157 +1,148 @@
-# 🗺️ Altitude Maps - Quick Start Guide
+# 🚀 Quick Start - 5 Minutes to Your First Visualization
 
-## Installation (One Command!)
+## Step 1: Setup (One Time Only)
 
 ```powershell
+# Run this from PowerShell in the project directory
 .\setup.ps1
 ```
 
-That's it! This creates a Python 3.13 environment and installs all dependencies.
+This creates a Python virtual environment and installs all dependencies. Takes ~2 minutes.
 
----
-
-## Usage Examples
-
-### 1️⃣ Generate Sample Visualizations (Immediate)
+## Step 2: Generate Your First Visualization
 
 ```powershell
-python visualize.py
+python visualize_usa_overhead.py
 ```
 
-Creates three beautiful visualizations:
-- 📊 Elevation & temperature contour maps
-- 📈 Temperature vs elevation scatter plot  
-- 🏔️ 3D elevation surface with temperature overlay
+**Result**: A beautiful overhead view of the entire continental USA saved to `generated/` with timestamp.
 
-**Output**: `generated/YYYYMMDD_HHMMSS_*.png`
+**Expected time**: ~10 seconds
 
----
+## Step 3: Explore Interactively
 
-### 2️⃣ List Available Real Data Regions
+Just open `interactive_viewer_advanced.html` in your web browser!
 
-```powershell
-python download_usa_region.py --list
-```
+**Controls**:
+- **Right-click + drag** to look around
+- **WASD** to fly (Q/E for up/down)
+- **Shift** to fly faster
+- **Mouse wheel** to zoom
 
-Shows 10 predefined USA regions with high elevation variation.
+## That's It!
 
----
-
-### 3️⃣ Download Real USA Elevation Data
-
-```powershell
-# Download specific region (10m resolution from USGS)
-python download_usa_region.py denver_area
-python download_usa_region.py colorado_rockies
-python download_usa_region.py grand_canyon
-```
-
-Downloads real USGS 3DEP elevation data at ~10 meter resolution!
-
-**Output**: `data/usa_elevation/<region>_elevation_10m.tif`
-
----
-
-### 4️⃣ Explore Data Sources
-
-```powershell
-python src/usa_elevation_data.py
-```
-
-Shows all available data sources and downloads a Denver sample automatically.
-
----
-
-## Available Regions
-
-| Region | Area | Elevation Variation |
-|--------|------|-------------------|
-| 🏔️ Colorado Rockies | 197,136 km² | High peaks & valleys |
-| ⛰️ California Sierra | 92,408 km² | Sierra Nevada range |
-| 🌲 Cascades WA | 73,926 km² | Volcanic peaks |
-| 🏕️ Yellowstone | 36,963 km² | Plateau & mountains |
-| 🏜️ Grand Canyon | 18,482 km² | Extreme relief |
-| 🗻 Mount Rainier | 12,321 km² | Volcanic cone |
-| 🌳 Great Smoky Mtns | 3,450 km² | Appalachian peaks |
-| 🏙️ Denver Area | 6,160 km² | Plains to foothills |
-
----
-
-## Data Resolution Guide
-
-### What you get with 10m resolution:
-
-- **1 square mile** = ~26,000 pixels of data
-- **10 square miles** = ~260,000 pixels (perfect detail!)
-- **File sizes**: 4-8 MB per degree²
-
-### Comparison:
-
-| Resolution | Meters/Pixel | Area/Pixel | Best For |
-|------------|-------------|-----------|----------|
-| 10m | 10m | 100 m² | Cities, parks, detailed terrain |
-| 30m | 30m | 900 m² | Counties, regions |
-| 90m | 90m | 8,100 m² | States, countries |
-
----
-
-## Project Structure
-
-```
-altitude-maps/
-├── 📜 visualize.py              # Main visualization tool
-├── 📜 download_usa_region.py    # Download real USA data
-├── 📜 setup.ps1                 # One-command setup
-├── 📂 src/
-│   ├── data_sources.py          # Sample data generator
-│   └── usa_elevation_data.py    # USGS downloader
-├── 📂 generated/                # Your visualizations (timestamped)
-├── 📂 data/                     # Downloaded elevation data
-└── 📂 learnings/                # Session notes
-```
-
----
-
-## Troubleshooting
-
-### "Module not found"
-```powershell
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-### "Can't activate venv"
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\venv\Scripts\Activate.ps1
-```
-
-### Need higher resolution or different area?
-
-Manual download options:
-- **USGS Earth Explorer**: https://earthexplorer.usgs.gov/
-- **National Map Downloader**: https://apps.nationalmap.gov/downloader/
+You now have:
+- ✅ A high-resolution static render
+- ✅ An interactive 3D viewer with USA data
+- ✅ Full control to customize everything
 
 ---
 
 ## Next Steps
 
-1. ✅ Generate sample visualizations
-2. ✅ Download a real region you're interested in
-3. 🔜 Create visualization from real data (next feature!)
-4. 🔜 Interactive 3D globe viewer
-5. 🔜 Add climate/temperature real data overlay
+### Try Different Styles
+
+```powershell
+# Dramatic mountain peaks (100-mile buckets)
+python visualize_usa_overhead.py --bucket-miles 100
+
+# Different color scheme
+python visualize_usa_overhead.py --colormap earth
+
+# Generate 9 different viewpoints automatically
+python visualize_usa_overhead.py --gen-nine
+```
+
+### Explore the Interactive Viewer
+
+1. Open `interactive_viewer_advanced.html`
+2. Adjust **Bucket Size** slider for different detail levels
+3. Try **Render Mode** → Switch between Bars and Surface
+4. Change **Color Scheme** 
+5. Adjust **Vertical Exaggeration**
+
+### Download More Regions
+
+Currently only USA is included. To add more regions:
+
+1. Go to https://portal.opentopography.org/raster?opentopoID=OTSRTM.082015.4326.1
+2. Select your region of interest
+3. Download as GeoTIFF
+4. Save to `data/regions/japan.tif` (or any name)
+5. Process: `python download_regions.py --regions japan`
+6. Refresh browser - new region appears in dropdown!
 
 ---
 
-## Tips
+## Troubleshooting
 
-- All outputs are **timestamped** - experiment freely!
-- Start with **small regions** (Denver, Mount Rainier) to test
-- **10m resolution** is amazing for detailed terrain
-- Data is **cached** - won't re-download
+### "File not found" Error
+
+The USA data file is missing. Download it:
+
+```powershell
+python download_continental_usa.py --yes
+```
+
+### "Module not found" Error
+
+The virtual environment isn't activated:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+python visualize_usa_overhead.py
+```
+
+### Interactive Viewer Shows Nothing
+
+Make sure you're opening the HTML file in a web browser (not as a local file in some apps). If using `file://` protocol doesn't work, run a local server:
+
+```powershell
+python -m http.server 8000
+# Then open: http://localhost:8000/interactive_viewer_advanced.html
+```
+
+### Slow/Laggy Interactive Viewer
+
+In the viewer sidebar, increase **Bucket Size** to 16 or 20. This reduces the number of terrain blocks.
 
 ---
 
-**Questions?** Check `learnings/learnings_1_altitude_maps_setup.md` for deep dive.
+## Common Tasks
 
+### Change Viewing Angle
+```powershell
+# Overhead (satellite view)
+python visualize_usa_overhead.py --camera-elevation 90
+
+# Dramatic side angle
+python visualize_usa_overhead.py --camera-elevation 20 --camera-azimuth 270
+```
+
+### Make Mountains More Dramatic
+```powershell
+python visualize_usa_overhead.py --vertical-exaggeration 15
+```
+
+### High-Resolution Output
+```powershell
+python visualize_usa_overhead.py --dpi 300 --scale-factor 8
+```
+
+### Custom Colors
+```powershell
+# Try: terrain, earth, ocean, viridis, plasma, inferno, grayscale
+python visualize_usa_overhead.py --colormap ocean
+```
+
+---
+
+## Learn More
+
+- **Full technical reference**: See [TECH.md](TECH.md)
+- **Project overview**: See [README.md](README.md)
+- **All CLI options**: Run `python visualize_usa_overhead.py --help`
+
+---
+
+**Ready to explore!** 🗺️
