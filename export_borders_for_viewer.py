@@ -7,14 +7,8 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Union
-
-try:
-    from src.borders import get_border_manager
-    import rasterio
-except ImportError as e:
-    print(f"Error importing modules: {e}")
-    print("Make sure geopandas and rasterio are installed")
-    sys.exit(1)
+import rasterio
+from src.borders import get_border_manager
 
 
 def export_borders_for_region(

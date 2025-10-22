@@ -123,7 +123,7 @@ def get_rendering_settings() -> Dict[str, Any]:
     settings = load_settings()
     return settings.get('rendering', {
         'default_bucket_size': 12,
-        'default_vertical_exaggeration': 0.01
+        'default_vertical_exaggeration': 4.0
     })
 
 

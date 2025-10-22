@@ -5,10 +5,10 @@ import time
 import pickle
 import numpy as np
 from pathlib import Path
+import rasterio
+from rasterio.mask import mask
 
 try:
-    import rasterio
-    from rasterio.mask import mask
     import geopandas as gpd
     from shapely.geometry import mapping
     HAS_GEOPANDAS = True

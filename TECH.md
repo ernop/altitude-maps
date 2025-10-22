@@ -145,7 +145,7 @@ python visualize_usa_overhead.py data/regions/japan.tif
 ```powershell
 --camera-elevation N     # Angle: 0=horizon, 90=overhead (default: 35)
 --camera-azimuth N       # Rotation: 0-360 degrees (default: 45)
---vertical-exaggeration N  # Height multiplier (default: 8.0)
+--vertical-exaggeration N  # Vertical scale: 1.0=true Earth scale, 0.1-50.0 (default: 4.0)
 --projection-zoom N      # Viewport fill: 0.90-0.99 (default: 0.99)
 ```
 
@@ -329,7 +329,7 @@ python -m http.server 8001
 
 **Rendering**:
 - Render Mode: Bars, Surface, Wireframe, Points
-- Vertical Exaggeration: 0.0001× to 5× (interactive slider)
+- Vertical Exaggeration: 0.1× to 50× (interactive slider, 1.0 = true Earth scale)
 - Grid Resolution: 10% to 100% (performance tuning)
 
 **Visual**:

@@ -22,9 +22,10 @@ tqdm==4.66.5
 # Image handling
 Pillow==11.0.0
 
-# Geospatial borders and masking
+# Geospatial data handling
 geopandas==1.0.1
+rasterio==1.4.3
 
-# Note: For cartopy, netCDF4, and rasterio on Windows, consider using conda:
-# conda install -c conda-forge cartopy rasterio netCDF4 geopandas
+# Note: For cartopy and netCDF4 on Windows, consider using conda:
+# conda install -c conda-forge cartopy netCDF4
 

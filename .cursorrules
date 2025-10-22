@@ -3,6 +3,12 @@
 ## Project Context
 This is a climate visualization project focused on showing temperature and climate patterns by altitude across the globe using Python 3.13.
 
+## Project Organization
+- **Top-level markdown docs**: Only `.cursorrules`, `README.md`, and `TECH.md` at root
+- **Documentation/learnings**: All other markdown files (guides, summaries, learnings) go in `learnings/` folder
+- **Code and resources**: Python scripts, HTML files, etc. can remain at top level
+- **Keep it clean**: Minimize documentation clutter at root - maintain clear project structure
+
 ## Development Patterns
 
 ### Environment
@@ -25,12 +31,37 @@ This is a climate visualization project focused on showing temperature and clima
 - GeoTIFF data uses natural orientation (North up, East right) - no transformations needed
 - Use geopandas for geographic borders and masking operations
 
+### Data Format Versioning & Cache Invalidation
+⚠️ **CRITICAL**: When changing data processing/export format:
+1. **Update the format version number** in export scripts
+2. **Add version validation** on data load (fail if version mismatch)
+3. **Document the change** in code comments
+4. **Re-export ALL cached/generated data** - don't mix old and new formats
+5. **Test with multiple regions** to ensure consistency
+
+Cached/Generated Data Locations:
+- `data/.cache/` - Masked/bordered raster data (pickled)
+- `generated/` - Exported JSON for web viewer
+- `generated/regions/` - Per-region exported data
+
+To invalidate all caches after format changes:
+```powershell
+# Delete cached data
+Remove-Item -Recurse -Force data\.cache\*
+Remove-Item -Recurse -Force generated\*
+
+# Re-export from source GeoTIFFs
+python export_for_web_viewer.py
+python download_regions.py  # If using regions
+```
+
 ### Visualization
 - Save outputs to `output/` directory
 - Create both static (matplotlib) and interactive (plotly) versions when appropriate
 - Use clear, colorblind-friendly color schemes
 - Add proper titles, labels, and legends
 - Include data source citations in visualizations
+- **Vertical Exaggeration**: Uses real-world scale where 1.0 = true Earth proportions, 2.0 = mountains twice as steep as reality. Both X/Z (horizontal) and Y (elevation) axes are in meters based on lat/lon bounds.
 
 ### Testing
 - Test with small data samples first before processing large datasets
@@ -57,17 +88,23 @@ This is a climate visualization project focused on showing temperature and clima
 # Setup/activate environment
 .\setup.ps1
 
-# Run visualization
-python visualize.py
-
-# Run with specific parameters
-python visualize.py --region global --variable temperature
-
 # Interactive 3D viewer (primary interface)
 python serve_viewer.py  # Visit http://localhost:8001
 
-# Export data for web viewer with borders
-python export_for_web_viewer.py data/usa.tif --export-borders
+# Export data for web viewer
+python export_for_web_viewer.py data/usa.tif
+
+# Clear all caches (use after format changes)
+python clear_caches.py
+
+# Check GeoTIFF orientation
+python check_geotiff_orientation.py data/your_file.tif
+
+# Run visualization (static output)
+python visualize.py --region global --variable temperature
+
+# Download regions
+python download_regions.py
 
 # Work with borders
 python border_utils.py --list  # List available countries

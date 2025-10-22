@@ -65,8 +65,8 @@ def main():
     parser.add_argument(
         '--vertical-exaggeration',
         type=float,
-        default=8.0,
-        help='Vertical scale multiplier for elevation. Higher = more dramatic. Default: 8.0'
+        default=4.0,
+        help='Vertical scale relative to horizontal. 1.0 = true Earth scale, 0.1-50.0 range (default: 4.0)'
     )
     parser.add_argument(
         '--projection-zoom',
@@ -214,7 +214,7 @@ def main():
                 cmd_parts.append(f"--bucket-pixels {args.bucket_pixels}")
             cmd_parts.append(f"--camera-elevation {view['elevation']}")
             cmd_parts.append(f"--camera-azimuth {view['azimuth']}")
-            if args.vertical_exaggeration != 8.0:
+            if args.vertical_exaggeration != 4.0:
                 cmd_parts.append(f"--vertical-exaggeration {args.vertical_exaggeration}")
             if args.projection_zoom != 0.99:
                 cmd_parts.append(f"--projection-zoom {args.projection_zoom}")

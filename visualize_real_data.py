@@ -20,13 +20,8 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-try:
-    import rasterio
-    from rasterio.plot import show
-    HAS_RASTERIO = True
-except ImportError:
-    HAS_RASTERIO = False
-    print("⚠️  Warning: rasterio not installed. Install with: pip install rasterio")
+import rasterio
+from rasterio.plot import show
 
 
 class RealDataVisualizer:
@@ -54,9 +49,6 @@ class RealDataVisualizer:
         Returns:
             (elevation_array, metadata_dict)
         """
-        if not HAS_RASTERIO:
-            raise ImportError("rasterio is required. Install with: pip install rasterio")
-        
         print(f"\n📂 Loading: {tif_path}")
         
         with rasterio.open(tif_path) as src:
@@ -83,7 +75,7 @@ class RealDataVisualizer:
             return elevation, metadata
     
     def create_raytraced_3d(self, elevation: np.ndarray, metadata: dict, 
-                           vertical_exaggeration: float = 3.0,
+                           vertical_exaggeration: float = 4.0,
                            azimuth: float = 315, altitude: float = 45) -> None:
         """
         Create a beautiful raytraced-style 3D visualization.
@@ -91,7 +83,7 @@ class RealDataVisualizer:
         Args:
             elevation: 2D array of elevation values
             metadata: Metadata dictionary
-            vertical_exaggeration: How much to exaggerate height (default 3x)
+            vertical_exaggeration: Vertical scale relative to horizontal. 1.0 = true Earth scale (default 4.0)
             azimuth: Light source direction (0-360 degrees)
             altitude: Light source angle (0-90 degrees)
         """
@@ -303,8 +295,8 @@ def main():
     parser.add_argument(
         '--exaggeration', '-e',
         type=float,
-        default=3.0,
-        help='Vertical exaggeration factor (default: 3.0)'
+        default=4.0,
+        help='Vertical exaggeration factor. 1.0 = true Earth scale, 0.1-50.0 range (default: 4.0)'
     )
     parser.add_argument(
         '--output', '-o',

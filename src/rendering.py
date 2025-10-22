@@ -11,12 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from PIL import Image
 from typing import Union, List, Optional
-
-try:
-    import rasterio
-    HAS_RASTERIO = True
-except ImportError:
-    HAS_RASTERIO = False
+import rasterio
 
 from src.borders import get_border_manager
 
@@ -98,7 +93,7 @@ def auto_crop_black_borders(image_path: Path, border_percent: float = 2.0, color
 
 def render_visualization(data: dict, output_dir: str = "generated",
                         camera_elevation: float = 35, camera_azimuth: float = 45,
-                        vertical_exaggeration: float = 8.0, projection_zoom: float = 0.99,
+                        vertical_exaggeration: float = 4.0, projection_zoom: float = 0.99,
                         render_as_bars: bool = None, dpi: int = 100, scale_factor: float = 4.0,
                         max_viz_size: int = 800, colormap: str = 'terrain',
                         background_color: str = '#000000', light_azimuth: float = 315,
@@ -116,7 +111,8 @@ def render_visualization(data: dict, output_dir: str = "generated",
         output_dir: The directory to save the output files.
         camera_elevation: Camera elevation angle in degrees (0=horizon, 90=overhead). Default: 35
         camera_azimuth: Camera azimuth angle in degrees (0-360, rotation). Default: 45
-        vertical_exaggeration: Vertical scale multiplier for elevation. Default: 8.0
+        vertical_exaggeration: Vertical scale relative to horizontal. 1.0 = true Earth scale, 
+                              higher = steeper mountains. Default: 4.0
         projection_zoom: Target viewport fill ratio (0.90-0.99, higher=tighter). Default: 0.99
         render_as_bars: If True, render as 3D rectangular prisms instead of surface. 
                        If None (default), auto-detect based on whether data is bucketed.
@@ -183,24 +179,42 @@ def render_visualization(data: dict, output_dir: str = "generated",
     
     y_size, x_size = elevation_viz_resampled.shape
     
-    # For bar charts with small grids, scale up coordinates for better visibility
-    coordinate_scale = 1.0
-    if render_as_bars and max(x_size, y_size) < 100:
-        coordinate_scale = 100.0 / max(x_size, y_size)
-        print(f"   - Small grid detected ({x_size}×{y_size}), applying {coordinate_scale:.1f}x coordinate scaling")
+    # Calculate real-world scale from geographic bounds
+    # This ensures vertical_exaggeration=1.0 means "true scale like real Earth"
+    lon_span = abs(bounds.right - bounds.left)  # degrees
+    lat_span = abs(bounds.top - bounds.bottom)  # degrees
     
-    X, Y = np.meshgrid(np.arange(x_size) * coordinate_scale, np.arange(y_size) * coordinate_scale)
-    Z = elevation_viz_resampled * VERTICAL_EXAGGERATION * coordinate_scale
+    # Calculate meters per degree at the center latitude
+    center_lat = (bounds.top + bounds.bottom) / 2.0
+    meters_per_deg_lon = 111_320 * np.cos(np.radians(center_lat))
+    meters_per_deg_lat = 111_320  # approximately constant
+    
+    # Calculate real-world dimensions in meters
+    width_meters = lon_span * meters_per_deg_lon
+    height_meters = lat_span * meters_per_deg_lat
+    
+    # Meters per pixel
+    meters_per_pixel_x = width_meters / x_size
+    meters_per_pixel_y = height_meters / y_size
+    
+    # Create coordinate grids in real-world meters
+    X = np.arange(x_size) * meters_per_pixel_x
+    Y = np.arange(y_size) * meters_per_pixel_y
+    X, Y = np.meshgrid(X, Y)
+    
+    # Apply vertical exaggeration to elevation (also in meters)
+    Z = elevation_viz_resampled * VERTICAL_EXAGGERATION
     Z_masked = np.ma.masked_invalid(Z)
     
-    # Scaled dimensions for display
-    x_size_display = x_size * coordinate_scale
-    y_size_display = y_size * coordinate_scale
+    # Display dimensions
+    x_size_display = width_meters
+    y_size_display = height_meters
     
     print(f"   - Data dimensions: {x_size} × {y_size} pixels")
+    print(f"   - Real-world size: {width_meters/1000:.1f} × {height_meters/1000:.1f} km")
+    print(f"   - Resolution: {meters_per_pixel_x:.1f} m/pixel (lon) × {meters_per_pixel_y:.1f} m/pixel (lat)")
     print(f"   - Aspect ratio: {x_size/y_size:.3f} (width/height)")
-    if coordinate_scale != 1.0:
-        print(f"   - Scaled display size: {x_size_display:.0f} × {y_size_display:.0f} units")
+    print(f"   - Vertical exaggeration: {VERTICAL_EXAGGERATION}x (1.0 = true Earth scale)")
     print(f"   Time: {time.time() - step_start:.2f}s")
 
     # --- 2. Setup Figure and Plot Surface ---
@@ -301,7 +315,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     ax.set_zlim(Z_masked.min(), Z_masked.max())
     
     # --- Draw Borders (Optional) ---
-    if draw_borders and tif_path and HAS_RASTERIO:
+    if draw_borders and tif_path:
         step_start_border = time.time()
         print(f"\n[*] Drawing country borders...", flush=True)
         
@@ -373,8 +387,6 @@ def render_visualization(data: dict, output_dir: str = "generated",
             print(f"   - Continuing without borders...")
     elif draw_borders and not tif_path:
         print(f"\n[!] Cannot draw borders: tif_path not provided")
-    elif draw_borders and not HAS_RASTERIO:
-        print(f"\n[!] Cannot draw borders: rasterio not installed")
     
     # Adjust box aspect based on camera angle
     # For angled/lateral views, make Z more prominent to show terrain relief

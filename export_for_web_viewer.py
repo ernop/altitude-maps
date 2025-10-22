@@ -1,16 +1,26 @@
 """
 Export elevation data for the interactive web viewer.
+
+FORMAT VERSION HISTORY:
+- v2 (2025-10-22): Natural GeoTIFF orientation, no transformations
+- v1 (legacy): Had fliplr() + rot90() transformations (DEPRECATED)
+
+⚠️ When changing export format, increment DATA_FORMAT_VERSION and re-export ALL data!
 """
 import sys
 import json
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 
 try:
     from src.data_processing import prepare_visualization_data
 except ImportError as e:
     print(f"Error importing modules: {e}")
     sys.exit(1)
+
+# Data format version - increment when changing data transformations/structure
+DATA_FORMAT_VERSION = 2
 
 def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0, 
                          mask_country: str = None, export_borders: bool = False):
@@ -67,8 +77,11 @@ def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0,
                 row_list.append(float(val))
         elevation_list.append(row_list)
     
-    # Create export data
+    # Create export data with versioning and metadata
     export_data = {
+        "format_version": DATA_FORMAT_VERSION,
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "source_file": str(Path(tif_path).name),
         "width": int(width),
         "height": int(height),
         "elevation": elevation_list,
@@ -82,6 +95,13 @@ def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0,
             "min": float(data['z_min']),
             "max": float(data['z_max']),
             "mean": float(np.nanmean(elevation_viz))
+        },
+        "orientation": {
+            "description": "Natural GeoTIFF orientation",
+            "pixel_0_0": "Northwest corner",
+            "row_direction": "North to South",
+            "col_direction": "West to East",
+            "transformations": "None"
         }
     }
     

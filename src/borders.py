@@ -6,12 +6,12 @@ import pickle
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
 import numpy as np
+import rasterio
+from rasterio.mask import mask as rasterio_mask
 
 try:
     import geopandas as gpd
     from shapely.geometry import mapping
-    import rasterio
-    from rasterio.mask import mask as rasterio_mask
     HAS_GEOPANDAS = True
 except ImportError:
     HAS_GEOPANDAS = False
