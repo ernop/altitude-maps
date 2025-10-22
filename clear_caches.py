@@ -25,7 +25,11 @@ def clear_caches(confirm: bool = False):
     print("\n" + "=" * 70)
     print("  CACHE CLEARING UTILITY")
     print("=" * 70)
-    print("\nThis will delete:")
+    print("\nPRESERVED (will NOT be deleted):")
+    print("   - data/*.tif (original GeoTIFF files)")
+    print("   - data/regions/*.tif (regional GeoTIFF files)")
+    print("   - data/usa_elevation/*.tif (USA elevation data)")
+    print("\nWill DELETE (cached/generated):")
     
     total_size = 0
     file_count = 0
