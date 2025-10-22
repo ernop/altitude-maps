@@ -40,6 +40,9 @@ This is a climate visualization project focused on showing temperature and clima
 - Update README.md for major feature additions
 - Document significant learnings in `learnings/learnings_N_<topic>.md`
 - Keep inline code comments focused on "why" not "what"
+- Never describe your own work as "stunning", "beautiful", "incredible" - don't be a braggart
+- Be humble about work you've done, not ostentatiously humble, just light and clear
+- Explain things as needed without self-praise
 
 ## Data Sources Priority
 1. **ERA5 Climate Reanalysis**: Comprehensive global climate data

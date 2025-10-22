@@ -260,6 +260,14 @@ python export_for_web_viewer.py [tif_file] [options]
 
 The interactive 3D viewer (`interactive_viewer_advanced.html`) provides real-time exploration of elevation data.
 
+**Primary Usage**:
+```powershell
+python -m http.server 8001
+# Open browser to: http://localhost:8001/interactive_viewer_advanced.html
+```
+
+**Note**: Requires local server - will not work with `file://` protocol.
+
 ### Features
 
 - **Region Switching**: Dropdown selector for all processed regions

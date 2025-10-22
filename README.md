@@ -1,45 +1,36 @@
 # 🗺️ Altitude Maps
 
-**Create stunning 3D visualizations of elevation data from anywhere on Earth.**
+**3D visualization toolkit for elevation data from anywhere on Earth.**
 
 ![Continental USA Example](Screenshot_20251021115239.png)
 
 ## What Is This?
 
-Altitude Maps is a Python toolkit for visualizing elevation and terrain data in beautiful, explorable ways. Whether you're a researcher, educator, or just curious about Earth's geography, this project makes it easy to:
+Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Whether you're a researcher, educator, or just curious about Earth's geography, this project lets you:
 
-- **Generate beautiful static renders** of any region's terrain
-- **Explore interactively in 3D** with intuitive flying camera controls
+- **Explore terrain interactively in 3D** with flying camera controls
+- **Generate static renders** of any region's terrain  
 - **Download elevation data** for anywhere in the world
-- **Customize everything** - colors, angles, resolution, render style
+- **Customize rendering** - colors, angles, resolution, render style
 
 ## What Can You Do With It?
 
-### 1. Create Stunning Static Visualizations
+### 1. Create Static Visualizations
 
 Generate high-resolution overhead views, 3D perspectives, or dramatic side-angle renders of any terrain:
 
 ```powershell
-# Beautiful overhead view of continental USA
+# Overhead view of continental USA
 python visualize_usa_overhead.py
 
 # With custom styling
 python visualize_usa_overhead.py --bucket-miles 100 --camera-elevation 35 --colormap earth
 
-# Generate 9 different viewpoints automatically
+# Generate 9 different viewpoints
 python visualize_usa_overhead.py --gen-nine
 ```
 
-**Outputs**: Publication-quality PNG images (300 DPI) with proper geographic labeling.
-
-### 2. Explore Terrain Interactively
-
-Open `interactive_viewer_advanced.html` in your browser and fly through 3D terrain like a video game:
-
-- **Roblox Studio-style controls** - WASD to fly, right-click to look around
-- **Real-time adjustments** - Change bucket size, colors, vertical exaggeration on the fly
-- **Multiple regions** - Switch between USA, Japan, Switzerland, and more
-- **Smooth performance** - Optimized rendering with instancing
+**Outputs**: PNG images (default 100 DPI) with geographic labeling.
 
 ### 3. Work With Real Data
 
@@ -64,14 +55,15 @@ All data is cached locally - download once, use forever.
 # 1. Setup (one time)
 .\setup.ps1
 
-# 2. Generate your first visualization
-python visualize_usa_overhead.py
+# 2. Start interactive viewer (recommended)
+python -m http.server 8001
+# Then open: http://localhost:8001/interactive_viewer_advanced.html
 
-# 3. Open interactive viewer
-# Just open interactive_viewer_advanced.html in your browser
+# 3. Or generate a static image
+python visualize_usa_overhead.py
 ```
 
-**That's it!** See [QUICKSTART.md](QUICKSTART.md) for more details.
+See [QUICKSTART.md](QUICKSTART.md) for more details.
 
 ## Key Features
 
@@ -79,24 +71,24 @@ python visualize_usa_overhead.py
 - Multiple render modes: smooth surfaces, 3D bars, wireframe
 - 7 color schemes: terrain, earth, ocean, viridis, plasma, grayscale, rainbow
 - Customizable camera angles, lighting, and vertical exaggeration
-- Auto-generate multiple viewpoints with `--gen-nine`
+- Generate multiple viewpoints with `--gen-nine`
 
 ### 🌍 **Global Coverage**
-- USA: Full coverage at 10m resolution
+- USA: 10m resolution via USGS 3DEP
 - 60+ pre-configured regions worldwide
 - Support for any GeoTIFF elevation data
-- Easy to add custom regions
+- Add custom regions as needed
 
 ### ⚡ **Performance**
-- Instanced rendering for 10,000+ terrain blocks at 60 FPS
+- Instanced rendering: 10,000+ terrain blocks at 60 FPS
 - Real-time bucketing and aggregation (MAX/AVERAGE/MIN/MEDIAN)
-- Data caching - never re-download
+- Data caching prevents re-downloading
 - Progressive loading for large datasets
 
-### 🎮 **Intuitive Controls**
+### 🎮 **Controls**
 - **Mouse**: Right-click to rotate, wheel to zoom, left-click to pan
-- **Keyboard**: WASD for flying, QE for up/down, Shift for speed boost
-- **Modifiers**: Ctrl (slow/precise), Alt (4× speed), Shift (2.5× speed)
+- **Keyboard**: WASD for flying, QE for up/down, Shift for speed
+- **Modifiers**: Ctrl (slow), Alt (fast), Shift (medium-fast)
 - **Presets**: Overhead, cardinal directions, isometric views
 
 ## Example Use Cases
@@ -104,7 +96,7 @@ python visualize_usa_overhead.py
 **Research Publication**: Generate high-res static renders with exact camera parameters  
 **Education**: Students explore mountain ranges interactively in 3D  
 **GIS Analysis**: Quick terrain visualization before detailed analysis  
-**Art/Design**: Create stunning terrain art with customizable colors and angles  
+**Art/Design**: Create terrain art with customizable colors and angles  
 **Game Development**: Preview elevation data for game level design
 
 ## Tech Stack
@@ -161,14 +153,14 @@ altitude-maps/
 
 ## Sample Outputs
 
-All visualizations are timestamped and saved to `generated/`:
+Visualizations are timestamped and saved to `generated/`:
 
 - **Overhead views**: Satellite-style perspectives
-- **3D terrain**: Dramatic side angles showing elevation
+- **3D terrain**: Side angles showing elevation
 - **Bar charts**: Bucketed elevation as 3D rectangular prisms
-- **Multiple viewpoints**: 9 angles automatically with `--gen-nine`
+- **Multiple viewpoints**: 9 angles with `--gen-nine`
 
-Every image includes:
+Images include:
 - Geographic coordinates and bounds
 - Elevation statistics (min/max/range)
 - Data source attribution

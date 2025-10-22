@@ -1,27 +1,22 @@
-# 🚀 Quick Start - 5 Minutes to Your First Visualization
+# 🚀 Quick Start - 5 Minutes
 
-## Step 1: Setup (One Time Only)
+## Step 1: Setup (One Time)
 
 ```powershell
-# Run this from PowerShell in the project directory
+# Run from PowerShell in the project directory
 .\setup.ps1
 ```
 
-This creates a Python virtual environment and installs all dependencies. Takes ~2 minutes.
+Creates a Python virtual environment and installs dependencies. Takes ~2 minutes.
 
-## Step 2: Generate Your First Visualization
+## Step 2: Start Interactive Viewer (Recommended)
 
 ```powershell
-python visualize_usa_overhead.py
+# Start local server
+python -m http.server 8001
+
+# Open in browser: http://localhost:8001/interactive_viewer_advanced.html
 ```
-
-**Result**: A beautiful overhead view of the entire continental USA saved to `generated/` with timestamp.
-
-**Expected time**: ~10 seconds
-
-## Step 3: Explore Interactively
-
-Just open `interactive_viewer_advanced.html` in your web browser!
 
 **Controls**:
 - **Right-click + drag** to look around
@@ -29,48 +24,58 @@ Just open `interactive_viewer_advanced.html` in your web browser!
 - **Shift** to fly faster
 - **Mouse wheel** to zoom
 
-## That's It!
+## Step 3: Or Generate a Static Image
+
+```powershell
+python visualize_usa_overhead.py
+```
+
+**Output**: Overhead view of continental USA in `generated/` folder (~10 seconds to render).
+
+## That's It
 
 You now have:
-- ✅ A high-resolution static render
-- ✅ An interactive 3D viewer with USA data
-- ✅ Full control to customize everything
+- ✅ Interactive 3D viewer with USA data
+- ✅ Static rendering capability
+- ✅ Customization options
 
 ---
 
 ## Next Steps
 
-### Try Different Styles
+### Explore the Interactive Viewer
+
+With the server running at `localhost:8001`:
+
+1. Adjust **Bucket Size** slider for different detail levels
+2. Try **Render Mode** → Switch between Bars and Surface
+3. Change **Color Scheme** 
+4. Adjust **Vertical Exaggeration**
+5. Use **Shift/Ctrl/Alt** modifiers for flight speed
+
+### Try Different Static Renders
 
 ```powershell
-# Dramatic mountain peaks (100-mile buckets)
+# 100-mile bucket aggregation
 python visualize_usa_overhead.py --bucket-miles 100
 
 # Different color scheme
 python visualize_usa_overhead.py --colormap earth
 
-# Generate 9 different viewpoints automatically
+# 9 different viewpoints
 python visualize_usa_overhead.py --gen-nine
 ```
 
-### Explore the Interactive Viewer
+### Add More Regions
 
-1. Open `interactive_viewer_advanced.html`
-2. Adjust **Bucket Size** slider for different detail levels
-3. Try **Render Mode** → Switch between Bars and Surface
-4. Change **Color Scheme** 
-5. Adjust **Vertical Exaggeration**
-
-### Download More Regions
-
-Currently only USA is included. To add more regions:
+Currently only USA is included. To add more:
 
 1. Go to https://portal.opentopography.org/raster?opentopoID=OTSRTM.082015.4326.1
 2. Select your region of interest
 3. Download as GeoTIFF
 4. Save to `data/regions/japan.tif` (or any name)
 5. Process: `python download_regions.py --regions japan`
-6. Refresh browser - new region appears in dropdown!
+6. Refresh viewer - new region appears in dropdown
 
 ---
 
@@ -95,11 +100,11 @@ python visualize_usa_overhead.py
 
 ### Interactive Viewer Shows Nothing
 
-Make sure you're opening the HTML file in a web browser (not as a local file in some apps). If using `file://` protocol doesn't work, run a local server:
+The viewer requires a local server (doesn't work with `file://` protocol):
 
 ```powershell
-python -m http.server 8000
-# Then open: http://localhost:8000/interactive_viewer_advanced.html
+python -m http.server 8001
+# Then open: http://localhost:8001/interactive_viewer_advanced.html
 ```
 
 ### Slow/Laggy Interactive Viewer
