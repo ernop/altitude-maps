@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced USA Elevation 3D Viewer</title>
+    
+    <!-- Select2 for typeahead dropdowns -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -387,6 +391,75 @@
             background: rgba(255, 136, 68, 0.2);
             border-radius: 4px;
         }
+        
+        /* Select2 dark theme overrides */
+        .select2-container--default .select2-selection--single {
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 5px;
+            height: 38px;
+        }
+        
+        .select2-container--default .select2-selection--single:hover {
+            border-color: #44ff88;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            color: #44ff88;
+            line-height: 36px;
+            font-family: 'Consolas', monospace;
+            padding-left: 10px;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px;
+        }
+        
+        .select2-dropdown {
+            background-color: #1a1a1a;
+            border: 1px solid #44ff88;
+            border-radius: 5px;
+        }
+        
+        .select2-container--default .select2-search--dropdown .select2-search__field {
+            background-color: #0a0a0a;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 4px;
+        }
+        
+        .select2-container--default .select2-search--dropdown .select2-search__field:focus {
+            border-color: #44ff88;
+            outline: none;
+        }
+        
+        .select2-container--default .select2-results__option {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 8px 10px;
+        }
+        
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #44ff88;
+            color: #000;
+        }
+        
+        .select2-container--default .select2-results__option[aria-selected=true] {
+            background-color: #2a2a2a;
+            color: #44ff88;
+        }
+        
+        .select2-container {
+            width: 100% !important;
+        }
+        
+        /* Bucket size range annotations */
+        #bucketSizeRangeLabel {
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -427,7 +500,8 @@
                     <div><b>Alt+Left Drag:</b> Move forward/back (linear)</div>
                     <div><b>Right-Click Drag:</b> Rotate around click point</div>
                     <div><b>Middle Mouse Drag:</b> Move forward/back (linear)</div>
-                    <div><b>Scroll Wheel:</b> Move forward/back (linear)</div>
+                    <div><b>Scroll Wheel:</b> Move forward/back (fast)</div>
+                    <div><b>Shift+Scroll:</b> Precise zoom (1/20× speed) 🎯</div>
                 </div>
                 
                 <div class="controls-section">
@@ -453,7 +527,7 @@
         </div>
         
         <div id="controls">
-            <h2>🌍 Region Selector</h2>
+            <h2>Region Selector</h2>
             
             <div class="control-group">
                 <label>
@@ -463,12 +537,10 @@
                 <select id="regionSelect" style="width: 100%; padding: 8px; margin-top: 5px; background: #1a1a1a; color: #44ff88; border: 1px solid #333; border-radius: 4px; font-family: 'Consolas', monospace;">
                     <option value="">Loading regions...</option>
                 </select>
-                <div class="info-box" id="regionInfo">
-                    Select a region to view its elevation data
-                </div>
+                <!-- Info: Select a region to view its elevation data -->
             </div>
             
-            <h2>🔲 Real-Time Bucketing</h2>
+            <h2>Real-Time Bucketing</h2>
             
             <div class="control-group">
                 <label>
@@ -476,9 +548,14 @@
                     <span class="value-display" id="bucketSizeValue">1×</span>
                 </label>
                 <input type="range" id="bucketSize" min="1" max="50" step="1" value="1">
-                <div class="info-box">
+                <!-- 
+                    BUCKETING EXPLANATION (PROTECTED - DO NOT REMOVE):
                     Combine N×N pixels into one bar. 1× = full resolution, 10× = 10×10 pixels per bar.
-                </div>
+                    This is a performance optimization that groups nearby elevation data points into "buckets".
+                    Instead of rendering every pixel as a separate 3D bar, it combines N×N pixels into one bucket.
+                    The aggregation method (MAX, AVERAGE, MIN, MEDIAN) determines which elevation value represents the bucket.
+                -->
+                <div id="bucketSizeRangeLabel"></div>
             </div>
             
             <div class="control-group">
@@ -506,22 +583,23 @@
             <div class="control-group">
                 <label>
                     Vertical Exaggeration
-                    <span class="value-display" id="vertExagValue">50.0x</span>
+                    <span class="value-display" id="vertExagValue">0.001x</span>
                 </label>
-                <input type="range" id="vertExag" min="0.1" max="300" step="0.1" value="50.0">
+                <input type="range" id="vertExag" min="0.00001" max="0.3" step="0.00001" value="0.001">
                 <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.5)">0.5x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(1.0)">1.0x (True)</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(4.0)">4.0x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(10.0)">10.0x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(25.0)">25.0x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.00001)">0.00001x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.0001)">0.0001x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.001)">0.001x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.005)">0.005x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.01)">0.01x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.05)">0.05x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.1)">0.1x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.3)">0.3x</button>
                 </div>
-                <div class="info-box">
-                    1.0x = true Earth scale. Higher values make mountains steeper than reality.
-                </div>
+                <!-- Info: Very low values for 1:1 grid rendering. Higher = more visible elevation changes. -->
             </div>
             
-            <h2>🎨 Visual Style</h2>
+            <h2>Visual Style</h2>
             
             <div class="control-group">
                 <label>Color Scheme</label>
@@ -555,15 +633,15 @@
                 <label for="autoRotate">Auto-Rotate</label>
             </div>
             
-            <h2>📹 Camera</h2>
+            <h2>Camera</h2>
             
             <div class="button-grid">
-                <button onclick="setView('overhead')">⬇ Overhead</button>
+                <button onclick="setView('overhead')"><span style="font-size: 18px;">⬇</span> Overhead</button>
                 <button onclick="setView('isometric')">🎯 Isometric</button>
-                <button onclick="setView('north')">⬆ North</button>
-                <button onclick="setView('south')">⬇ South</button>
-                <button onclick="setView('east')">➡ East</button>
-                <button onclick="setView('west')">⬅ West</button>
+                <button onclick="setView('north')"><span style="font-size: 18px;">⬆</span> North</button>
+                <button onclick="setView('south')"><span style="font-size: 18px;">⬇</span> South</button>
+                <button onclick="setView('east')"><span style="font-size: 18px;">➡</span> East</button>
+                <button onclick="setView('west')"><span style="font-size: 18px;">⬅</span> West</button>
             </div>
             
             <div style="margin-top: 15px;">
@@ -575,6 +653,11 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- jQuery (required by Select2) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Select2 for typeahead dropdowns -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     
     <script>
         // Global variables
@@ -597,10 +680,10 @@
         
         // Parameters
         let params = {
-            bucketSize: 1,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
+            bucketSize: 8,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
             aggregation: 'max',
             renderMode: 'bars',
-            verticalExaggeration: 50.0,  // Default: moderately dramatic
+            verticalExaggeration: 0.001,  // Default: subtle for 1:1 grid
             colorScheme: 'terrain',
             wireframeOverlay: false,
             showGrid: false,
@@ -738,8 +821,16 @@
                 // No manifest, use default single region
                 selectElement.innerHTML = '<option value="default">USA (Default)</option>';
                 document.getElementById('currentRegion').textContent = 'USA';
-                document.getElementById('regionInfo').textContent = 'Continental United States elevation data';
                 currentRegionId = 'default';
+                
+                // Reinitialize Select2
+                $('#regionSelect').select2('destroy');
+                $('#regionSelect').select2({
+                    placeholder: 'Select a region...',
+                    allowClear: false,
+                    width: '100%'
+                });
+                
                 return 'default';
             }
             
@@ -751,11 +842,11 @@
             for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
                 // Determine group based on region name/id
                 let group = 'Other';
-                if (regionId.includes('usa_') || ['california', 'texas', 'colorado', 'washington', 'new_york', 'florida', 'arizona', 'alaska', 'hawaii'].includes(regionId)) {
+                if (regionId.includes('usa_') || ['california', 'texas', 'colorado', 'washington', 'new_york', 'florida', 'arizona', 'alaska', 'hawaii', 'oregon', 'nevada', 'utah', 'idaho', 'montana', 'wyoming', 'new_mexico', 'north_dakota', 'south_dakota', 'nebraska', 'kansas', 'oklahoma', 'minnesota', 'iowa', 'missouri', 'arkansas', 'louisiana', 'wisconsin', 'illinois', 'michigan', 'indiana', 'ohio', 'mississippi', 'alabama', 'tennessee', 'kentucky', 'georgia', 'south_carolina', 'north_carolina', 'virginia', 'west_virginia', 'maryland', 'delaware', 'new_jersey', 'pennsylvania', 'connecticut', 'rhode_island', 'massachusetts', 'vermont', 'new_hampshire', 'maine'].includes(regionId)) {
                     group = 'USA';
                 } else if (['canada', 'mexico'].includes(regionId)) {
                     group = 'North America';
-                } else if (['japan', 'china', 'south_korea', 'india', 'thailand', 'vietnam', 'nepal'].includes(regionId)) {
+                } else if (['japan', 'china', 'south_korea', 'india', 'thailand', 'vietnam', 'nepal', 'shikoku', 'hokkaido', 'honshu', 'kyushu'].includes(regionId)) {
                     group = 'Asia';
                 } else if (['germany', 'france', 'italy', 'spain', 'uk', 'poland', 'norway', 'sweden', 'switzerland', 'austria', 'greece', 'netherlands', 'iceland'].includes(regionId)) {
                     group = 'Europe';
@@ -807,6 +898,14 @@
             currentRegionId = firstRegionId;
             updateRegionInfo(firstRegionId);
             
+            // Reinitialize Select2 after populating options
+            $('#regionSelect').select2('destroy');
+            $('#regionSelect').select2({
+                placeholder: 'Select a region...',
+                allowClear: false,
+                width: '100%'
+            });
+            
             return firstRegionId;
         }
         
@@ -845,6 +944,9 @@
                 recreateBorders();
                 updateStats();
                 
+                // Sync UI controls with current params
+                syncUIControls();
+                
                 // Reset camera for new terrain size
                 resetCamera();
                 
@@ -865,6 +967,17 @@
         
         function hideLoading() {
             document.getElementById('loading').style.display = 'none';
+        }
+        
+        // Sync UI controls with current params
+        function syncUIControls() {
+            // Bucket size
+            document.getElementById('bucketSize').value = params.bucketSize;
+            document.getElementById('bucketSizeValue').textContent = `${params.bucketSize}×`;
+            
+            // Vertical exaggeration
+            document.getElementById('vertExag').value = params.verticalExaggeration;
+            document.getElementById('vertExagValue').textContent = `${params.verticalExaggeration.toFixed(5)}x`;
         }
         
         // CLIENT-SIDE BUCKETING ALGORITHMS
@@ -968,8 +1081,8 @@
                 height: bucketedHeight,
                 elevation: bucketedElevation,
                 stats: rawElevationData.stats,
-                bucketSizeMetersX: actualBucketSizeMetersX,  // Actual size to tile perfectly
-                bucketSizeMetersY: actualBucketSizeMetersY
+                bucketSizeMetersX: bucketSizeMetersX,  // Actual size to tile perfectly
+                bucketSizeMetersY: bucketSizeMetersY
             };
             
             const duration = (performance.now() - startTime).toFixed(2);
@@ -1141,31 +1254,52 @@
             edgeMarkers.forEach(marker => scene.remove(marker));
             edgeMarkers = [];
             
-            if (!rawElevationData) return;
+            if (!rawElevationData || !processedData) return;
             
-            const scale = calculateRealWorldScale();
+            const gridWidth = processedData.width;
+            const gridHeight = processedData.height;
             
             // Get max elevation for positioning markers above terrain
             const maxElev = rawElevationData.stats.max * params.verticalExaggeration * 1.2;
             
-            // Create text sprites for N, E, S, W
-            // The terrain is centered at origin, so markers go at the edges:
-            // Geographic mapping: +X=East, -X=West, -Z=North, +Z=South
-            // North edge: at the north (top) of the terrain, which is at -Z
-            // The terrain spans from (-halfHeight to +halfHeight) in Z after centering
+            // Calculate actual coordinate extents based on render mode
+            let xExtent, zExtent, avgSize;
+            if (params.renderMode === 'bars') {
+                // Bars use integer grid with aspect ratio scaling
+                const scale = calculateRealWorldScale();
+                const bucketMultiplier = params.bucketSize;
+                const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
+                xExtent = (gridWidth - 1) * bucketMultiplier / 2;
+                zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio / 2;
+                avgSize = (xExtent + zExtent);
+            } else if (params.renderMode === 'points') {
+                // Points use meter-based positioning
+                const bucketSizeMetersX = processedData.bucketSizeMetersX || calculateRealWorldScale().metersPerPixelX;
+                const bucketSizeMetersY = processedData.bucketSizeMetersY || calculateRealWorldScale().metersPerPixelY;
+                xExtent = (gridWidth - 1) * bucketSizeMetersX / 2;
+                zExtent = (gridHeight - 1) * bucketSizeMetersY / 2;
+                avgSize = (xExtent + zExtent);
+            } else {
+                // Surface uses meter-based positioning (centered PlaneGeometry)
+                const scale = calculateRealWorldScale();
+                xExtent = scale.widthMeters / 2;
+                zExtent = scale.heightMeters / 2;
+                avgSize = (scale.widthMeters + scale.heightMeters) / 2;
+            }
+            
+            // Create text sprites for N, E, S, W at appropriate edges
             const markers = [
-                { text: 'N', x: 0, z: -scale.heightMeters / 2, color: 0xff4444 },      // North edge (min Z)
-                { text: 'S', x: 0, z: scale.heightMeters / 2, color: 0x4488ff },       // South edge (max Z)
-                { text: 'E', x: scale.widthMeters / 2, z: 0, color: 0x44ff44 },        // East edge (max X)
-                { text: 'W', x: -scale.widthMeters / 2, z: 0, color: 0xffff44 }        // West edge (min X)
+                { text: 'N', x: 0, z: -zExtent, color: 0xff4444 },      // North edge
+                { text: 'S', x: 0, z: zExtent, color: 0x4488ff },       // South edge
+                { text: 'E', x: xExtent, z: 0, color: 0x44ff44 },        // East edge
+                { text: 'W', x: -xExtent, z: 0, color: 0xffff44 }        // West edge
             ];
             
             markers.forEach(markerData => {
                 const sprite = createTextSprite(markerData.text, markerData.color);
                 sprite.position.set(markerData.x, maxElev, markerData.z);
                 
-                // Scale based on map size (larger maps = larger markers)
-                const avgSize = (scale.widthMeters + scale.heightMeters) / 2;
+                // Scale based on terrain size
                 const baseScale = avgSize * 0.02;  // 2% of average dimension
                 sprite.scale.set(baseScale, baseScale, baseScale);
                 
@@ -1215,19 +1349,18 @@
         }
         
         function updateEdgeMarkers() {
-            if (!rawElevationData || edgeMarkers.length === 0) return;
+            if (!rawElevationData || !processedData || edgeMarkers.length === 0) return;
             
             // Update marker positions based on current vertical exaggeration
-            const scale = calculateRealWorldScale();
-            const halfWidth = scale.widthMeters / 2;
-            const halfHeight = scale.heightMeters / 2;
+            const gridWidth = processedData.width;
+            const gridHeight = processedData.height;
             const maxElev = rawElevationData.stats.max * params.verticalExaggeration * 1.5;
             
             // Update positions (N, S, E, W order)
-            if (edgeMarkers[0]) edgeMarkers[0].position.set(0, maxElev, -halfHeight);  // N
-            if (edgeMarkers[1]) edgeMarkers[1].position.set(0, maxElev, halfHeight);   // S
-            if (edgeMarkers[2]) edgeMarkers[2].position.set(halfWidth, maxElev, 0);    // E
-            if (edgeMarkers[3]) edgeMarkers[3].position.set(-halfWidth, maxElev, 0);   // W
+            if (edgeMarkers[0]) edgeMarkers[0].position.set(0, maxElev, -gridHeight / 2);  // N
+            if (edgeMarkers[1]) edgeMarkers[1].position.set(0, maxElev, gridHeight / 2);   // S
+            if (edgeMarkers[2]) edgeMarkers[2].position.set(gridWidth / 2, maxElev, 0);    // E
+            if (edgeMarkers[3]) edgeMarkers[3].position.set(-gridWidth / 2, maxElev, 0);   // W
         }
         
         function setupScene() {
@@ -1295,19 +1428,51 @@
         }
         
         function setupControls() {
+            // Initialize Select2 for region selector (typeahead with autocomplete)
+            $('#regionSelect').select2({
+                placeholder: 'Select a region...',
+                allowClear: false,
+                width: '100%'
+            });
+            
+            // Initialize Select2 for color scheme (typeahead with autocomplete)
+            $('#colorScheme').select2({
+                placeholder: 'Select a color scheme...',
+                allowClear: false,
+                width: '100%',
+                minimumResultsForSearch: Infinity // Disable search for short lists
+            });
+            
             // Region selector
-            document.getElementById('regionSelect').addEventListener('change', (e) => {
-                const regionId = e.target.value;
+            $('#regionSelect').on('change', function(e) {
+                const regionId = $(this).val();
                 if (regionId && regionId !== currentRegionId) {
                     loadRegion(regionId);
                 }
             });
+            
+            // Update bucket size range label
+            function updateBucketSizeLabel(value) {
+                const label = document.getElementById('bucketSizeRangeLabel');
+                if (value === 1) {
+                    label.textContent = 'Full resolution (1 pixel = 1 bar)';
+                } else if (value <= 5) {
+                    label.textContent = `Low reduction (${value}×${value} pixels per bar)`;
+                } else if (value <= 15) {
+                    label.textContent = `Medium reduction (${value}×${value} pixels per bar)`;
+                } else if (value <= 30) {
+                    label.textContent = `High reduction (${value}×${value} pixels per bar)`;
+                } else {
+                    label.textContent = `Very high reduction (${value}×${value} pixels per bar)`;
+                }
+            }
             
             // Bucket size with debouncing for better performance
             let bucketSizeTimeout;
             document.getElementById('bucketSize').addEventListener('input', (e) => {
                 params.bucketSize = parseInt(e.target.value);
                 document.getElementById('bucketSizeValue').textContent = `${params.bucketSize}×`;
+                updateBucketSizeLabel(params.bucketSize);
                 
                 // Debounce: only update after user stops dragging for 150ms
                 clearTimeout(bucketSizeTimeout);
@@ -1316,6 +1481,9 @@
                     recreateTerrain();
                 }, 150);
             });
+            
+            // Initialize bucket size label
+            updateBucketSizeLabel(params.bucketSize);
             
             // Aggregation method
             document.getElementById('aggregation').addEventListener('change', (e) => {
@@ -1335,8 +1503,18 @@
             let vertExagTimeout;
             document.getElementById('vertExag').addEventListener('input', (e) => {
                 params.verticalExaggeration = parseFloat(e.target.value);
-                // Format display based on value size
-                let displayValue = params.verticalExaggeration.toFixed(1);
+                // Format display based on value size - handle very small values
+                const val = params.verticalExaggeration;
+                let displayValue;
+                if (val < 0.0001) {
+                    displayValue = val.toFixed(5);  // Show 0.00001
+                } else if (val < 0.01) {
+                    displayValue = val.toFixed(4);  // Show 0.0001
+                } else if (val < 1) {
+                    displayValue = val.toFixed(3);
+                } else {
+                    displayValue = val.toFixed(2);
+                }
                 document.getElementById('vertExagValue').textContent = displayValue + 'x';
                 
                 // Debounce terrain updates (especially important for bars mode)
@@ -1347,8 +1525,8 @@
             });
             
             // Color scheme
-            document.getElementById('colorScheme').addEventListener('change', (e) => {
-                params.colorScheme = e.target.value;
+            $('#colorScheme').on('change', function(e) {
+                params.colorScheme = $(this).val();
                 updateColors();
             });
             
@@ -1415,7 +1593,7 @@
                     // Handle Alt+Left-drag or Middle-drag as linear zoom
                     if ((currentModifiers.alt && e.buttons === 1) || e.buttons === 4) {  // Left with Alt OR Middle button
                         const deltaY = e.clientY - lastMouseY;
-                        linearZoom(deltaY *2);  // Drag down (positive) = move forward
+                        linearZoom(deltaY * 2);  // Drag down (positive) = move forward
                         e.preventDefault();
                         lastMouseY = e.clientY;
                     } else {
@@ -1447,11 +1625,37 @@
             camera.getWorldDirection(forward);
             forward.normalize();
             
-            // Linear movement speed (meters per scroll tick) - 10x faster
-            // Scale based on terrain size for comfort, but movement itself is LINEAR
-            const scale = rawElevationData ? calculateRealWorldScale() : { widthMeters: 1000, heightMeters: 1000 };
-            const avgTerrainSize = (scale.widthMeters + scale.heightMeters) / 2;
-            const baseSpeed = avgTerrainSize * 0.05;  // 5% of terrain size per tick (10x faster)
+            // Linear movement speed (units per scroll tick) - fast by default
+            // Scale based on actual coordinate extent
+            if (rawElevationData && processedData) {
+                const gridWidth = processedData.width;
+                const gridHeight = processedData.height;
+                const scale = calculateRealWorldScale();
+                
+                // Calculate actual coordinate extent (varies by render mode)
+                let xExtent, zExtent;
+                if (params.renderMode === 'bars') {
+                    // Bars use integer grid with aspect ratio scaling
+                    const bucketMultiplier = params.bucketSize;
+                    const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
+                    xExtent = (gridWidth - 1) * bucketMultiplier;
+                    zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio;
+                } else {
+                    // Other modes use meter-based coordinates
+                    xExtent = scale.widthMeters;
+                    zExtent = scale.heightMeters;
+                }
+                
+                const avgSize = (xExtent + zExtent) / 2;
+                var baseSpeed = avgSize * 0.15;  // 15% of terrain size per tick - faster movement
+            } else {
+                var baseSpeed = 50;  // Default speed when no data loaded
+            }
+            
+            // Shift modifier for precise zoom (1/20th speed)
+            if (keyboard.shift) {
+                baseSpeed /= 20;  // Very precise control
+            }
             
             // Apply linear movement (scroll forward/down = move forward into scene)
             // Scroll forward (down/away) = positive delta → move forward
@@ -1577,9 +1781,27 @@
             const t0 = performance.now();
             console.log(`🎨 Creating terrain in ${params.renderMode} mode...`);
             
-            // Remove old terrain
-            if (terrainMesh) scene.remove(terrainMesh);
-            if (wireframeMesh) scene.remove(wireframeMesh);
+            // Remove old terrain and DISPOSE geometry/materials
+            if (terrainMesh) {
+                console.log(`🗑️ Removing old terrainMesh...`);
+                scene.remove(terrainMesh);
+                if (terrainMesh.geometry) terrainMesh.geometry.dispose();
+                if (terrainMesh.material) {
+                    if (Array.isArray(terrainMesh.material)) {
+                        terrainMesh.material.forEach(m => m.dispose());
+                    } else {
+                        terrainMesh.material.dispose();
+                    }
+                }
+                terrainMesh = null;
+            }
+            if (wireframeMesh) {
+                console.log(`🗑️ Removing old wireframeMesh...`);
+                scene.remove(wireframeMesh);
+                if (wireframeMesh.geometry) wireframeMesh.geometry.dispose();
+                if (wireframeMesh.material) wireframeMesh.material.dispose();
+                wireframeMesh = null;
+            }
             
             const { width, height, elevation } = processedData;
             
@@ -1594,11 +1816,27 @@
                 createSurfaceTerrain(width, height, elevation, scale);
             }
             
-            // Center terrain (now in meters, not pixels)
+            // Center terrain - different centering for different modes
             if (terrainMesh) {
-                terrainMesh.position.x = -scale.widthMeters / 2;
-                terrainMesh.position.z = -scale.heightMeters / 2;
-                console.log(`🎯 Terrain mesh offset: (${terrainMesh.position.x.toFixed(0)}, ${terrainMesh.position.z.toFixed(0)}) to center map`);
+                if (params.renderMode === 'bars') {
+                    // Bars use integer grid with aspect ratio scaling
+                    const bucketMultiplier = params.bucketSize;
+                    const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
+                    terrainMesh.position.x = -(width - 1) * bucketMultiplier / 2;
+                    terrainMesh.position.z = -(height - 1) * bucketMultiplier * aspectRatio / 2;
+                    console.log(`🎯 Bars centered: grid ${width}×${height} × ${bucketMultiplier}, aspect ${aspectRatio.toFixed(3)}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
+                } else if (params.renderMode === 'points') {
+                    // Points use meter-based positioning, center based on actual extent
+                    const bucketSizeMetersX = processedData.bucketSizeMetersX || scale.metersPerPixelX;
+                    const bucketSizeMetersY = processedData.bucketSizeMetersY || scale.metersPerPixelY;
+                    terrainMesh.position.x = -(width - 1) * bucketSizeMetersX / 2;
+                    terrainMesh.position.z = -(height - 1) * bucketSizeMetersY / 2;
+                    console.log(`🎯 Points centered: ${width}×${height}, offset (${terrainMesh.position.x.toFixed(0)}, ${terrainMesh.position.z.toFixed(0)})m`);
+                } else {
+                    // Surface mode: PlaneGeometry is already centered, but position it at origin
+                    terrainMesh.position.set(0, 0, 0);
+                    console.log(`🎯 Surface centered: geometry naturally centered`);
+                }
             }
             
             const t1 = performance.now();
@@ -1614,41 +1852,42 @@
         }
         
         function createBarsTerrain(width, height, elevation, scale) {
-            // Use instanced rendering for MUCH better performance
+            // Use integer grid with rectangular bars to handle non-square pixels
             const dummy = new THREE.Object3D();
             
-            // Each bucket has been sized to exactly tile the map (no overlaps)
-            const bucketSizeMetersX = processedData.bucketSizeMetersX;
-            const bucketSizeMetersY = processedData.bucketSizeMetersY;
+            // Calculate aspect ratio from real-world pixel dimensions
+            const metersPerPixelX = scale.metersPerPixelX;
+            const metersPerPixelY = scale.metersPerPixelY;
+            const aspectRatio = metersPerPixelY / metersPerPixelX;  // height/width ratio
             
-            // Create buckets using actual dimensions (may not be perfectly square due to map proportions)
-            const baseGeometry = new THREE.BoxGeometry(bucketSizeMetersX, 1, bucketSizeMetersY, 1, 1, 1);
+            // Scale bar size by bucket multiplier (integer grid system)
+            const bucketMultiplier = params.bucketSize;
             
-            console.log(`📦 Creating bars: ${(bucketSizeMetersX/1000).toFixed(2)}km × ${(bucketSizeMetersY/1000).toFixed(2)}km each`);
-            console.log(`📦 Bucket grid dimensions: ${width} × ${height} buckets`);
-            console.log(`📦 Box geometry size: ${bucketSizeMetersX.toFixed(0)}m × ${bucketSizeMetersY.toFixed(0)}m`);
-            console.log(`📦 Total coverage: ${(width * bucketSizeMetersX/1000).toFixed(1)}km × ${(height * bucketSizeMetersY/1000).toFixed(1)}km`);
-            console.log(`📦 Map extent: ${(scale.widthMeters/1000).toFixed(1)}km × ${(scale.heightMeters/1000).toFixed(1)}km`);
+            // Create rectangular bars that match the pixel aspect ratio
+            const barWidth = 0.99 * bucketMultiplier;
+            const barDepth = 0.99 * bucketMultiplier * aspectRatio;  // Scaled by aspect ratio
+            const baseGeometry = new THREE.BoxGeometry(barWidth, 1, barDepth, 1, 1, 1);
             
-            // Collect valid bar data first
-            // GeoTIFF: elevation[row][col] where row=North→South (i), col=West→East (j)
-            // Three.js: x=East (meters), z=South (meters), y=Up (meters)
+            console.log(`📦 GRID-BASED: ${width} × ${height} bars (bucket multiplier: ${bucketMultiplier}×)`);
+            console.log(`📦 Pixel aspect ratio: ${aspectRatio.toFixed(3)} (${aspectRatio > 1 ? 'taller' : 'wider'})`);
+            console.log(`📦 Bar size: ${barWidth.toFixed(2)} × ${barDepth.toFixed(2)} grid units`);
+            
+            // Collect bar data - integer grid positioning with aspect-corrected spacing
             const barData = [];
             
-            for (let i = 0; i < height; i++) {  // i = row index (North to South)
-                for (let j = 0; j < width; j++) {  // j = col index (West to East)
+            for (let i = 0; i < height; i++) {  // i = row index
+                for (let j = 0; j < width; j++) {  // j = col index
                     let z = elevation[i] && elevation[i][j];
                     
-                    // Use 0 for missing data instead of skipping
+                    // Use 0 for missing data
                     if (z === null || z === undefined) z = 0;
                     
-                    const elev = Math.max(z * params.verticalExaggeration, 0.1); // Minimum 0.1m height
+                    const elev = Math.max(z * params.verticalExaggeration, 0.1);
                     const color = getColorForElevation(z);
                     
-                    // Position bars: each bucket occupies its allocated physical area
-                    // Center the bar within its bucket
-                    const xPos = j * bucketSizeMetersX + bucketSizeMetersX / 2;
-                    const zPos = i * bucketSizeMetersY + bucketSizeMetersY / 2;
+                    // Position on integer grid, scaled by aspect ratio in Z direction
+                    const xPos = j * bucketMultiplier;  // Column × bucket size
+                    const zPos = i * bucketMultiplier * aspectRatio;  // Row × bucket size × aspect ratio
                     barData.push({ x: xPos, y: elev / 2, z: zPos, height: elev, color });
                 }
             }
@@ -1658,6 +1897,9 @@
                 baseGeometry,
                 new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
                     // No roughness/metalness - simpler lighting
+                    side: THREE.FrontSide,  // Only render front faces
+                    depthTest: true,
+                    depthWrite: true
                 }),
                 barCount
             );
@@ -1685,7 +1927,7 @@
                 console.log(`📦 Sample bars (first 3):`);
                 for (let i = 0; i < Math.min(3, barCount); i++) {
                     const bar = barData[i];
-                    console.log(`   Bar ${i}: pos=(${bar.x.toFixed(0)}, ${bar.y.toFixed(0)}, ${bar.z.toFixed(0)}), height=${bar.height.toFixed(0)}m`);
+                    console.log(`   Bar ${i}: grid pos=(${bar.x.toFixed(1)}, ${bar.z.toFixed(1)}), height=${bar.height.toFixed(2)}`);
                 }
             }
             
@@ -1713,6 +1955,19 @@
             scene.add(terrainMesh);
             stats.bars = barCount;
             console.log(`✅ Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
+            console.log(`📊 Scene now has ${scene.children.length} total objects`);
+            
+            // DEBUG: List all meshes in scene
+            let meshCount = 0;
+            let instancedMeshCount = 0;
+            scene.traverse((obj) => {
+                if (obj instanceof THREE.Mesh) meshCount++;
+                if (obj instanceof THREE.InstancedMesh) {
+                    instancedMeshCount++;
+                    console.log(`   🔍 InstancedMesh found with ${obj.count} instances`);
+                }
+            });
+            console.log(`📊 Total meshes: ${meshCount}, InstancedMeshes: ${instancedMeshCount}`);
             
             // Performance warning and suggestion
             if (barCount > 15000) {
@@ -1803,6 +2058,11 @@
         }
         
         function getColorForElevation(elevation) {
+            // Special case: elevation at or below sea level (0m) should look like WATER
+            if (elevation <= 0.5) {
+                return new THREE.Color(0x0066cc);  // Ocean blue for water
+            }
+            
             const { min, max } = rawElevationData.stats;
             const normalized = Math.max(0, Math.min(1, (elevation - min) / (max - min)));
             
@@ -1927,21 +2187,45 @@
                 country.segments.forEach((segment) => {
                     const points = [];
                     
-                    // Convert lon/lat to real-world meter coordinates
+                    // Convert lon/lat to coordinates matching the render mode
                     for (let i = 0; i < segment.lon.length; i++) {
                         const lon = segment.lon[i];
                         const lat = segment.lat[i];
                         
-                        // Map geographic coords to meters (matching terrain scale)
-                        // bounds: left/right (lon), top/bottom (lat)
+                        // Map geographic coords to normalized [0,1] range
                         const colNormalized = (lon - elevBounds.left) / (elevBounds.right - elevBounds.left);
                         const rowNormalized = (elevBounds.top - lat) / (elevBounds.top - elevBounds.bottom);
                         
-                        const xMeters = colNormalized * scale.widthMeters;
-                        const zMeters = rowNormalized * scale.heightMeters;
+                        let xCoord, zCoord;
+                        if (params.renderMode === 'bars') {
+                            // Bars use grid-based positioning: 0 to (width-1)*bucketSize
+                            const bucketMultiplier = params.bucketSize;
+                            const bWidth = processedData.width;
+                            const bHeight = processedData.height;
+                            xCoord = colNormalized * (bWidth - 1) * bucketMultiplier;
+                            zCoord = rowNormalized * (bHeight - 1) * bucketMultiplier;
+                            // Apply same centering offset as terrain
+                            xCoord -= (bWidth - 1) * bucketMultiplier / 2;
+                            zCoord -= (bHeight - 1) * bucketMultiplier / 2;
+                        } else if (params.renderMode === 'points') {
+                            // Points use meter-based positioning
+                            const bucketSizeMetersX = processedData.bucketSizeMetersX || scale.metersPerPixelX;
+                            const bucketSizeMetersY = processedData.bucketSizeMetersY || scale.metersPerPixelY;
+                            const bWidth = processedData.width;
+                            const bHeight = processedData.height;
+                            xCoord = colNormalized * (bWidth - 1) * bucketSizeMetersX;
+                            zCoord = rowNormalized * (bHeight - 1) * bucketSizeMetersY;
+                            // Apply same centering offset as terrain
+                            xCoord -= (bWidth - 1) * bucketSizeMetersX / 2;
+                            zCoord -= (bHeight - 1) * bucketSizeMetersY / 2;
+                        } else {
+                            // Surface uses meter-based positioning (PlaneGeometry centered at origin)
+                            xCoord = (colNormalized - 0.5) * scale.widthMeters;
+                            zCoord = (rowNormalized - 0.5) * scale.heightMeters;
+                        }
                         
-                        // Three.js: x=East (meters), z=South (meters), y=elevation (meters)
-                        points.push(new THREE.Vector3(xMeters, maxElev, zMeters));
+                        // Three.js: x=East, z=South, y=elevation
+                        points.push(new THREE.Vector3(xCoord, maxElev, zCoord));
                     }
                     
                     if (points.length > 1) {
@@ -1997,16 +2281,33 @@
         }
         
         function setView(preset) {
-            if (!rawElevationData) {
+            if (!rawElevationData || !processedData) {
                 resetCamera();
                 return;
             }
             
-            // Calculate distances based on terrain size
+            // Calculate distances based on actual coordinate extent
+            const gridWidth = processedData.width;
+            const gridHeight = processedData.height;
             const scale = calculateRealWorldScale();
-            const maxDim = Math.max(scale.widthMeters, scale.heightMeters);
-            const distance = maxDim * 0.8;
-            const height = maxDim * 0.5;
+            
+            // Calculate actual coordinate extent (varies by render mode)
+            let xExtent, zExtent;
+            if (params.renderMode === 'bars') {
+                // Bars use integer grid with aspect ratio scaling
+                const bucketMultiplier = params.bucketSize;
+                const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
+                xExtent = (gridWidth - 1) * bucketMultiplier;
+                zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio;
+            } else {
+                // Other modes use meter-based coordinates
+                xExtent = scale.widthMeters;
+                zExtent = scale.heightMeters;
+            }
+            
+            const maxDim = Math.max(xExtent, zExtent);
+            const distance = maxDim * 2.0;  // Increased from 0.8 for better overview
+            const height = maxDim * 1.2;    // Increased from 0.5 for better viewing angle
             
             const views = {
                 overhead: { x: 0, y: distance * 1.2, z: 0, target: [0, 0, 0] },
@@ -2029,10 +2330,12 @@
             params.verticalExaggeration = value;
             document.getElementById('vertExag').value = value;
             
-            // Update display
+            // Update display - handle very small values
             let displayValue;
-            if (value < 0.01) {
-                displayValue = value.toFixed(4);
+            if (value < 0.0001) {
+                displayValue = value.toFixed(5);  // Show 0.00001
+            } else if (value < 0.01) {
+                displayValue = value.toFixed(4);  // Show 0.0001
             } else if (value < 1) {
                 displayValue = value.toFixed(3);
             } else {
@@ -2044,16 +2347,33 @@
         }
         
         function resetCamera() {
-            if (!rawElevationData) {
+            if (!rawElevationData || !processedData) {
                 camera.position.set(50, 50, 80);
                 controls.target.set(0, 0, 0);
                 controls.update();
                 return;
             }
             
-            // Calculate appropriate camera distance based on terrain size
+            // Calculate appropriate camera distance based on actual coordinate extent
+            const gridWidth = processedData.width;
+            const gridHeight = processedData.height;
             const scale = calculateRealWorldScale();
-            const maxDim = Math.max(scale.widthMeters, scale.heightMeters);
+            
+            // Calculate actual coordinate extent (varies by render mode)
+            let xExtent, zExtent;
+            if (params.renderMode === 'bars') {
+                // Bars use integer grid with aspect ratio scaling
+                const bucketMultiplier = params.bucketSize;
+                const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
+                xExtent = (gridWidth - 1) * bucketMultiplier;
+                zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio;
+            } else {
+                // Other modes use meter-based coordinates
+                xExtent = scale.widthMeters;
+                zExtent = scale.heightMeters;
+            }
+            
+            const maxDim = Math.max(xExtent, zExtent);
             const camDistance = maxDim * 0.8;  // View from 80% of max dimension
             const camHeight = maxDim * 0.5;    // Height is 50% of max dimension
             
@@ -2061,7 +2381,7 @@
             controls.target.set(0, 0, 0);
             controls.update();
             
-            console.log(`📷 Camera reset to distance: ${camDistance.toFixed(0)}m`);
+            console.log(`📷 Camera reset: grid ${gridWidth}×${gridHeight}, extent ${xExtent.toFixed(0)}×${zExtent.toFixed(0)} units`);
         }
         
         function exportImage() {
