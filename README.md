@@ -13,6 +13,31 @@ Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Wh
 - **Download elevation data** for anywhere in the world
 - **Customize rendering** - colors, angles, resolution, render style
 
+## Recent Updates (October 2025)
+
+### 🎯 Multi-Region Support
+The interactive viewer now supports **45+ pre-configured regions worldwide** with a dropdown selector! Switch between USA, Japan, Switzerland, and more without refreshing. Just download data for your regions and they appear automatically.
+
+### 🎨 Bar Rendering Improvements
+- **Fixed bar overlapping and gaps** - Bars now use rectangular geometry matching actual grid spacing
+- **Infinite zoom** - Removed artificial zoom-out limits
+- **Smart defaults** - USA loads by default when available
+- **Perfect tiling** - No more black gaps between bars at any angle
+
+### 📏 Real-World Scale (Vertical Exaggeration Fix)
+Vertical exaggeration now uses **intuitive meter-based scale**:
+- **1.0x** = True Earth proportions (1000m horizontal = 1000m vertical)
+- **4.0x** = New default (moderately dramatic)
+- **10.0x** = Very dramatic terrain
+- Both X/Z and Y axes now use real meters from lat/lon bounds
+
+### 🗺️ Enhanced Border Features
+- **177 countries available** from Natural Earth (10m/50m/110m resolution)
+- **Interactive viewer borders** - Toggle country boundaries in 3D
+- **Country masking** - Clip data to specific nations
+- **Auto-caching** - Borders download once and reuse automatically
+- Export with: `python export_for_web_viewer.py data/usa.tif --export-borders`
+
 ## What Can You Do With It?
 
 ### 1. Create Static Visualizations

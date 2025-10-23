@@ -19,6 +19,7 @@ generated/
 *.png
 *.jpg
 *.html
+!interactive_viewer_advanced.html
 
 # IDE
 .vscode/

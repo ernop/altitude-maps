@@ -77,11 +77,40 @@ python download_regions.py  # If using regions
 - Be humble about work you've done, not ostentatiously humble, just light and clear
 - Explain things as needed without self-praise
 
-## Data Sources Priority
-1. **ERA5 Climate Reanalysis**: Comprehensive global climate data
-2. **SRTM Elevation**: 30m-90m resolution global elevation
-3. **WorldClim**: Bioclimatic variables at various resolutions
-4. **Natural Earth**: Country borders (public domain, 10m/50m/110m resolution)
+## Data Sources Strategy
+
+### Elevation Data Priority (User Preference)
+
+**USA - Always Use USGS 3DEP First:**
+- Source: USGS 3D Elevation Program (3DEP)
+- Resolution: 1-10m (far better than global sources)
+- Coverage: Full USA
+- Workflow: Download bounding box → Clip to state boundaries → Cache both
+- Auth: May require API key (user will provide if needed)
+- URL: https://elevation.nationalmap.gov/
+
+**Global - Prefer Nation-Specific Sources:**
+Priority order for any country:
+1. **National agency data** (if available) - Always check first
+   - Examples: Australia (Geoscience), Japan (GSI), Germany (BKG), UK (Ordnance Survey)
+   - Often higher resolution and quality than global datasets
+   - May require country-specific download process
+2. **Global fallback sources** (if national unavailable):
+   - OpenTopography SRTM (30m, 60°N to 56°S)
+   - Copernicus DEM (30m/90m, global, newest 2021)
+   - ASTER GDEM (30m, 83°N to 83°S)
+   - ALOS World 3D (30m free, 5m paid)
+
+### Other Data Sources
+- **ERA5 Climate Reanalysis**: Comprehensive global climate data
+- **WorldClim**: Bioclimatic variables at various resolutions
+- **Natural Earth**: Country borders (public domain, 10m/50m/110m resolution)
+
+### Download and Cleaning Philosophy
+1. Download by bounding box or tiles (most sources provide this)
+2. Clip/mask to administrative boundaries locally (automated)
+3. Cache both raw (bounding box) and cleaned (clipped) versions
+4. Use two-tier caching to balance flexibility and performance
 
 ## Common Commands
 ```powershell

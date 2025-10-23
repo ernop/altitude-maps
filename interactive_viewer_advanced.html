@@ -1,0 +1,2289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced USA Elevation 3D Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow: hidden;
+        }
+        #container { width: 100vw; height: 100vh; position: relative; }
+        #canvas-container { width: 100%; height: 100%; }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.92);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #44ff88;
+            max-width: 380px;
+            max-height: 92vh;
+            overflow-y: auto;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px rgba(68, 255, 136, 0.15);
+        }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.92);
+            padding: 18px;
+            border-radius: 10px;
+            border: 2px solid #4488ff;
+            backdrop-filter: blur(15px);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            box-shadow: 0 8px 32px rgba(68, 136, 255, 0.15);
+            min-width: 280px;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 40px 60px;
+            border-radius: 15px;
+            border: 3px solid #44ff88;
+            font-size: 20px;
+            z-index: 1000;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+        }
+        
+        .spinner {
+            margin-top: 15px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top: 4px solid #44ff88;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        h2 { 
+            color: #44ff88; 
+            margin-bottom: 15px;
+            margin-top: 20px;
+            font-size: 16px;
+            border-bottom: 2px solid #44ff88;
+            padding-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        h2:first-child { margin-top: 0; }
+        
+        .control-group {
+            margin-bottom: 18px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 7px;
+            color: #bbb;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #44ff88;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #0a0a0a;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #44ff88;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #0a0a0a;
+        }
+        
+        input[type="number"] {
+            width: 90px;
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #44ff88, #33dd77);
+            color: #000;
+            border: none;
+            padding: 11px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 6px 6px 6px 0;
+            transition: all 0.2s;
+            font-size: 13px;
+            box-shadow: 0 4px 15px rgba(68, 255, 136, 0.3);
+        }
+        
+        button:hover { 
+            background: linear-gradient(135deg, #55ffaa, #44ee88);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(68, 255, 136, 0.4);
+        }
+        
+        button:active { 
+            transform: translateY(0);
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 5px;
+            margin-top: 5px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        select:hover {
+            border-color: #44ff88;
+        }
+        
+        .value-display {
+            display: inline-block;
+            float: right;
+            color: #44ff88;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+        }
+        
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            accent-color: #44ff88;
+        }
+        
+        #stats {
+            font-size: 12px;
+            line-height: 1.8;
+        }
+        
+        .stat-line {
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+        
+        .stat-label {
+            color: #888;
+            display: inline-block;
+            min-width: 120px;
+        }
+        
+        .stat-value {
+            color: #44ff88;
+            font-weight: bold;
+        }
+        
+        .warning {
+            background: rgba(255, 136, 68, 0.15);
+            border: 1px solid #ff8844;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 11px;
+            color: #ffaa66;
+        }
+        
+        .info-box {
+            background: rgba(68, 136, 255, 0.15);
+            border: 1px solid #4488ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 11px;
+            color: #88bbff;
+        }
+        
+        .button-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .button-grid button {
+            margin: 0;
+            width: 100%;
+        }
+        
+        #fps-display {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #44ff88;
+        }
+        
+        #compass-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            border: 2px solid #44ff88;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+        
+        #compass-label {
+            position: absolute;
+            bottom: 70px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 5px 10px;
+            border-radius: 5px 5px 0 0;
+            border: 2px solid #44ff88;
+            border-bottom: none;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #44ff88;
+            font-weight: bold;
+        }
+        
+        #controls-help-window {
+            position: absolute;
+            bottom: 150px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.92);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #ff8844;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px rgba(255, 136, 68, 0.15);
+            max-width: 320px;
+            display: none;
+            z-index: 100;
+        }
+        
+        #controls-help-window.open {
+            display: block;
+        }
+        
+        #controls-help-window h3 {
+            color: #ff8844;
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #ff8844;
+            padding-bottom: 8px;
+        }
+        
+        .controls-content {
+            font-size: 10px;
+            line-height: 1.6;
+            color: #999;
+        }
+        
+        .controls-section {
+            margin-bottom: 10px;
+        }
+        
+        .controls-section-title {
+            color: #ff8844;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .controls-content b {
+            color: #ffaa66;
+        }
+        
+        #controls-help-toggle {
+            position: absolute;
+            bottom: 150px;
+            left: 20px;
+            background: linear-gradient(135deg, #ff8844, #ff6622);
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: 0 4px 15px rgba(255, 136, 68, 0.3);
+            transition: all 0.2s;
+            z-index: 101;
+        }
+        
+        #controls-help-toggle:hover {
+            background: linear-gradient(135deg, #ffaa66, #ff8844);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 136, 68, 0.4);
+        }
+        
+        .close-btn {
+            float: right;
+            background: none;
+            border: none;
+            color: #ff8844;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            margin: -5px -5px 0 0;
+            width: 24px;
+            height: 24px;
+            line-height: 20px;
+        }
+        
+        .close-btn:hover {
+            color: #ffaa66;
+            background: rgba(255, 136, 68, 0.2);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <div id="loading">
+            <div style="text-align: center;">
+                🗺️ Loading elevation data...
+                <div class="spinner"></div>
+            </div>
+        </div>
+        
+        <div id="info">
+            <div style="font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #4488ff; text-transform: uppercase; letter-spacing: 1px;">
+                📊 Elevation Viewer
+            </div>
+            <div id="stats"></div>
+        </div>
+        
+        <div id="fps-display">FPS: --</div>
+        
+        <div id="compass-label">🧭 ORIENTATION</div>
+        <div id="compass-container"></div>
+        
+        <!-- Controls Help Toggle Button -->
+        <button id="controls-help-toggle" onclick="toggleControlsHelp()">❓ Controls</button>
+        
+        <!-- Controls Help Window -->
+        <div id="controls-help-window">
+            <button class="close-btn" onclick="toggleControlsHelp()">✕</button>
+            <h3>💡 Controls (Google Earth Style)</h3>
+            <div class="controls-content">
+                <div class="controls-section">
+                    <div class="controls-section-title">🖱️ MOUSE</div>
+                    <div><b>Left-Click Drag:</b> Pan/Strafe</div>
+                    <div><b>Ctrl+Left Drag:</b> Rotate around click point 🎯</div>
+                    <div><b>Alt+Left Drag:</b> Move forward/back (linear)</div>
+                    <div><b>Right-Click Drag:</b> Rotate around click point</div>
+                    <div><b>Middle Mouse Drag:</b> Move forward/back (linear)</div>
+                    <div><b>Scroll Wheel:</b> Move forward/back (linear)</div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="controls-section-title">⌨️ KEYBOARD</div>
+                    <div><b>W / S:</b> Move up / down ⬆️⬇️</div>
+                    <div><b>A / D:</b> Rotate left / right 🔄</div>
+                    <div><b>Q / E:</b> Forward / backward</div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="controls-section-title">🎮 MODIFIERS</div>
+                    <div><b>Shift:</b> 2.5× faster ⚡</div>
+                    <div><b>Ctrl:</b> 0.3× slower (precise)</div>
+                    <div><b>Alt:</b> 4× faster 🚀</div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="controls-section-title">⚡ HOTKEYS</div>
+                    <div><b>F or R:</b> Reset camera</div>
+                    <div><b>Space:</b> Toggle auto-rotate</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <h2>🌍 Region Selector</h2>
+            
+            <div class="control-group">
+                <label>
+                    Select Region
+                    <span class="value-display" id="currentRegion">Loading...</span>
+                </label>
+                <select id="regionSelect" style="width: 100%; padding: 8px; margin-top: 5px; background: #1a1a1a; color: #44ff88; border: 1px solid #333; border-radius: 4px; font-family: 'Consolas', monospace;">
+                    <option value="">Loading regions...</option>
+                </select>
+                <div class="info-box" id="regionInfo">
+                    Select a region to view its elevation data
+                </div>
+            </div>
+            
+            <h2>🔲 Real-Time Bucketing</h2>
+            
+            <div class="control-group">
+                <label>
+                    Bucket Size (pixel multiplier)
+                    <span class="value-display" id="bucketSizeValue">1×</span>
+                </label>
+                <input type="range" id="bucketSize" min="1" max="50" step="1" value="1">
+                <div class="info-box">
+                    Combine N×N pixels into one bar. 1× = full resolution, 10× = 10×10 pixels per bar.
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>Aggregation Method</label>
+                <select id="aggregation">
+                    <option value="max">MAX (Highest point in bucket)</option>
+                    <option value="average">AVERAGE (Mean elevation)</option>
+                    <option value="min">MIN (Lowest point)</option>
+                    <option value="median">MEDIAN (Middle value)</option>
+                </select>
+            </div>
+            
+            <h2>⚙️ Rendering</h2>
+            
+            <div class="control-group">
+                <label>Render Mode</label>
+                <select id="renderMode">
+                    <option value="bars" selected>3D Rectangular Prisms</option>
+                    <option value="surface">Smooth Surface</option>
+                    <option value="wireframe">Wireframe</option>
+                    <option value="points">Point Cloud</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    Vertical Exaggeration
+                    <span class="value-display" id="vertExagValue">50.0x</span>
+                </label>
+                <input type="range" id="vertExag" min="0.1" max="300" step="0.1" value="50.0">
+                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.5)">0.5x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(1.0)">1.0x (True)</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(4.0)">4.0x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(10.0)">10.0x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(25.0)">25.0x</button>
+                </div>
+                <div class="info-box">
+                    1.0x = true Earth scale. Higher values make mountains steeper than reality.
+                </div>
+            </div>
+            
+            <h2>🎨 Visual Style</h2>
+            
+            <div class="control-group">
+                <label>Color Scheme</label>
+                <select id="colorScheme">
+                    <option value="terrain">Terrain (Natural)</option>
+                    <option value="elevation">Elevation (Blue-Red)</option>
+                    <option value="grayscale">Grayscale</option>
+                    <option value="rainbow">Rainbow</option>
+                    <option value="earth">Earth Tones</option>
+                    <option value="heatmap">Heatmap</option>
+                </select>
+            </div>
+            
+            <div class="control-group checkbox-group">
+                <input type="checkbox" id="wireframeOverlay">
+                <label for="wireframeOverlay">Wireframe Overlay</label>
+            </div>
+            
+            <div class="control-group checkbox-group">
+                <input type="checkbox" id="showGrid">
+                <label for="showGrid">Ground Grid</label>
+            </div>
+            
+            <div class="control-group checkbox-group">
+                <input type="checkbox" id="showBorders" checked>
+                <label for="showBorders">Country Borders</label>
+            </div>
+            
+            <div class="control-group checkbox-group">
+                <input type="checkbox" id="autoRotate">
+                <label for="autoRotate">Auto-Rotate</label>
+            </div>
+            
+            <h2>📹 Camera</h2>
+            
+            <div class="button-grid">
+                <button onclick="setView('overhead')">⬇ Overhead</button>
+                <button onclick="setView('isometric')">🎯 Isometric</button>
+                <button onclick="setView('north')">⬆ North</button>
+                <button onclick="setView('south')">⬇ South</button>
+                <button onclick="setView('east')">➡ East</button>
+                <button onclick="setView('west')">⬅ West</button>
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <button onclick="resetCamera()" style="width: 100%;">🔄 Reset Camera</button>
+                <button onclick="exportImage()" style="width: 100%; margin-top: 8px;">📸 Save Screenshot</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // Global variables
+        let scene, camera, renderer, controls;
+        let terrainMesh, wireframeMesh, gridHelper;
+        let rawElevationData; // Original full-resolution data
+        let processedData; // Bucketed/aggregated data
+        let stats = {};
+        let borderMeshes = [];
+        let borderData = null;
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        // Compass/orientation indicator
+        let compassScene, compassCamera, compassRenderer;
+        let compassSphere, compassLabels = [];
+        
+        // Directional edge markers (N, E, S, W)
+        let edgeMarkers = [];
+        
+        // Parameters
+        let params = {
+            bucketSize: 1,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
+            aggregation: 'max',
+            renderMode: 'bars',
+            verticalExaggeration: 50.0,  // Default: moderately dramatic
+            colorScheme: 'terrain',
+            wireframeOverlay: false,
+            showGrid: false,
+            showBorders: true,
+            autoRotate: false
+        };
+        
+        // Initialize
+        async function init() {
+            try {
+                setupScene();
+                setupCompass();
+                setupEventListeners();
+                
+                // Populate region selector and load first region
+                const firstRegionId = await populateRegionSelector();
+                
+                // Load the initial region data
+                let dataUrl;
+                if (firstRegionId === 'default') {
+                    dataUrl = 'generated/elevation_data.json';
+                } else {
+                    dataUrl = `generated/regions/${firstRegionId}.json`;
+                }
+                
+                rawElevationData = await loadElevationData(dataUrl);
+                
+                hideLoading();
+                setupControls();
+                
+                // Initial processing and rendering
+                rebucketData();
+                createTerrain();
+                updateStats();
+                
+                // Reset camera to appropriate distance for this terrain size
+                resetCamera();
+                
+                animate();
+            } catch (error) {
+                document.getElementById('loading').innerHTML = `
+                    <div style="text-align: center;">
+                        ❌ Error loading data<br><br>
+                        <div style="font-size: 13px; color: #ff6666; max-width: 400px;">${error.message}</div>
+                        <br>
+                        <div style="font-size: 12px; color: #888;">
+                            Make sure to run:<br>
+                            <code style="color: #44ff88; background: #1a1a1a; padding: 8px; border-radius: 4px; display: inline-block; margin-top: 10px;">
+                                python export_for_web_viewer.py
+                            </code>
+                            <br>or<br>
+                            <code style="color: #44ff88; background: #1a1a1a; padding: 8px; border-radius: 4px; display: inline-block; margin-top: 10px;">
+                                python download_regions.py
+                            </code>
+                        </div>
+                    </div>
+                `;
+                console.error('Error:', error);
+            }
+        }
+        
+        let regionsManifest = null;
+        let currentRegionId = null;
+        
+        // Expected data format version - must match export script
+        const EXPECTED_FORMAT_VERSION = 2;
+        
+        async function loadElevationData(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to load elevation data. HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            
+            // Validate format version
+            if (data.format_version && data.format_version !== EXPECTED_FORMAT_VERSION) {
+                console.error(`[!!] FORMAT VERSION MISMATCH!`);
+                console.error(`    Expected: v${EXPECTED_FORMAT_VERSION}`);
+                console.error(`    Got: v${data.format_version}`);
+                console.error(`    File may have outdated transformations!`);
+                throw new Error(
+                    `Data format version mismatch!\n` +
+                    `Expected v${EXPECTED_FORMAT_VERSION}, got v${data.format_version}\n\n` +
+                    `This data was exported with an older format.\n` +
+                    `Please re-export: python export_for_web_viewer.py`
+                );
+            } else if (!data.format_version) {
+                console.warn(`[!!] No format version in data file - may be legacy format!`);
+                console.warn(`    Consider re-exporting: python export_for_web_viewer.py`);
+            } else {
+                console.log(`[OK] Data format v${data.format_version} (exported: ${data.exported_at || 'unknown'})`);
+            }
+            
+            return data;
+        }
+        
+        async function loadBorderData(elevationUrl) {
+            // Try to load borders from the same location with _borders suffix
+            const borderUrl = elevationUrl.replace('.json', '_borders.json');
+            try {
+                const response = await fetch(borderUrl);
+                if (!response.ok) {
+                    console.log(`[INFO] No border data found at ${borderUrl}`);
+                    return null;
+                }
+                const data = await response.json();
+                console.log(`[OK] Loaded border data: ${data.countries.length} countries`);
+                return data;
+            } catch (error) {
+                console.log(`[INFO] Border data not available: ${error.message}`);
+                return null;
+            }
+        }
+        
+        async function loadRegionsManifest() {
+            try {
+                const response = await fetch('generated/regions/regions_manifest.json');
+                if (!response.ok) {
+                    console.warn('Regions manifest not found, using default single region');
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                console.warn('Could not load regions manifest:', error);
+                return null;
+            }
+        }
+        
+        async function populateRegionSelector() {
+            const selectElement = document.getElementById('regionSelect');
+            
+            regionsManifest = await loadRegionsManifest();
+            
+            if (!regionsManifest || !regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
+                // No manifest, use default single region
+                selectElement.innerHTML = '<option value="default">USA (Default)</option>';
+                document.getElementById('currentRegion').textContent = 'USA';
+                document.getElementById('regionInfo').textContent = 'Continental United States elevation data';
+                currentRegionId = 'default';
+                return 'default';
+            }
+            
+            // Populate dropdown with available regions
+            selectElement.innerHTML = '';
+            
+            // Group regions by continent/category
+            const grouped = {};
+            for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
+                // Determine group based on region name/id
+                let group = 'Other';
+                if (regionId.includes('usa_') || ['california', 'texas', 'colorado', 'washington', 'new_york', 'florida', 'arizona', 'alaska', 'hawaii'].includes(regionId)) {
+                    group = 'USA';
+                } else if (['canada', 'mexico'].includes(regionId)) {
+                    group = 'North America';
+                } else if (['japan', 'china', 'south_korea', 'india', 'thailand', 'vietnam', 'nepal'].includes(regionId)) {
+                    group = 'Asia';
+                } else if (['germany', 'france', 'italy', 'spain', 'uk', 'poland', 'norway', 'sweden', 'switzerland', 'austria', 'greece', 'netherlands', 'iceland'].includes(regionId)) {
+                    group = 'Europe';
+                } else if (['brazil', 'argentina', 'chile', 'peru'].includes(regionId)) {
+                    group = 'South America';
+                } else if (['australia', 'new_zealand'].includes(regionId)) {
+                    group = 'Oceania';
+                } else if (['south_africa', 'egypt', 'kenya'].includes(regionId)) {
+                    group = 'Africa';
+                } else if (['israel', 'saudi_arabia'].includes(regionId)) {
+                    group = 'Middle East';
+                } else if (['alps', 'rockies'].includes(regionId)) {
+                    group = 'Mountain Ranges';
+                }
+                
+                if (!grouped[group]) grouped[group] = [];
+                grouped[group].push({ id: regionId, info: regionInfo });
+            }
+            
+            // Add grouped options
+            const groupOrder = ['USA', 'North America', 'Europe', 'Asia', 'South America', 'Oceania', 'Africa', 'Middle East', 'Mountain Ranges', 'Other'];
+            for (const groupName of groupOrder) {
+                if (!grouped[groupName]) continue;
+                
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = groupName;
+                
+                grouped[groupName].sort((a, b) => a.info.name.localeCompare(b.info.name));
+                
+                for (const { id, info } of grouped[groupName]) {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = info.name;
+                    option.title = info.description;
+                    optgroup.appendChild(option);
+                }
+                
+                selectElement.appendChild(optgroup);
+            }
+            
+            // Select USA as default if available, otherwise first region
+            let firstRegionId;
+            if (regionsManifest.regions['usa_full']) {
+                firstRegionId = 'usa_full';
+            } else {
+                firstRegionId = Object.keys(regionsManifest.regions)[0];
+            }
+            selectElement.value = firstRegionId;
+            currentRegionId = firstRegionId;
+            updateRegionInfo(firstRegionId);
+            
+            return firstRegionId;
+        }
+        
+        function updateRegionInfo(regionId) {
+            if (regionId === 'default' || !regionsManifest || !regionsManifest.regions[regionId]) {
+                document.getElementById('currentRegion').textContent = 'USA';
+                document.getElementById('regionInfo').textContent = 'Continental United States';
+                return;
+            }
+            
+            const regionInfo = regionsManifest.regions[regionId];
+            document.getElementById('currentRegion').textContent = regionInfo.name;
+            document.getElementById('regionInfo').textContent = regionInfo.description;
+        }
+        
+        async function loadRegion(regionId) {
+            console.log(`🌍 Loading region: ${regionId}`);
+            showLoading(`Loading ${regionsManifest?.regions[regionId]?.name || regionId}...`);
+            
+            try {
+                let dataUrl;
+                if (regionId === 'default') {
+                    dataUrl = 'generated/elevation_data.json';
+                } else {
+                    dataUrl = `generated/regions/${regionId}.json`;
+                }
+                
+                rawElevationData = await loadElevationData(dataUrl);
+                borderData = await loadBorderData(dataUrl);
+                currentRegionId = regionId;
+                updateRegionInfo(regionId);
+                
+                // Reprocess and recreate terrain
+                rebucketData();
+                recreateTerrain();
+                recreateBorders();
+                updateStats();
+                
+                // Reset camera for new terrain size
+                resetCamera();
+                
+                hideLoading();
+                console.log(`✅ Loaded ${regionId}`);
+            } catch (error) {
+                console.error(`❌ Failed to load region ${regionId}:`, error);
+                alert(`Failed to load region: ${error.message}`);
+                hideLoading();
+            }
+        }
+        
+        function showLoading(message = 'Loading elevation data...') {
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.textContent = message;
+            loadingDiv.style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // CLIENT-SIDE BUCKETING ALGORITHMS
+        function rebucketData() {
+            const startTime = performance.now();
+            console.log(`🔲 Bucketing with multiplier ${params.bucketSize}×, method: ${params.aggregation}`);
+            
+            const { width, height, elevation, bounds } = rawElevationData;
+            
+            // Calculate real-world scale
+            const scale = calculateRealWorldScale();
+            
+            // CORRECT APPROACH: Bucket size MUST be an integer multiple of pixel spacing
+            // This ensures buckets align perfectly with the data grid
+            const bucketSize = params.bucketSize;  // Integer multiple (1, 2, 3, 4, ...)
+            
+            // Calculate bucketed dimensions (simple integer division)
+            const bucketedWidth = Math.floor(width / bucketSize);
+            const bucketedHeight = Math.floor(height / bucketSize);
+            
+            // Bucket physical size = pixel spacing × multiplier
+            const bucketSizeMetersX = scale.metersPerPixelX * bucketSize;
+            const bucketSizeMetersY = scale.metersPerPixelY * bucketSize;
+            
+            console.log(`📐 Raw data: ${width}×${height} pixels @ ${scale.metersPerPixelX.toFixed(0)}×${scale.metersPerPixelY.toFixed(0)}m/pixel`);
+            console.log(`📐 Bucket multiplier: ${bucketSize}× → ${bucketedWidth}×${bucketedHeight} buckets`);
+            console.log(`📐 Bucket size: ${(bucketSizeMetersX/1000).toFixed(2)}km × ${(bucketSizeMetersY/1000).toFixed(2)}km`);
+            
+            // Pre-allocate array for better performance
+            const bucketedElevation = new Array(bucketedHeight);
+            
+            // Pixels per bucket (always an integer now)
+            const pxPerBucketX = bucketSize;
+            const pxPerBucketY = bucketSize;
+            
+            // Pre-allocate buffer for collecting values
+            const maxBucketPixels = Math.ceil(pxPerBucketX * pxPerBucketY * 1.5); // 1.5x safety margin
+            const buffer = new Float32Array(maxBucketPixels);
+            
+            for (let by = 0; by < bucketedHeight; by++) {
+                const row = new Array(bucketedWidth);
+                
+                for (let bx = 0; bx < bucketedWidth; bx++) {
+                    // Calculate pixel range for this bucket (now always integer aligned)
+                    const pixelX0 = bx * bucketSize;
+                    const pixelX1 = (bx + 1) * bucketSize;
+                    const pixelY0 = by * bucketSize;
+                    const pixelY1 = (by + 1) * bucketSize;
+                    
+                    // Collect all values in this bucket (bucketSize × bucketSize pixels)
+                    let count = 0;
+                    for (let py = pixelY0; py < pixelY1 && py < height; py++) {
+                        for (let px = pixelX0; px < pixelX1 && px < width; px++) {
+                            const val = elevation[py] && elevation[py][px];
+                            if (val !== null && val !== undefined) {
+                                buffer[count++] = val;
+                            }
+                        }
+                    }
+                    
+                    // Aggregate based on method
+                    let value = null;
+                    if (count > 0) {
+                        switch (params.aggregation) {
+                            case 'max':
+                                value = buffer[0];
+                                for (let i = 1; i < count; i++) {
+                                    if (buffer[i] > value) value = buffer[i];
+                                }
+                                break;
+                            case 'min':
+                                value = buffer[0];
+                                for (let i = 1; i < count; i++) {
+                                    if (buffer[i] < value) value = buffer[i];
+                                }
+                                break;
+                            case 'average':
+                                value = 0;
+                                for (let i = 0; i < count; i++) {
+                                    value += buffer[i];
+                                }
+                                value /= count;
+                                break;
+                            case 'median':
+                                const sortedSlice = Array.from(buffer.slice(0, count)).sort((a, b) => a - b);
+                                const mid = Math.floor(count / 2);
+                                value = count % 2 === 0 
+                                    ? (sortedSlice[mid - 1] + sortedSlice[mid]) / 2 
+                                    : sortedSlice[mid];
+                                break;
+                        }
+                    }
+                    
+                    row[bx] = value;
+                }
+                bucketedElevation[by] = row;
+            }
+            
+            processedData = {
+                width: bucketedWidth,
+                height: bucketedHeight,
+                elevation: bucketedElevation,
+                stats: rawElevationData.stats,
+                bucketSizeMetersX: actualBucketSizeMetersX,  // Actual size to tile perfectly
+                bucketSizeMetersY: actualBucketSizeMetersY
+            };
+            
+            const duration = (performance.now() - startTime).toFixed(2);
+            const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
+            console.log(`✅ Bucketed to ${bucketedWidth}×${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
+        }
+        
+        function setupCompass() {
+            // Create a separate scene for the compass gizmo
+            compassScene = new THREE.Scene();
+            
+            // Create camera for the compass
+            compassCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+            compassCamera.position.set(0, 0, 4);
+            compassCamera.lookAt(0, 0, 0);
+            
+            // Create compass renderer (small viewport)
+            compassRenderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true
+            });
+            compassRenderer.setSize(120, 120);
+            compassRenderer.setClearColor(0x0a0a0a, 1);
+            document.getElementById('compass-container').appendChild(compassRenderer.domElement);
+            
+            // Create a group to hold all gizmo elements
+            const gizmoGroup = new THREE.Group();
+            compassScene.add(gizmoGroup);
+            compassSphere = gizmoGroup; // Reuse this variable for the group
+            
+            // Create three torus rings for X, Y, Z axes (like Roblox Studio)
+            const torusRadius = 1.0;
+            const tubeRadius = 0.04;
+            const radialSegments = 64;
+            const tubularSegments = 12;
+            
+            // X-axis ring (RED) - rotates around X
+            const xRingGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, tubularSegments, radialSegments);
+            const xRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff4444,
+                transparent: true,
+                opacity: 0.9
+            });
+            const xRing = new THREE.Mesh(xRingGeometry, xRingMaterial);
+            xRing.rotation.y = Math.PI / 2; // Rotate to align with X axis
+            gizmoGroup.add(xRing);
+            
+            // Y-axis ring (GREEN) - rotates around Y
+            const yRingGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, tubularSegments, radialSegments);
+            const yRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x44ff44,
+                transparent: true,
+                opacity: 0.9
+            });
+            const yRing = new THREE.Mesh(yRingGeometry, yRingMaterial);
+            yRing.rotation.x = Math.PI / 2; // Rotate to align with Y axis
+            gizmoGroup.add(yRing);
+            
+            // Z-axis ring (BLUE) - rotates around Z
+            const zRingGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, tubularSegments, radialSegments);
+            const zRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x4444ff,
+                transparent: true,
+                opacity: 0.9
+            });
+            const zRing = new THREE.Mesh(zRingGeometry, zRingMaterial);
+            // Z ring stays in default orientation
+            gizmoGroup.add(zRing);
+            
+            // Add cardinal direction arrows
+            // Geographic mapping: +X=East, -X=West, -Z=North, +Z=South, +Y=Up
+            const arrowLength = 1.3;
+            const arrowHeadLength = 0.25;
+            const arrowHeadWidth = 0.18;
+            
+            // North (negative Z direction) - RED
+            const northArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(0, 0, -1),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                0xff4444,
+                arrowHeadLength,
+                arrowHeadWidth
+            );
+            gizmoGroup.add(northArrow);
+            
+            // South (positive Z direction) - LIGHT BLUE
+            const southArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(0, 0, 1),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                0x4488ff,
+                arrowHeadLength,
+                arrowHeadWidth
+            );
+            gizmoGroup.add(southArrow);
+            
+            // East (positive X direction) - GREEN
+            const eastArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                0x44ff44,
+                arrowHeadLength,
+                arrowHeadWidth
+            );
+            gizmoGroup.add(eastArrow);
+            
+            // West (negative X direction) - YELLOW
+            const westArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(-1, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                0xffff44,
+                arrowHeadLength,
+                arrowHeadWidth
+            );
+            gizmoGroup.add(westArrow);
+            
+            // Add text labels for cardinal directions
+            addCompassLabel('N', new THREE.Vector3(0, 0, -1.6), 0xff4444);
+            addCompassLabel('S', new THREE.Vector3(0, 0, 1.6), 0x4488ff);
+            addCompassLabel('E', new THREE.Vector3(1.6, 0, 0), 0x44ff44);
+            addCompassLabel('W', new THREE.Vector3(-1.6, 0, 0), 0xffff44);
+            
+            // Add subtle lighting
+            const compassLight = new THREE.AmbientLight(0xffffff, 1.2);
+            compassScene.add(compassLight);
+        }
+        
+        function addCompassLabel(text, position, color) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 64;
+            
+            context.font = 'Bold 48px Arial';
+            context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 32, 32);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture,
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.copy(position);
+            sprite.scale.set(0.3, 0.3, 0.3);
+            compassScene.add(sprite);
+            
+            compassLabels.push(sprite);
+        }
+        
+        function updateCompass() {
+            if (!compassSphere || !camera) return;
+            
+            // Make the compass camera match the main camera's rotation
+            // This shows where world north/south/east/west are relative to current view
+            compassCamera.quaternion.copy(camera.quaternion);
+            
+            // Render compass
+            compassRenderer.render(compassScene, compassCamera);
+        }
+        
+        function createEdgeMarkers() {
+            // Remove old markers
+            edgeMarkers.forEach(marker => scene.remove(marker));
+            edgeMarkers = [];
+            
+            if (!rawElevationData) return;
+            
+            const scale = calculateRealWorldScale();
+            
+            // Get max elevation for positioning markers above terrain
+            const maxElev = rawElevationData.stats.max * params.verticalExaggeration * 1.2;
+            
+            // Create text sprites for N, E, S, W
+            // The terrain is centered at origin, so markers go at the edges:
+            // Geographic mapping: +X=East, -X=West, -Z=North, +Z=South
+            // North edge: at the north (top) of the terrain, which is at -Z
+            // The terrain spans from (-halfHeight to +halfHeight) in Z after centering
+            const markers = [
+                { text: 'N', x: 0, z: -scale.heightMeters / 2, color: 0xff4444 },      // North edge (min Z)
+                { text: 'S', x: 0, z: scale.heightMeters / 2, color: 0x4488ff },       // South edge (max Z)
+                { text: 'E', x: scale.widthMeters / 2, z: 0, color: 0x44ff44 },        // East edge (max X)
+                { text: 'W', x: -scale.widthMeters / 2, z: 0, color: 0xffff44 }        // West edge (min X)
+            ];
+            
+            markers.forEach(markerData => {
+                const sprite = createTextSprite(markerData.text, markerData.color);
+                sprite.position.set(markerData.x, maxElev, markerData.z);
+                
+                // Scale based on map size (larger maps = larger markers)
+                const avgSize = (scale.widthMeters + scale.heightMeters) / 2;
+                const baseScale = avgSize * 0.02;  // 2% of average dimension
+                sprite.scale.set(baseScale, baseScale, baseScale);
+                
+                scene.add(sprite);
+                edgeMarkers.push(sprite);
+            });
+            
+            console.log(`✅ Created edge markers (N, E, S, W) at elevation ${maxElev.toFixed(0)}m`);
+        }
+        
+        function createTextSprite(text, color) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 256;
+            
+            // Draw background circle
+            context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            context.beginPath();
+            context.arc(128, 128, 100, 0, 2 * Math.PI);
+            context.fill();
+            
+            // Draw border
+            context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.lineWidth = 8;
+            context.beginPath();
+            context.arc(128, 128, 100, 0, 2 * Math.PI);
+            context.stroke();
+            
+            // Draw text
+            context.font = 'Bold 140px Arial';
+            context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 128, 128);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture,
+                transparent: true,
+                depthTest: false,  // Always visible
+                depthWrite: false
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            
+            return sprite;
+        }
+        
+        function updateEdgeMarkers() {
+            if (!rawElevationData || edgeMarkers.length === 0) return;
+            
+            // Update marker positions based on current vertical exaggeration
+            const scale = calculateRealWorldScale();
+            const halfWidth = scale.widthMeters / 2;
+            const halfHeight = scale.heightMeters / 2;
+            const maxElev = rawElevationData.stats.max * params.verticalExaggeration * 1.5;
+            
+            // Update positions (N, S, E, W order)
+            if (edgeMarkers[0]) edgeMarkers[0].position.set(0, maxElev, -halfHeight);  // N
+            if (edgeMarkers[1]) edgeMarkers[1].position.set(0, maxElev, halfHeight);   // S
+            if (edgeMarkers[2]) edgeMarkers[2].position.set(halfWidth, maxElev, 0);    // E
+            if (edgeMarkers[3]) edgeMarkers[3].position.set(-halfWidth, maxElev, 0);   // W
+        }
+        
+        function setupScene() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+            // Fog disabled - colors stay vibrant at all zoom levels
+            // scene.fog = new THREE.Fog(0x0a0a0a, 100, 800);
+            
+            // Camera - no practical clipping constraints
+            const aspect = window.innerWidth / window.innerHeight;
+            camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 50000000);  // Essentially infinite view frustum
+            camera.position.set(50, 50, 80);  // Will be reset after data loads
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: false,  // Disable for better performance
+                preserveDrawingBuffer: true,
+                alpha: false,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.7);
+            dirLight1.position.set(100, 200, 100);
+            dirLight1.castShadow = false;
+            scene.add(dirLight1);
+            
+            const dirLight2 = new THREE.DirectionalLight(0x6688ff, 0.4);
+            dirLight2.position.set(-100, 100, -100);
+            scene.add(dirLight2);
+            
+            // Grid helper
+            gridHelper = new THREE.GridHelper(200, 40, 0x555555, 0x222222);
+            gridHelper.position.y = -0.1;
+            gridHelper.visible = false;
+            scene.add(gridHelper);
+            
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            
+            // Camera controls with linear zoom
+            controls.mouseButtons = {
+                LEFT: THREE.MOUSE.PAN,            // Left-click drag = Pan/strafe
+                MIDDLE: -1,                       // Middle mouse disabled (we handle it manually)
+                RIGHT: THREE.MOUSE.ROTATE         // Right-click = Rotate view
+            };
+            
+            controls.enableDamping = false;       // Instant response
+            controls.rotateSpeed = 0.6;
+            controls.zoomSpeed = 0;               // Disable built-in zoom (we'll handle it)
+            controls.panSpeed = 1.2;
+            controls.screenSpacePanning = true;   // Pan in screen space
+            controls.maxDistance = Infinity;      // No limits
+            controls.minDistance = 0;             // No limits
+            controls.enableKeys = false;          // Handle keyboard manually
+            controls.autoRotate = false;
+            controls.enableZoom = false;          // Disable built-in multiplicative zoom
+        }
+        
+        function setupControls() {
+            // Region selector
+            document.getElementById('regionSelect').addEventListener('change', (e) => {
+                const regionId = e.target.value;
+                if (regionId && regionId !== currentRegionId) {
+                    loadRegion(regionId);
+                }
+            });
+            
+            // Bucket size with debouncing for better performance
+            let bucketSizeTimeout;
+            document.getElementById('bucketSize').addEventListener('input', (e) => {
+                params.bucketSize = parseInt(e.target.value);
+                document.getElementById('bucketSizeValue').textContent = `${params.bucketSize}×`;
+                
+                // Debounce: only update after user stops dragging for 150ms
+                clearTimeout(bucketSizeTimeout);
+                bucketSizeTimeout = setTimeout(() => {
+                    rebucketData();
+                    recreateTerrain();
+                }, 150);
+            });
+            
+            // Aggregation method
+            document.getElementById('aggregation').addEventListener('change', (e) => {
+                params.aggregation = e.target.value;
+                rebucketData();
+                recreateTerrain();
+            });
+            
+            // Render mode
+            document.getElementById('renderMode').addEventListener('change', (e) => {
+                params.renderMode = e.target.value;
+                recreateTerrain();
+            });
+            
+            // Vertical exaggeration
+            // Vertical exaggeration with debouncing for bars mode (performance)
+            let vertExagTimeout;
+            document.getElementById('vertExag').addEventListener('input', (e) => {
+                params.verticalExaggeration = parseFloat(e.target.value);
+                // Format display based on value size
+                let displayValue = params.verticalExaggeration.toFixed(1);
+                document.getElementById('vertExagValue').textContent = displayValue + 'x';
+                
+                // Debounce terrain updates (especially important for bars mode)
+                clearTimeout(vertExagTimeout);
+                vertExagTimeout = setTimeout(() => {
+                    updateTerrainHeight();
+                }, 100);
+            });
+            
+            // Color scheme
+            document.getElementById('colorScheme').addEventListener('change', (e) => {
+                params.colorScheme = e.target.value;
+                updateColors();
+            });
+            
+            // Wireframe overlay
+            document.getElementById('wireframeOverlay').addEventListener('change', (e) => {
+                params.wireframeOverlay = e.target.checked;
+                if (wireframeMesh) wireframeMesh.visible = params.wireframeOverlay;
+            });
+            
+            // Grid
+            document.getElementById('showGrid').addEventListener('change', (e) => {
+                params.showGrid = e.target.checked;
+                gridHelper.visible = params.showGrid;
+            });
+            
+            // Borders
+            document.getElementById('showBorders').addEventListener('change', (e) => {
+                params.showBorders = e.target.checked;
+                borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
+            });
+            
+            // Auto-rotate
+            document.getElementById('autoRotate').addEventListener('change', (e) => {
+                params.autoRotate = e.target.checked;
+                controls.autoRotate = params.autoRotate;
+            });
+        }
+        
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            
+            // Track modifiers and handle intelligent rotation pivot
+            // IMPORTANT: Use capture phase to intercept before OrbitControls
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                currentModifiers.ctrl = e.ctrlKey;
+                currentModifiers.alt = e.altKey;
+                currentModifiers.shift = e.shiftKey;
+                
+                isDragging = true;
+                dragStartButton = e.button;
+                lastMouseY = e.clientY;  // Track for linear zoom
+                
+                // If Ctrl+Left-click (or right-click), set pivot to clicked point (Google Earth style)
+                // This MUST happen before OrbitControls processes the event
+                if ((e.ctrlKey && e.button === 0) || e.button === 2) {
+                    const pivotSet = updateRotationPivot(e);
+                    if (pivotSet) {
+                        // Give OrbitControls a moment to reset with new target
+                        controls.update();
+                    }
+                }
+                
+                updateMouseControls();
+            }, true);  // Use capture phase!
+            
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (e.buttons !== 0) { // If any button is pressed
+                    currentModifiers.ctrl = e.ctrlKey;
+                    currentModifiers.alt = e.altKey;
+                    currentModifiers.shift = e.shiftKey;
+                    
+                    // Handle Alt+Left-drag or Middle-drag as linear zoom
+                    if ((currentModifiers.alt && e.buttons === 1) || e.buttons === 4) {  // Left with Alt OR Middle button
+                        const deltaY = e.clientY - lastMouseY;
+                        linearZoom(deltaY *2);  // Drag down (positive) = move forward
+                        e.preventDefault();
+                        lastMouseY = e.clientY;
+                    } else {
+                        lastMouseY = e.clientY;
+                    }
+                    
+                    updateMouseControls();
+                }
+            });
+            
+            renderer.domElement.addEventListener('mouseup', (e) => {
+                isDragging = false;
+                dragStartButton = -1;
+            });
+            
+            // Custom linear zoom with mouse wheel - pure forward/backward movement
+            renderer.domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                linearZoom(e.deltaY);
+            }, { passive: false });
+        }
+        
+        // Linear zoom: move camera forward/backward through 3D space
+        function linearZoom(delta) {
+            if (!camera) return;
+            
+            // Get camera forward direction
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.normalize();
+            
+            // Linear movement speed (meters per scroll tick) - 10x faster
+            // Scale based on terrain size for comfort, but movement itself is LINEAR
+            const scale = rawElevationData ? calculateRealWorldScale() : { widthMeters: 1000, heightMeters: 1000 };
+            const avgTerrainSize = (scale.widthMeters + scale.heightMeters) / 2;
+            const baseSpeed = avgTerrainSize * 0.05;  // 5% of terrain size per tick (10x faster)
+            
+            // Apply linear movement (scroll forward/down = move forward into scene)
+            // Scroll forward (down/away) = positive delta → move forward
+            // Scroll back (up/toward) = negative delta → move backward
+            const moveAmount =-1*(delta > 0 ? baseSpeed : -baseSpeed);
+            const movement = forward.multiplyScalar(moveAmount);
+            
+            camera.position.add(movement);
+            controls.target.add(movement);  // Move target too to maintain relative position
+            controls.update();
+        }
+        
+        // Visual marker for rotation pivot
+        let pivotMarker = null;
+        
+        // Update rotation pivot to the point under the mouse cursor (Google Earth style)
+        function updateRotationPivot(event) {
+            if (!terrainMesh) return;
+            
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // Raycast to find intersection with terrain
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Check for intersections with terrain (including instanced meshes)
+            const intersectables = [terrainMesh];
+            const intersects = raycaster.intersectObjects(intersectables, true);
+            
+            if (intersects.length > 0) {
+                // Found a point! Update controls target to this point
+                const point = intersects[0].point;
+                
+                // IMPORTANT: Set target BEFORE any interaction happens
+                controls.target.copy(point);
+                controls.update();
+                
+                // Visual feedback - show where pivot is
+                createPivotMarker(point);
+                
+                console.log(`🎯 Rotation pivot set to: (${point.x.toFixed(0)}, ${point.y.toFixed(0)}, ${point.z.toFixed(0)})`);
+                return true;
+            } else {
+                console.log('⚠️ No terrain intersection found at click point');
+                return false;
+            }
+        }
+        
+        // Create a visual marker showing rotation pivot point
+        function createPivotMarker(position) {
+            // Remove old marker
+            if (pivotMarker) {
+                scene.remove(pivotMarker);
+            }
+            
+            // Scale marker based on terrain size
+            const scale = rawElevationData ? calculateRealWorldScale() : { widthMeters: 1000, heightMeters: 1000 };
+            const avgSize = (scale.widthMeters + scale.heightMeters) / 2;
+            const markerSize = avgSize * 0.01;  // 1% of average terrain dimension
+            
+            // Create a bright sphere at the pivot point
+            const geometry = new THREE.SphereGeometry(markerSize, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xff00ff,
+                transparent: true,
+                opacity: 0.9,
+                depthTest: false  // Always visible
+            });
+            pivotMarker = new THREE.Mesh(geometry, material);
+            pivotMarker.position.copy(position);
+            scene.add(pivotMarker);
+            
+            console.log(`📍 Pivot marker created at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)}) with size ${markerSize.toFixed(0)}m`);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (pivotMarker) {
+                    scene.remove(pivotMarker);
+                    pivotMarker = null;
+                }
+            }, 3000);
+        }
+        
+        function calculateRealWorldScale() {
+            // Calculate real-world scale from geographic bounds
+            // This ensures vertical_exaggeration=1.0 means "true scale like real Earth"
+            const bounds = rawElevationData.bounds;
+            const width = rawElevationData.width;
+            const height = rawElevationData.height;
+            
+            const lonSpan = Math.abs(bounds.right - bounds.left);  // degrees
+            const latSpan = Math.abs(bounds.top - bounds.bottom);  // degrees
+            
+            // Calculate meters per degree at the center latitude
+            const centerLat = (bounds.top + bounds.bottom) / 2.0;
+            const metersPerDegLon = 111_320 * Math.cos(centerLat * Math.PI / 180);
+            const metersPerDegLat = 111_320;  // approximately constant
+            
+            // Calculate real-world dimensions in meters
+            const widthMeters = lonSpan * metersPerDegLon;
+            const heightMeters = latSpan * metersPerDegLat;
+            
+            // Meters per pixel
+            const metersPerPixelX = widthMeters / width;
+            const metersPerPixelY = heightMeters / height;
+            
+            console.log(`📏 Real-world scale:`);
+            console.log(`   Size: ${(widthMeters/1000).toFixed(1)} × ${(heightMeters/1000).toFixed(1)} km`);
+            console.log(`   Resolution: ${metersPerPixelX.toFixed(1)} × ${metersPerPixelY.toFixed(1)} m/pixel`);
+            console.log(`   Vertical exaggeration: ${params.verticalExaggeration}x (1.0 = true Earth scale)`);
+            
+            return {
+                metersPerPixelX,
+                metersPerPixelY,
+                widthMeters,
+                heightMeters
+            };
+        }
+        
+        function createTerrain() {
+            const t0 = performance.now();
+            console.log(`🎨 Creating terrain in ${params.renderMode} mode...`);
+            
+            // Remove old terrain
+            if (terrainMesh) scene.remove(terrainMesh);
+            if (wireframeMesh) scene.remove(wireframeMesh);
+            
+            const { width, height, elevation } = processedData;
+            
+            // Calculate real-world scale
+            const scale = calculateRealWorldScale();
+            
+            if (params.renderMode === 'bars') {
+                createBarsTerrain(width, height, elevation, scale);
+            } else if (params.renderMode === 'points') {
+                createPointCloudTerrain(width, height, elevation, scale);
+            } else {
+                createSurfaceTerrain(width, height, elevation, scale);
+            }
+            
+            // Center terrain (now in meters, not pixels)
+            if (terrainMesh) {
+                terrainMesh.position.x = -scale.widthMeters / 2;
+                terrainMesh.position.z = -scale.heightMeters / 2;
+                console.log(`🎯 Terrain mesh offset: (${terrainMesh.position.x.toFixed(0)}, ${terrainMesh.position.z.toFixed(0)}) to center map`);
+            }
+            
+            const t1 = performance.now();
+            console.log(`✅ Terrain created in ${(t1-t0).toFixed(1)}ms`);
+            
+            stats.vertices = width * height;
+            stats.bucketedVertices = width * height;
+            
+            // Create edge markers after terrain is created
+            createEdgeMarkers();
+            
+            updateStats();
+        }
+        
+        function createBarsTerrain(width, height, elevation, scale) {
+            // Use instanced rendering for MUCH better performance
+            const dummy = new THREE.Object3D();
+            
+            // Each bucket has been sized to exactly tile the map (no overlaps)
+            const bucketSizeMetersX = processedData.bucketSizeMetersX;
+            const bucketSizeMetersY = processedData.bucketSizeMetersY;
+            
+            // Create buckets using actual dimensions (may not be perfectly square due to map proportions)
+            const baseGeometry = new THREE.BoxGeometry(bucketSizeMetersX, 1, bucketSizeMetersY, 1, 1, 1);
+            
+            console.log(`📦 Creating bars: ${(bucketSizeMetersX/1000).toFixed(2)}km × ${(bucketSizeMetersY/1000).toFixed(2)}km each`);
+            console.log(`📦 Bucket grid dimensions: ${width} × ${height} buckets`);
+            console.log(`📦 Box geometry size: ${bucketSizeMetersX.toFixed(0)}m × ${bucketSizeMetersY.toFixed(0)}m`);
+            console.log(`📦 Total coverage: ${(width * bucketSizeMetersX/1000).toFixed(1)}km × ${(height * bucketSizeMetersY/1000).toFixed(1)}km`);
+            console.log(`📦 Map extent: ${(scale.widthMeters/1000).toFixed(1)}km × ${(scale.heightMeters/1000).toFixed(1)}km`);
+            
+            // Collect valid bar data first
+            // GeoTIFF: elevation[row][col] where row=North→South (i), col=West→East (j)
+            // Three.js: x=East (meters), z=South (meters), y=Up (meters)
+            const barData = [];
+            
+            for (let i = 0; i < height; i++) {  // i = row index (North to South)
+                for (let j = 0; j < width; j++) {  // j = col index (West to East)
+                    let z = elevation[i] && elevation[i][j];
+                    
+                    // Use 0 for missing data instead of skipping
+                    if (z === null || z === undefined) z = 0;
+                    
+                    const elev = Math.max(z * params.verticalExaggeration, 0.1); // Minimum 0.1m height
+                    const color = getColorForElevation(z);
+                    
+                    // Position bars: each bucket occupies its allocated physical area
+                    // Center the bar within its bucket
+                    const xPos = j * bucketSizeMetersX + bucketSizeMetersX / 2;
+                    const zPos = i * bucketSizeMetersY + bucketSizeMetersY / 2;
+                    barData.push({ x: xPos, y: elev / 2, z: zPos, height: elev, color });
+                }
+            }
+            
+            const barCount = barData.length;
+            const instancedMesh = new THREE.InstancedMesh(
+                baseGeometry,
+                new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
+                    // No roughness/metalness - simpler lighting
+                }),
+                barCount
+            );
+            
+            // Set transform and color for each instance
+            const colorArray = new Float32Array(barCount * 3);
+            
+            for (let i = 0; i < barCount; i++) {
+                const bar = barData[i];
+                
+                // Set position and scale
+                dummy.position.set(bar.x, bar.y, bar.z);
+                dummy.scale.set(1, bar.height, 1);
+                dummy.updateMatrix();
+                instancedMesh.setMatrixAt(i, dummy.matrix);
+                
+                // Set color
+                colorArray[i * 3] = bar.color.r;
+                colorArray[i * 3 + 1] = bar.color.g;
+                colorArray[i * 3 + 2] = bar.color.b;
+            }
+            
+            // Log first few bars for debugging
+            if (barCount > 0) {
+                console.log(`📦 Sample bars (first 3):`);
+                for (let i = 0; i < Math.min(3, barCount); i++) {
+                    const bar = barData[i];
+                    console.log(`   Bar ${i}: pos=(${bar.x.toFixed(0)}, ${bar.y.toFixed(0)}, ${bar.z.toFixed(0)}), height=${bar.height.toFixed(0)}m`);
+                }
+            }
+            
+            // Add colors as instance attribute
+            baseGeometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorArray, 3));
+            instancedMesh.material.vertexColors = true;
+            
+            // Enable custom vertex colors in shader
+            instancedMesh.material.onBeforeCompile = (shader) => {
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <color_pars_vertex>',
+                    `#include <color_pars_vertex>
+                    attribute vec3 instanceColor;`
+                );
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <color_vertex>',
+                    `#include <color_vertex>
+                    #ifdef USE_INSTANCING
+                        vColor = instanceColor;
+                    #endif`
+                );
+            };
+            
+            terrainMesh = instancedMesh;
+            scene.add(terrainMesh);
+            stats.bars = barCount;
+            console.log(`✅ Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
+            
+            // Performance warning and suggestion
+            if (barCount > 15000) {
+                console.warn(`⚠️ Very high bar count (${barCount.toLocaleString()})! Consider:
+  • Increase bucket multiplier to ${Math.ceil(params.bucketSize * 1.5)}×+
+  • Switch to 'Surface' render mode for better performance
+  • Current: ${Math.floor(100 * barCount / (width * height))}% of bucketed grid has data`);
+            } else if (barCount > 8000) {
+                console.warn(`⚠️ High bar count (${barCount.toLocaleString()}). Increase bucket multiplier if laggy.`);
+            }
+        }
+        
+        function createPointCloudTerrain(width, height, elevation, scale) {
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            
+            // Each bucket has been sized to exactly tile the map
+            const bucketSizeMetersX = processedData.bucketSizeMetersX;
+            const bucketSizeMetersY = processedData.bucketSizeMetersY;
+            
+            // GeoTIFF: elevation[row][col] where row=North→South (i), col=West→East (j)
+            for (let i = 0; i < height; i++) {  // row (North to South)
+                for (let j = 0; j < width; j++) {  // column (West to East)
+                    let z = elevation[i] && elevation[i][j];
+                    if (z === null || z === undefined) z = 0;
+                    
+                    // Three.js position: x=East (meters), y=elevation (meters), z=South (meters)
+                    // Center point within its bucket
+                    const xPos = j * bucketSizeMetersX + bucketSizeMetersX / 2;
+                    const zPos = i * bucketSizeMetersY + bucketSizeMetersY / 2;
+                    positions.push(xPos, z * params.verticalExaggeration, zPos);
+                    
+                    const color = getColorForElevation(z);
+                    colors.push(color.r, color.g, color.b);
+                }
+            }
+            
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            
+            const avgBucketSize = (bucketSizeMetersX + bucketSizeMetersY) / 2;
+            const material = new THREE.PointsMaterial({
+                size: avgBucketSize * 1.5,  // Point size scales with bucket size
+                vertexColors: true,
+                sizeAttenuation: true
+            });
+            
+            terrainMesh = new THREE.Points(geometry, material);
+            scene.add(terrainMesh);
+        }
+        
+        function createSurfaceTerrain(width, height, elevation, scale) {
+            const geometry = new THREE.PlaneGeometry(
+                scale.widthMeters, scale.heightMeters, width - 1, height - 1
+            );
+            
+            const colors = [];
+            const positions = geometry.attributes.position;
+            
+            // GeoTIFF: elevation[row][col] where row=North→South, col=West→East
+            for (let i = 0; i < height; i++) {  // row (North to South)
+                for (let j = 0; j < width; j++) {  // column (West to East)
+                    const idx = i * width + j;
+                    let z = elevation[i] && elevation[i][j];
+                    if (z === null || z === undefined) z = 0;
+                    
+                    positions.setZ(idx, z * params.verticalExaggeration);
+                    
+                    const color = getColorForElevation(z);
+                    colors.push(color.r, color.g, color.b);
+                }
+            }
+            
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
+                vertexColors: true,
+                flatShading: params.renderMode === 'wireframe',
+                wireframe: params.renderMode === 'wireframe',
+                side: THREE.DoubleSide
+            });
+            
+            terrainMesh = new THREE.Mesh(geometry, material);
+            terrainMesh.rotation.x = -Math.PI / 2;
+            scene.add(terrainMesh);
+        }
+        
+        function getColorForElevation(elevation) {
+            const { min, max } = rawElevationData.stats;
+            const normalized = Math.max(0, Math.min(1, (elevation - min) / (max - min)));
+            
+            const schemes = {
+                terrain: [
+                    { stop: 0.0, color: new THREE.Color(0x1a4f63) },
+                    { stop: 0.2, color: new THREE.Color(0x2d8659) },
+                    { stop: 0.4, color: new THREE.Color(0x5ea849) },
+                    { stop: 0.6, color: new THREE.Color(0xa8b840) },
+                    { stop: 0.8, color: new THREE.Color(0xb87333) },
+                    { stop: 1.0, color: new THREE.Color(0xe8e8e8) }
+                ],
+                elevation: [
+                    { stop: 0.0, color: new THREE.Color(0x0000ff) },
+                    { stop: 0.5, color: new THREE.Color(0x00ff00) },
+                    { stop: 1.0, color: new THREE.Color(0xff0000) }
+                ],
+                grayscale: [
+                    { stop: 0.0, color: new THREE.Color(0x111111) },
+                    { stop: 1.0, color: new THREE.Color(0xffffff) }
+                ],
+                rainbow: [
+                    { stop: 0.0, color: new THREE.Color(0x9400d3) },
+                    { stop: 0.2, color: new THREE.Color(0x0000ff) },
+                    { stop: 0.4, color: new THREE.Color(0x00ff00) },
+                    { stop: 0.6, color: new THREE.Color(0xffff00) },
+                    { stop: 0.8, color: new THREE.Color(0xff7f00) },
+                    { stop: 1.0, color: new THREE.Color(0xff0000) }
+                ],
+                earth: [
+                    { stop: 0.0, color: new THREE.Color(0x2C1810) },
+                    { stop: 0.3, color: new THREE.Color(0x6B5244) },
+                    { stop: 0.6, color: new THREE.Color(0x8B9A6B) },
+                    { stop: 1.0, color: new THREE.Color(0xC4B89C) }
+                ],
+                heatmap: [
+                    { stop: 0.0, color: new THREE.Color(0x000033) },
+                    { stop: 0.25, color: new THREE.Color(0x0066ff) },
+                    { stop: 0.5, color: new THREE.Color(0x00ff66) },
+                    { stop: 0.75, color: new THREE.Color(0xffff00) },
+                    { stop: 1.0, color: new THREE.Color(0xff0000) }
+                ]
+            };
+            
+            const scheme = schemes[params.colorScheme] || schemes.terrain;
+            
+            for (let i = 0; i < scheme.length - 1; i++) {
+                if (normalized >= scheme[i].stop && normalized <= scheme[i + 1].stop) {
+                    const localT = (normalized - scheme[i].stop) / (scheme[i + 1].stop - scheme[i].stop);
+                    return new THREE.Color().lerpColors(scheme[i].color, scheme[i + 1].color, localT);
+                }
+            }
+            
+            return scheme[scheme.length - 1].color;
+        }
+        
+        function updateTerrainHeight() {
+            if (!terrainMesh) return;
+            
+            if (params.renderMode === 'bars' || params.renderMode === 'points') {
+                recreateTerrain();
+            } else {
+                const positions = terrainMesh.geometry.attributes.position;
+                const { width, height, elevation } = processedData;
+                
+                // Update elevation heights for existing geometry
+                for (let i = 0; i < height; i++) {  // row (North to South)
+                    for (let j = 0; j < width; j++) {  // column (West to East)
+                        const idx = i * width + j;
+                        let z = elevation[i] && elevation[i][j];
+                        if (z === null || z === undefined) z = 0;
+                        
+                        positions.setZ(idx, z * params.verticalExaggeration);
+                    }
+                }
+                
+                positions.needsUpdate = true;
+                terrainMesh.geometry.computeVertexNormals();
+                
+                // Update edge markers to match new height
+                updateEdgeMarkers();
+            }
+        }
+        
+        function updateColors() {
+            recreateTerrain();
+        }
+        
+        function recreateTerrain() {
+            createTerrain();
+        }
+        
+        function recreateBorders() {
+            console.log('🗺️ Creating borders...');
+            
+            // Remove old borders
+            borderMeshes.forEach(mesh => scene.remove(mesh));
+            borderMeshes = [];
+            
+            if (!borderData || !borderData.countries) {
+                console.log('[INFO] No border data available');
+                return;
+            }
+            
+            if (!params.showBorders) {
+                console.log('[INFO] Borders hidden by user setting');
+                return;
+            }
+            
+            const { width, height, bounds: elevBounds } = rawElevationData;
+            const { bounds } = borderData;
+            
+            // Calculate real-world scale
+            const scale = calculateRealWorldScale();
+            
+            // Get max elevation for positioning borders above terrain
+            const maxElev = rawElevationData.stats.max * params.verticalExaggeration * 1.05;
+            
+            let totalSegments = 0;
+            
+            borderData.countries.forEach((country) => {
+                country.segments.forEach((segment) => {
+                    const points = [];
+                    
+                    // Convert lon/lat to real-world meter coordinates
+                    for (let i = 0; i < segment.lon.length; i++) {
+                        const lon = segment.lon[i];
+                        const lat = segment.lat[i];
+                        
+                        // Map geographic coords to meters (matching terrain scale)
+                        // bounds: left/right (lon), top/bottom (lat)
+                        const colNormalized = (lon - elevBounds.left) / (elevBounds.right - elevBounds.left);
+                        const rowNormalized = (elevBounds.top - lat) / (elevBounds.top - elevBounds.bottom);
+                        
+                        const xMeters = colNormalized * scale.widthMeters;
+                        const zMeters = rowNormalized * scale.heightMeters;
+                        
+                        // Three.js: x=East (meters), z=South (meters), y=elevation (meters)
+                        points.push(new THREE.Vector3(xMeters, maxElev, zMeters));
+                    }
+                    
+                    if (points.length > 1) {
+                        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                        const material = new THREE.LineBasicMaterial({
+                            color: 0xFFFF00,  // YELLOW - highly visible!
+                            linewidth: 2,
+                            transparent: true,
+                            opacity: 0.9
+                        });
+                        const line = new THREE.Line(geometry, material);
+                        scene.add(line);
+                        borderMeshes.push(line);
+                        totalSegments++;
+                    }
+                });
+            });
+            
+            console.log(`✅ Created ${totalSegments} border segments for ${borderData.countries.length} countries`);
+        }
+        
+        function updateStats() {
+            const statsDiv = document.getElementById('stats');
+            const { width, height, stats: dataStats } = rawElevationData;
+            const { width: bWidth, height: bHeight, bucketSizeMetersX, bucketSizeMetersY } = processedData;
+            
+            statsDiv.innerHTML = `
+                <div class="stat-line">
+                    <span class="stat-label">Raw Data:</span> 
+                    <span class="stat-value">${width} × ${height} pixels</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Bucket Multiplier:</span> 
+                    <span class="stat-value">${params.bucketSize}× (${(bucketSizeMetersX/1000).toFixed(1)}km × ${(bucketSizeMetersY/1000).toFixed(1)}km)</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Bucketed Grid:</span> 
+                    <span class="stat-value">${bWidth} × ${bHeight}</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Data Reduction:</span> 
+                    <span class="stat-value">${(100 * (1 - (bWidth * bHeight) / (width * height))).toFixed(1)}%</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Elevation Range:</span> 
+                    <span class="stat-value">${dataStats.min.toFixed(0)}m - ${dataStats.max.toFixed(0)}m</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Bars Rendered:</span> 
+                    <span class="stat-value">${stats.bars?.toLocaleString() || 'N/A'}</span>
+                </div>
+            `;
+        }
+        
+        function setView(preset) {
+            if (!rawElevationData) {
+                resetCamera();
+                return;
+            }
+            
+            // Calculate distances based on terrain size
+            const scale = calculateRealWorldScale();
+            const maxDim = Math.max(scale.widthMeters, scale.heightMeters);
+            const distance = maxDim * 0.8;
+            const height = maxDim * 0.5;
+            
+            const views = {
+                overhead: { x: 0, y: distance * 1.2, z: 0, target: [0, 0, 0] },
+                north: { x: 0, y: height, z: distance, target: [0, 0, 0] },
+                south: { x: 0, y: height, z: -distance, target: [0, 0, 0] },
+                east: { x: distance, y: height, z: 0, target: [0, 0, 0] },
+                west: { x: -distance, y: height, z: 0, target: [0, 0, 0] },
+                isometric: { x: distance * 0.8, y: distance * 0.8, z: distance * 0.8, target: [0, maxDim * 0.01, 0] }
+            };
+            
+            const view = views[preset];
+            if (view) {
+                camera.position.set(view.x, view.y, view.z);
+                controls.target.set(...view.target);
+                controls.update();
+            }
+        }
+        
+        function setVertExag(value) {
+            params.verticalExaggeration = value;
+            document.getElementById('vertExag').value = value;
+            
+            // Update display
+            let displayValue;
+            if (value < 0.01) {
+                displayValue = value.toFixed(4);
+            } else if (value < 1) {
+                displayValue = value.toFixed(3);
+            } else {
+                displayValue = value.toFixed(2);
+            }
+            document.getElementById('vertExagValue').textContent = displayValue + 'x';
+            
+            updateTerrainHeight();
+        }
+        
+        function resetCamera() {
+            if (!rawElevationData) {
+                camera.position.set(50, 50, 80);
+                controls.target.set(0, 0, 0);
+                controls.update();
+                return;
+            }
+            
+            // Calculate appropriate camera distance based on terrain size
+            const scale = calculateRealWorldScale();
+            const maxDim = Math.max(scale.widthMeters, scale.heightMeters);
+            const camDistance = maxDim * 0.8;  // View from 80% of max dimension
+            const camHeight = maxDim * 0.5;    // Height is 50% of max dimension
+            
+            camera.position.set(camDistance * 0.5, camHeight, camDistance * 0.6);
+            controls.target.set(0, 0, 0);
+            controls.update();
+            
+            console.log(`📷 Camera reset to distance: ${camDistance.toFixed(0)}m`);
+        }
+        
+        function exportImage() {
+            renderer.render(scene, camera);
+            const dataURL = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            link.download = `terrain_bucket${params.bucketSize}_${params.aggregation}_${timestamp}.png`;
+            link.href = dataURL;
+            link.click();
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // Compass size stays fixed
+        }
+        
+        // Roblox Studio style keyboard and modifier tracking
+        const keyboard = {
+            w: false, a: false, s: false, d: false,
+            q: false, e: false, 
+            shift: false, ctrl: false, alt: false
+        };
+        
+        // Track modifier keys for dynamic mouse control behavior
+        let currentModifiers = {
+            ctrl: false,
+            alt: false,
+            shift: false
+        };
+        
+        // Raycaster for click-to-pivot rotation (Google Earth style)
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Line.threshold = 10;  // Make lines easier to hit
+        raycaster.params.Points.threshold = 10;  // Make points easier to hit
+        const mouse = new THREE.Vector2();
+        let isDragging = false;
+        let dragStartButton = -1;
+        
+        function onKeyDown(event) {
+            const key = event.key.toLowerCase();
+            
+            // Track modifier keys
+            currentModifiers.ctrl = event.ctrlKey;
+            currentModifiers.alt = event.altKey;
+            currentModifiers.shift = event.shiftKey;
+            
+            // Movement keys
+            if (key === 'w') keyboard.w = true;
+            if (key === 'a') keyboard.a = true;
+            if (key === 's') keyboard.s = true;
+            if (key === 'd') keyboard.d = true;
+            if (key === 'q') keyboard.q = true;
+            if (key === 'e') keyboard.e = true;
+            
+            // Modifier keys
+            if (event.shiftKey) keyboard.shift = true;
+            if (event.ctrlKey) keyboard.ctrl = true;
+            if (event.altKey) keyboard.alt = true;
+            
+            // Update mouse controls based on modifiers
+            updateMouseControls();
+            
+            // Hotkeys
+            if (event.key === 'r' || event.key === 'R') {
+                resetCamera();
+            } else if (event.key === 'f' || event.key === 'F') {
+                // F key: Focus on center (Roblox Studio style)
+                resetCamera();
+            } else if (event.key === ' ') {
+                event.preventDefault();
+                params.autoRotate = !params.autoRotate;
+                controls.autoRotate = params.autoRotate;
+                document.getElementById('autoRotate').checked = params.autoRotate;
+            }
+        }
+        
+        function onKeyUp(event) {
+            const key = event.key.toLowerCase();
+            
+            // Track modifier keys
+            currentModifiers.ctrl = event.ctrlKey;
+            currentModifiers.alt = event.altKey;
+            currentModifiers.shift = event.shiftKey;
+            
+            // Release movement keys
+            if (key === 'w') keyboard.w = false;
+            if (key === 'a') keyboard.a = false;
+            if (key === 's') keyboard.s = false;
+            if (key === 'd') keyboard.d = false;
+            if (key === 'q') keyboard.q = false;
+            if (key === 'e') keyboard.e = false;
+            
+            // Release modifier keys
+            if (!event.shiftKey) keyboard.shift = false;
+            if (!event.ctrlKey) keyboard.ctrl = false;
+            if (!event.altKey) keyboard.alt = false;
+            
+            // Update mouse controls based on modifiers
+            updateMouseControls();
+        }
+        
+        // Track for alt+drag linear zoom
+        let lastMouseY = 0;
+        
+        // Update mouse button assignments based on modifier keys
+        function updateMouseControls() {
+            if (currentModifiers.ctrl) {
+                // Ctrl+Left-click: Rotate
+                controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+            } else if (currentModifiers.alt) {
+                // Alt+Left-click: We'll handle linear zoom manually, disable OrbitControls
+                controls.mouseButtons.LEFT = -1;  // Disable
+            } else {
+                // Default: Left-click drag pans
+                controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+            }
+        }
+        
+        function handleKeyboardMovement() {
+            if (!camera || !controls) return;
+            
+            // Check if any key is pressed
+            const isMoving = keyboard.w || keyboard.s || keyboard.a || keyboard.d || keyboard.q || keyboard.e;
+            if (!isMoving) return;
+            
+            // Speed adjustments with modifiers
+            const baseSpeed = 1.5;
+            const rotateSpeed = 0.02;  // Radians per frame for rotation
+            let moveSpeed = baseSpeed;
+            
+            if (keyboard.shift) {
+                moveSpeed *= 2.5;  // Shift = faster
+            }
+            if (keyboard.ctrl) {
+                moveSpeed *= 0.3;  // Ctrl = slower/precise
+            }
+            if (keyboard.alt) {
+                moveSpeed *= 4.0;  // Alt = very fast
+            }
+            
+            // Get camera direction vectors
+            const forward = new THREE.Vector3();
+            const right = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.normalize();
+            right.crossVectors(forward, camera.up).normalize();
+            
+            // Movement delta
+            const delta = new THREE.Vector3();
+            
+            // W/S: Move camera FORWARD/BACKWARD (in view direction)
+            if (keyboard.w) {
+                delta.addScaledVector(forward, moveSpeed);
+            }
+            if (keyboard.s) {
+                delta.addScaledVector(forward, -moveSpeed);
+            }
+            
+            // Q/E: Move camera UP/DOWN (vertical, world space)
+            if (keyboard.q) {
+                delta.y += moveSpeed;
+            }
+            if (keyboard.e) {
+                delta.y -= moveSpeed;
+            }
+            
+            // A/D: Strafe camera LEFT/RIGHT (relative to view direction)
+            if (keyboard.a) {
+                delta.addScaledVector(right, -moveSpeed);
+            }
+            if (keyboard.d) {
+                delta.addScaledVector(right, moveSpeed);
+            }
+            
+            // Apply positional movement
+            camera.position.add(delta);
+            controls.target.add(delta);
+            
+            // No rotation via A/D with new scheme
+            camera.lookAt(controls.target);
+        }
+        
+        function updateFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime >= lastTime + 1000) {
+                const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                document.getElementById('fps-display').textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            handleKeyboardMovement();  // Roblox-style WASD/QE movement
+            controls.update();
+            renderer.render(scene, camera);
+            updateCompass();  // Update orientation compass
+            updateFPS();
+        }
+        
+        // Toggle controls help window
+        function toggleControlsHelp() {
+            const window = document.getElementById('controls-help-window');
+            const button = document.getElementById('controls-help-toggle');
+            
+            if (window.classList.contains('open')) {
+                window.classList.remove('open');
+                button.textContent = '❓ Controls';
+            } else {
+                window.classList.add('open');
+                button.textContent = '❓ Close';
+            }
+        }
+        
+        // Start when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
+
