@@ -271,3 +271,39 @@ def get_border_manager() -> BorderManager:
 # Import pandas here to avoid circular import
 import pandas as pd
 
+
+# Convenience functions for easy access
+def get_country_geometry(country_name: str, resolution: str = '110m'):
+    """
+    Get shapely geometry for a country (for use in clipping).
+    
+    Args:
+        country_name: Country name (e.g., 'United States of America')
+        resolution: Natural Earth resolution ('10m', '50m', '110m')
+        
+    Returns:
+        Shapely geometry object, or None if not found
+    """
+    bm = get_border_manager()
+    country = bm.get_country(country_name, resolution)
+    
+    if country is None or country.empty:
+        return None
+    
+    # Return the unary union of all geometries (in case of multi-part countries)
+    from shapely.ops import unary_union
+    return unary_union(country.geometry)
+
+
+def list_countries(resolution: str = '110m') -> List[str]:
+    """
+    List all available country names.
+    
+    Args:
+        resolution: Natural Earth resolution
+        
+    Returns:
+        List of country names
+    """
+    bm = get_border_manager()
+    return bm.list_available(resolution)

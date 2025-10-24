@@ -32,6 +32,8 @@ except ImportError as e:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+from load_settings import get_opentopography_api_key
+from src.pipeline import run_pipeline
 
 # US States with precise bounds
 US_STATES = {
@@ -110,7 +112,7 @@ def download_opentopography_srtm(
         region_id: Region identifier
         bounds: (west, south, east, north) in degrees
         output_path: Where to save the TIF file
-        api_key: OpenTopography API key (optional, higher rate limits if provided)
+        api_key: OpenTopography API key (optional, will load from settings.json if not provided)
         
     Returns:
         True if successful, False otherwise
@@ -119,7 +121,32 @@ def download_opentopography_srtm(
         print(f"   ✅ Already exists: {output_path.name}")
         return True
     
+    # Get API key from settings if not provided
+    if not api_key:
+        try:
+            api_key = get_opentopography_api_key()
+            print(f"   🔑 Using API key from settings.json")
+        except SystemExit:
+            print("   ❌ OpenTopography requires an API key")
+            print("   Add your API key to settings.json or pass --api-key")
+            print("   Get a free key at: https://portal.opentopography.org/")
+            return False
+    
     west, south, east, north = bounds
+    
+    # Check if region is too large for OpenTopography API
+    width = abs(east - west)
+    height = abs(north - south)
+    
+    if width > 4.0 or height > 4.0:
+        print(f"   ⚠️  WARNING: Region is very large ({width:.1f}° × {height:.1f}°)")
+        print(f"   OpenTopography may reject requests > 4° in any direction")
+        print(f"   ")
+        print(f"   Options:")
+        print(f"   1. Download smaller sub-regions individually")
+        print(f"   2. Use manual download method: python downloaders/usa_3dep.py {region_id} --manual")
+        print(f"   ")
+        print(f"   Attempting download anyway...")
     
     # OpenTopography API for SRTM GL1 (30m global)
     url = "https://portal.opentopography.org/API/globaldem"
@@ -130,18 +157,18 @@ def download_opentopography_srtm(
         'north': north,
         'west': west,
         'east': east,
-        'outputFormat': 'GTiff'
+        'outputFormat': 'GTiff',
+        'API_Key': api_key
     }
-    
-    if api_key:
-        params['API_Key'] = api_key
-        print(f"   🔑 Using API key")
     
     print(f"   📥 Downloading from OpenTopography (SRTM 30m)...")
     print(f"      Bounds: [{west:.2f}, {south:.2f}, {east:.2f}, {north:.2f}]")
+    print(f"      Size: {width:.1f}° × {height:.1f}°")
     print(f"      Note: This is 30m SRTM, not high-res 3DEP")
+    print(f"      ")
     
     try:
+        print(f"   ⏳ Requesting data from server...")
         response = requests.get(url, params=params, stream=True, timeout=300)
         response.raise_for_status()
         
@@ -149,17 +176,29 @@ def download_opentopography_srtm(
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
+        print(f"   ⬇️  Downloading {total_size / (1024*1024):.1f} MB...")
         with open(output_path, 'wb') as f:
             if total_size == 0:
                 f.write(response.content)
+                print(f"      Downloaded (size unknown)")
             else:
-                with tqdm(total=total_size, unit='B', unit_scale=True, desc="      Progress") as pbar:
+                with tqdm(
+                    total=total_size, 
+                    unit='B', 
+                    unit_scale=True, 
+                    unit_divisor=1024,
+                    desc="      Downloading",
+                    bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+                ) as pbar:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                         pbar.update(len(chunk))
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
         print(f"   ✅ Downloaded: {output_path.name} ({file_size_mb:.1f} MB)")
+        
+        # Create metadata
+        print(f"   📝 Creating metadata...")
         
         # Create and save metadata
         metadata = create_raw_metadata(
@@ -170,9 +209,27 @@ def download_opentopography_srtm(
             download_params=params
         )
         save_metadata(metadata, get_metadata_path(output_path))
+        print(f"   ✅ Metadata saved")
         
         return True
         
+    except requests.exceptions.Timeout:
+        print(f"   ❌ Download timeout - region may be too large or server busy")
+        print(f"      Try again later or download a smaller region")
+        if output_path.exists():
+            output_path.unlink()
+        return False
+    except requests.exceptions.HTTPError as e:
+        print(f"   ❌ HTTP Error: {e}")
+        if e.response.status_code == 400:
+            print(f"      Likely cause: Region too large (>{width:.1f}° × {height:.1f}°)")
+            print(f"      OpenTopography limit is ~4° in each direction")
+            print(f"      Try downloading smaller sub-regions or use --manual")
+        elif e.response.status_code == 401:
+            print(f"      API key may be invalid or expired")
+        if output_path.exists():
+            output_path.unlink()
+        return False
     except Exception as e:
         print(f"   ❌ Download failed: {e}")
         if output_path.exists():
@@ -255,6 +312,8 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
     parser.add_argument('--manual', action='store_true', help='Show manual download instructions (1-10m 3DEP)')
     parser.add_argument('--api-key', type=str, help='OpenTopography API key (optional)')
     parser.add_argument('--output-dir', type=str, default='data/raw/srtm_30m', help='Output directory')
+    parser.add_argument('--no-process', action='store_true', help='Skip automatic processing pipeline (just download)')
+    parser.add_argument('--target-pixels', type=int, default=800, help='Target resolution for viewer (default: 800)')
     
     args = parser.parse_args()
     
@@ -306,17 +365,49 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
         return 0
     elif args.auto:
         output_path = Path(args.output_dir) / f"{region_id}_bbox_30m.tif"
-        success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
         
-        if success:
-            print(f"\n✅ Success! Data saved to: {output_path}")
-            print(f"\n⚠️  Note: This is 30m SRTM data, not highest-res 3DEP.")
-            print(f"   For 1-10m resolution, run:")
-            print(f"   python downloaders/usa_3dep.py {region_id} --manual")
-        else:
+        # Step 1: Download
+        download_success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
+        
+        if not download_success:
             print(f"\n❌ Download failed.")
+            return 1
         
-        return 0 if success else 1
+        print(f"\n✅ Download complete!")
+        
+        # Step 2: Auto-process (unless --no-process specified)
+        if not args.no_process:
+            # Determine boundary name for US states
+            boundary_name = None
+            if region_id in US_STATES:
+                # US state - use full country/state path
+                state_name = US_STATES[region_id]['name']
+                boundary_name = f"United States of America"  # For now, just use country boundary
+                # TODO: Add state-level boundaries
+            
+            # Run processing pipeline
+            pipeline_success, result_paths = run_pipeline(
+                raw_tif_path=output_path,
+                region_id=region_id,
+                source='srtm_30m',
+                boundary_name=boundary_name,
+                target_pixels=args.target_pixels,
+                skip_clip=True  # Skip clipping for now (state boundaries not yet implemented)
+            )
+            
+            if not pipeline_success:
+                print(f"\n⚠️  Pipeline had issues, but raw data was downloaded successfully")
+                print(f"   You can process manually later with:")
+                print(f"   python -c \"from src.pipeline import run_pipeline; from pathlib import Path; run_pipeline(Path('{output_path}'), '{region_id}', 'srtm_30m')\"")
+        else:
+            print(f"\n⏭️  Skipped processing (--no-process specified)")
+            print(f"   To process later, run:")
+            print(f"   python -c \"from src.pipeline import run_pipeline; from pathlib import Path; run_pipeline(Path('{output_path}'), '{region_id}', 'srtm_30m')\"")
+        
+        print(f"\n💡 Note: This is 30m SRTM data. For highest quality (1-10m), run:")
+        print(f"   python downloaders/usa_3dep.py {region_id} --manual")
+        
+        return 0
     else:
         print("\n❓ Please specify download method:")
         print(f"   --auto    : Automated download (30m SRTM, good quality)")
