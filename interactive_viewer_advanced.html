@@ -633,6 +633,11 @@
             </div>
             
             <div class="control-group checkbox-group">
+                <input type="checkbox" id="flatShading" checked>
+                <label for="flatShading">Flat Shading</label>
+            </div>
+            
+            <div class="control-group checkbox-group">
                 <input type="checkbox" id="autoRotate">
                 <label for="autoRotate">Auto-Rotate</label>
             </div>
@@ -695,6 +700,7 @@
             wireframeOverlay: false,
             showGrid: false,
             showBorders: true,
+            flatShading: true,
             autoRotate: false
         };
         
@@ -997,6 +1003,9 @@
             // Vertical exaggeration
             document.getElementById('vertExag').value = params.verticalExaggeration;
             document.getElementById('vertExagValue').textContent = `${params.verticalExaggeration.toFixed(5)}x`;
+            
+            // Checkboxes
+            document.getElementById('flatShading').checked = params.flatShading;
         }
         
         // CLIENT-SIDE BUCKETING ALGORITHMS
@@ -1572,6 +1581,12 @@
                 borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
             });
             
+            // Flat shading toggle
+            document.getElementById('flatShading').addEventListener('change', (e) => {
+                params.flatShading = e.target.checked;
+                recreateTerrain();
+            });
+            
             // Auto-rotate
             document.getElementById('autoRotate').addEventListener('change', (e) => {
                 params.autoRotate = e.target.checked;
@@ -1849,7 +1864,7 @@
             const material = new THREE.MeshLambertMaterial({
                 vertexColors: true
             });
-            material.flatShading = true;  // Set AFTER creation for InstancedMesh compatibility
+            material.flatShading = params.flatShading;  // Toggle via UI - affects depth buffer artifact visibility
             
             const instancedMesh = new THREE.InstancedMesh(
                 baseGeometry,
@@ -2011,7 +2026,7 @@
             
             const material = new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
                 vertexColors: true,
-                flatShading: params.renderMode === 'wireframe',
+                flatShading: params.renderMode === 'wireframe' ? true : params.flatShading,
                 wireframe: params.renderMode === 'wireframe',
                 side: THREE.DoubleSide
             });
