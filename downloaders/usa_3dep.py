@@ -15,9 +15,8 @@ from pathlib import Path
 from typing import Tuple, Optional
 import json
 
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# Windows UTF-8 encoding support (PowerShell handles this automatically on Win10+)
+# Removed wrapper to avoid conflicts with PowerShell's own UTF-8 handling
 
 try:
     import requests

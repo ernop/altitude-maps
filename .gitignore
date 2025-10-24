@@ -27,9 +27,6 @@ generated/
 *.swp
 *.swo
 
-# Learnings (as per user pattern)
-learnings/
-
 # OS
 .DS_Store
 Thumbs.db

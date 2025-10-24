@@ -2,12 +2,12 @@
 
 **Last Updated**: 2025-10-24 (After cleanup & re-export)
 
-## ✅ Available Regions (28 total)
+## ✅ Available Regions (29 total)
 
 All data is properly exported and ready for the interactive 3D viewer at:
 - **URL**: http://127.0.0.1:8001/interactive_viewer_advanced.html
 
-### Complete List
+### USA States (28)
 
 | State | Source | Resolution | Status |
 |-------|--------|------------|--------|
@@ -41,6 +41,12 @@ All data is properly exported and ready for the interactive 3D viewer at:
 | Wisconsin | SRTM 30m | ~800px | ✅ Ready |
 | Wyoming | SRTM 30m | ~800px | ✅ Ready |
 
+### Japan (1)
+
+| Prefecture/Region | Source | Resolution | Status |
+|-------------------|--------|------------|--------|
+| Kochi | SRTM 30m | ~800px | ✅ Ready (New!) |
+
 ## ❌ Not Available
 
 ### California
@@ -58,20 +64,22 @@ All data is properly exported and ready for the interactive 3D viewer at:
 - **Issue**: Legacy TIF file was corrupted (read error)
 - **Solution**: Re-download with new pipeline: `python downloaders/usa_3dep.py idaho --auto`
 
-### Shikoku Island / Japan
-- **Status**: Never downloaded
-- **Solution**: Run `python downloaders/japan_gsi.py shikoku --auto` (for 30m SRTM)
-- **Note**: High-res GSI data requires manual download
+### Other Japan Regions (Shikoku Island, Honshu, etc.)
+- **Status**: Not yet downloaded (only Kochi prefecture available)
+- **Solution**: Run `python downloaders/japan_gsi.py <region> --auto` (for 30m SRTM)
+  - Available: japan, honshu, hokkaido, kyushu, shikoku
+- **Note**: High-res GSI data (5-10m) requires manual download
 
 ## 🗑️ Cleaned Up
 
 - ❌ Removed: Old USA elevation files (continental_usa_elevation.tif, nationwide_usa_elevation.tif, denver_elevation_10m.tif)
 - ❌ Removed: Corrupted Idaho TIF
 - ✅ Kept: 28 working state TIF files in data/regions/
+- ✅ Added: Kochi Prefecture (Japan) - 18.5 MB raw data
 
 ## 📊 Data Quality
 
-All 28 regions:
+All 29 regions:
 - ✅ Format version: export_v2
 - ✅ Proper elevation arrays (not metadata)
 - ✅ File sizes: 3-4.5 MB each
@@ -154,6 +162,14 @@ Every data transformation validates:
 
 ## ✅ System Status: OPERATIONAL
 
-**28 US states ready for visualization!**
+**29 regions ready for visualization!**
+- 28 US states
+- 1 Japanese prefecture (Kochi)
 
-Missing states can be added following the instructions above.
+Missing regions can be added following the instructions above.
+
+---
+
+## 🎯 Recent Additions
+
+**2025-10-24**: Added Kochi Prefecture, Japan (30m SRTM, 2.5 MB JSON)

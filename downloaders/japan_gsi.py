@@ -14,9 +14,8 @@ import io
 from pathlib import Path
 from typing import Tuple, Optional
 
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# Windows UTF-8 encoding support (PowerShell handles this automatically on Win10+)
+# Removed wrapper to avoid conflicts with PowerShell's own UTF-8 handling
 
 try:
     import requests
@@ -31,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from downloaders.usa_3dep import download_opentopography_srtm  # Reuse SRTM downloader
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+from src.pipeline import run_pipeline
 
 # Japan regions
 JAPAN_REGIONS = {
@@ -166,10 +166,24 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
         success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
         
         if success:
-            print(f"\n✅ Success! Data saved to: {output_path}")
+            print(f"\n✅ Download complete!")
             print(f"\n⚠️  Note: This is 30m SRTM data, not highest-res GSI.")
             print(f"   For 5-10m resolution, run:")
             print(f"   python downloaders/japan_gsi.py {region_id} --manual")
+            
+            # Run the automated pipeline
+            try:
+                run_pipeline(
+                    raw_tif_path=output_path,
+                    region_id=region_id,
+                    source='srtm_30m',
+                    boundary_name=None,  # No specific boundary for Japan
+                    skip_clip=True
+                )
+            except Exception as e:
+                print(f"\n⚠️  Pipeline error: {e}")
+                print("Raw data was downloaded successfully, but post-processing failed.")
+                return 1
         else:
             print(f"\n❌ Download failed.")
         

@@ -537,11 +537,16 @@
             <h2>Real-Time Bucketing</h2>
             
             <div class="control-group">
-                <label>
-                    Bucket Size (pixel multiplier)
-                    <span class="value-display" id="bucketSizeValue">1×</span>
-                </label>
-                <input type="range" id="bucketSize" min="1" max="500" step="1" value="1">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label style="margin: 0;">Bucket Size (pixel multiplier)</label>
+                    <input type="number" id="bucketSizeInput" min="1" max="500" step="1" value="1" 
+                           style="width: 70px; padding: 2px 6px; text-align: right; font-size: 12px;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">1</span>
+                    <input type="range" id="bucketSize" min="1" max="500" step="1" value="1" style="flex: 1;">
+                    <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">500</span>
+                </div>
                 <!-- 
                     BUCKETING EXPLANATION (PROTECTED - DO NOT REMOVE):
                     Combine N×N pixels into one bar. 1× = full resolution, 10× = 10×10 pixels per bar.
@@ -549,17 +554,41 @@
                     Instead of rendering every pixel as a separate 3D bar, it combines N×N pixels into one bucket.
                     The aggregation method (MAX, AVERAGE, MIN, MEDIAN) determines which elevation value represents the bucket.
                 -->
-                <div id="bucketSizeRangeLabel"></div>
             </div>
             
             <div class="control-group">
-                <label>
-                    Tile Gap
-                    <span class="value-display" id="tileGapValue">1%</span>
-                </label>
-                <input type="range" id="tileGap" min="0" max="99" step="1" value="1">
-                <div style="font-size: 0.85em; opacity: 0.7; margin-top: 4px;">
-                    Controls spacing between tiles (0% = touching, 99% = tiny tiles)
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label style="margin: 0;">Tile Gap</label>
+                    <input type="number" id="tileGapInput" min="0" max="99" step="1" value="1" 
+                           style="width: 70px; padding: 2px 6px; text-align: right; font-size: 12px;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">0%</span>
+                    <input type="range" id="tileGap" min="0" max="99" step="1" value="1" style="flex: 1;">
+                    <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">99%</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label style="margin: 0;">Vertical Exaggeration</label>
+                    <input type="number" id="vertExagInput" min="0.00001" max="0.3" step="0.00001" value="0.001" 
+                           style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">0.00001</span>
+                    <input type="range" id="vertExag" min="0.00001" max="0.3" step="0.00001" value="0.001" style="flex: 1;">
+                    <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">0.3</span>
+                </div>
+                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.00001)">0.00001x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.0001)">0.0001x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.001)">0.001x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.005)">0.005x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.01)">0.01x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.05)">0.05x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.1)">0.1x</button>
+                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.3)">0.3x</button>
                 </div>
             </div>
             
@@ -582,25 +611,6 @@
                     <option value="wireframe">Wireframe</option>
                     <option value="points">Point Cloud</option>
                 </select>
-            </div>
-            
-            <div class="control-group">
-                <label>
-                    Vertical Exaggeration
-                    <span class="value-display" id="vertExagValue">0.001x</span>
-                </label>
-                <input type="range" id="vertExag" min="0.00001" max="0.3" step="0.00001" value="0.001">
-                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.00001)">0.00001x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.0001)">0.0001x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.001)">0.001x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.005)">0.005x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.01)">0.01x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.05)">0.05x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.1)">0.1x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.3)">0.3x</button>
-                </div>
-                <!-- Info: Very low values for 1:1 grid rendering. Higher = more visible elevation changes. -->
             </div>
             
             <h2>Visual Style</h2>
@@ -992,20 +1002,54 @@
         
         // Sync UI controls with current params
         function syncUIControls() {
-            // Bucket size
+            // Bucket size - sync both slider and input
             document.getElementById('bucketSize').value = params.bucketSize;
-            document.getElementById('bucketSizeValue').textContent = `${params.bucketSize}×`;
+            document.getElementById('bucketSizeInput').value = params.bucketSize;
             
-            // Tile gap
+            // Tile gap - sync both slider and input
             document.getElementById('tileGap').value = params.tileGap;
-            document.getElementById('tileGapValue').textContent = `${params.tileGap}%`;
+            document.getElementById('tileGapInput').value = params.tileGap;
             
-            // Vertical exaggeration
+            // Vertical exaggeration - sync both slider and input
             document.getElementById('vertExag').value = params.verticalExaggeration;
-            document.getElementById('vertExagValue').textContent = `${params.verticalExaggeration.toFixed(5)}x`;
+            document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
+            
+            // Render mode
+            document.getElementById('renderMode').value = params.renderMode;
+            
+            // Aggregation method
+            document.getElementById('aggregation').value = params.aggregation;
+            
+            // Color scheme (using jQuery/Select2)
+            // Note: terrain is already created with correct colors before this function is called
+            // We just need to update the UI dropdown to match without triggering recreation
+            const $colorScheme = $('#colorScheme');
+            $colorScheme.val(params.colorScheme);
+            // Update Select2 UI without triggering change handlers
+            if ($colorScheme.hasClass('select2-hidden-accessible')) {
+                $colorScheme.trigger('change.select2');
+            }
             
             // Checkboxes
             document.getElementById('flatShading').checked = params.flatShading;
+            document.getElementById('wireframeOverlay').checked = params.wireframeOverlay;
+            document.getElementById('showGrid').checked = params.showGrid;
+            document.getElementById('showBorders').checked = params.showBorders;
+            document.getElementById('autoRotate').checked = params.autoRotate;
+            
+            // Apply visual settings to scene objects
+            if (wireframeMesh) {
+                wireframeMesh.visible = params.wireframeOverlay;
+            }
+            if (gridHelper) {
+                gridHelper.visible = params.showGrid;
+            }
+            if (borderMeshes && borderMeshes.length > 0) {
+                borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
+            }
+            if (controls) {
+                controls.autoRotate = params.autoRotate;
+            }
         }
         
         // CLIENT-SIDE BUCKETING ALGORITHMS
@@ -1123,6 +1167,8 @@
             compassScene = new THREE.Scene();
             
             // Create camera for the compass
+            // Note: 0.1 to 100 = 1000:1 ratio is acceptable here because compass scene
+            // has minimal depth (all objects within a few units). Main camera needs stricter limits.
             compassCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
             compassCamera.position.set(0, 0, 4);
             compassCamera.lookAt(0, 0, 0);
@@ -1391,10 +1437,51 @@
             // Fog disabled - colors stay vibrant at all zoom levels
             // scene.fog = new THREE.Fog(0x0a0a0a, 100, 800);
             
-            // Camera - no practical clipping constraints
+            // ============================================================================
+            // CRITICAL: CAMERA NEAR/FAR PLANE RATIO - DO NOT MODIFY WITHOUT READING THIS
+            // ============================================================================
+            // The near/far plane ratio directly affects depth buffer precision.
+            // 
+            // PROBLEM: With extreme ratios (e.g., 0.001 to 50,000,000 = 50 billion:1),
+            // the 24-bit depth buffer cannot distinguish between nearby and distant geometry
+            // at oblique viewing angles. This causes DISTANT GEOMETRY TO BLEED THROUGH
+            // NEARBY GEOMETRY, creating jagged artifacts that vary with camera angle.
+            //
+            // SYMPTOMS:
+            // - Jagged "bleeding" of distant bars through nearby bars
+            // - Artifacts appear/disappear as camera rotates
+            // - Worse at oblique/grazing angles, better at perpendicular views
+            // - Persists even with tile gaps between geometry
+            //
+            // SOLUTION: Keep near/far ratio reasonable. Current values:
+            //   Near: 1 meter (close enough for detail)
+            //   Far: 100,000 meters = 100km (enough for large terrains)
+            //   Ratio: 100,000:1 (good depth precision)
+            //
+            // NEVER use values like:
+            //   - near < 0.1 (too close, wastes precision on unused range)
+            //   - far > 1,000,000 (too far, spreads precision too thin)
+            //   - ratio > 1,000,000:1 (depth buffer will fail)
+            //
+            // If you need larger view distances, implement a logarithmic depth buffer
+            // or frustum-based dynamic near/far adjustment. DO NOT just increase far plane.
+            // ============================================================================
             const aspect = window.innerWidth / window.innerHeight;
-            camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 50000000);  // Essentially infinite view frustum
+            camera = new THREE.PerspectiveCamera(60, aspect, 1, 100000);  // 1m to 100km
             camera.position.set(50, 50, 80);  // Will be reset after data loads
+            
+            // SAFETY CHECK: Validate near/far ratio to prevent depth buffer artifacts
+            const nearFarRatio = camera.far / camera.near;
+            if (nearFarRatio > 1000000) {
+                console.error('🚨 CRITICAL: Camera near/far ratio is TOO EXTREME!');
+                console.error(`   Current ratio: ${nearFarRatio.toLocaleString()}:1`);
+                console.error(`   Near: ${camera.near}, Far: ${camera.far}`);
+                console.error(`   This WILL cause depth buffer artifacts (geometry bleeding through).`);
+                console.error(`   See learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md`);
+                console.error(`   Recommended: Keep ratio under 1,000,000:1`);
+            } else {
+                console.log(`✅ Camera near/far ratio: ${nearFarRatio.toLocaleString()}:1 (good)`);
+            }
             
             // Renderer
             renderer = new THREE.WebGLRenderer({ 
@@ -1486,10 +1573,11 @@
             
             // Bucket size with debouncing for better performance
             let bucketSizeTimeout;
+            
+            // Sync slider -> input
             document.getElementById('bucketSize').addEventListener('input', (e) => {
                 params.bucketSize = parseInt(e.target.value);
-                document.getElementById('bucketSizeValue').textContent = `${params.bucketSize}×`;
-                updateBucketSizeLabel(params.bucketSize);
+                document.getElementById('bucketSizeInput').value = params.bucketSize;
                 
                 // Debounce: only update after user stops dragging for 150ms
                 clearTimeout(bucketSizeTimeout);
@@ -1502,14 +1590,46 @@
                 }, 150);
             });
             
-            // Initialize bucket size label
-            updateBucketSizeLabel(params.bucketSize);
+            // Sync input -> slider
+            document.getElementById('bucketSizeInput').addEventListener('change', (e) => {
+                let value = parseInt(e.target.value);
+                // Clamp to valid range
+                value = Math.max(1, Math.min(500, value));
+                params.bucketSize = value;
+                document.getElementById('bucketSize').value = value;
+                document.getElementById('bucketSizeInput').value = value;
+                
+                // Clear edge markers so they get recreated at new positions
+                edgeMarkers.forEach(marker => scene.remove(marker));
+                edgeMarkers = [];
+                rebucketData();
+                recreateTerrain();
+            });
             
             // Tile gap - updates immediately (no bucketing required, just visual change)
+            let tileGapTimeout;
+            
+            // Sync slider -> input
             document.getElementById('tileGap').addEventListener('input', (e) => {
                 params.tileGap = parseInt(e.target.value);
-                document.getElementById('tileGapValue').textContent = `${params.tileGap}%`;
-                recreateTerrain();  // Only recreate terrain, no need to rebucket
+                document.getElementById('tileGapInput').value = params.tileGap;
+                
+                // Debounce for performance
+                clearTimeout(tileGapTimeout);
+                tileGapTimeout = setTimeout(() => {
+                    recreateTerrain();  // Only recreate terrain, no need to rebucket
+                }, 100);
+            });
+            
+            // Sync input -> slider
+            document.getElementById('tileGapInput').addEventListener('change', (e) => {
+                let value = parseInt(e.target.value);
+                // Clamp to valid range
+                value = Math.max(0, Math.min(99, value));
+                params.tileGap = value;
+                document.getElementById('tileGap').value = value;
+                document.getElementById('tileGapInput').value = value;
+                recreateTerrain();
             });
             
             // Aggregation method
@@ -1531,30 +1651,30 @@
                 recreateTerrain();
             });
             
-            // Vertical exaggeration
             // Vertical exaggeration with debouncing for bars mode (performance)
             let vertExagTimeout;
+            
+            // Sync slider -> input
             document.getElementById('vertExag').addEventListener('input', (e) => {
                 params.verticalExaggeration = parseFloat(e.target.value);
-                // Format display based on value size - handle very small values
-                const val = params.verticalExaggeration;
-                let displayValue;
-                if (val < 0.0001) {
-                    displayValue = val.toFixed(5);  // Show 0.00001
-                } else if (val < 0.01) {
-                    displayValue = val.toFixed(4);  // Show 0.0001
-                } else if (val < 1) {
-                    displayValue = val.toFixed(3);
-                } else {
-                    displayValue = val.toFixed(2);
-                }
-                document.getElementById('vertExagValue').textContent = displayValue + 'x';
+                document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
                 
                 // Debounce terrain updates (especially important for bars mode)
                 clearTimeout(vertExagTimeout);
                 vertExagTimeout = setTimeout(() => {
                     updateTerrainHeight();
                 }, 100);
+            });
+            
+            // Sync input -> slider
+            document.getElementById('vertExagInput').addEventListener('change', (e) => {
+                let value = parseFloat(e.target.value);
+                // Clamp to valid range
+                value = Math.max(0.00001, Math.min(0.3, value));
+                params.verticalExaggeration = value;
+                document.getElementById('vertExag').value = value;
+                document.getElementById('vertExagInput').value = value.toFixed(5);
+                updateTerrainHeight();
             });
             
             // Color scheme
@@ -1862,9 +1982,9 @@
             
             const barCount = barData.length;
             const material = new THREE.MeshLambertMaterial({
-                vertexColors: true
+                vertexColors: true,
+                flatShading: params.flatShading  // Toggle via UI - affects depth buffer artifact visibility
             });
-            material.flatShading = params.flatShading;  // Toggle via UI - affects depth buffer artifact visibility
             
             const instancedMesh = new THREE.InstancedMesh(
                 baseGeometry,
@@ -2310,19 +2430,7 @@
         function setVertExag(value) {
             params.verticalExaggeration = value;
             document.getElementById('vertExag').value = value;
-            
-            // Update display - handle very small values
-            let displayValue;
-            if (value < 0.0001) {
-                displayValue = value.toFixed(5);  // Show 0.00001
-            } else if (value < 0.01) {
-                displayValue = value.toFixed(4);  // Show 0.0001
-            } else if (value < 1) {
-                displayValue = value.toFixed(3);
-            } else {
-                displayValue = value.toFixed(2);
-            }
-            document.getElementById('vertExagValue').textContent = displayValue + 'x';
+            document.getElementById('vertExagInput').value = value.toFixed(5);
             
             updateTerrainHeight();
         }

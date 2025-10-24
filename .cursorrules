@@ -1,13 +1,14 @@
 # Altitude Maps - Cursor Rules
 
 ## Project Context
-This is a climate visualization project focused on showing temperature and climate patterns by altitude across the globe using Python 3.13.
+This is a landscape visualization project focused on showing altitude of various regions across the globe.
 
 ## Project Organization
 - **Top-level markdown docs**: Only `.cursorrules`, `README.md`, and `TECH.md` at root
 - **Documentation/learnings**: All other markdown files (guides, summaries, learnings) go in `learnings/` folder
 - **Code and resources**: Python scripts, HTML files, etc. can remain at top level
 - **Keep it clean**: Minimize documentation clutter at root - maintain clear project structure
+- **No extra Junk**: Don't overload the docs with too much information - just put the key points, product requirements, and difficult-to-remember hints.
 
 ## Development Patterns
 
@@ -24,20 +25,19 @@ This is a climate visualization project focused on showing temperature and clima
 
 ### Data Handling
 - Store raw data in `data/` directory (gitignored)
+- Within there, store items of different types in a distinguishable way; for example, each file type should be able to be detected.
 - Cache processed data to avoid re-downloading (including masked/bordered data)
-- Use xarray for multi-dimensional climate data
-- Use pandas for tabular data
 - Always validate data ranges and handle missing values
 - GeoTIFF data uses natural orientation (North up, East right) - no transformations needed
 - Use geopandas for geographic borders and masking operations
 
 ### Data Format Versioning & Cache Invalidation
+--- You must clearly and explicitly state what each filetype is andhow  it works. Don't leave it disogranized.
 ⚠️ **CRITICAL**: When changing data processing/export format:
 1. **Update the format version number** in export scripts
 2. **Add version validation** on data load (fail if version mismatch)
 3. **Document the change** in code comments
 4. **Re-export ALL cached/generated data** - don't mix old and new formats
-5. **Test with multiple regions** to ensure consistency
 
 Cached/Generated Data Locations:
 - `data/.cache/` - Masked/bordered raster data (pickled)
@@ -62,6 +62,16 @@ python download_regions.py  # If using regions
 - Add proper titles, labels, and legends
 - Include data source citations in visualizations
 - **Vertical Exaggeration**: Uses real-world scale where 1.0 = true Earth proportions, 2.0 = mountains twice as steep as reality. Both X/Z (horizontal) and Y (elevation) axes are in meters based on lat/lon bounds.
+
+### 3D Rendering (Three.js)
+⚠️ **CRITICAL - Camera Near/Far Planes**:
+- **ALWAYS** maintain reasonable near/far plane ratios (< 1,000,000:1)
+- Current safe values: `near=1, far=100000` (100,000:1 ratio)
+- **NEVER** use extreme values like `near=0.001, far=50000000`
+- Extreme ratios cause depth buffer artifacts (distant geometry bleeds through nearby geometry)
+- Symptoms: Jagged artifacts that vary with camera angle, worse at oblique views
+- **See `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` before modifying camera settings**
+- Runtime validation will log errors if ratio exceeds safe limits
 
 ### Testing
 - Test with small data samples first before processing large datasets
