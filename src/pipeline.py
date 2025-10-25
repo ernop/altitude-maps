@@ -35,7 +35,7 @@ from src.metadata import (
     create_export_metadata, save_metadata, get_metadata_path, compute_file_hash
 )
 from src.versioning import get_current_version
-from src.borders import get_country_geometry
+from src.borders import get_country_geometry, get_border_manager
 
 
 class PipelineError(Exception):
@@ -48,7 +48,8 @@ def clip_to_boundary(
     region_id: str,
     boundary_name: str,
     output_path: Path,
-    source: str = "srtm_30m"
+    source: str = "srtm_30m",
+    boundary_type: str = "country"
 ) -> bool:
     """
     Clip raw elevation data to administrative boundary.
@@ -56,9 +57,12 @@ def clip_to_boundary(
     Args:
         raw_tif_path: Path to raw bounding box TIF
         region_id: Region identifier (e.g., 'california')
-        boundary_name: Boundary to clip to (e.g., 'United States of America/California')
+        boundary_name: Boundary to clip to
+                      - If boundary_type="country": "United States of America"
+                      - If boundary_type="state": "United States of America/Tennessee"
         output_path: Where to save clipped TIF
         source: Data source name
+        boundary_type: "country" or "state"
         
     Returns:
         True if successful
@@ -67,20 +71,48 @@ def clip_to_boundary(
         print(f"      ✅ Already clipped: {output_path.name}")
         return True
     
-    print(f"      🔍 Loading boundary geometry for {boundary_name}...")
+    print(f"      🔍 Loading {boundary_type} boundary geometry for {boundary_name}...")
     
-    # Get boundary geometry
-    geometry = get_country_geometry(boundary_name)
+    # Get boundary geometry based on type
+    if boundary_type == "country":
+        geometry = get_country_geometry(boundary_name)
+    elif boundary_type == "state":
+        # Parse "Country/State" format
+        if "/" not in boundary_name:
+            print(f"      ⚠️  Error: State boundary requires 'Country/State' format")
+            print(f"      Got: {boundary_name}")
+            return False
+        
+        country, state = boundary_name.split("/", 1)
+        border_manager = get_border_manager()
+        state_gdf = border_manager.get_state(country, state)
+        
+        if state_gdf is None or state_gdf.empty:
+            print(f"      ⚠️  Warning: State '{state}' not found in '{country}'")
+            print(f"      Skipping clipping step...")
+            return False
+        
+        # Get geometry from GeoDataFrame
+        from shapely.ops import unary_union
+        geometry = unary_union(state_gdf.geometry)
+    else:
+        print(f"      ⚠️  Error: Invalid boundary_type '{boundary_type}' (must be 'country' or 'state')")
+        return False
+    
     if geometry is None:
         print(f"      ⚠️  Warning: Could not find boundary '{boundary_name}'")
         print(f"      Skipping clipping step...")
         return False
     
-    print(f"      ✂️  Clipping to boundary...")
+    print(f"      ✂️  Clipping to {boundary_type} boundary...")
     
     try:
         with rasterio.open(raw_tif_path) as src:
+            print(f"      Input dimensions: {src.width} × {src.height} pixels")
+            print(f"      Input size: {raw_tif_path.stat().st_size / (1024*1024):.1f} MB")
+            
             # Clip the raster to the boundary
+            print(f"      Applying geometric mask...")
             out_image, out_transform = rasterio_mask(src, [geometry], crop=True, filled=False)
             out_meta = src.meta.copy()
             
@@ -92,7 +124,10 @@ def clip_to_boundary(
                 "transform": out_transform
             })
             
+            print(f"      Output dimensions: {out_meta['width']} × {out_meta['height']} pixels")
+            
             # Write clipped data
+            print(f"      Writing clipped raster to disk...")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with rasterio.open(output_path, "w", **out_meta) as dest:
                 dest.write(out_image)
@@ -145,11 +180,13 @@ def downsample_for_viewer(
     
     try:
         with rasterio.open(clipped_tif_path) as src:
+            print(f"      Input: {src.width} × {src.height} pixels")
+            
             # Calculate downsampling factor
             max_dim = max(src.height, src.width)
             if max_dim <= target_pixels:
                 # No downsampling needed
-                print(f"      ℹ️  Data is already small enough ({src.width}×{src.height}), copying...")
+                print(f"      ℹ️  Already small enough, copying as-is...")
                 import shutil
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(clipped_tif_path, output_path)
@@ -159,12 +196,17 @@ def downsample_for_viewer(
                 new_height = int(src.height * scale_factor)
                 new_width = int(src.width * scale_factor)
                 
+                print(f"      Target: {new_width} × {new_height} pixels")
+                print(f"      Scale factor: {scale_factor:.3f}x")
+                
                 # Read and downsample
+                print(f"      Reading elevation data...")
                 elevation = src.read(1)
                 
                 # Simple downsampling (could use better resampling later)
                 step_y = max(1, src.height // new_height)
                 step_x = max(1, src.width // new_width)
+                print(f"      Downsampling (step: {step_y}×{step_x})...")
                 downsampled = elevation[::step_y, ::step_x]
                 
                 # Update metadata
@@ -179,6 +221,7 @@ def downsample_for_viewer(
                 })
                 
                 # Write downsampled data
+                print(f"      Writing downsampled raster...")
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 with rasterio.open(output_path, "w", **out_meta) as dest:
                     dest.write(downsampled, 1)
@@ -231,10 +274,12 @@ def export_for_viewer(
     
     try:
         with rasterio.open(processed_tif_path) as src:
+            print(f"      Reading raster: {src.width} × {src.height}")
             elevation = src.read(1)
             bounds = src.bounds
             
             # Convert to list (handle NaN values)
+            print(f"      Converting to JSON format...")
             elevation_list = []
             for row in elevation:
                 row_list = []
@@ -268,6 +313,7 @@ def export_for_viewer(
             }
             
             # Write JSON
+            print(f"      Writing JSON to disk...")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w') as f:
                 json.dump(export_data, f, separators=(',', ':'))
@@ -353,6 +399,7 @@ def run_pipeline(
     region_id: str,
     source: str,
     boundary_name: Optional[str] = None,
+    boundary_type: str = "country",
     target_pixels: int = 800,
     skip_clip: bool = False
 ) -> Tuple[bool, Dict]:
@@ -363,7 +410,10 @@ def run_pipeline(
         raw_tif_path: Path to raw downloaded TIF
         region_id: Region identifier (e.g., 'california')
         source: Data source (e.g., 'srtm_30m', 'usa_3dep')
-        boundary_name: Boundary to clip to (optional, e.g., 'California')
+        boundary_name: Boundary to clip to (optional)
+                      - If boundary_type="country": "United States of America"
+                      - If boundary_type="state": "United States of America/Tennessee"
+        boundary_type: "country" or "state" (default: "country")
         target_pixels: Target resolution for viewer (default: 800)
         skip_clip: Skip clipping step (use raw data as-is)
         
@@ -398,9 +448,9 @@ def run_pipeline(
         print(f"[2/4] ⏭️  Skipping clipping (using raw data)")
         clipped_path = raw_tif_path
     else:
-        print(f"[2/4] ✂️  Clipping to boundary: {boundary_name}")
+        print(f"[2/4] ✂️  Clipping to {boundary_type} boundary: {boundary_name}")
         clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
-        if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source):
+        if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type):
             print(f"\n⚠️  Clipping failed, using raw data instead")
             clipped_path = raw_tif_path
     

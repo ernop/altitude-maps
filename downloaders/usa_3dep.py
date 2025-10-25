@@ -141,11 +141,17 @@ def download_opentopography_srtm(
         print(f"   ⚠️  WARNING: Region is very large ({width:.1f}° × {height:.1f}°)")
         print(f"   OpenTopography may reject requests > 4° in any direction")
         print(f"   ")
-        print(f"   Options:")
-        print(f"   1. Download smaller sub-regions individually")
-        print(f"   2. Use manual download method: python downloaders/usa_3dep.py {region_id} --manual")
+        print(f"   ⚡ RECOMMENDED: Use tiling for large states")
+        print(f"      python downloaders/tile_large_states.py {region_id}")
         print(f"   ")
-        print(f"   Attempting download anyway...")
+        print(f"   This will:")
+        print(f"   - Split download into smaller tiles (safer, faster)")
+        print(f"   - Automatically merge tiles")
+        print(f"   - Apply state boundary clipping")
+        print(f"   ")
+        print(f"   Attempting single-request download anyway...")
+        print(f"   (May timeout or be rejected by server)")
+        print(f"   ")
     
     # OpenTopography API for SRTM GL1 (30m global)
     url = "https://portal.opentopography.org/API/globaldem"
@@ -168,26 +174,35 @@ def download_opentopography_srtm(
     
     try:
         print(f"   ⏳ Requesting data from server...")
+        print(f"      URL: {url}")
+        print(f"      Params: demtype={params['demtype']}, bounds=[{west:.2f},{south:.2f},{east:.2f},{north:.2f}]")
+        
         response = requests.get(url, params=params, stream=True, timeout=300)
+        print(f"      Server responded: HTTP {response.status_code}")
         response.raise_for_status()
         
         total_size = int(response.headers.get('content-length', 0))
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        print(f"   ⬇️  Downloading {total_size / (1024*1024):.1f} MB...")
+        if total_size > 0:
+            print(f"   ⬇️  Downloading {total_size / (1024*1024):.1f} MB...")
+        else:
+            print(f"   ⬇️  Downloading (size unknown)...")
+        
         with open(output_path, 'wb') as f:
             if total_size == 0:
+                print(f"      Writing data to disk...")
                 f.write(response.content)
-                print(f"      Downloaded (size unknown)")
+                print(f"      Done (size unknown)")
             else:
                 with tqdm(
                     total=total_size, 
                     unit='B', 
                     unit_scale=True, 
                     unit_divisor=1024,
-                    desc="      Downloading",
-                    bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+                    desc="      Progress",
+                    bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {rate_fmt}'
                 ) as pbar:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
@@ -195,6 +210,7 @@ def download_opentopography_srtm(
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
         print(f"   ✅ Downloaded: {output_path.name} ({file_size_mb:.1f} MB)")
+        print(f"      Saved to: {output_path}")
         
         # Create metadata
         print(f"   📝 Creating metadata...")
@@ -376,13 +392,15 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
         
         # Step 2: Auto-process (unless --no-process specified)
         if not args.no_process:
-            # Determine boundary name for US states
+            # Determine boundary name and type for US states
             boundary_name = None
+            boundary_type = "country"
+            
             if region_id in US_STATES:
-                # US state - use full country/state path
+                # US state - use state-level boundary
                 state_name = US_STATES[region_id]['name']
-                boundary_name = f"United States of America"  # For now, just use country boundary
-                # TODO: Add state-level boundaries
+                boundary_name = f"United States of America/{state_name}"
+                boundary_type = "state"
             
             # Run processing pipeline
             pipeline_success, result_paths = run_pipeline(
@@ -390,8 +408,9 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
                 region_id=region_id,
                 source='srtm_30m',
                 boundary_name=boundary_name,
+                boundary_type=boundary_type,
                 target_pixels=args.target_pixels,
-                skip_clip=True  # Skip clipping for now (state boundaries not yet implemented)
+                skip_clip=False  # Enable clipping with state boundaries
             )
             
             if not pipeline_success:

@@ -34,6 +34,8 @@ class BorderManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._world_data = None
         self._resolution = None
+        self._state_data = None
+        self._state_resolution = None
         
     def load_borders(self, resolution: str = '110m', force_reload: bool = False) -> gpd.GeoDataFrame:
         """
@@ -254,6 +256,140 @@ class BorderManager:
                         border_coords.append((np.array(x), np.array(y)))
         
         return border_coords
+    
+    def load_state_borders(self, resolution: str = '110m', force_reload: bool = False) -> gpd.GeoDataFrame:
+        """
+        Load Natural Earth state/province border data (admin_1) with caching.
+        
+        Args:
+            resolution: Natural Earth resolution ('10m', '50m', or '110m')
+            force_reload: Force re-download even if cached
+            
+        Returns:
+            GeoDataFrame with state/province borders
+        """
+        if not HAS_GEOPANDAS:
+            raise ImportError("geopandas is required for border operations. Install with: pip install geopandas")
+        
+        cache_file = self.cache_dir / f"ne_{resolution}_admin_1.pkl"
+        
+        # Return cached data if available and not forcing reload
+        if not force_reload and cache_file.exists():
+            if self._state_data is not None and self._state_resolution == resolution:
+                return self._state_data
+            
+            print(f"   - Loading state borders from cache: {cache_file}")
+            with open(cache_file, 'rb') as f:
+                self._state_data = pickle.load(f)
+                self._state_resolution = resolution
+                return self._state_data
+        
+        # Download from Natural Earth
+        print(f"   - Downloading Natural Earth {resolution} admin_1 (states/provinces)...")
+        ne_url = f"https://naciscdn.org/naturalearth/{resolution}/cultural/ne_{resolution}_admin_1_states_provinces.zip"
+        self._state_data = gpd.read_file(ne_url)
+        self._state_resolution = resolution
+        
+        # Cache for future use
+        with open(cache_file, 'wb') as f:
+            pickle.dump(self._state_data, f)
+        print(f"   - Cached state borders to: {cache_file}")
+        
+        return self._state_data
+    
+    def get_state(self, country_name: str, state_name: str, resolution: str = '110m') -> Optional[gpd.GeoDataFrame]:
+        """
+        Get border data for a specific state/province.
+        
+        Args:
+            country_name: Country name (e.g., 'United States of America')
+            state_name: State/province name (e.g., 'Tennessee', 'California')
+            resolution: Natural Earth resolution
+            
+        Returns:
+            GeoDataFrame for the state, or None if not found
+        """
+        states = self.load_state_borders(resolution)
+        
+        # Try exact match first
+        state = states[(states['admin'] == country_name) & (states['name'] == state_name)]
+        
+        # Try case-insensitive match if exact match fails
+        if state.empty:
+            state = states[
+                (states['admin'].str.lower() == country_name.lower()) & 
+                (states['name'].str.lower() == state_name.lower())
+            ]
+        
+        if state.empty:
+            # Show available states in this country
+            available_states = states[states['admin'].str.contains(country_name, case=False, na=False)]['name'].tolist()
+            if available_states:
+                print(f"\n[!] State '{state_name}' not found in '{country_name}'.")
+                print(f"    Available states: {', '.join(sorted(available_states)[:10])}...")
+                print(f"    (showing first 10 of {len(available_states)} states)")
+            else:
+                print(f"\n[!] Country '{country_name}' not found in state database.")
+            return None
+        
+        return state
+    
+    def list_states_in_country(self, country_name: str, resolution: str = '110m') -> List[str]:
+        """
+        List all states/provinces in a specific country.
+        
+        Args:
+            country_name: Country name (e.g., 'United States of America')
+            resolution: Natural Earth resolution
+            
+        Returns:
+            Sorted list of state/province names
+        """
+        states = self.load_state_borders(resolution)
+        
+        # Filter by country (case-insensitive)
+        country_states = states[states['admin'].str.lower() == country_name.lower()]
+        
+        return sorted(country_states['name'].unique())
+    
+    def mask_raster_to_state(self, raster_src: rasterio.DatasetReader, 
+                            country_name: str, 
+                            state_name: str,
+                            resolution: str = '110m') -> Tuple[np.ndarray, rasterio.Affine]:
+        """
+        Mask a raster dataset to state/province boundaries.
+        
+        Args:
+            raster_src: Open rasterio dataset
+            country_name: Country name (e.g., 'United States of America')
+            state_name: State/province name (e.g., 'Tennessee')
+            resolution: Natural Earth resolution
+            
+        Returns:
+            Tuple of (masked_array, transform)
+        """
+        # Get state geometry
+        state = self.get_state(country_name, state_name, resolution)
+        
+        if state is None or state.empty:
+            raise ValueError(f"State '{state_name}' not found in '{country_name}'")
+        
+        # Reproject to raster CRS
+        state_reproj = state.to_crs(raster_src.crs)
+        
+        # Convert to geometries
+        geoms = [mapping(geom) for geom in state_reproj.geometry]
+        
+        # Mask the raster
+        out_image, out_transform = rasterio_mask(
+            raster_src, 
+            geoms, 
+            crop=False, 
+            nodata=np.nan,
+            invert=False
+        )
+        
+        return out_image[0], out_transform
 
 
 def get_border_manager() -> BorderManager:

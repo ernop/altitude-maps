@@ -82,47 +82,131 @@ Add commands:
 - --state-info COUNTRY STATE: Show state information
 Update argparse to handle new commands
 
-## Data Flow
+## Technical Pipeline
 
-Command: python downloaders/usa_3dep.py tennessee --auto
+One command: python downloaders/usa_3dep.py tennessee --auto
 
-Step 1: Download bounding box
-Output: data/raw/srtm_30m/tennessee_bbox_30m.tif (9000x1800 pixels, all filled)
+STEP 1: DOWNLOAD ELEVATION BBOX
+Input: User command with region bounds
+Process: HTTP request to OpenTopography API
+Output: data/raw/srtm_30m/tennessee_bbox_30m.tif
+Format: GeoTIFF, Float32, 9000x1800 pixels, ~60 MB, EPSG:4326
+Content: Elevation values for entire rectangle, all pixels filled
+Can skip if exists: YES - file is reusable
+Requires internet: YES - first time only
 
-Step 2: Load state boundary
-Check cache: data/.cache/borders/ne_110m_admin_1.pkl
-If missing: Download from Natural Earth (~10 sec first time)
-If cached: Load from pickle (~0.1 sec)
-Query: country="United States of America", state="Tennessee"
-Result: Polygon geometry with ~500 boundary points
+STEP 2: LOAD STATE BOUNDARY
+Input: Country name + state name strings
+Process: Query Natural Earth admin_1 shapefile (download first time, then cached)
+Output: data/.cache/borders/ne_110m_admin_1.pkl (cache), in-memory GeoDataFrame
+Format: Pickled GeoDataFrame with geometry column
+Content: State polygon with ~500 (lon, lat) points defining boundary
+Can skip if cached: YES - cache persists between runs
+Requires internet: YES - first time only (~10 sec download)
+Subsequent runs: NO - uses local cache (~0.1 sec)
 
-Step 3: Clip to state
-Input: bbox TIF + state geometry
-Process: rasterio.mask(src, [state_geometry], crop=False, nodata=np.nan)
-Output: data/clipped/srtm_30m/tennessee_clipped_srtm_30m_v1.tif (same dimensions, NaN outside state)
+STEP 3: CLIP TO STATE BOUNDARY
+Input: data/raw/srtm_30m/tennessee_bbox_30m.tif + state geometry from Step 2
+Process: rasterio.mask() sets pixels outside state polygon to NaN
+Output: data/clipped/srtm_30m/tennessee_clipped_srtm_30m_v1.tif
+Format: GeoTIFF, Float32, 9000x1800 pixels (same dimensions), ~40 MB, EPSG:4326
+Content: Elevation inside state, NaN outside state (sparse, compresses better)
+Can skip if exists: YES - but must regenerate if raw TIF or boundary changes
+Requires internet: NO - all local processing
 
-Step 4: Downsample
-Input: 9000x1800 clipped TIF
-Process: Downsample to 800x160 (11x reduction)
+STEP 4: DOWNSAMPLE FOR VIEWER
+Input: data/clipped/srtm_30m/tennessee_clipped_srtm_30m_v1.tif
+Process: Subsample by taking every Nth pixel (step=11 for each dimension)
 Output: data/processed/srtm_30m/tennessee_srtm_30m_800px_v2.tif
+Format: GeoTIFF, Float32, 800x160 pixels, ~3 MB, EPSG:4326
+Content: Downsampled elevation, NaN pattern preserved
+Can skip if exists: YES - but must regenerate if clipped TIF changes
+Requires internet: NO - all local processing
 
-Step 5: Export elevation
-Convert to JSON with null values where NaN
+STEP 5: EXPORT ELEVATION DATA
+Input: data/processed/srtm_30m/tennessee_srtm_30m_800px_v2.tif
+Process: Read array, convert NaN to null, package with metadata
 Output: generated/regions/tennessee_srtm_30m_v2.json
+Format: JSON text file, ~5 MB
+Content: {"width": 800, "height": 160, "elevation": [[null, 120.5, ...], ...], "bounds": {...}, "stats": {...}}
+Can skip if exists: YES - but must regenerate if processed TIF changes
+Requires internet: NO - all local processing
+Used by: Web viewer (loaded via fetch())
 
-Step 6: Export borders
-Extract state boundary coordinates
+STEP 6: EXPORT BORDER COORDINATES
+Input: State geometry from Step 2 (can reload from cache)
+Process: Extract exterior coordinates from polygon, convert to lon/lat arrays
 Output: generated/regions/tennessee_srtm_30m_v2_borders.json
+Format: JSON text file, ~300 KB
+Content: {"states": [{"name": "Tennessee", "segments": [{"lon": [-90.31, ...], "lat": [35.00, ...]}]}]}
+Can skip if exists: YES - but must regenerate if state boundary data updates
+Requires internet: NO - uses cached boundary data
+Used by: Web viewer (loaded via fetch())
 
-Step 7: Load in viewer
-User selects Tennessee from dropdown
-Fetch both JSON files
-Parse into JavaScript objects
+STEP 7: VIEWER LOADS DATA
+Input: User selects "Tennessee" from dropdown
+Process: fetch() both JSON files from generated/regions/
+Output: JavaScript objects in browser memory
+Format: rawElevationData object + borderData object
+Content: Parsed JSON with typed arrays ready for Three.js
+Can skip if cached: Browser may cache, but typically re-fetches
+Requires internet: YES if serving from remote server, NO if localhost
 
-Step 8: Render
-Create terrain mesh (only non-null pixels)
-Draw cyan border lines at state edges
-Display in Three.js
+STEP 8: VIEWER RENDERS SCENE
+Input: rawElevationData + borderData objects from Step 7
+Process: Create Three.js BufferGeometry for terrain + Line geometry for borders
+Output: Rendered WebGL scene in canvas element
+Format: GPU buffers with vertex positions, colors, normals
+Content: 3D bars for elevation (skip null values), cyan lines for state boundary
+Can skip: NO - regenerated on every param change (bucket size, colors, etc)
+Requires internet: NO - all client-side processing
+
+## Can Existing Downloads Be Reprocessed?
+
+YES - All steps after download can be re-run without internet:
+
+Scenario 1: Already have Tennessee raw TIF, want to add state clipping
+Command: python -m src.pipeline run_pipeline data/raw/srtm_30m/tennessee_bbox_30m.tif tennessee srtm_30m --boundary-name "United States of America/Tennessee" --boundary-type state
+Result: Generates Steps 3-6 using existing raw TIF
+Internet needed: Only if state boundary not cached (Step 2)
+
+Scenario 2: State boundaries just implemented, need to reprocess all existing states
+Loop through all TIF files in data/raw/srtm_30m/
+Run pipeline for each with state boundaries enabled
+Internet needed: Only first time to download admin_1 shapefile (~10 sec)
+Time: ~5 sec per state after that = ~4 minutes for 48 states
+
+Scenario 3: Change downsample resolution (e.g., 800px to 1200px)
+Only need to regenerate Steps 4-6 from clipped TIF
+No internet needed, ~2 sec per state
+
+Scenario 4: Export format changes (e.g., JSON structure update)
+Only need to regenerate Steps 5-6 from processed TIF
+No internet needed, ~1 sec per state
+
+## Live Processing Feasibility
+
+Can borders be applied live in viewer without re-download?
+NO - Clipping must happen server-side with rasterio because:
+- Browser can't read GeoTIFF format (binary, compressed)
+- Masking requires geometric operations (point-in-polygon tests for millions of pixels)
+- Would need to download full unclipped data (~60 MB) to browser
+- Python libraries (rasterio, shapely) not available in JavaScript
+
+Current approach (pre-process server-side) is correct:
+- Download once: ~60 MB raw TIF
+- Clip once: ~2 seconds, produces ~40 MB clipped TIF
+- Export once: ~1 second, produces ~5 MB JSON
+- Viewer downloads: ~5 MB total (already clipped)
+- Render: Instant in browser
+
+Alternative (client-side clipping) would be:
+- Download: ~60 MB unclipped data to browser
+- Clip: Need full geometry library in JavaScript (~1 MB extra)
+- Process: 5-10 seconds in browser for geometry operations
+- Worse user experience, more bandwidth, slower
+
+Conclusion: Server-side preprocessing is optimal. Pipeline cannot be done live but steps are incremental and cacheable.
 
 ## File Size Impact
 
