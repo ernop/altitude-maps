@@ -602,7 +602,7 @@
                 </select>
             </div>
             
-            <h2>⚙️ Rendering</h2>
+            <h2>Rendering</h2>
             
             <div class="control-group">
                 <select id="renderMode">
@@ -652,7 +652,25 @@
                 <label for="autoRotate">Auto-Rotate</label>
             </div>
             
-            <h2>Camera</h2>
+            <h2>🎮 Camera Controls</h2>
+            
+            <div class="control-group">
+                <label>Control Scheme</label>
+                <select id="cameraScheme">
+                    <option value="google-earth-plane">Google Earth (Ground Plane - NEW)</option>
+                    <option value="ground-plane">Google Maps (Ground Plane)</option>
+                    <option value="roblox" selected>Roblox Studio</option>
+                    <option value="google-maps">Google Maps (Old)</option>
+                    <option value="google-earth">Google Earth (Old)</option>
+                    <option value="blender">Blender</option>
+                    <option value="unity">Unity Editor</option>
+                </select>
+                <div class="info-box" id="schemeDescription">
+                    Left drag = pan, Scroll = zoom to cursor, Right drag = rotate
+                </div>
+            </div>
+            
+            <h2>Camera Views</h2>
             
             <div class="button-grid">
                 <button onclick="setView('overhead')"><span style="font-size: 18px;">⬇</span> Overhead</button>
@@ -671,7 +689,11 @@
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Camera Control Schemes -->
+    <script src="js/camera-schemes.js"></script>
+    <script src="js/ground-plane-camera.js"></script>
+    <script src="js/ground-plane-google-earth.js"></script>
     
     <!-- jQuery (required by Select2) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -1524,22 +1546,24 @@
             gridHelper.visible = false;
             scene.add(gridHelper);
             
-            // OrbitControls - Google Earth style
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            
-            controls.mouseButtons = {
-                LEFT: THREE.MOUSE.PAN,            // Left = Pan
-                MIDDLE: THREE.MOUSE.ROTATE,       // Middle = Rotate
-                RIGHT: THREE.MOUSE.ROTATE         // Right = Rotate (Google Earth style)
+            // Simple orbit target for rotation - no OrbitControls library needed
+            controls = {
+                target: new THREE.Vector3(0, 0, 0),
+                enabled: true,
+                autoRotate: false,
+                autoRotateSpeed: 2.0,
+                update: function() {
+                    // Auto-rotate if enabled
+                    if (this.autoRotate && this.enabled) {
+                        const angle = this.autoRotateSpeed * 0.01;
+                        const x = camera.position.x;
+                        const z = camera.position.z;
+                        camera.position.x = x * Math.cos(angle) - z * Math.sin(angle);
+                        camera.position.z = x * Math.sin(angle) + z * Math.cos(angle);
+                        camera.lookAt(this.target);
+                    }
+                }
             };
-            
-            controls.enableDamping = false;
-            controls.rotateSpeed = 0.6;
-            controls.panSpeed = 1.2;
-            controls.screenSpacePanning = true;
-            controls.enableZoom = false;          // We handle zoom with wheel event
-            controls.enableKeys = false;
-            controls.autoRotate = false;
         }
         
         function setupControls() {
@@ -1582,23 +1606,19 @@
                 }
             }
             
-            // Bucket size with debouncing for better performance
-            let bucketSizeTimeout;
+            // Bucket size - immediate updates
             
             // Sync slider -> input
             document.getElementById('bucketSize').addEventListener('input', (e) => {
                 params.bucketSize = parseInt(e.target.value);
                 document.getElementById('bucketSizeInput').value = params.bucketSize;
                 
-                // Debounce: only update after user stops dragging for 150ms
-                clearTimeout(bucketSizeTimeout);
-                bucketSizeTimeout = setTimeout(() => {
-                    // Clear edge markers so they get recreated at new positions
-                    edgeMarkers.forEach(marker => scene.remove(marker));
-                    edgeMarkers = [];
-                    rebucketData();
-                    recreateTerrain();
-                }, 150);
+                // Update immediately for responsive feedback
+                // Clear edge markers so they get recreated at new positions
+                edgeMarkers.forEach(marker => scene.remove(marker));
+                edgeMarkers = [];
+                rebucketData();
+                recreateTerrain();
             });
             
             // Sync input -> slider
@@ -1617,19 +1637,15 @@
                 recreateTerrain();
             });
             
-            // Tile gap - updates immediately (no bucketing required, just visual change)
-            let tileGapTimeout;
+            // Tile gap - immediate updates
             
             // Sync slider -> input
             document.getElementById('tileGap').addEventListener('input', (e) => {
                 params.tileGap = parseInt(e.target.value);
                 document.getElementById('tileGapInput').value = params.tileGap;
                 
-                // Debounce for performance
-                clearTimeout(tileGapTimeout);
-                tileGapTimeout = setTimeout(() => {
-                    recreateTerrain();  // Only recreate terrain, no need to rebucket
-                }, 100);
+                // Update immediately for responsive feedback
+                recreateTerrain();  // Only recreate terrain, no need to rebucket
             });
             
             // Sync input -> slider
@@ -1667,19 +1683,15 @@
                 e.target.blur();
             });
             
-            // Vertical exaggeration with debouncing for bars mode (performance)
-            let vertExagTimeout;
+            // Vertical exaggeration - immediate updates while dragging
             
-            // Sync slider -> input
+            // Sync slider -> input (update immediately)
             document.getElementById('vertExag').addEventListener('input', (e) => {
                 params.verticalExaggeration = parseFloat(e.target.value);
                 document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
                 
-                // Debounce terrain updates (especially important for bars mode)
-                clearTimeout(vertExagTimeout);
-                vertExagTimeout = setTimeout(() => {
-                    updateTerrainHeight();
-                }, 100);
+                // Update terrain immediately for responsive feedback
+                updateTerrainHeight();
             });
             
             // Sync input -> slider
@@ -1741,63 +1753,91 @@
                 return false;
             });
             
-            // Custom linear zoom with mouse wheel
+            // Route events to active camera scheme
             renderer.domElement.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                linearZoom(e.deltaY);
+                if (activeScheme) activeScheme.onWheel(e);
             }, { passive: false });
+            
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                if (activeScheme) activeScheme.onMouseDown(e);
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (activeScheme) activeScheme.onMouseMove(e);
+            });
+            
+            renderer.domElement.addEventListener('mouseup', (e) => {
+                if (activeScheme) activeScheme.onMouseUp(e);
+            });
+            
+            // Setup camera scheme selector
+            document.getElementById('cameraScheme').addEventListener('change', (e) => {
+                switchCameraScheme(e.target.value);
+            });
+            
+            // Initialize default scheme (Roblox - user's favorite)
+            switchCameraScheme('roblox');
         }
         
-        // Linear zoom: move camera forward/backward through 3D space
-        function linearZoom(delta) {
+        // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
+        // Keeping these functions temporarily for reference/backwards compatibility
+        function linearZoom_OLD(delta) {
             if (!camera) return;
             
-            // Get camera forward direction
-            const forward = new THREE.Vector3();
-            camera.getWorldDirection(forward);
-            forward.normalize();
+            // Try to get the 3D point under the cursor
+            const targetPoint = raycastToWorld(currentMouseX, currentMouseY);
             
-            // Linear movement speed (units per scroll tick) - fast by default
-            // Scale based on actual coordinate extent
-            if (rawElevationData && processedData) {
-                const gridWidth = processedData.width;
-                const gridHeight = processedData.height;
-                const scale = calculateRealWorldScale();
+            if (!targetPoint) {
+                // Fallback: move in view direction if raycast fails
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.normalize();
                 
-                // Calculate actual coordinate extent (varies by render mode)
-                let xExtent, zExtent;
-                if (params.renderMode === 'bars') {
-                    // Bars use integer grid with aspect ratio scaling
-                    const bucketMultiplier = params.bucketSize;
-                    const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
-                    xExtent = (gridWidth - 1) * bucketMultiplier;
-                    zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio;
-                } else {
-                    // Other modes use meter-based coordinates
-                    xExtent = scale.widthMeters;
-                    zExtent = scale.heightMeters;
-                }
+                const baseSpeed = 50;
+                const moveAmount = -1 * (delta > 0 ? baseSpeed : -baseSpeed);
+                const movement = forward.multiplyScalar(moveAmount);
                 
-                const avgSize = (xExtent + zExtent) / 2;
-                var baseSpeed = avgSize * 0.15;  // 15% of terrain size per tick - faster movement
-            } else {
-                var baseSpeed = 50;  // Default speed when no data loaded
+                // Move camera AND target together to maintain orientation
+                camera.position.add(movement);
+                controls.target.add(movement);
+                return;
             }
             
-            // Shift modifier for precise zoom (1/20th speed)
+            // Calculate zoom factor based on distance and scroll delta
+            const distanceToTarget = camera.position.distanceTo(targetPoint);
+            
+            // Zoom speed: percentage of distance per scroll tick
+            let zoomSpeed = 0.15;  // 15% of distance per tick
+            
+            // Shift modifier for precise zoom
             if (keyboard.shift) {
-                baseSpeed /= 20;  // Very precise control
+                zoomSpeed = 0.03;  // 3% for precise control
             }
             
-            // Apply linear movement (scroll forward/down = move forward into scene)
-            // Scroll forward (down/away) = positive delta → move forward
-            // Scroll back (up/toward) = negative delta → move backward
-            const moveAmount =-1*(delta > 0 ? baseSpeed : -baseSpeed);
-            const movement = forward.multiplyScalar(moveAmount);
+            // Scroll UP (negative delta) = zoom IN (move toward target)
+            // Scroll DOWN (positive delta) = zoom OUT (move away from target)
+            const zoomDirection = delta > 0 ? 1 : -1;  // positive = zoom out, negative = zoom in
+            const zoomFactor = 1.0 + (zoomSpeed * zoomDirection);
             
-            camera.position.add(movement);
-            controls.target.add(movement);  // Move target too to maintain relative position
-            controls.update();
+            // Don't zoom too close
+            const newDistance = distanceToTarget * zoomFactor;
+            if (newDistance < 1.0) {
+                return;
+            }
+            
+            // Calculate direction from camera to target point
+            const direction = new THREE.Vector3();
+            direction.subVectors(targetPoint, camera.position);
+            direction.normalize();
+            
+            // Move camera toward/away from target point
+            const moveAmount = distanceToTarget * (1.0 - zoomFactor);
+            camera.position.addScaledVector(direction, moveAmount);
+            
+            // Also move the orbit target slightly toward the cursor point
+            // This keeps the view centered on what you're looking at
+            controls.target.addScaledVector(direction, moveAmount * 0.05);
         }
         
         // Create a visual marker showing rotation pivot point
@@ -2510,35 +2550,39 @@
             // Compass size stays fixed
         }
         
-        // Roblox Studio style keyboard and modifier tracking
+        // ===== CAMERA SCHEME SYSTEM =====
+        let activeScheme = null;
+        
+        // Keyboard state tracking (used by some schemes)
         const keyboard = {
             w: false, a: false, s: false, d: false,
             q: false, e: false, 
             shift: false, ctrl: false, alt: false
         };
         
-        // Track modifier keys for dynamic mouse control behavior
-        let currentModifiers = {
-            ctrl: false,
-            alt: false,
-            shift: false
-        };
-        
-        // Raycaster for click-to-pivot rotation (Google Earth style)
-        const raycaster = new THREE.Raycaster();
-        raycaster.params.Line.threshold = 10;  // Make lines easier to hit
-        raycaster.params.Points.threshold = 10;  // Make points easier to hit
-        const mouse = new THREE.Vector2();
-        let isDragging = false;
-        let dragStartButton = -1;
+        function switchCameraScheme(schemeName) {
+            console.log(`🎮 Switching to ${schemeName} camera scheme`);
+            
+            // Deactivate old scheme
+            if (activeScheme) {
+                activeScheme.deactivate();
+            }
+            
+            // Activate new scheme
+            activeScheme = window.CameraSchemes[schemeName];
+            if (activeScheme && camera && controls && renderer) {
+                activeScheme.activate(camera, controls, renderer);
+                
+                // Update UI
+                const desc = document.getElementById('schemeDescription');
+                if (desc) {
+                    desc.textContent = activeScheme.description;
+                }
+            }
+        }
         
         function onKeyDown(event) {
             const key = event.key.toLowerCase();
-            
-            // Track modifier keys
-            currentModifiers.ctrl = event.ctrlKey;
-            currentModifiers.alt = event.altKey;
-            currentModifiers.shift = event.shiftKey;
             
             // Movement keys
             if (key === 'w') keyboard.w = true;
@@ -2569,11 +2613,6 @@
         
         function onKeyUp(event) {
             const key = event.key.toLowerCase();
-            
-            // Track modifier keys
-            currentModifiers.ctrl = event.ctrlKey;
-            currentModifiers.alt = event.altKey;
-            currentModifiers.shift = event.shiftKey;
             
             // Release movement keys
             if (key === 'w') keyboard.w = false;
@@ -2665,76 +2704,154 @@
             }
         }
         
-        function updateDynamicPanSpeed() {
-            // Dynamically adjust pan speed based on camera distance from target
-            // This prevents unpredictable/excessive panning when zoomed in
-            // (Google Earth style - closer = slower panning, farther = faster panning)
+        // ===== RAYCASTING-BASED CAMERA CONTROLS =====
+        // This provides true "point-stays-under-cursor" dragging behavior
+        
+        // Initialize ground plane for raycasting fallback (when cursor misses terrain)
+        // Simple horizontal plane at y=0 - provides consistent reference for dragging
+        groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        
+        function raycastToWorld(screenX, screenY) {
+            // Convert screen coordinates to normalized device coordinates (-1 to +1)
+            const rect = renderer.domElement.getBoundingClientRect();
+            const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+            const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
             
-            if (!camera || !controls) return;
+            // Set up raycaster
+            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
             
-            // Calculate distance from camera to orbit target
-            const cameraToTarget = camera.position.distanceTo(controls.target);
+            // ALWAYS use ground plane for consistency
+            // This eliminates jerkiness from inconsistent terrain intersections
+            const planeIntersect = new THREE.Vector3();
+            const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
             
-            // IMPROVED ALGORITHM: Account for perspective projection and FOV
-            // In perspective cameras, the apparent size of objects changes with distance
-            // We need to scale pan speed based on both distance AND field of view
+            if (intersected) {
+                return planeIntersect;
+            }
             
-            // Get camera FOV in radians
-            const fovRadians = (camera.fov * Math.PI) / 180;
+            // Should never happen, but just in case
+            console.warn('⚠️ Raycast failed completely');
+            return null;
+        }
+        
+        function onMouseDown(event) {
+            event.preventDefault();
             
-            // Calculate the height of the view frustum at the target distance
-            // This gives us the "world space size" of what's visible on screen
-            const frustumHeight = 2 * Math.tan(fovRadians / 2) * cameraToTarget;
-            
-            // Get terrain scale to normalize the base sensitivity
-            let terrainScale = 1000; // Default fallback
-            if (rawElevationData && processedData) {
-                const scale = calculateRealWorldScale();
-                if (params.renderMode === 'bars') {
-                    const bucketMultiplier = params.bucketSize;
-                    const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
-                    const xExtent = (processedData.width - 1) * bucketMultiplier;
-                    const zExtent = (processedData.height - 1) * bucketMultiplier * aspectRatio;
-                    terrainScale = Math.max(xExtent, zExtent);
+            // Left button = Pan
+            if (event.button === 0 && !event.ctrlKey) {
+                isPanning = true;
+                panStartMouse.set(event.clientX, event.clientY);
+                
+                // Raycast to find world point under cursor
+                panStartWorldPoint = raycastToWorld(event.clientX, event.clientY);
+                
+                if (panStartWorldPoint) {
+                    panStartCameraPos = camera.position.clone();
+                    panStartTargetPos = controls.target.clone();
+                    console.log('🖱️ Pan started');
                 } else {
-                    terrainScale = Math.max(scale.widthMeters, scale.heightMeters);
+                    console.warn('⚠️ Failed to raycast world point');
+                    isPanning = false;
+                }
+            }
+            // Right button or Ctrl+Left = Rotate
+            else if (event.button === 2 || (event.button === 0 && event.ctrlKey)) {
+                isRotating = true;
+                rotateStart.set(event.clientX, event.clientY);
+                rotateStartCameraPos = camera.position.clone();
+                rotateStartTargetPos = controls.target.clone();
+                console.log('🔄 Rotation started');
+            }
+        }
+        
+        function onMouseMove(event) {
+            // Always track mouse position for zoom-to-cursor
+            currentMouseX = event.clientX;
+            currentMouseY = event.clientY;
+            
+            // Handle panning
+            if (isPanning && panStartWorldPoint) {
+                event.preventDefault();
+                
+                const currentWorldPoint = raycastToWorld(event.clientX, event.clientY);
+                
+                if (currentWorldPoint) {
+                    // Calculate offset: how much did the world point move?
+                    const worldDelta = new THREE.Vector3();
+                    worldDelta.subVectors(panStartWorldPoint, currentWorldPoint);
+                    
+                    // Apply offset to camera and target to keep picked point under cursor
+                    // DON'T call lookAt - just translate position and target together
+                    camera.position.copy(panStartCameraPos).add(worldDelta);
+                    controls.target.copy(panStartTargetPos).add(worldDelta);
                 }
             }
             
-            // Base multiplier controls overall sensitivity
-            // Normalized to terrain scale - so same feel across different regions
-            // Lower = slower/more precise, Higher = faster/less precise
-            const baseSensitivity = 0.0015; // Slightly increased from 0.001 for better feel
+            // Handle rotation
+            if (isRotating) {
+                event.preventDefault();
+                
+                const deltaX = event.clientX - rotateStart.x;
+                const deltaY = event.clientY - rotateStart.y;
+                
+                const rotateSpeed = 0.005;
+                
+                // Get vector from target to camera
+                const offset = new THREE.Vector3();
+                offset.copy(rotateStartCameraPos).sub(rotateStartTargetPos);
+                
+                // Rotate horizontally (around Y axis)
+                const theta = -deltaX * rotateSpeed;
+                const sinTheta = Math.sin(theta);
+                const cosTheta = Math.cos(theta);
+                const x = offset.x * cosTheta - offset.z * sinTheta;
+                const z = offset.x * sinTheta + offset.z * cosTheta;
+                offset.x = x;
+                offset.z = z;
+                
+                // Rotate vertically (around horizontal axis)
+                const phi = -deltaY * rotateSpeed;
+                const radius = Math.sqrt(offset.x * offset.x + offset.z * offset.z);
+                const currentPhi = Math.atan2(offset.y, radius);
+                const newPhi = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, currentPhi + phi));
+                offset.y = Math.sin(newPhi) * Math.sqrt(offset.x * offset.x + offset.y * offset.y + offset.z * offset.z);
+                
+                const horizontalRadius = Math.cos(newPhi) * Math.sqrt(offset.x * offset.x + offset.y * offset.y + offset.z * offset.z);
+                const angle = Math.atan2(offset.z, offset.x);
+                offset.x = horizontalRadius * Math.cos(angle);
+                offset.z = horizontalRadius * Math.sin(angle);
+                
+                // Update camera position
+                camera.position.copy(rotateStartTargetPos).add(offset);
+                camera.lookAt(controls.target);
+            }
+        }
+        
+        function onMouseUp(event) {
+            if (isPanning) {
+                console.log('🖱️ Pan ended');
+                isPanning = false;
+                panStartWorldPoint = null;
+                panStartCameraPos = null;
+                panStartTargetPos = null;
+            }
             
-            // Scale pan speed based on frustum height
-            // This makes panning speed proportional to "what you see on screen"
-            // So dragging 100px always moves roughly the same visible distance
-            controls.panSpeed = (frustumHeight / terrainScale) * baseSensitivity * terrainScale;
-            
-            // Simplify: controls.panSpeed = frustumHeight * baseSensitivity
-            // But we keep terrainScale in calculation for potential future normalization
-            
-            // Apply additional damping based on distance for very close/far views
-            // This helps maintain consistency at extreme zoom levels
-            const normalizedDistance = cameraToTarget / terrainScale;
-            const distanceDamping = Math.max(0.3, Math.min(1.5, Math.sqrt(normalizedDistance * 10)));
-            controls.panSpeed *= distanceDamping;
-            
-            // Clamp to reasonable bounds to prevent extremes
-            // Min: 0.05 for very close zoom (precise control)
-            // Max: 5.0 for very far zoom (faster navigation)
-            controls.panSpeed = Math.max(0.05, Math.min(controls.panSpeed, 5.0));
-            
-            // Debug logging (TEMPORARY - remove after testing)
-            if (frameCount % 60 === 0) { // Log once per second at 60fps
-                console.log(`🎮 PanSpeed: ${controls.panSpeed.toFixed(3)} | Dist: ${cameraToTarget.toFixed(0)} | Frustum: ${frustumHeight.toFixed(0)} | Terrain: ${terrainScale.toFixed(0)}`);
+            if (isRotating) {
+                console.log('🔄 Rotation ended');
+                isRotating = false;
+                rotateStartCameraPos = null;
+                rotateStartTargetPos = null;
             }
         }
         
         function animate() {
             requestAnimationFrame(animate);
-            updateDynamicPanSpeed();   // Update pan speed based on zoom level
-            handleKeyboardMovement();  // Roblox-style WASD/QE movement
+            
+            // Update active camera scheme
+            if (activeScheme && activeScheme.enabled) {
+                activeScheme.update();
+            }
+            
             controls.update();
             renderer.render(scene, camera);
             updateCompass();  // Update orientation compass
