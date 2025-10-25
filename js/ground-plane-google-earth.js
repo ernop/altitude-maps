@@ -17,6 +17,18 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     
     activate(camera, controls, renderer) {
         super.activate(camera, controls, renderer);
+        // Prevent OrbitControls from fighting with this scheme
+        this._controlsPrev = this._controlsPrev || {};
+        if (this.controls) {
+            this._controlsPrev.enabled = typeof this.controls.enabled !== 'undefined' ? this.controls.enabled : undefined;
+            this._controlsPrev.enableRotate = this.controls.enableRotate;
+            this._controlsPrev.enablePan = this.controls.enablePan;
+            this._controlsPrev.enableZoom = this.controls.enableZoom;
+            if (typeof this.controls.enabled !== 'undefined') this.controls.enabled = false;
+            if (typeof this.controls.enableRotate !== 'undefined') this.controls.enableRotate = false;
+            if (typeof this.controls.enablePan !== 'undefined') this.controls.enablePan = false;
+            if (typeof this.controls.enableZoom !== 'undefined') this.controls.enableZoom = false;
+        }
         
         // Initialize focus point - raycast from camera to ground plane
         const cameraDir = new THREE.Vector3();
@@ -33,6 +45,19 @@ class GroundPlaneGoogleEarth extends CameraScheme {
         this.controls.target.copy(this.focusPoint);
         
         console.log(`🌍 Google Earth ground plane camera initialized`);
+    }
+
+    cleanup() {
+        // Restore OrbitControls configuration
+        if (this.controls && this._controlsPrev) {
+            if (typeof this._controlsPrev.enabled !== 'undefined' && typeof this.controls.enabled !== 'undefined') {
+                this.controls.enabled = this._controlsPrev.enabled;
+            }
+            if (typeof this.controls.enableRotate !== 'undefined') this.controls.enableRotate = this._controlsPrev.enableRotate;
+            if (typeof this.controls.enablePan !== 'undefined') this.controls.enablePan = this._controlsPrev.enablePan;
+            if (typeof this.controls.enableZoom !== 'undefined') this.controls.enableZoom = this._controlsPrev.enableZoom;
+        }
+        this._controlsPrev = undefined;
     }
     
     // Raycast from screen position to ground plane
@@ -52,16 +77,16 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     onMouseDown(event) {
         if (event.button === 0 && event.ctrlKey) {
             // Ctrl+Left = Pan along plane
-            this.state.panning = true;
-            // Store BOTH mouse position and world point
-            this.state.panStartMouse = { x: event.clientX, y: event.clientY };
-            this.state.panStartWorld = this.raycastToPlane(event.clientX, event.clientY);
-            if (this.state.panStartWorld) {
-                this.state.focusStart = this.focusPoint.clone();
+            // Raycast to the FIXED ground plane (Y=0) to get starting world point
+            const startWorldPoint = this.raycastToPlane(event.clientX, event.clientY);
+            
+            if (startWorldPoint) {
+                this.state.panning = true;
+                this.state.panStartWorld = startWorldPoint.clone();
                 this.state.cameraStart = this.camera.position.clone();
+                // DON'T modify focus yet - just store current focus
+                this.state.focusStart = this.focusPoint.clone();
                 console.log('🖱️ Pan started');
-            } else {
-                this.state.panning = false;
             }
             
         } else if (event.button === 0) {
@@ -72,6 +97,8 @@ class GroundPlaneGoogleEarth extends CameraScheme {
                 this.state.orbitStart = { x: event.clientX, y: event.clientY };
                 this.state.orbitPivot = clickedPoint; // The point on plane we orbit around
                 this.state.cameraStart = this.camera.position.clone();
+                // DON'T modify focus yet - just store current focus
+                this.state.focusStart = this.focusPoint.clone();
                 console.log(`🔄 Orbiting around point on plane`);
             }
             
@@ -82,6 +109,9 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             
             // Store camera orientation (quaternion for proper local-axis rotation)
             this.state.quaternionStart = this.camera.quaternion.clone();
+            
+            // Store the initial focus point - we'll keep it stable during look-around
+            this.state.focusStart = this.focusPoint.clone();
             
             console.log('👀 Look around started (camera position fixed, local-axis rotation)');
             
@@ -97,44 +127,24 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     }
     
     onMouseMove(event) {
-        if (this.state.panning && this.state.panStartWorld && this.state.panStartMouse) {
+        if (this.state.panning && this.state.panStartWorld) {
             // Pan: Slide along the ground plane
-            // Calculate delta in SCREEN SPACE to avoid feedback loops from continuous raycasting
-            const mouseDeltaX = event.clientX - this.state.panStartMouse.x;
-            const mouseDeltaY = event.clientY - this.state.panStartMouse.y;
+            // Raycast current mouse position to the FIXED ground plane
+            const currentWorldPoint = this.raycastToPlane(event.clientX, event.clientY);
             
-            // Get camera's current distance to focus point (for scaling)
-            const cameraToFocus = new THREE.Vector3();
-            cameraToFocus.subVectors(this.state.cameraStart, this.state.focusStart);
-            const distance = cameraToFocus.length();
-            
-            // Convert screen delta to world delta using camera's right and up vectors
-            // Scale by distance to make panning speed feel natural at all zoom levels
-            const scaleFactor = distance * 0.001; // Adjust sensitivity here if needed
-            
-            const cameraRight = new THREE.Vector3();
-            const cameraUp = new THREE.Vector3();
-            this.camera.getWorldDirection(cameraUp); // Get forward direction first
-            cameraRight.crossVectors(cameraUp, this.camera.up).normalize();
-            cameraUp.crossVectors(cameraRight, cameraUp).normalize(); // True camera up
-            
-            // Project onto ground plane (remove Y component from movement)
-            cameraRight.y = 0;
-            cameraRight.normalize();
-            const cameraForward = new THREE.Vector3();
-            cameraForward.crossVectors(this.camera.up, cameraRight).normalize();
-            
-            const delta = new THREE.Vector3();
-            delta.addScaledVector(cameraRight, -mouseDeltaX * scaleFactor);
-            delta.addScaledVector(cameraForward, mouseDeltaY * scaleFactor);
-            delta.y = 0; // Ensure we stay on ground plane
-            
-            // Move focus point and camera together along plane
-            this.focusPoint.copy(this.state.focusStart).add(delta);
-            this.focusPoint.y = 0;
-            
-            this.camera.position.copy(this.state.cameraStart).add(delta);
-            this.controls.target.copy(this.focusPoint);
+            if (currentWorldPoint) {
+                // Calculate delta: how far the cursor moved in world space
+                const delta = new THREE.Vector3();
+                delta.subVectors(this.state.panStartWorld, currentWorldPoint);
+                delta.y = 0; // Ensure we stay on ground plane
+                
+                // Move focus point and camera together by this delta
+                this.focusPoint.copy(this.state.focusStart).add(delta);
+                this.focusPoint.y = 0;
+                
+                this.camera.position.copy(this.state.cameraStart).add(delta);
+                this.controls.target.copy(this.focusPoint);
+            }
         }
         
         if (this.state.orbiting && this.state.orbitPivot) {
@@ -142,9 +152,10 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             const deltaX = event.clientX - this.state.orbitStart.x;
             const deltaY = event.clientY - this.state.orbitStart.y;
             
-            // Get vector from pivot point to camera
+            // Calculate the offset from the INITIAL FOCUS (not clicked pivot) to camera
+            // This prevents jumping when the clicked point is far from current focus
             const offset = new THREE.Vector3();
-            offset.subVectors(this.state.cameraStart, this.state.orbitPivot);
+            offset.subVectors(this.state.cameraStart, this.state.focusStart);
             
             // Convert to spherical coordinates
             const spherical = new THREE.Spherical();
@@ -156,15 +167,15 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             // Rotate vertically (tilt) - limit to prevent flipping
             spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi - deltaY * 0.005));
             
-            // Convert back and apply
+            // Convert back and apply - orbit around INITIAL FOCUS
             offset.setFromSpherical(spherical);
-            this.camera.position.copy(this.state.orbitPivot).add(offset);
+            this.camera.position.copy(this.state.focusStart).add(offset);
             
-            // Look at the pivot point
-            this.camera.lookAt(this.state.orbitPivot);
+            // Look at the INITIAL FOCUS (not the clicked point)
+            this.camera.lookAt(this.state.focusStart);
             
-            // Update focus point to the orbit pivot
-            this.focusPoint.copy(this.state.orbitPivot);
+            // Keep focus stable during orbit
+            this.focusPoint.copy(this.state.focusStart);
             this.controls.target.copy(this.focusPoint);
         }
         
@@ -197,18 +208,10 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             pitchQuat.setFromAxisAngle(localXAxis, pitchAngle);
             this.camera.quaternion.multiply(pitchQuat);
             
-            // Update focus point to where camera is now looking on the ground plane
-            const cameraDir = new THREE.Vector3();
-            this.camera.getWorldDirection(cameraDir);
-            const ray = new THREE.Ray(this.camera.position, cameraDir);
-            const newFocus = new THREE.Vector3();
-            ray.intersectPlane(this.groundPlane, newFocus);
-            
-            if (newFocus) {
-                this.focusPoint.copy(newFocus);
-                this.focusPoint.y = 0;
-                this.controls.target.copy(this.focusPoint);
-            }
+            // Keep focus point stable during look-around operation
+            // (avoiding feedback loops from continuous raycasting)
+            this.focusPoint.copy(this.state.focusStart);
+            this.controls.target.copy(this.focusPoint);
         }
         
         if (this.state.adjustingHeight) {
@@ -259,70 +262,64 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     }
     
     onWheel(event) {
-        // Proper zoom implementation: Move camera toward/away from cursor point
-        // while keeping view stable (no spinning)
-        
-        const cursorPoint = this.raycastToPlane(event.clientX, event.clientY);
-        if (!cursorPoint) return;
-        
-        const zoomingIn = event.deltaY < 0;
+        // Stable zoom with gentle cursor bias via per-gesture anchor.
+        // 1) Primary: change camera distance only (no spin)
+        // 2) Secondary: apply small lateral shift of BOTH camera and focus toward anchor
+        //    to get the "smart" feel without introducing rotation or drift.
+
+        const now = performance.now();
+        const anchorExpiryMs = 250; // anchor persists briefly across a wheel burst
+        if (!this.state.zoomAnchor || !this.state.zoomAnchorTs || (now - this.state.zoomAnchorTs) > anchorExpiryMs) {
+            // Establish new anchor at cursor
+            const anchor = this.raycastToPlane(event.clientX, event.clientY);
+            if (anchor) {
+                this.state.zoomAnchor = anchor.clone();
+                this.state.zoomAnchorTs = now;
+            }
+        } else {
+            // Refresh timestamp to keep current anchor during rapid wheel
+            this.state.zoomAnchorTs = now;
+        }
+
         const zoomSpeed = 0.1;
-        
+
         // Current camera-to-focus vector
         const cameraToFocus = new THREE.Vector3();
         cameraToFocus.subVectors(this.camera.position, this.focusPoint);
         const currentDistance = cameraToFocus.length();
-        
+
         // Calculate new distance
         const factor = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
         const newDistance = currentDistance * factor;
         if (newDistance < 5 || newDistance > 50000) return;
-        
-        // THE KEY: Move camera toward cursor point, but constrain the movement
-        // to maintain stability and prevent spinning
-        
-        // Vector from current focus to cursor point (on ground plane)
-        const focusToCursor = new THREE.Vector3();
-        focusToCursor.subVectors(cursorPoint, this.focusPoint);
-        focusToCursor.y = 0; // Keep on plane
-        
-        const lateralDistance = focusToCursor.length();
-        
-        if (zoomingIn) {
-            // ZOOM IN: Move focus toward cursor
-            // The closer we are, the more we can safely adjust
-            // Limit adjustment to prevent sudden jumps
-            const maxAdjustment = Math.min(lateralDistance * 0.3, currentDistance * 0.2);
-            if (lateralDistance > 0.1) {
-                focusToCursor.normalize();
-                this.focusPoint.addScaledVector(focusToCursor, maxAdjustment);
-                this.focusPoint.y = 0;
-            }
-        } else {
-            // ZOOM OUT: Minimal focus adjustment
-            // Only adjust if cursor point is relatively close to current focus
-            // This prevents spinning when cursor is at screen edges
-            const relativeLateralDist = lateralDistance / currentDistance;
-            
-            // Only adjust if cursor is within a reasonable cone (< 0.5 means roughly within 45 degrees)
-            if (relativeLateralDist < 0.5) {
-                const maxAdjustment = Math.min(lateralDistance * 0.1, currentDistance * 0.05);
-                if (lateralDistance > 0.1) {
-                    focusToCursor.normalize();
-                    this.focusPoint.addScaledVector(focusToCursor, maxAdjustment);
+
+        // Compute lateral bias toward anchor (if any)
+        if (this.state.zoomAnchor) {
+            const focusToAnchor = new THREE.Vector3().subVectors(this.state.zoomAnchor, this.focusPoint);
+            focusToAnchor.y = 0; // plane-only shift
+            const lateralDistance = focusToAnchor.length();
+            if (lateralDistance > 0.01) {
+                const lateralDir = focusToAnchor.clone().normalize();
+                const relative = lateralDistance / Math.max(currentDistance, 1e-6);
+                // Suppress bias when cursor is too far from focus (edge of screen)
+                if (relative < 0.75) {
+                    // Mild bias amount: scale with distance but keep small
+                    const base = currentDistance * (event.deltaY > 0 ? 0.02 : 0.01); // smaller when zooming out
+                    const magnitude = Math.min(lateralDistance * 0.15, base);
+                    const lateralShift = lateralDir.multiplyScalar(magnitude);
+                    // Shift BOTH camera and focus together to avoid rotation/spin
+                    this.focusPoint.add(lateralShift);
                     this.focusPoint.y = 0;
+                    this.camera.position.add(lateralShift);
                 }
             }
-            // If cursor is far from focus (at screen edge), don't adjust focus at all
-            // This eliminates spinning!
         }
-        
-        // Now move camera to new distance from (possibly adjusted) focus point
+
+        // Now change camera distance along current view vector (no change to direction)
         cameraToFocus.subVectors(this.camera.position, this.focusPoint);
         cameraToFocus.normalize();
         cameraToFocus.multiplyScalar(newDistance);
         this.camera.position.copy(this.focusPoint).add(cameraToFocus);
-        
         this.controls.target.copy(this.focusPoint);
     }
     
