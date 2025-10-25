@@ -536,15 +536,15 @@
             
             <h2>Real-Time Bucketing</h2>
             
-            <div class="control-group">
+             <div class="control-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <label style="margin: 0;">Bucket Size (pixel multiplier)</label>
-                    <input type="number" id="bucketSizeInput" min="1" max="500" step="1" value="1" 
+                    <input type="number" id="bucketSizeInput" min="1" max="500" step="1" value="8" 
                            style="width: 70px; padding: 2px 6px; text-align: right; font-size: 12px;">
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">1</span>
-                    <input type="range" id="bucketSize" min="1" max="500" step="1" value="1" style="flex: 1;">
+                    <input type="range" id="bucketSize" min="1" max="500" step="1" value="8" style="flex: 1;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">500</span>
                 </div>
                 <!-- 
@@ -569,15 +569,15 @@
                 </div>
             </div>
             
-            <div class="control-group">
+             <div class="control-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <label style="margin: 0;">Vertical Exaggeration</label>
-                    <input type="number" id="vertExagInput" min="0.00001" max="0.3" step="0.00001" value="0.001" 
+                    <input type="number" id="vertExagInput" min="0.00001" max="0.3" step="0.00001" value="0.01311" 
                            style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">0.00001</span>
-                    <input type="range" id="vertExag" min="0.00001" max="0.3" step="0.00001" value="0.001" style="flex: 1;">
+                    <input type="range" id="vertExag" min="0.00001" max="0.3" step="0.00001" value="0.01311" style="flex: 1;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">0.3</span>
                 </div>
                 <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
@@ -595,7 +595,7 @@
             <div class="control-group">
                 <label>Aggregation Method</label>
                 <select id="aggregation">
-                    <option value="max">MAX (Highest point in bucket)</option>
+                    <option value="max" selected>MAX (Highest point in bucket)</option>
                     <option value="average">AVERAGE (Mean elevation)</option>
                     <option value="min">MIN (Lowest point)</option>
                     <option value="median">MEDIAN (Middle value)</option>
@@ -699,13 +699,13 @@
         // Implementation: Create once at current exaggeration, don't recreate on exaggeration changes
         let edgeMarkers = [];
         
-        // Parameters
+         // Parameters
         let params = {
             bucketSize: 8,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
             tileGap: 1,     // Gap between tiles as percentage (0-99%, where 1% = 0.99 tile size)
             aggregation: 'max',
             renderMode: 'bars',
-            verticalExaggeration: 0.001,  // Default: subtle for 1:1 grid
+            verticalExaggeration: 0.01311,  // Default: good balance of detail and scale
             colorScheme: 'terrain',
             wireframeOverlay: false,
             showGrid: false,
@@ -729,13 +729,18 @@
                 if (firstRegionId === 'default') {
                     dataUrl = 'generated/elevation_data.json';
                 } else {
-                    dataUrl = `generated/regions/${firstRegionId}.json`;
+                    // Use the file path from manifest (handles version suffixes like _srtm_30m_v2)
+                    const filename = regionsManifest?.regions[firstRegionId]?.file || `${firstRegionId}.json`;
+                    dataUrl = `generated/regions/${filename}`;
                 }
                 
                 rawElevationData = await loadElevationData(dataUrl);
                 
                 hideLoading();
                 setupControls();
+                
+                // Sync UI to match params (ensures no mismatch on initial load)
+                syncUIControls();
                 
                 // Initial processing and rendering
                 rebucketData();
@@ -957,7 +962,9 @@
                 if (regionId === 'default') {
                     dataUrl = 'generated/elevation_data.json';
                 } else {
-                    dataUrl = `generated/regions/${regionId}.json`;
+                    // Use the file path from manifest (handles version suffixes like _srtm_30m_v2)
+                    const filename = regionsManifest?.regions[regionId]?.file || `${regionId}.json`;
+                    dataUrl = `generated/regions/${filename}`;
                 }
                 
                 rawElevationData = await loadElevationData(dataUrl);
@@ -1139,6 +1146,10 @@
                                 value = count % 2 === 0 
                                     ? (sortedSlice[mid - 1] + sortedSlice[mid]) / 2 
                                     : sortedSlice[mid];
+                                break;
+                            default:
+                                console.error(`❌ Unknown aggregation method: ${params.aggregation}`);
+                                value = buffer[0]; // Fallback to first value
                                 break;
                         }
                     }
@@ -1634,12 +1645,15 @@
             
             // Aggregation method
             document.getElementById('aggregation').addEventListener('change', (e) => {
+                console.log(`🔄 Aggregation changed from ${params.aggregation} to ${e.target.value}`);
                 params.aggregation = e.target.value;
                 // Clear edge markers so they get recreated at new positions
                 edgeMarkers.forEach(marker => scene.remove(marker));
                 edgeMarkers = [];
                 rebucketData();
                 recreateTerrain();
+                // Remove focus from dropdown so keyboard navigation works
+                e.target.blur();
             });
             
             // Render mode
@@ -1649,6 +1663,8 @@
                 edgeMarkers.forEach(marker => scene.remove(marker));
                 edgeMarkers = [];
                 recreateTerrain();
+                // Remove focus from dropdown so keyboard navigation works
+                e.target.blur();
             });
             
             // Vertical exaggeration with debouncing for bars mode (performance)
@@ -1967,8 +1983,8 @@
                 for (let j = 0; j < width; j++) {  // j = col index (bucketed)
                     let z = elevation[i] && elevation[i][j];
                     
-                    // Use 0 for missing data
-                    if (z === null || z === undefined) z = 0;
+                    // Skip null/undefined values entirely - don't render anything for areas outside boundaries
+                    if (z === null || z === undefined) continue;
                     
                     const elev = Math.max(z * params.verticalExaggeration, 0.1);
                     const color = getColorForElevation(z);
@@ -2375,6 +2391,10 @@
                     <span class="stat-value">${dataStats.min.toFixed(0)}m - ${dataStats.max.toFixed(0)}m</span>
                 </div>
                 <div class="stat-line">
+                    <span class="stat-label">Average Elevation:</span> 
+                    <span class="stat-value">${dataStats.mean.toFixed(0)}m</span>
+                </div>
+                <div class="stat-line">
                     <span class="stat-label">Bars Rendered:</span> 
                     <span class="stat-value">${stats.bars?.toLocaleString() || 'N/A'}</span>
                 </div>
@@ -2610,12 +2630,12 @@
                 delta.addScaledVector(forward, -moveSpeed);
             }
             
-            // Q/E: Move camera UP/DOWN (vertical, world space)
+            // Q/E: Move camera DOWN/UP (vertical, world space)
             if (keyboard.q) {
-                delta.y += moveSpeed;
+                delta.y -= moveSpeed;
             }
             if (keyboard.e) {
-                delta.y -= moveSpeed;
+                delta.y += moveSpeed;
             }
             
             // A/D: Strafe camera LEFT/RIGHT (relative to view direction)
@@ -2645,8 +2665,75 @@
             }
         }
         
+        function updateDynamicPanSpeed() {
+            // Dynamically adjust pan speed based on camera distance from target
+            // This prevents unpredictable/excessive panning when zoomed in
+            // (Google Earth style - closer = slower panning, farther = faster panning)
+            
+            if (!camera || !controls) return;
+            
+            // Calculate distance from camera to orbit target
+            const cameraToTarget = camera.position.distanceTo(controls.target);
+            
+            // IMPROVED ALGORITHM: Account for perspective projection and FOV
+            // In perspective cameras, the apparent size of objects changes with distance
+            // We need to scale pan speed based on both distance AND field of view
+            
+            // Get camera FOV in radians
+            const fovRadians = (camera.fov * Math.PI) / 180;
+            
+            // Calculate the height of the view frustum at the target distance
+            // This gives us the "world space size" of what's visible on screen
+            const frustumHeight = 2 * Math.tan(fovRadians / 2) * cameraToTarget;
+            
+            // Get terrain scale to normalize the base sensitivity
+            let terrainScale = 1000; // Default fallback
+            if (rawElevationData && processedData) {
+                const scale = calculateRealWorldScale();
+                if (params.renderMode === 'bars') {
+                    const bucketMultiplier = params.bucketSize;
+                    const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
+                    const xExtent = (processedData.width - 1) * bucketMultiplier;
+                    const zExtent = (processedData.height - 1) * bucketMultiplier * aspectRatio;
+                    terrainScale = Math.max(xExtent, zExtent);
+                } else {
+                    terrainScale = Math.max(scale.widthMeters, scale.heightMeters);
+                }
+            }
+            
+            // Base multiplier controls overall sensitivity
+            // Normalized to terrain scale - so same feel across different regions
+            // Lower = slower/more precise, Higher = faster/less precise
+            const baseSensitivity = 0.0015; // Slightly increased from 0.001 for better feel
+            
+            // Scale pan speed based on frustum height
+            // This makes panning speed proportional to "what you see on screen"
+            // So dragging 100px always moves roughly the same visible distance
+            controls.panSpeed = (frustumHeight / terrainScale) * baseSensitivity * terrainScale;
+            
+            // Simplify: controls.panSpeed = frustumHeight * baseSensitivity
+            // But we keep terrainScale in calculation for potential future normalization
+            
+            // Apply additional damping based on distance for very close/far views
+            // This helps maintain consistency at extreme zoom levels
+            const normalizedDistance = cameraToTarget / terrainScale;
+            const distanceDamping = Math.max(0.3, Math.min(1.5, Math.sqrt(normalizedDistance * 10)));
+            controls.panSpeed *= distanceDamping;
+            
+            // Clamp to reasonable bounds to prevent extremes
+            // Min: 0.05 for very close zoom (precise control)
+            // Max: 5.0 for very far zoom (faster navigation)
+            controls.panSpeed = Math.max(0.05, Math.min(controls.panSpeed, 5.0));
+            
+            // Debug logging (TEMPORARY - remove after testing)
+            if (frameCount % 60 === 0) { // Log once per second at 60fps
+                console.log(`🎮 PanSpeed: ${controls.panSpeed.toFixed(3)} | Dist: ${cameraToTarget.toFixed(0)} | Frustum: ${frustumHeight.toFixed(0)} | Terrain: ${terrainScale.toFixed(0)}`);
+            }
+        }
+        
         function animate() {
             requestAnimationFrame(animate);
+            updateDynamicPanSpeed();   // Update pan speed based on zoom level
             handleKeyboardMovement();  // Roblox-style WASD/QE movement
             controls.update();
             renderer.render(scene, camera);

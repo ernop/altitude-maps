@@ -180,7 +180,7 @@ def downsample_for_viewer(
     
     try:
         with rasterio.open(clipped_tif_path) as src:
-            print(f"      Input: {src.width} × {src.height} pixels")
+            print(f"      Input: {src.width} × {src.height} pixels", flush=True)
             
             # Calculate downsampling factor
             max_dim = max(src.height, src.width)
@@ -274,17 +274,31 @@ def export_for_viewer(
     
     try:
         with rasterio.open(processed_tif_path) as src:
-            print(f"      Reading raster: {src.width} × {src.height}")
+            print(f"      Reading raster: {src.width} × {src.height}", flush=True)
             elevation = src.read(1)
             bounds = src.bounds
             
+            # Filter bad values (nodata, extreme negatives) BEFORE stats calculation
+            # Replace bad values with NaN for proper stats
+            # Convert to float first (elevation might be int16/int32)
+            elevation_clean = elevation.astype(np.float32)
+            elevation_clean[elevation_clean < -500] = np.nan
+            
+            # Check if we have ANY valid data
+            valid_count = np.sum(~np.isnan(elevation_clean))
+            if valid_count == 0:
+                print(f"      ❌ Error: No valid elevation data after filtering nodata values", flush=True)
+                return False
+            
+            print(f"      Valid pixels: {valid_count:,} / {elevation_clean.size:,} ({100*valid_count/elevation_clean.size:.1f}%)", flush=True)
+            
             # Convert to list (handle NaN values)
-            print(f"      Converting to JSON format...")
+            print(f"      Converting to JSON format...", flush=True)
             elevation_list = []
-            for row in elevation:
+            for row in elevation_clean:
                 row_list = []
                 for val in row:
-                    if np.isnan(val) or val < -500:  # Filter bad values
+                    if np.isnan(val):  # Filter bad values (already marked as NaN)
                         row_list.append(None)
                     else:
                         row_list.append(float(val))
@@ -306,9 +320,9 @@ def export_for_viewer(
                     "bottom": float(bounds.bottom)
                 },
                 "stats": {
-                    "min": float(np.nanmin(elevation)),
-                    "max": float(np.nanmax(elevation)),
-                    "mean": float(np.nanmean(elevation))
+                    "min": float(np.nanmin(elevation_clean)),
+                    "max": float(np.nanmax(elevation_clean)),
+                    "mean": float(np.nanmean(elevation_clean))
                 }
             }
             
@@ -330,11 +344,13 @@ def export_for_viewer(
             save_metadata(metadata, get_metadata_path(output_path))
             
             file_size_mb = output_path.stat().st_size / (1024 * 1024)
-            print(f"      ✅ Exported: {output_path.name} ({file_size_mb:.1f} MB)")
+            print(f"      ✅ Exported: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
             return True
             
     except Exception as e:
-        print(f"      ❌ Export failed: {e}")
+        import traceback
+        print(f"      ❌ Export failed: {e}", flush=True)
+        traceback.print_exc()
         if output_path.exists():
             output_path.unlink()
         return False
@@ -464,9 +480,9 @@ def run_pipeline(
     
     result_paths["processed"] = processed_path
     
-    # Step 4: Export to JSON
+    # Step 4: Export to JSON (include resolution in filename for cache safety)
     print(f"\n[4/4] 📤 Exporting for web viewer...")
-    exported_path = generated_dir / f"{region_id}_{source}_v2.json"
+    exported_path = generated_dir / f"{region_id}_{source}_{target_pixels}px_v2.json"
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths
     
