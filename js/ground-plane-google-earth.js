@@ -9,7 +9,7 @@
 
 class GroundPlaneGoogleEarth extends CameraScheme {
     constructor() {
-        super('Google Earth (Ground Plane)', 'Left = orbit, Right = height adjust, Ctrl+Left = pan, Scroll = zoom');
+        super('Google Earth (Ground Plane)', 'Left = orbit, Right = height, Ctrl+Left = pan, Middle = look around, Scroll = zoom');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -75,6 +75,16 @@ class GroundPlaneGoogleEarth extends CameraScheme {
                 console.log(`🔄 Orbiting around point on plane`);
             }
             
+        } else if (event.button === 1) {
+            // Middle = Look around (rotate camera view direction ONLY, position stays fixed)
+            this.state.lookingAround = true;
+            this.state.lookStart = { x: event.clientX, y: event.clientY };
+            
+            // Store camera orientation (quaternion for proper local-axis rotation)
+            this.state.quaternionStart = this.camera.quaternion.clone();
+            
+            console.log('👀 Look around started (camera position fixed, local-axis rotation)');
+            
         } else if (event.button === 2) {
             // Right = Adjust height (altitude) only
             this.state.adjustingHeight = true;
@@ -89,19 +99,42 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     onMouseMove(event) {
         if (this.state.panning && this.state.panStartWorld && this.state.panStartMouse) {
             // Pan: Slide along the ground plane
-            const currentPoint = this.raycastToPlane(event.clientX, event.clientY);
+            // Calculate delta in SCREEN SPACE to avoid feedback loops from continuous raycasting
+            const mouseDeltaX = event.clientX - this.state.panStartMouse.x;
+            const mouseDeltaY = event.clientY - this.state.panStartMouse.y;
             
-            if (currentPoint) {
-                const delta = new THREE.Vector3();
-                delta.subVectors(this.state.panStartWorld, currentPoint);
-                
-                // Move focus point and camera together along plane
-                this.focusPoint.copy(this.state.focusStart).add(delta);
-                this.focusPoint.y = 0;
-                
-                this.camera.position.copy(this.state.cameraStart).add(delta);
-                this.controls.target.copy(this.focusPoint);
-            }
+            // Get camera's current distance to focus point (for scaling)
+            const cameraToFocus = new THREE.Vector3();
+            cameraToFocus.subVectors(this.state.cameraStart, this.state.focusStart);
+            const distance = cameraToFocus.length();
+            
+            // Convert screen delta to world delta using camera's right and up vectors
+            // Scale by distance to make panning speed feel natural at all zoom levels
+            const scaleFactor = distance * 0.001; // Adjust sensitivity here if needed
+            
+            const cameraRight = new THREE.Vector3();
+            const cameraUp = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraUp); // Get forward direction first
+            cameraRight.crossVectors(cameraUp, this.camera.up).normalize();
+            cameraUp.crossVectors(cameraRight, cameraUp).normalize(); // True camera up
+            
+            // Project onto ground plane (remove Y component from movement)
+            cameraRight.y = 0;
+            cameraRight.normalize();
+            const cameraForward = new THREE.Vector3();
+            cameraForward.crossVectors(this.camera.up, cameraRight).normalize();
+            
+            const delta = new THREE.Vector3();
+            delta.addScaledVector(cameraRight, -mouseDeltaX * scaleFactor);
+            delta.addScaledVector(cameraForward, mouseDeltaY * scaleFactor);
+            delta.y = 0; // Ensure we stay on ground plane
+            
+            // Move focus point and camera together along plane
+            this.focusPoint.copy(this.state.focusStart).add(delta);
+            this.focusPoint.y = 0;
+            
+            this.camera.position.copy(this.state.cameraStart).add(delta);
+            this.controls.target.copy(this.focusPoint);
         }
         
         if (this.state.orbiting && this.state.orbitPivot) {
@@ -133,6 +166,49 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             // Update focus point to the orbit pivot
             this.focusPoint.copy(this.state.orbitPivot);
             this.controls.target.copy(this.focusPoint);
+        }
+        
+        if (this.state.lookingAround) {
+            // Look around: Rotate camera around its LOCAL axes (position stays fixed)
+            const deltaX = event.clientX - this.state.lookStart.x;
+            const deltaY = event.clientY - this.state.lookStart.y;
+            
+            // Calculate rotation angles
+            // Left/Right = rotate around camera's local Y axis (yaw)
+            const yawAngle = -deltaX * 0.005;
+            
+            // Forward/Back = rotate around camera's local X axis (pitch)
+            // Forward (negative deltaY) = look down (positive rotation around X)
+            // Back (positive deltaY) = look up (negative rotation around X)
+            const pitchAngle = -deltaY * 0.003;
+            
+            // Start from initial orientation
+            this.camera.quaternion.copy(this.state.quaternionStart);
+            
+            // Apply yaw rotation around camera's local Y axis
+            const yawQuat = new THREE.Quaternion();
+            yawQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
+            this.camera.quaternion.multiply(yawQuat);
+            
+            // Apply pitch rotation around camera's local X axis
+            const localXAxis = new THREE.Vector3(1, 0, 0);
+            localXAxis.applyQuaternion(this.camera.quaternion);
+            const pitchQuat = new THREE.Quaternion();
+            pitchQuat.setFromAxisAngle(localXAxis, pitchAngle);
+            this.camera.quaternion.multiply(pitchQuat);
+            
+            // Update focus point to where camera is now looking on the ground plane
+            const cameraDir = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDir);
+            const ray = new THREE.Ray(this.camera.position, cameraDir);
+            const newFocus = new THREE.Vector3();
+            ray.intersectPlane(this.groundPlane, newFocus);
+            
+            if (newFocus) {
+                this.focusPoint.copy(newFocus);
+                this.focusPoint.y = 0;
+                this.controls.target.copy(this.focusPoint);
+            }
         }
         
         if (this.state.adjustingHeight) {
@@ -168,6 +244,12 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             this.state.panning = false;
             this.state.orbiting = false;
             
+        } else if (event.button === 1) {
+            if (this.state.lookingAround) {
+                console.log('👀 Look around ended');
+            }
+            this.state.lookingAround = false;
+            
         } else if (event.button === 2) {
             if (this.state.adjustingHeight) {
                 console.log(`⬆️ Height adjustment ended. New height: ${this.camera.position.y.toFixed(1)}`);
@@ -177,73 +259,78 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     }
     
     onWheel(event) {
-        // Zoom: Move camera away/toward focus point, with smart cursor tracking
-        const cursorPoint = this.raycastToPlane(event.clientX, event.clientY);
+        // Proper zoom implementation: Move camera toward/away from cursor point
+        // while keeping view stable (no spinning)
         
+        const cursorPoint = this.raycastToPlane(event.clientX, event.clientY);
         if (!cursorPoint) return;
         
-        // Calculate how far cursor is from screen center (normalized 0-1)
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const distFromCenterX = Math.abs(event.clientX - centerX) / (rect.width / 2);
-        const distFromCenterY = Math.abs(event.clientY - centerY) / (rect.height / 2);
-        const distFromCenter = Math.max(distFromCenterX, distFromCenterY); // 0 = center, 1 = edge
-        
-        // Adjust focus point toward cursor
-        // Key: Reduce adjustment when cursor is at edge (prevents spinning!)
-        const towardsCursor = new THREE.Vector3(
-            cursorPoint.x - this.focusPoint.x,
-            0,
-            cursorPoint.z - this.focusPoint.z
-        );
-        
         const zoomingIn = event.deltaY < 0;
+        const zoomSpeed = 0.1;
         
-        if (zoomingIn) {
-            // Zoom IN: Move focus aggressively toward cursor (safe because we're getting closer)
-            // Even at edges, this feels good
-            const focusAdjust = 0.25;
-            this.focusPoint.addScaledVector(towardsCursor, focusAdjust);
-        } else {
-            // Zoom OUT: Only adjust focus when cursor is near center
-            // At edges, barely adjust to prevent spinning
-            const centerBias = Math.max(0, 1.0 - distFromCenter); // 1 at center, 0 at edge
-            const focusAdjust = 0.15 * centerBias; // Scales down to 0 at edges
-            this.focusPoint.addScaledVector(towardsCursor, focusAdjust);
-        }
-        
-        this.focusPoint.y = 0; // Keep on plane
-        
-        // Now zoom: Move camera along the line from focus point to camera
+        // Current camera-to-focus vector
         const cameraToFocus = new THREE.Vector3();
         cameraToFocus.subVectors(this.camera.position, this.focusPoint);
-        
         const currentDistance = cameraToFocus.length();
         
-        // Zoom speed
-        const zoomSpeed = 0.1;
+        // Calculate new distance
         const factor = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-        
         const newDistance = currentDistance * factor;
         if (newDistance < 5 || newDistance > 50000) return;
         
-        // Move camera to new distance from focus point
+        // THE KEY: Move camera toward cursor point, but constrain the movement
+        // to maintain stability and prevent spinning
+        
+        // Vector from current focus to cursor point (on ground plane)
+        const focusToCursor = new THREE.Vector3();
+        focusToCursor.subVectors(cursorPoint, this.focusPoint);
+        focusToCursor.y = 0; // Keep on plane
+        
+        const lateralDistance = focusToCursor.length();
+        
+        if (zoomingIn) {
+            // ZOOM IN: Move focus toward cursor
+            // The closer we are, the more we can safely adjust
+            // Limit adjustment to prevent sudden jumps
+            const maxAdjustment = Math.min(lateralDistance * 0.3, currentDistance * 0.2);
+            if (lateralDistance > 0.1) {
+                focusToCursor.normalize();
+                this.focusPoint.addScaledVector(focusToCursor, maxAdjustment);
+                this.focusPoint.y = 0;
+            }
+        } else {
+            // ZOOM OUT: Minimal focus adjustment
+            // Only adjust if cursor point is relatively close to current focus
+            // This prevents spinning when cursor is at screen edges
+            const relativeLateralDist = lateralDistance / currentDistance;
+            
+            // Only adjust if cursor is within a reasonable cone (< 0.5 means roughly within 45 degrees)
+            if (relativeLateralDist < 0.5) {
+                const maxAdjustment = Math.min(lateralDistance * 0.1, currentDistance * 0.05);
+                if (lateralDistance > 0.1) {
+                    focusToCursor.normalize();
+                    this.focusPoint.addScaledVector(focusToCursor, maxAdjustment);
+                    this.focusPoint.y = 0;
+                }
+            }
+            // If cursor is far from focus (at screen edge), don't adjust focus at all
+            // This eliminates spinning!
+        }
+        
+        // Now move camera to new distance from (possibly adjusted) focus point
+        cameraToFocus.subVectors(this.camera.position, this.focusPoint);
         cameraToFocus.normalize();
         cameraToFocus.multiplyScalar(newDistance);
         this.camera.position.copy(this.focusPoint).add(cameraToFocus);
         
-        // Update controls target
         this.controls.target.copy(this.focusPoint);
-        
-        // Don't call lookAt here - let update() handle it
     }
     
     update() {
         // Only update camera orientation if we're NOT actively dragging
         // This prevents "fighting" during pan/orbit operations
         if (this.enabled && this.focusPoint) {
-            const isActiveDragging = this.state.panning || this.state.orbiting || this.state.adjustingHeight;
+            const isActiveDragging = this.state.panning || this.state.orbiting || this.state.adjustingHeight || this.state.lookingAround;
             if (!isActiveDragging) {
                 this.camera.lookAt(this.focusPoint);
             }

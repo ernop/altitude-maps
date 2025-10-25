@@ -657,9 +657,9 @@
             <div class="control-group">
                 <label>Control Scheme</label>
                 <select id="cameraScheme">
-                    <option value="google-earth-plane">Google Earth (Ground Plane - NEW)</option>
+                    <option value="google-earth-plane" selected>Google Earth (Ground Plane)</option>
                     <option value="ground-plane">Google Maps (Ground Plane)</option>
-                    <option value="roblox" selected>Roblox Studio</option>
+                    <option value="roblox">Roblox Studio</option>
                     <option value="google-maps">Google Maps (Old)</option>
                     <option value="google-earth">Google Earth (Old)</option>
                     <option value="blender">Blender</option>
@@ -1776,8 +1776,8 @@
                 switchCameraScheme(e.target.value);
             });
             
-            // Initialize default scheme (Roblox - user's favorite)
-            switchCameraScheme('roblox');
+            // Initialize default scheme (Google Earth Ground Plane)
+            switchCameraScheme('google-earth-plane');
         }
         
         // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
