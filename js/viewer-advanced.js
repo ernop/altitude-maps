@@ -268,19 +268,11 @@ async function loadRegion(regionId) {
         currentRegionId = regionId;
         updateRegionInfo(regionId);
         
-        // Update Select2 dropdown to show the loaded region (without triggering change event)
+        // Update Select2 dropdown to show the loaded region
         const $regionSelect = $('#regionSelect');
         if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            // Temporarily unbind the change handler to avoid recursion
-            $regionSelect.off('change');
-            $regionSelect.val(regionId).trigger('change.select2');
-            // Re-bind the change handler
-            $regionSelect.on('change', function(e) {
-                const newRegionId = $(this).val();
-                if (newRegionId && newRegionId !== currentRegionId) {
-                    loadRegion(newRegionId);
-                }
-            });
+            // Use val() and trigger('change') to update the UI properly
+            $regionSelect.val(regionId).trigger('change');
         }
         
         // Clear edge markers so they get recreated for new region
@@ -309,14 +301,7 @@ async function loadRegion(regionId) {
         // On error, revert Select2 dropdown to previous region
         const $regionSelect = $('#regionSelect');
         if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            $regionSelect.off('change');
-            $regionSelect.val(currentRegionId).trigger('change.select2');
-            $regionSelect.on('change', function(e) {
-                const newRegionId = $(this).val();
-                if (newRegionId && newRegionId !== currentRegionId) {
-                    loadRegion(newRegionId);
-                }
-            });
+            $regionSelect.val(currentRegionId).trigger('change');
         }
     }
 }
@@ -752,10 +737,17 @@ function setupControls() {
     });
     
     // Region selector - use .off() first to prevent duplicate handlers
+    // Use a flag to prevent recursion when programmatically updating the value
+    let isLoadingRegion = false;
     $('#regionSelect').off('change').on('change', function(e) {
+        if (isLoadingRegion) return; // Prevent recursion
+        
         const regionId = $(this).val();
         if (regionId && regionId !== currentRegionId) {
-            loadRegion(regionId);
+            isLoadingRegion = true;
+            loadRegion(regionId).finally(() => {
+                isLoadingRegion = false;
+            });
         }
     });
     
@@ -949,7 +941,8 @@ function autoAdjustBucketSize() {
     }
     
     const { width, height } = rawElevationData;
-    const MAX_BUCKETS = 10000;
+    // Reduced from 10000 to ~3900 (60% larger bucket size means ~40% of original bucket count)
+    const MAX_BUCKETS = 3900;
     
     // Calculate optimal bucket size to stay within MAX_BUCKETS constraint
     // Start with direct calculation: bucketSize = ceil(sqrt(width * height / MAX_BUCKETS))

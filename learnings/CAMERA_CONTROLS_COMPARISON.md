@@ -844,7 +844,7 @@ controls.panSpeed = (frustumHeight / terrainScale) * baseSensitivity;
 
 **Altitude Maps Approach:** Solve the geometric problem directly
 ```javascript
-// Simple, perfect
+// Simple, direct
 const worldDelta = pickedPoint - currentPoint;
 camera.position += worldDelta;
 ```
@@ -1208,7 +1208,7 @@ Altitude Maps successfully achieves its goal: **professional-quality terrain vis
 **Strengths:**
 - Matches or exceeds industry standards for smoothness
 - Clearer control separation than most competitors
-- Best-in-class documentation
+- Comprehensive architecture documentation
 - Focused on doing one thing well
 
 **Areas for Growth:**

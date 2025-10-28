@@ -299,6 +299,14 @@ def export_for_viewer(
                         row_list.append(float(val))
                 elevation_list.append(row_list)
             
+            # VALIDATION: Check aspect ratio before export
+            export_aspect = src.width / src.height
+            actual_export_aspect = len(elevation_list[0]) / len(elevation_list) if elevation_list else 0
+            if abs(actual_export_aspect - export_aspect) > 0.01:
+                print(f"      ⚠️  WARNING: Aspect ratio mismatch!", flush=True)
+                print(f"      Expected: {export_aspect:.3f}, Got: {actual_export_aspect:.3f}", flush=True)
+                raise ValueError(f"Aspect ratio not preserved for {region_id}")
+            
             # Create export data
             export_data = {
                 "version": get_current_version('export'),
@@ -340,6 +348,7 @@ def export_for_viewer(
             
             file_size_mb = output_path.stat().st_size / (1024 * 1024)
             print(f"      ✅ Exported: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+            print(f"      Aspect ratio: {export_aspect:.3f} (validated)", flush=True)
             return True
             
     except Exception as e:

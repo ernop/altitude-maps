@@ -35,7 +35,6 @@
             
             <div class="control-group">
                 <label>
-                    Select Region
                     <span class="value-display" id="currentRegion">Loading...</span>
                 </label>
                 <select id="regionSelect" style="width: 100%; padding: 8px; margin-top: 5px; background: #1a1a1a; color: #5588cc; border: 1px solid #333; border-radius: 4px; font-family: 'Consolas', monospace;">
@@ -48,24 +47,30 @@
             
              <div class="control-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <label style="margin: 0;">Bucket Size (pixel multiplier)</label>
+                    <label style="margin: 0;">Bucket Size</label>
                     <div style="display: flex; gap: 4px; align-items: center;">
                         <button id="autoAdjustBucket" onclick="autoAdjustBucketSize()" 
                                 style="padding: 3px 10px; font-size: 11px; font-weight: bold; background: #2a5a8a; border: 1px solid #4488ff; color: #4488ff; border-radius: 3px; cursor: pointer;"
-                                title="Calculate optimal bucket size to keep total buckets ≤ 10,000">
+                                title="Calculate optimal bucket size automatically">
                             AUTO
                         </button>
                         <input type="number" id="bucketSizeInput" min="1" max="500" step="1" value="4" 
                                style="width: 70px; padding: 2px 6px; text-align: right; font-size: 12px;">
                     </div>
                 </div>
-                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-10)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">-10</button>
-                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-5)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">-5</button>
-                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-1)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">-1</button>
-                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(1)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">+1</button>
-                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(5)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">+5</button>
-                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(10)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">+10</button>
+                <div style="margin-top: 8px; display: flex; gap: 10px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                        <div style="font-size: 10px; font-weight: bold; color: #4488ff; text-align: center; margin-bottom: 2px;">SMALLER</div>
+                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(-10)" style="font-size: 14px; padding: 8px 12px;">-10</button>
+                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(-5)" style="font-size: 14px; padding: 8px 12px;">-5</button>
+                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(-1)" style="font-size: 14px; padding: 8px 12px;">-1</button>
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                        <div style="font-size: 10px; font-weight: bold; color: #ff8844; text-align: center; margin-bottom: 2px;">BIGGER</div>
+                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(1)" style="font-size: 14px; padding: 8px 12px;">+1</button>
+                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(5)" style="font-size: 14px; padding: 8px 12px;">+5</button>
+                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(10)" style="font-size: 14px; padding: 8px 12px;">+10</button>
+                    </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">1</span>

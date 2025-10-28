@@ -355,6 +355,13 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             
             height, width = elevation.shape
             
+            # VALIDATION: Check aspect ratio before export
+            export_aspect = width / height
+            if abs(export_aspect - (src.width / src.height)) > 0.01:
+                print(f"   ⚠️  WARNING: Aspect ratio mismatch detected!")
+                print(f"      Source: {src.width / src.height:.3f}, Export: {export_aspect:.3f}")
+                raise ValueError(f"Aspect ratio not preserved for {region_id}")
+            
             # Convert to list
             elevation_list = []
             for row in elevation:
@@ -398,6 +405,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             print(f"✅ Exported to: {output_file}")
             print(f"   File size: {file_size_mb:.2f} MB")
             print(f"   Data points: {width * height:,}")
+            print(f"   Aspect ratio: {export_aspect:.3f} (validated)")
             
             return True
             
