@@ -38,3 +38,5 @@ Thumbs.db
 settings.json
 .opentopo_key
 
+**/rasters/
+**/data/

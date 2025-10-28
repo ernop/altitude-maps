@@ -23,6 +23,12 @@ This is a landscape visualization project focused on showing altitude of various
 - Document complex data transformations with inline comments
 - Use meaningful variable names (prefer `elevation_data` over `ed`)
 
+### Frontend/Web Viewer
+- **jQuery and Select2**: Keep them. jQuery is widely cached and makes code more readable. Select2 provides good UX for dropdowns.
+- **CSS styling**: Avoid inline styles. Use rationally-named CSS classes instead.
+- **File organization**: Separate HTML and JS into different files rather than mixing them.
+- **Code reuse**: Don't duplicate code, but also don't force artificial reuse when use cases actually differ. Balance DRY with clarity.
+
 ### Data Handling
 - Store raw data in `data/` directory (gitignored)
 - Within there, store items of different types in a distinguishable way; for example, each file type should be able to be detected.
