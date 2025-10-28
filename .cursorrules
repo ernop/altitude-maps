@@ -14,7 +14,9 @@ All technical documentation goes in `tech/` folder with standardized naming:
 - **`USER_GUIDE.md`** - Complete usage guide (consolidated from QUICKSTART, PRODUCT_REQUIREMENTS, etc.)
 - **`TECHNICAL_REFERENCE.md`** - Complete API reference, file formats, technical specs (from TECH.md)
 - **`DOWNLOAD_GUIDE.md`** - Data acquisition workflows (from UNIFIED_DOWNLOADER_GUIDE.md)
+- **`DEPLOYMENT_GUIDE.md`** - Production deployment instructions and server configuration
 - **`CAMERA_CONTROLS.md`** - Camera system documentation (consolidated from learnings/*CAMERA*.md)
+- **`DATA_PRINCIPLES.md`** - Core data handling principles and validation rules
 
 ### Historical Learnings (`learnings/` folder)
 Session notes and development threads only:
@@ -23,12 +25,13 @@ Session notes and development threads only:
 - **`[FEATURE]_FIX.md`** - Bug fix summaries (e.g., ASPECT_RATIO_FIX_SUMMARY.md)
 
 ### Rules for Creating Documentation
-1. **New user-facing content**: Add to `tech/USER_GUIDE.md` (don't create new files)
-2. **New technical specs**: Add to `tech/TECHNICAL_REFERENCE.md` (don't create new files)
-3. **New features**: Update both README.md (brief mention) and tech/USER_GUIDE.md (detailed)
-4. **Session notes**: Create `learnings/SESSION_YYYYMMDD_description.md` with standardized naming
-5. **Bug fixes/learnings**: Create `learnings/[FEATURE]_FIX_SUMMARY.md` or similar
-6. **Never create**: Root-level markdown files except .cursorrules and README.md
+1. **File format**: All documentation MUST be `.md` (Markdown) format - NEVER create `.txt` documentation files
+2. **New user-facing content**: Add to `tech/USER_GUIDE.md` (don't create new files)
+3. **New technical specs**: Add to `tech/TECHNICAL_REFERENCE.md` (don't create new files)
+4. **New features**: Update both README.md (brief mention) and tech/USER_GUIDE.md (detailed)
+5. **Session notes**: Create `learnings/SESSION_YYYYMMDD_description.md` with standardized naming
+6. **Bug fixes/learnings**: Create `learnings/[FEATURE]_FIX_SUMMARY.md` or similar
+7. **Never create**: Root-level documentation files except .cursorrules and README.md (no `.txt`, no extra `.md` files)
 
 ### Why This Structure
 - **Clean root**: Easy to find the main docs
@@ -213,19 +216,17 @@ python download_regions.py  # If using regions
      - This ensures camera AND focus move in same direction (no conflict)
    - Cursor point stays visually stable under mouse
 
-5. **Right Button + WASD/QE = Flythrough Mode** (NEW)
-   - Behavior: First-person style camera movement (like Unity/Unreal)
-   - Hold right mouse button to activate flythrough mode
+5. **WASD/QE Keys = Keyboard Movement** (NEW)
+   - Behavior: First-person style camera movement (always active)
    - W = move forward in view direction
    - S = move backward
    - A = strafe left
    - D = strafe right
    - Q = move down (descend)
    - E = move up (ascend)
-   - Mouse movement while right button held = look around (rotate view)
-   - Release right button = return to normal controls
-   - Speed: 2.0 units per frame (adjust for terrain scale)
-   - Focus point moves with camera during flythrough
+   - Works simultaneously with all mouse controls
+   - Speed: 2.0 units per frame
+   - Focus point moves with camera to maintain ground plane model
 
 6. **Touch/Trackpad Gestures** (NEW)
    - **Single finger drag** = Pan (same as left mouse drag)

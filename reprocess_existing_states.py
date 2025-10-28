@@ -89,6 +89,14 @@ def main():
         print("  - data/regions/*.tif")
         return 1
     
+    # Filter by specific states if requested
+    if args.states:
+        requested = set(s.lower() for s in args.states)
+        state_files = [(sid, path, src) for sid, path, src in state_files if sid in requested]
+        if not state_files:
+            print(f"❌ None of the requested states found: {args.states}")
+            return 1
+    
     print(f"\n🗺️  Found {len(state_files)} state(s) to process")
     print(f"Target resolution: {args.target_pixels}px")
     print("=" * 70)

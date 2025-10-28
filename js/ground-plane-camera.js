@@ -8,14 +8,13 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Maps)', 'Left drag = pan, Shift+Left = tilt, Scroll = zoom, Right = rotate, Right+WASD = fly');
+        super('Ground Plane (Google Maps)', 'Left drag = pan, Shift+Left = tilt, Scroll = zoom, Right = rotate, WASD/QE = fly');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
         
-        // WASD flythrough state
+        // WASD keyboard movement state
         this.keysPressed = {};
-        this.flythroughActive = false;
         
         // Touch/trackpad gesture state
         this.touches = {};
@@ -92,16 +91,7 @@ class GroundPlaneCamera extends CameraScheme {
     }
     
     onMouseDown(event) {
-        if (event.button === 2) { // Right button
-            // Right = Activate flythrough mode (if WASD pressed, will move camera)
-            // Also allows rotation when dragged
-            this.flythroughActive = true;
-            this.state.rotating = true;
-            this.state.rotateStart = { x: event.clientX, y: event.clientY };
-            this.state.cameraStart = this.camera.position.clone();
-            this.state.focusStart = this.focusPoint.clone();
-            console.log('✈️ Flythrough mode active (Right button)');
-        } else if (event.button === 0 && event.shiftKey) { // Shift+Left = Tilt (adjust viewing angle)
+        if (event.button === 0 && event.shiftKey) { // Shift+Left = Tilt (adjust viewing angle)
             this.state.tilting = true;
             this.state.tiltStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
@@ -119,6 +109,12 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
             console.log('🖱️ Pan started on plane');
+        } else if (event.button === 2) { // Right = Rotate around focus point
+            this.state.rotating = true;
+            this.state.rotateStart = { x: event.clientX, y: event.clientY };
+            this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
+            console.log('🔄 Rotation started around focus point');
         }
     }
     
@@ -234,8 +230,6 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.panning = false;
         } else if (event.button === 2) {
             this.state.rotating = false;
-            this.flythroughActive = false;
-            console.log('✈️ Flythrough mode deactivated');
         }
     }
     
@@ -481,8 +475,8 @@ class GroundPlaneCamera extends CameraScheme {
     }
     
     update() {
-        // WASD flythrough movement (when right mouse button held)
-        if (this.flythroughActive && this.enabled) {
+        // WASD/QE keyboard movement (always active)
+        if (this.enabled) {
             const moveSpeed = 2.0; // Units per frame
             
             // Get camera vectors
@@ -496,7 +490,7 @@ class GroundPlaneCamera extends CameraScheme {
             
             const movement = new THREE.Vector3();
             
-            // WASD movement
+            // WASD/QE movement
             if (this.keysPressed['w']) movement.addScaledVector(forward, moveSpeed);
             if (this.keysPressed['s']) movement.addScaledVector(forward, -moveSpeed);
             if (this.keysPressed['a']) movement.addScaledVector(right, -moveSpeed);
