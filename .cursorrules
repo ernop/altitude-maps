@@ -61,10 +61,11 @@ Session notes and development threads only:
 - **Code reuse**: Don't duplicate code, but also don't force artificial reuse when use cases actually differ. Balance DRY with clarity.
 
 #### UI Control Organization
-- **Bidirectional controls**: Split into two clear columns (e.g., "SMALLER" vs "BIGGER")
-- **Visual hierarchy**: Use color-coded headers to distinguish control groups
+- **Bidirectional controls**: Split into two clear columns with user-friendly labels (e.g., "HIGHER DETAIL" vs "LOWER DETAIL")
+- **Visual hierarchy**: Use color-coded headers to distinguish control groups (green = higher detail, orange = lower detail)
 - **Button layout**: Vertical stacking within columns works better than horizontal wrapping
-- **Labels**: Remove technical jargon from user-facing controls (e.g., "Bucket Size" not "Bucket Size (pixel multiplier)")
+- **Quick access buttons**: Provide MAX and DEFAULT buttons for common settings (bucket size 1 and auto-calculated optimal)
+- **Labels**: Use conceptual names over technical terms (e.g., "Resolution" not "Bucket Size")
 
 ### Data Handling
 - Store raw data in `data/` directory (gitignored)

@@ -23,6 +23,140 @@ if sys.platform == 'win32':
     except (AttributeError, ValueError):
         pass
 
+
+def check_venv():
+    """Ensure we're running in the virtual environment."""
+    # Check if we're in a venv
+    in_venv = (hasattr(sys, 'real_prefix') or 
+               (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix))
+    
+    if not in_venv:
+        print("\n" + "="*70)
+        print("❌ ERROR: Not running in virtual environment!")
+        print("="*70)
+        print("\nYou must activate the virtual environment first:")
+        if sys.platform == 'win32':
+            print("  .\\venv\\Scripts\\Activate.ps1    # PowerShell")
+            print("  .\\venv\\Scripts\\activate.bat    # Command Prompt")
+        else:
+            print("  source venv/bin/activate")
+        print("\nOr run the setup script:")
+        print("  .\\setup.ps1    # Windows")
+        print("  ./setup.sh     # Linux/Mac")
+        print("="*70 + "\n")
+        sys.exit(1)
+
+
+def validate_geotiff(file_path: Path, check_data: bool = True) -> bool:
+    """
+    Rigorously validate a GeoTIFF file.
+    
+    Args:
+        file_path: Path to TIF file
+        check_data: If True, validate data contents (slower but thorough)
+        
+    Returns:
+        True if file is valid, False otherwise
+    """
+    if not file_path.exists():
+        return False
+    
+    # Check file size - must be > 1KB (corrupted downloads are often 0 bytes)
+    file_size = file_path.stat().st_size
+    if file_size < 1024:
+        print(f"      ⚠️  File too small ({file_size} bytes), likely corrupted")
+        return False
+    
+    try:
+        import rasterio
+        with rasterio.open(file_path) as src:
+            # Basic checks
+            if src.width == 0 or src.height == 0:
+                print(f"      ⚠️  Invalid dimensions: {src.width}×{src.height}")
+                return False
+            
+            if check_data:
+                # Try to read data to ensure it's not corrupted
+                try:
+                    data = src.read(1)
+                    # Check for any non-null data
+                    import numpy as np
+                    valid_count = np.sum(~np.isnan(data.astype(float)) & (data > -500))
+                    if valid_count == 0:
+                        print(f"      ⚠️  No valid elevation data in file")
+                        return False
+                except Exception as e:
+                    print(f"      ⚠️  Cannot read data: {e}")
+                    return False
+            
+            return True
+            
+    except Exception as e:
+        print(f"      ⚠️  Not a valid GeoTIFF: {e}")
+        return False
+
+
+def validate_json_export(file_path: Path) -> bool:
+    """
+    Validate an exported JSON file.
+    
+    Args:
+        file_path: Path to JSON file
+        
+    Returns:
+        True if file is valid, False otherwise
+    """
+    if not file_path.exists():
+        return False
+    
+    # Check file size
+    file_size = file_path.stat().st_size
+    if file_size < 1024:
+        print(f"      ⚠️  JSON too small ({file_size} bytes), likely incomplete")
+        return False
+    
+    try:
+        import json
+        with open(file_path) as f:
+            data = json.load(f)
+        
+        # Validate required fields
+        required_fields = ['region_id', 'width', 'height', 'elevation', 'bounds']
+        for field in required_fields:
+            if field not in data:
+                print(f"      ⚠️  Missing required field: {field}")
+                return False
+        
+        # Validate dimensions
+        if data['width'] <= 0 or data['height'] <= 0:
+            print(f"      ⚠️  Invalid dimensions: {data['width']}×{data['height']}")
+            return False
+        
+        # Validate elevation data structure
+        elevation = data['elevation']
+        if not isinstance(elevation, list) or len(elevation) == 0:
+            print(f"      ⚠️  Invalid elevation data structure")
+            return False
+        
+        # Check that elevation matches dimensions
+        if len(elevation) != data['height']:
+            print(f"      ⚠️  Elevation height mismatch: {len(elevation)} != {data['height']}")
+            return False
+        
+        if len(elevation[0]) != data['width']:
+            print(f"      ⚠️  Elevation width mismatch: {len(elevation[0])} != {data['width']}")
+            return False
+        
+        return True
+        
+    except json.JSONDecodeError as e:
+        print(f"      ⚠️  Invalid JSON: {e}")
+        return False
+    except Exception as e:
+        print(f"      ⚠️  Validation error: {e}")
+        return False
+
+
 # State name mapping
 STATE_NAMES = {
     'alabama': 'Alabama', 'arizona': 'Arizona', 'arkansas': 'Arkansas',
@@ -46,7 +180,12 @@ STATE_NAMES = {
 
 
 def find_raw_file(region_id):
-    """Find raw file for a region."""
+    """
+    Find and validate raw file for a region.
+    
+    Returns:
+        Tuple of (path, source) if valid file found, (None, None) otherwise
+    """
     possible_locations = [
         Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif"),
         Path(f"data/regions/{region_id}.tif"),
@@ -55,7 +194,17 @@ def find_raw_file(region_id):
     
     for path in possible_locations:
         if path.exists():
-            return path, get_source_from_path(path)
+            print(f"   🔍 Checking {path.name}...")
+            if validate_geotiff(path, check_data=True):
+                print(f"      ✅ Valid GeoTIFF")
+                return path, get_source_from_path(path)
+            else:
+                print(f"      ❌ Invalid or corrupted, cleaning up...")
+                try:
+                    path.unlink()
+                    print(f"      🗑️  Deleted corrupted file")
+                except Exception as e:
+                    print(f"      ⚠️  Could not delete: {e}")
     
     return None, None
 
@@ -68,13 +217,38 @@ def get_source_from_path(path):
 
 
 def check_pipeline_complete(region_id):
-    """Check if all pipeline stages are complete."""
+    """
+    Check if all pipeline stages are complete and valid.
+    
+    Returns:
+        True if valid JSON export exists, False otherwise
+    """
     # Check for JSON export (final stage)
     generated_dir = Path("generated/regions")
+    if not generated_dir.exists():
+        return False
+    
     json_files = list(generated_dir.glob(f"{region_id}_*.json"))
     json_files = [f for f in json_files if '_borders' not in f.stem and '_meta' not in f.stem]
     
-    return len(json_files) > 0
+    if len(json_files) == 0:
+        return False
+    
+    # Validate the JSON files
+    for json_file in json_files:
+        print(f"   🔍 Checking {json_file.name}...")
+        if validate_json_export(json_file):
+            print(f"      ✅ Valid export found")
+            return True
+        else:
+            print(f"      ❌ Invalid or incomplete, cleaning up...")
+            try:
+                json_file.unlink()
+                print(f"      🗑️  Deleted corrupted file")
+            except Exception as e:
+                print(f"      ⚠️  Could not delete: {e}")
+    
+    return False
 
 
 def download_state(region_id):
@@ -152,6 +326,9 @@ def process_region(region_id, raw_path, source, target_pixels, force):
 
 
 def main():
+    # CRITICAL: Check venv FIRST before any imports
+    check_venv()
+    
     sys.path.insert(0, str(Path(__file__).parent))
     from src.config import DEFAULT_TARGET_PIXELS
     
