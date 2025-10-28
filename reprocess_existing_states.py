@@ -92,7 +92,8 @@ def main():
     
     # Filter by specific states if requested
     if args.states:
-        requested = set(s.lower() for s in args.states)
+        # Normalize: spaces to underscores, lowercase
+        requested = set(s.lower().replace(' ', '_').replace('-', '_') for s in args.states)
         state_files = [(sid, path, src) for sid, path, src in state_files if sid in requested]
         if not state_files:
             print(f"❌ None of the requested states found: {args.states}")

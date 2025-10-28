@@ -20,7 +20,7 @@ let params = {
     tileGap: 1,     // Gap between tiles as percentage (0-99%, where 1% = 0.99 tile size)
     aggregation: 'max',
     renderMode: 'bars',
-    verticalExaggeration: 0.01311,  // Default: good balance of detail and scale
+    verticalExaggeration: 0.03,  // Default: good balance of detail and scale
     colorScheme: 'terrain',
     wireframeOverlay: false,
     showGrid: false,
@@ -932,6 +932,41 @@ function adjustBucketSize(delta) {
     console.log(`🎯 Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} → ${newSize}×`);
 }
 
+function setMaxResolution() {
+    if (!rawElevationData) {
+        console.warn('⚠️ No data loaded, cannot set max resolution');
+        return;
+    }
+    
+    // Max resolution = bucket size of 1 (every pixel rendered)
+    params.bucketSize = 1;
+    document.getElementById('bucketSize').value = 1;
+    document.getElementById('bucketSizeInput').value = 1;
+    
+    // Clear edge markers so they get recreated at new positions
+    edgeMarkers.forEach(marker => scene.remove(marker));
+    edgeMarkers = [];
+    
+    // Rebucket and recreate terrain
+    rebucketData();
+    recreateTerrain();
+    updateStats();
+    
+    console.log('🎯 Resolution set to MAX (bucket size = 1)');
+}
+
+function setDefaultResolution() {
+    if (!rawElevationData) {
+        console.warn('⚠️ No data loaded, cannot set default resolution');
+        return;
+    }
+    
+    // Use the auto-adjust algorithm to find optimal default
+    autoAdjustBucketSize();
+    
+    console.log('🎯 Resolution set to DEFAULT (auto-adjusted)');
+}
+
 function autoAdjustBucketSize() {
     if (!rawElevationData) {
         console.warn('⚠️ No data loaded, cannot auto-adjust bucket size');
@@ -940,7 +975,7 @@ function autoAdjustBucketSize() {
     
     const { width, height } = rawElevationData;
     // Reduced from 10000 to ~3900 (60% larger bucket size means ~40% of original bucket count)
-    const TARGET_BUCKET_COUNT = 190000;
+    const TARGET_BUCKET_COUNT = 390000;
     
     // Calculate optimal bucket size to stay within TARGET_BUCKET_COUNT constraint
     // Start with direct calculation: bucketSize = ceil(sqrt(width * height / TARGET_BUCKET_COUNT))
@@ -1220,6 +1255,26 @@ function createTerrain() {
     
     stats.vertices = width * height;
     stats.bucketedVertices = width * height;
+    
+    // Update camera scheme with terrain bounds for F key reframing
+    if (controls && controls.activeScheme && controls.activeScheme.setTerrainBounds) {
+        // Calculate bounds based on render mode
+        if (params.renderMode === 'bars') {
+            const bucketMultiplier = params.bucketSize;
+            const halfWidth = (width - 1) * bucketMultiplier / 2;
+            const halfDepth = (height - 1) * bucketMultiplier / 2;
+            controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
+        } else if (params.renderMode === 'points') {
+            const halfWidth = (width - 1) / 2;
+            const halfDepth = (height - 1) / 2;
+            controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
+        } else {
+            // Surface mode - geometry uses scale
+            const halfWidth = scale.width / 2;
+            const halfDepth = scale.depth / 2;
+            controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
+        }
+    }
     
     // PRODUCT REQUIREMENT: Edge markers must stay fixed when vertical exaggeration changes
     // Only create edge markers if they don't exist yet (prevents movement on exaggeration change)

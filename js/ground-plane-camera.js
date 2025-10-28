@@ -8,7 +8,7 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Maps)', 'Left = pan, Shift+Left = tilt, Alt+Left/Right = rotate, Scroll = zoom, WASD/QE = fly');
+        super('Ground Plane (Google Earth)', 'Left = pan, Shift+Left = tilt, Alt+Left/Right = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -295,6 +295,20 @@ class GroundPlaneCamera extends CameraScheme {
     
     // Keyboard handlers for WASD flythrough
     onKeyDown(event) {
+        // Don't process keyboard shortcuts if user is typing in an input field
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'SELECT' ||
+            activeElement.isContentEditable ||
+            activeElement.classList.contains('select2-search__field') // Select2 search box
+        );
+        
+        if (isTyping) {
+            return; // User is typing, don't process camera controls
+        }
+        
         const key = event.key.toLowerCase();
         
         // F key = reframe view to center of terrain

@@ -266,9 +266,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python check_region.py ohio
-  python check_region.py kentucky --verbose
-  python check_region.py tennessee --raw-only
+  python check_region.py ohio                   # Single word state
+  python check_region.py new_hampshire          # Multi-word with underscore
+  python check_region.py "new hampshire"        # Multi-word with quotes
+  python check_region.py kentucky --verbose     # Detailed output
+  python check_region.py tennessee --raw-only   # Only check raw file
         """
     )
     parser.add_argument('region_id', help='Region ID (e.g., ohio, kentucky)')
@@ -280,7 +282,8 @@ Examples:
                        help='Disable Unicode output for compatibility')
     
     args = parser.parse_args()
-    region_id = args.region_id.lower()
+    # Normalize region ID: convert spaces to underscores, lowercase
+    region_id = args.region_id.lower().replace(' ', '_').replace('-', '_')
     
     print("="*70)
     print(f"🔍 REGION DATA CHECK: {region_id.upper()}")

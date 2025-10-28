@@ -149,8 +149,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python ensure_region.py ohio              # Download if needed, process if needed
-  python ensure_region.py tennessee --force-reprocess   # Force full rebuild
+  python ensure_region.py ohio                        # Single word state
+  python ensure_region.py new_hampshire               # Multi-word with underscore
+  python ensure_region.py "new hampshire"             # Multi-word with quotes
+  python ensure_region.py tennessee --force-reprocess # Force full rebuild
   python ensure_region.py california --target-pixels 4096  # High resolution
 
 This script will:
@@ -169,7 +171,8 @@ This script will:
                        help='Only check status, do not download or process')
     
     args = parser.parse_args()
-    region_id = args.region_id.lower()
+    # Normalize region ID: convert spaces to underscores, lowercase
+    region_id = args.region_id.lower().replace(' ', '_').replace('-', '_')
     
     print("="*70)
     print(f"🎯 ENSURE REGION: {region_id.upper()}")

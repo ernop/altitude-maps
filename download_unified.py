@@ -72,6 +72,12 @@ def download_via_opentopography(
 
 def main() -> int:
     import argparse
+    import sys
+    from pathlib import Path
+    
+    # Import central config
+    sys.path.insert(0, str(Path(__file__).parent))
+    from src.config import DEFAULT_TARGET_PIXELS
 
     parser = argparse.ArgumentParser(
         description='Unified region downloader (auto by default)',
@@ -98,7 +104,8 @@ Notes:
     parser.add_argument('--api-key', type=str, help='OpenTopography API key (optional)')
     parser.add_argument('--data-dir', type=str, default='data/regions', help='Directory to save downloaded raw files')
     parser.add_argument('--process', action='store_true', help='Run processing pipeline after download')
-    parser.add_argument('--target-pixels', type=int, default=800, help='Target size for viewer export (default: 800)')
+    parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS, 
+                       help=f'Target size for viewer export (default: {DEFAULT_TARGET_PIXELS})')
 
     args = parser.parse_args()
 

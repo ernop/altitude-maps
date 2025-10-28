@@ -196,15 +196,15 @@ python download_regions.py  # If using regions
    - Cancels smoothly if Shift released mid-drag (prevents jank)
    - Focus point stays fixed on ground plane
 
-3. **Right Drag = Rotate Around Focus Point**
-   - Behavior: Orbit camera around current focus point
-   - Horizontal drag (deltaX) → rotate around vertical axis (theta)
-   - Vertical drag (deltaY) → adjust pitch angle (phi)
-   - Implementation: Spherical coordinate transformation
+3. **Right Drag = Rotate View (Google Earth style)**
+   - Behavior: Rotate view around focus point (Google Earth style)
+   - Horizontal drag → turn left/right (rotate around vertical axis)
+   - Vertical drag → tilt up/down (adjust viewing angle)
+   - Implementation: Spherical coordinate transformation around focus point
    - Rotation speed: 0.005 radians per pixel
    - Maintains constant distance from focus point
-   - Same angle limits as tilt to prevent flipping
-   - **Alternative mapping:** Alt + Left Drag (Maya/3ds Max/Cinema 4D style "tumble")
+   - Same angle limits as tilt to prevent camera flipping
+   - **Alternative mapping:** Alt + Left Drag (Maya/3ds Max/Cinema 4D style - same behavior)
    - Cancels smoothly if Alt released mid-drag (prevents jank)
 
 4. **Mouse Wheel = Zoom Toward/Away From Cursor**
@@ -219,17 +219,19 @@ python download_regions.py  # If using regions
      - This ensures camera AND focus move in same direction (no conflict)
    - Cursor point stays visually stable under mouse
 
-5. **WASD/QE Keys = Keyboard Movement** (NEW)
-   - Behavior: First-person style camera movement (always active)
+5. **WASD/QE Keys = Keyboard Movement**
+   - Behavior: First-person style camera movement (always active when not typing)
    - W = move forward in view direction
    - S = move backward
    - A = strafe left
    - D = strafe right
    - Q = move down (descend)
    - E = move up (ascend)
+   - **F = Reframe view** (center camera on terrain, frame entire map)
    - Works simultaneously with all mouse controls
    - Speed: 2.0 units per frame
    - Focus point moves with camera to maintain ground plane model
+   - **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, Select2 boxes, etc.
 
 6. **Touch/Trackpad Gestures** (NEW - Google Maps style)
    - **Single finger drag** = Pan (mobile touch)
@@ -343,12 +345,14 @@ python serve_viewer.py  # Visit http://localhost:8001
 
 # ONE COMMAND: Ensure a region is ready (download + process + check)
 python ensure_region.py ohio                    # Download if needed, process if needed
+python ensure_region.py new_hampshire           # Multi-word: use underscores
+python ensure_region.py "new hampshire"         # Multi-word: or use quotes
 python ensure_region.py tennessee --force-reprocess  # Force full rebuild
 python ensure_region.py california --target-pixels 4096  # High resolution
 
 # Check region data through entire pipeline
 python check_region.py ohio                     # Check all stages (raw → JSON)
-python check_region.py kentucky --verbose       # Detailed output
+python check_region.py north_dakota --verbose   # Multi-word state (detailed output)
 python check_region.py tennessee --raw-only     # Only check raw file
 
 # Reprocess existing state data
