@@ -52,12 +52,24 @@ def export_elevation_data(tif_path: str, output_path: str, max_size: int = 0,
     elevation_viz = data["elevation_viz"]
     bounds = data["bounds"]
     
-    # Optional downsampling for reasonable file sizes
+    # Optional downsampling for reasonable file sizes - PRESERVE ASPECT RATIO
     if max_size > 0 and (elevation_viz.shape[0] > max_size or elevation_viz.shape[1] > max_size):
-        step_y = max(1, elevation_viz.shape[0] // max_size)
-        step_x = max(1, elevation_viz.shape[1] // max_size)
-        elevation_viz = elevation_viz[::step_y, ::step_x]
-        print(f"   Downsampled to {elevation_viz.shape} (step: {step_y}x{step_x})")
+        orig_height, orig_width = elevation_viz.shape[0], elevation_viz.shape[1]
+        orig_aspect = orig_width / orig_height
+        
+        # Calculate step size based on the LARGER dimension to preserve aspect ratio
+        scale_factor = max(orig_height / max_size, orig_width / max_size)
+        step_size = max(1, int(scale_factor))
+        elevation_viz = elevation_viz[::step_size, ::step_size]
+        
+        result_height, result_width = elevation_viz.shape
+        result_aspect = result_width / result_height
+        print(f"   Downsampled to {result_width}x{result_height} (step: {step_size})")
+        print(f"   Aspect ratio: {orig_aspect:.3f} -> {result_aspect:.3f}")
+        
+        # Validate aspect ratio preservation
+        if abs(result_aspect - orig_aspect) > 0.1:
+            print(f"   WARNING: Aspect ratio changed significantly!")
     
     # Get dimensions
     height, width = elevation_viz.shape

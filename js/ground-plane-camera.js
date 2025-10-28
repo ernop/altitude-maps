@@ -169,10 +169,13 @@ class GroundPlaneCamera extends CameraScheme {
         const moveAmount = distance * (1 - factor);
         this.camera.position.addScaledVector(direction, moveAmount);
         
-        // Adjust focus point slightly toward cursor point for natural feel
+        // Adjust focus point slightly toward/away from cursor point for natural feel
+        // Zoom IN (scroll up): focus moves toward cursor
+        // Zoom OUT (scroll down): focus moves away from cursor
         const towardsCursor = new THREE.Vector3();
         towardsCursor.subVectors(cursorPoint, this.focusPoint);
-        this.focusPoint.addScaledVector(towardsCursor, 0.1);
+        const focusShift = event.deltaY > 0 ? -0.1 : 0.1;  // Zoom out = move away, Zoom in = move toward
+        this.focusPoint.addScaledVector(towardsCursor, focusShift);
         this.focusPoint.y = 0; // Keep on plane
         
         this.controls.target.copy(this.focusPoint);
