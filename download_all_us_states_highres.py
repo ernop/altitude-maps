@@ -79,11 +79,28 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
                 f.write(response.content)
                 print(f"   ✅ Downloaded")
             else:
+                # Track progress for periodic updates
+                start_time = time.time()
+                last_print_time = start_time
+                bytes_downloaded = 0
+                
                 with tqdm(total=total_size, unit='B', unit_scale=True, desc="      Progress", 
                          bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}]') as pbar:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                         pbar.update(len(chunk))
+                        bytes_downloaded += len(chunk)
+                        
+                        # Print progress update every 15 seconds
+                        current_time = time.time()
+                        if current_time - last_print_time >= 15:
+                            elapsed = current_time - start_time
+                            percent = (bytes_downloaded / total_size) * 100
+                            speed_mbps = (bytes_downloaded / (1024 * 1024)) / elapsed
+                            remaining_bytes = total_size - bytes_downloaded
+                            eta_seconds = remaining_bytes / (bytes_downloaded / elapsed) if bytes_downloaded > 0 else 0
+                            print(f"      [{int(elapsed)}s elapsed] {percent:.1f}% complete, {bytes_downloaded/(1024*1024):.1f}/{total_size/(1024*1024):.1f} MB, {speed_mbps:.2f} MB/s, ETA: {int(eta_seconds)}s", flush=True)
+                            last_print_time = current_time
         
         # Verify the file
         try:

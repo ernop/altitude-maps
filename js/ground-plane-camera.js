@@ -327,14 +327,14 @@ class GroundPlaneCamera extends CameraScheme {
     
     // Reframe view to center of terrain (F key)
     // Fixed camera position: directly above center, looking straight down
-    // This gives a consistent map view with North at top every time
+    // This gives a consistent map view every time
     reframeView() {
-        // Standard fixed height that works well for most states
-        const fixedHeight = 50000;
+        // Standard fixed height
+        const fixedHeight = 2200;
         
         // Position: directly above origin at (0, 0)
-        // Small Z offset toward south (-Z) ensures North (+Z) appears at top
-        this.camera.position.set(0, fixedHeight, -fixedHeight * 0.001);
+        // Small Z offset toward north (+Z) - rotated 180 degrees
+        this.camera.position.set(0, fixedHeight, fixedHeight * 0.001);
         
         // Look at center of terrain
         this.focusPoint.set(0, 0, 0);
@@ -344,7 +344,7 @@ class GroundPlaneCamera extends CameraScheme {
         this.camera.up.set(0, 1, 0);
         this.camera.lookAt(this.focusPoint);
         
-        console.log(`📐 Reframed view: fixed position (0, ${fixedHeight}, ${(-fixedHeight * 0.001).toFixed(1)}) looking at origin, North at top`);
+        console.log(`📐 Reframed view: fixed position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin`);
     }
     
     // Set terrain bounds (called externally by viewer)

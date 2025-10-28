@@ -173,6 +173,8 @@ def download_opentopography_srtm(
     print(f"      ", flush=True)
     
     try:
+        import time as time_module
+        
         print(f"   ⏳ Requesting data from server...", flush=True)
         print(f"      URL: {url}", flush=True)
         print(f"      Params: demtype={params['demtype']}, bounds=[{west:.2f},{south:.2f},{east:.2f},{north:.2f}]", flush=True)
@@ -203,6 +205,11 @@ def download_opentopography_srtm(
                 f.write(response.content)
                 print(f"      Done (size unknown)", flush=True)
             else:
+                # Track progress for periodic updates
+                start_time = time_module.time()
+                last_print_time = start_time
+                bytes_downloaded = 0
+                
                 with tqdm(
                     total=total_size, 
                     unit='B', 
@@ -214,6 +221,18 @@ def download_opentopography_srtm(
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                         pbar.update(len(chunk))
+                        bytes_downloaded += len(chunk)
+                        
+                        # Print progress update every 15 seconds
+                        current_time = time_module.time()
+                        if current_time - last_print_time >= 15:
+                            elapsed = current_time - start_time
+                            percent = (bytes_downloaded / total_size) * 100
+                            speed_mbps = (bytes_downloaded / (1024 * 1024)) / elapsed
+                            remaining_bytes = total_size - bytes_downloaded
+                            eta_seconds = remaining_bytes / (bytes_downloaded / elapsed) if bytes_downloaded > 0 else 0
+                            print(f"      [{int(elapsed)}s elapsed] {percent:.1f}% complete, {bytes_downloaded/(1024*1024):.1f}/{total_size/(1024*1024):.1f} MB, {speed_mbps:.2f} MB/s, ETA: {int(eta_seconds)}s", flush=True)
+                            last_print_time = current_time
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
         print(f"   ✅ Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)

@@ -238,15 +238,18 @@ async function populateRegionSelector() {
 }
 
 function updateRegionInfo(regionId) {
+    const currentRegionEl = document.getElementById('currentRegion');
+    const regionInfoEl = document.getElementById('regionInfo');
+    
     if (regionId === 'default' || !regionsManifest || !regionsManifest.regions[regionId]) {
-        document.getElementById('currentRegion').textContent = 'USA';
-        document.getElementById('regionInfo').textContent = 'Continental United States';
+        if (currentRegionEl) currentRegionEl.textContent = 'USA';
+        if (regionInfoEl) regionInfoEl.textContent = 'Continental United States';
         return;
     }
     
     const regionInfo = regionsManifest.regions[regionId];
-    document.getElementById('currentRegion').textContent = regionInfo.name;
-    document.getElementById('regionInfo').textContent = regionInfo.description;
+    if (currentRegionEl) currentRegionEl.textContent = regionInfo.name;
+    if (regionInfoEl) regionInfoEl.textContent = regionInfo.description;
 }
 
 async function loadRegion(regionId) {
@@ -772,12 +775,22 @@ function setupControls() {
         params.bucketSize = parseInt(e.target.value);
         document.getElementById('bucketSizeInput').value = params.bucketSize;
         
-        // Update immediately for responsive feedback
-        // Clear edge markers so they get recreated at new positions
-        edgeMarkers.forEach(marker => scene.remove(marker));
-        edgeMarkers = [];
-        rebucketData();
-        recreateTerrain();
+        // Show loading overlay
+        showResolutionLoading();
+        
+        // Use setTimeout to allow UI to update before heavy processing
+        setTimeout(() => {
+            try {
+                // Update immediately for responsive feedback
+                // Clear edge markers so they get recreated at new positions
+                edgeMarkers.forEach(marker => scene.remove(marker));
+                edgeMarkers = [];
+                rebucketData();
+                recreateTerrain();
+            } finally {
+                hideResolutionLoading();
+            }
+        }, 50);
     });
     
     // Sync input -> slider
@@ -789,11 +802,21 @@ function setupControls() {
         document.getElementById('bucketSize').value = value;
         document.getElementById('bucketSizeInput').value = value;
         
-        // Clear edge markers so they get recreated at new positions
-        edgeMarkers.forEach(marker => scene.remove(marker));
-        edgeMarkers = [];
-        rebucketData();
-        recreateTerrain();
+        // Show loading overlay
+        showResolutionLoading();
+        
+        // Use setTimeout to allow UI to update before heavy processing
+        setTimeout(() => {
+            try {
+                // Clear edge markers so they get recreated at new positions
+                edgeMarkers.forEach(marker => scene.remove(marker));
+                edgeMarkers = [];
+                rebucketData();
+                recreateTerrain();
+            } finally {
+                hideResolutionLoading();
+            }
+        }, 50);
     });
     
     // Tile gap - immediate updates
@@ -905,31 +928,57 @@ function setupControls() {
     console.log('✅ Controls initialized successfully');
 }
 
+// ===== RESOLUTION LOADING OVERLAY =====
+function showResolutionLoading() {
+    const overlay = document.getElementById('resolution-loading-overlay');
+    if (overlay) {
+        overlay.classList.add('active');
+    }
+}
+
+function hideResolutionLoading() {
+    const overlay = document.getElementById('resolution-loading-overlay');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+}
+
 function adjustBucketSize(delta) {
     if (!rawElevationData) {
         console.warn('⚠️ No data loaded, cannot adjust bucket size');
         return;
     }
     
-    // Calculate new bucket size with clamping to valid range [1, 500]
-    let newSize = params.bucketSize + delta;
-    newSize = Math.max(1, Math.min(500, newSize));
+    // Show loading overlay
+    showResolutionLoading();
     
-    // Update params and UI
-    params.bucketSize = newSize;
-    document.getElementById('bucketSize').value = newSize;
-    document.getElementById('bucketSizeInput').value = newSize;
-    
-    // Clear edge markers so they get recreated at new positions
-    edgeMarkers.forEach(marker => scene.remove(marker));
-    edgeMarkers = [];
-    
-    // Rebucket and recreate terrain
-    rebucketData();
-    recreateTerrain();
-    updateStats();
-    
-    console.log(`🎯 Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} → ${newSize}×`);
+    // Use setTimeout to allow UI to update before heavy processing
+    setTimeout(() => {
+        try {
+            // Calculate new bucket size with clamping to valid range [1, 500]
+            let newSize = params.bucketSize + delta;
+            newSize = Math.max(1, Math.min(500, newSize));
+            
+            // Update params and UI
+            params.bucketSize = newSize;
+            document.getElementById('bucketSize').value = newSize;
+            document.getElementById('bucketSizeInput').value = newSize;
+            
+            // Clear edge markers so they get recreated at new positions
+            edgeMarkers.forEach(marker => scene.remove(marker));
+            edgeMarkers = [];
+            
+            // Rebucket and recreate terrain
+            rebucketData();
+            recreateTerrain();
+            updateStats();
+            
+            console.log(`🎯 Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} → ${newSize}×`);
+        } finally {
+            // Hide loading overlay
+            hideResolutionLoading();
+        }
+    }, 50);
 }
 
 function setMaxResolution() {
@@ -938,21 +987,32 @@ function setMaxResolution() {
         return;
     }
     
-    // Max resolution = bucket size of 1 (every pixel rendered)
-    params.bucketSize = 1;
-    document.getElementById('bucketSize').value = 1;
-    document.getElementById('bucketSizeInput').value = 1;
+    // Show loading overlay
+    showResolutionLoading();
     
-    // Clear edge markers so they get recreated at new positions
-    edgeMarkers.forEach(marker => scene.remove(marker));
-    edgeMarkers = [];
-    
-    // Rebucket and recreate terrain
-    rebucketData();
-    recreateTerrain();
-    updateStats();
-    
-    console.log('🎯 Resolution set to MAX (bucket size = 1)');
+    // Use setTimeout to allow UI to update before heavy processing
+    setTimeout(() => {
+        try {
+            // Max resolution = bucket size of 1 (every pixel rendered)
+            params.bucketSize = 1;
+            document.getElementById('bucketSize').value = 1;
+            document.getElementById('bucketSizeInput').value = 1;
+            
+            // Clear edge markers so they get recreated at new positions
+            edgeMarkers.forEach(marker => scene.remove(marker));
+            edgeMarkers = [];
+            
+            // Rebucket and recreate terrain
+            rebucketData();
+            recreateTerrain();
+            updateStats();
+            
+            console.log('🎯 Resolution set to MAX (bucket size = 1)');
+        } finally {
+            // Hide loading overlay
+            hideResolutionLoading();
+        }
+    }, 50);
 }
 
 function setDefaultResolution() {
@@ -961,10 +1021,21 @@ function setDefaultResolution() {
         return;
     }
     
-    // Use the auto-adjust algorithm to find optimal default
-    autoAdjustBucketSize();
+    // Show loading overlay
+    showResolutionLoading();
     
-    console.log('🎯 Resolution set to DEFAULT (auto-adjusted)');
+    // Use setTimeout to allow UI to update before heavy processing
+    setTimeout(() => {
+        try {
+            // Use the auto-adjust algorithm to find optimal default
+            autoAdjustBucketSize();
+            
+            console.log('🎯 Resolution set to DEFAULT (auto-adjusted)');
+        } finally {
+            // Hide loading overlay
+            hideResolutionLoading();
+        }
+    }, 50);
 }
 
 function autoAdjustBucketSize() {
@@ -1711,6 +1782,8 @@ function recreateBorders() {
 
 function updateStats() {
     const statsDiv = document.getElementById('stats');
+    if (!statsDiv) return; // Element removed from UI
+    
     const { width, height, stats: dataStats } = rawElevationData;
     const { width: bWidth, height: bHeight } = processedData;
     
@@ -1802,14 +1875,14 @@ function setVertExag(value) {
 
 function resetCamera() {
     // Fixed camera position: directly above center, looking straight down
-    // This gives a consistent map view with North at top every time
+    // This gives a consistent map view every time
     
-    // Standard fixed height that works well for most states
-    const fixedHeight = 50000;
+    // Standard fixed height
+    const fixedHeight = 2200;
     
     // Position: directly above origin at (0, 0)
-    // Small Z offset toward south (-Z) ensures North (+Z) appears at top
-    camera.position.set(0, fixedHeight, -fixedHeight * 0.001);
+    // Small Z offset toward north (+Z) - rotated 180 degrees
+    camera.position.set(0, fixedHeight, fixedHeight * 0.001);
     
     // Look at center of terrain
     controls.target.set(0, 0, 0);
@@ -1820,7 +1893,7 @@ function resetCamera() {
     
     controls.update();
     
-    console.log(`📷 Camera reset: fixed position (0, ${fixedHeight}, ${(-fixedHeight * 0.001).toFixed(1)}) looking at origin, North at top`);
+    console.log(`📷 Camera reset: fixed position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin`);
 }
 
 function exportImage() {
@@ -1872,9 +1945,23 @@ function switchCameraScheme(schemeName) {
 }
 
 function onKeyDown(event) {
+    // Don't process keyboard shortcuts if user is typing in an input field
+    const activeElement = document.activeElement;
+    const isTyping = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'SELECT' ||
+        activeElement.isContentEditable ||
+        activeElement.classList.contains('select2-search__field') // Select2 search box
+    );
+    
+    if (isTyping) {
+        return; // User is typing, don't process shortcuts
+    }
+    
     const key = event.key.toLowerCase();
     
-    // Movement keys
+    // Movement keys (tracked but not used since camera scheme handles movement)
     if (key === 'w') keyboard.w = true;
     if (key === 'a') keyboard.a = true;
     if (key === 's') keyboard.s = true;
@@ -1887,13 +1974,14 @@ function onKeyDown(event) {
     if (event.ctrlKey) keyboard.ctrl = true;
     if (event.altKey) keyboard.alt = true;
     
-    // Hotkeys
+    // Hotkeys (only handle keys NOT handled by camera scheme)
+    // R key: Reset camera (fallback if camera scheme doesn't handle it)
     if (event.key === 'r' || event.key === 'R') {
         resetCamera();
-    } else if (event.key === 'f' || event.key === 'F') {
-        // F key: Focus on center (Roblox Studio style)
-        resetCamera();
-    } else if (event.key === ' ') {
+    }
+    // F key: Handled by camera scheme (reframeView), don't duplicate here
+    // Space bar: Toggle auto-rotate
+    else if (event.key === ' ') {
         event.preventDefault();
         params.autoRotate = !params.autoRotate;
         controls.autoRotate = params.autoRotate;

@@ -456,3 +456,44 @@ input[type="checkbox"] {
     display: none;
 }
 
+/* Resolution Loading Overlay */
+#resolution-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+}
+
+#resolution-loading-overlay.active {
+    display: flex;
+}
+
+#resolution-loading-overlay .loading-content {
+    text-align: center;
+    color: #5588cc;
+}
+
+#resolution-loading-overlay .loading-text {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 12px;
+}
+
+#resolution-loading-overlay .loading-spinner {
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top: 3px solid #5588cc;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+

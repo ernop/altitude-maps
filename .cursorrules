@@ -1,5 +1,15 @@
 # Altitude Maps - Cursor Rules
 
+## ⚠️ CODE REVIEW REMINDER - READ THIS FIRST ⚠️
+
+**After writing or modifying ANY code, ALWAYS do this:**
+
+"Great, now I want you to carefully read over all of the new code you just wrote and other existing code you just modified with 'fresh eyes' looking super carefully for any obvious bugs, errors, problems, issues, confusion, etc."
+
+Take a moment to review with fresh perspective before moving on. Catch issues early!
+
+---
+
 ## Project Context
 This is a landscape visualization project focused on showing altitude of various regions across the globe.
 
@@ -230,9 +240,9 @@ python download_regions.py  # If using regions
    - Q = move down (descend)
    - E = move up (ascend)
    - **F = Reframe view** - Reset to fixed overhead map view:
-     - Position: Fixed at (0, 50000, -50) looking at origin
-     - Height: 50,000 units (works well for most states)
-     - Orientation: North (+Z) at top of screen (consistent every time)
+     - Position: Fixed at (0, 2500, 2.5) looking at origin
+     - Height: 2,200 units (close-up view)
+     - Orientation: Rotated 180 degrees (North at top of screen, although the code is confused about this; what really shows is North despite fears.)
      - Applied automatically after every region load
      - Perfect for getting oriented after exploring
    - Works simultaneously with all mouse controls
