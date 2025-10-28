@@ -1,0 +1,33 @@
+# ========================================================================
+# COMPLETE COMMANDS TO FIX ALL STATE ASPECT RATIOS - COPY AND PASTE
+# ========================================================================
+
+# Step 1: Activate environment
+.\venv\Scripts\Activate.ps1
+
+# Step 2: Clean up old processed files (keeps raw source data)
+Remove-Item -Recurse -Force data\clipped\srtm_30m\*
+Remove-Item -Recurse -Force data\processed\srtm_30m\*
+Remove-Item -Force generated\regions\*_srtm_30m_*.json
+
+# Step 3: Regenerate ALL states with 4096px resolution
+python download_all_us_states.py --max-size 4096
+
+# Step 4: Verify the fix
+python fix_all_regions_aspect_ratio.py --check-only
+
+# Step 5: Start viewer to see results
+python serve_viewer.py
+
+# Then open: http://localhost:8001/interactive_viewer_advanced.html
+
+# ========================================================================
+# TIME ESTIMATE: 2-4 hours (mostly automated)
+# ========================================================================
+
+# Alternative: Fix only the failing states (faster ~30-45 min)
+# Remove-Item -Recurse -Force data\clipped\srtm_30m\*
+# Remove-Item -Recurse -Force data\processed\srtm_30m\*
+# Remove-Item -Force generated\regions\*_srtm_30m_*.json
+# python download_all_us_states.py --states connecticut indiana iowa kentucky maine massachusetts minnesota nebraska new_hampshire new_jersey north_dakota ohio oregon pennsylvania rhode_island south_dakota vermont washington wisconsin wyoming --max-size 4096
+

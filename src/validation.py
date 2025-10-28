@@ -1,519 +1,179 @@
 """
-Data validation utilities for the Altitude Maps pipeline.
+Validation utilities to catch data quality issues early.
 
-This module provides validation functions for each stage of the data pipeline.
-Every data transformation must validate its inputs and outputs using these functions.
-
-VALIDATION PRINCIPLES:
-1. Fail fast - catch errors early in the pipeline
-2. Clear errors - explain exactly what's wrong
-3. Comprehensive - check all aspects of data integrity
-4. Documented - explain what each validation checks
-
-USAGE:
-    from src.validation import validate_raw_elevation, validate_viewer_export
-    
-    # Validate data at each stage
-    raw_data = load_geotiff(...)
-    validate_raw_elevation(raw_data)  # Raises ValueError if invalid
-    
-    # Continue processing...
-    viewer_data = export_for_viewer(...)
-    validate_viewer_export(viewer_data)  # Raises ValueError if invalid
+This module provides safeguards against common data processing errors:
+- Aspect ratio distortion from incorrect cropping
+- Bounding box issues (too much empty space)
+- Non-null data coverage problems
 """
-
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-import json
 import numpy as np
-
-from src.data_types import (
-    RawElevationData, ClippedElevationData, ProcessedElevationData,
-    ViewerElevationData, RegionsManifest, Bounds, ElevationStats
-)
+from typing import Tuple, Optional
+import warnings
 
 
-# ============================================================================
-# RAW DATA VALIDATION
-# ============================================================================
+class AspectRatioError(Exception):
+    """Raised when aspect ratio is significantly distorted."""
+    pass
 
-def validate_raw_elevation(data: RawElevationData) -> None:
+
+class BoundingBoxError(Exception):
+    """Raised when bounding box contains too much empty space."""
+    pass
+
+
+def validate_aspect_ratio(
+    width: int,
+    height: int,
+    bounds_degrees: Tuple[float, float, float, float],
+    tolerance: float = 0.3,
+    center_latitude: Optional[float] = None
+) -> None:
     """
-    Validate raw elevation data loaded from GeoTIFF.
+    Validate that raster aspect ratio matches geographic aspect ratio.
     
-    CHECKS:
-    - Type is RawElevationData
-    - Elevation array is 2D numpy array
-    - Dimensions match array shape
-    - No all-NaN arrays
-    - CRS is valid
-    - Bounds are valid geographic coordinates
-    - Elevation values are reasonable (-500m to 9000m typically)
+    This catches the common mistake of using crop=False with state boundaries,
+    which creates square-ish rasters for wide states like Tennessee.
     
     Args:
-        data: Raw elevation data to validate
+        width: Raster width in pixels
+        height: Raster height in pixels
+        bounds_degrees: (west, south, east, north) in degrees
+        tolerance: Maximum acceptable aspect ratio difference (default 0.3)
+        center_latitude: If None, calculates from bounds
         
     Raises:
-        TypeError: If wrong type
-        ValueError: If validation fails
+        AspectRatioError: If aspect ratio is significantly distorted
     """
-    if not isinstance(data, RawElevationData):
-        raise TypeError(f"Expected RawElevationData, got {type(data)}")
+    west, south, east, north = bounds_degrees
     
-    # Check array
-    if not isinstance(data.elevation, np.ndarray):
-        raise TypeError(f"Elevation must be numpy array, got {type(data.elevation)}")
+    # Calculate geographic aspect ratio (accounting for latitude)
+    lon_span = abs(east - west)
+    lat_span = abs(north - south)
     
-    if data.elevation.ndim != 2:
-        raise ValueError(f"Elevation must be 2D, got {data.elevation.ndim}D")
+    if center_latitude is None:
+        center_latitude = (north + south) / 2.0
     
-    # Check for all-NaN (invalid data)
-    if np.all(np.isnan(data.elevation)):
-        raise ValueError("Elevation array is all NaN - no valid data")
+    # Longitude degrees shrink with latitude
+    meters_per_deg_lon = 111_320 * np.cos(np.radians(center_latitude))
+    meters_per_deg_lat = 111_320
     
-    # Check dimensions
-    h, w = data.elevation.shape
-    if h != data.height or w != data.width:
-        raise ValueError(
-            f"Array shape {data.elevation.shape} doesn't match "
-            f"dimensions ({data.height}, {data.width})"
-        )
+    geo_width = lon_span * meters_per_deg_lon
+    geo_height = lat_span * meters_per_deg_lat
+    geo_aspect = geo_width / geo_height if geo_height > 0 else 0
     
-    # Check elevation values are reasonable
-    valid_data = data.elevation[~np.isnan(data.elevation)]
-    if len(valid_data) > 0:
-        min_elev = float(np.min(valid_data))
-        max_elev = float(np.max(valid_data))
+    # Calculate raster aspect ratio
+    raster_aspect = width / height if height > 0 else 0
+    
+    # Compare
+    if geo_aspect > 0:
+        ratio_diff = abs(raster_aspect - geo_aspect) / geo_aspect
         
-        if min_elev < -500 or max_elev > 9000:
-            print(f"⚠️  Warning: Unusual elevation range: {min_elev}m to {max_elev}m")
-    
-    # Validation in __post_init__ checks:
-    # - CRS format
-    # - Bounds validity
-    
-    print(f"✅ Raw elevation data validated: {data.width}x{data.height}, "
-          f"{data.elevation_range.min:.0f}m to {data.elevation_range.max:.0f}m")
-
-
-# ============================================================================
-# CLIPPED DATA VALIDATION
-# ============================================================================
-
-def validate_clipped_elevation(data: ClippedElevationData) -> None:
-    """
-    Validate clipped elevation data.
-    
-    CHECKS:
-    - All raw data validations
-    - Boundary name is specified
-    - Clipped bounds are within original bounds
-    - Some valid data exists after clipping
-    
-    Args:
-        data: Clipped elevation data to validate
-        
-    Raises:
-        TypeError: If wrong type
-        ValueError: If validation fails
-    """
-    if not isinstance(data, ClippedElevationData):
-        raise TypeError(f"Expected ClippedElevationData, got {type(data)}")
-    
-    # Run raw data checks
-    if not isinstance(data.elevation, np.ndarray) or data.elevation.ndim != 2:
-        raise ValueError("Invalid elevation array")
-    
-    # Check boundary info
-    if not data.boundary_name:
-        raise ValueError("boundary_name must be specified")
-    
-    # Check clipped bounds are within original
-    if (data.bounds.left < data.original_bounds.left or
-        data.bounds.right > data.original_bounds.right or
-        data.bounds.bottom < data.original_bounds.bottom or
-        data.bounds.top > data.original_bounds.top):
-        print(f"⚠️  Warning: Clipped bounds extend beyond original bounds")
-    
-    # Check for valid data
-    valid_pixels = np.sum(~np.isnan(data.elevation))
-    total_pixels = data.elevation.size
-    valid_percent = 100 * valid_pixels / total_pixels
-    
-    if valid_pixels == 0:
-        raise ValueError("No valid data after clipping - clipping removed all data")
-    
-    print(f"✅ Clipped elevation validated: {data.boundary_name}, "
-          f"{valid_percent:.1f}% valid pixels")
-
-
-# ============================================================================
-# PROCESSED DATA VALIDATION
-# ============================================================================
-
-def validate_processed_elevation(data: ProcessedElevationData) -> None:
-    """
-    Validate processed elevation data.
-    
-    CHECKS:
-    - Type is ProcessedElevationData
-    - Dimensions are reasonable (not too small/large)
-    - Array matches stated dimensions
-    - Processing hasn't corrupted data
-    
-    Args:
-        data: Processed elevation data to validate
-        
-    Raises:
-        TypeError: If wrong type
-        ValueError: If validation fails
-    """
-    if not isinstance(data, ProcessedElevationData):
-        raise TypeError(f"Expected ProcessedElevationData, got {type(data)}")
-    
-    # Check dimensions are reasonable
-    if data.actual_width < 10 or data.actual_height < 10:
-        raise ValueError(
-            f"Processed dimensions too small: {data.actual_width}x{data.actual_height}"
-        )
-    
-    if data.actual_width > 10000 or data.actual_height > 10000:
-        raise ValueError(
-            f"Processed dimensions too large: {data.actual_width}x{data.actual_height}"
-        )
-    
-    # Check array
-    if not isinstance(data.elevation, np.ndarray):
-        raise TypeError(f"Elevation must be numpy array")
-    
-    h, w = data.elevation.shape
-    if h != data.actual_height or w != data.actual_width:
-        raise ValueError(
-            f"Array shape {data.elevation.shape} doesn't match "
-            f"dimensions ({data.actual_height}, {data.actual_width})"
-        )
-    
-    # Check for data loss
-    valid_pixels = np.sum(~np.isnan(data.elevation))
-    if valid_pixels == 0:
-        raise ValueError("Processing removed all valid data")
-    
-    print(f"✅ Processed elevation validated: {data.actual_width}x{data.actual_height}, "
-          f"{valid_pixels:,} valid pixels")
-
-
-# ============================================================================
-# VIEWER EXPORT VALIDATION
-# ============================================================================
-
-def validate_viewer_export(data: ViewerElevationData) -> None:
-    """
-    Validate viewer export data (final JSON format).
-    
-    CHECKS:
-    - Type is ViewerElevationData
-    - Format version is correct (2)
-    - Elevation is proper 2D list structure
-    - Dimensions match array size
-    - All required fields present
-    - Values are JSON-serializable
-    
-    Args:
-        data: Viewer elevation data to validate
-        
-    Raises:
-        TypeError: If wrong type
-        ValueError: If validation fails
-    """
-    if not isinstance(data, ViewerElevationData):
-        raise TypeError(f"Expected ViewerElevationData, got {type(data)}")
-    
-    # Format version check
-    if data.format_version != 2:
-        raise ValueError(f"Invalid format_version: {data.format_version}, expected 2")
-    
-    # Check elevation structure
-    if not isinstance(data.elevation, list):
-        raise TypeError(f"Elevation must be list, got {type(data.elevation)}")
-    
-    if len(data.elevation) == 0:
-        raise ValueError("Elevation array is empty")
-    
-    if not isinstance(data.elevation[0], list):
-        raise TypeError(f"Elevation rows must be lists")
-    
-    # Check dimensions
-    if len(data.elevation) != data.height:
-        raise ValueError(
-            f"Elevation has {len(data.elevation)} rows, expected {data.height}"
-        )
-    
-    row_length = len(data.elevation[0])
-    if row_length != data.width:
-        raise ValueError(
-            f"Elevation rows have {row_length} columns, expected {data.width}"
-        )
-    
-    # Verify all rows same length
-    for i, row in enumerate(data.elevation):
-        if len(row) != data.width:
-            raise ValueError(
-                f"Row {i} has {len(row)} columns, expected {data.width}"
+        if ratio_diff > tolerance:
+            raise AspectRatioError(
+                f"Aspect ratio mismatch detected!\n"
+                f"  Raster:     {width} × {height} = {raster_aspect:.3f}\n"
+                f"  Geographic: {geo_width/1000:.1f}km × {geo_height/1000:.1f}km = {geo_aspect:.3f}\n"
+                f"  Difference: {ratio_diff*100:.1f}% (tolerance: {tolerance*100:.1f}%)\n"
+                f"\n"
+                f"This usually means crop=False was used during masking, keeping empty\n"
+                f"bounding box space instead of cropping to actual boundaries.\n"
+                f"Fix: Use crop=True in rasterio.mask() operations."
             )
-    
-    # Check values are valid (float or None)
-    sample_row = data.elevation[0]
-    for val in sample_row[:10]:  # Check first 10 values
-        if val is not None and not isinstance(val, (int, float)):
-            raise TypeError(f"Elevation values must be float or None, got {type(val)}")
-    
-    # Count valid data points
-    valid_count = sum(
-        1 for row in data.elevation
-        for val in row
-        if val is not None
-    )
-    
-    if valid_count == 0:
-        raise ValueError("No valid elevation data in export")
-    
-    total_points = data.width * data.height
-    valid_percent = 100 * valid_count / total_points
-    
-    print(f"✅ Viewer export validated: {data.width}x{data.height}, "
-          f"{valid_count:,} points ({valid_percent:.1f}% valid)")
 
 
-# ============================================================================
-# MANIFEST VALIDATION
-# ============================================================================
-
-def validate_manifest(manifest: RegionsManifest, data_dir: Path) -> None:
+def validate_non_null_coverage(
+    elevation: np.ndarray,
+    min_coverage: float = 0.3,
+    warn_only: bool = True
+) -> float:
     """
-    Validate regions manifest.
+    Validate that raster has sufficient non-null data.
     
-    CHECKS:
-    - Type is RegionsManifest
-    - Version is correct
-    - All referenced files exist
-    - Each region has valid structure
+    Low coverage might indicate incorrect bounding box or masking issues.
     
     Args:
-        manifest: Regions manifest to validate
-        data_dir: Directory containing region files
-        
-    Raises:
-        TypeError: If wrong type
-        ValueError: If validation fails
-        FileNotFoundError: If referenced files missing
-    """
-    if not isinstance(manifest, RegionsManifest):
-        raise TypeError(f"Expected RegionsManifest, got {type(manifest)}")
-    
-    if manifest.version != "export_v2":
-        raise ValueError(f"Invalid manifest version: {manifest.version}")
-    
-    # Check regions is a dict
-    if not isinstance(manifest.regions, dict):
-        raise TypeError(f"manifest.regions must be dict, got {type(manifest.regions)}")
-    
-    if len(manifest.regions) == 0:
-        raise ValueError("Manifest has no regions")
-    
-    # Validate each region
-    missing_files = []
-    for region_id, region_info in manifest.regions.items():
-        # Check file exists
-        file_path = data_dir / region_info.file
-        if not file_path.exists():
-            missing_files.append(f"{region_id}: {region_info.file}")
-        
-        # Validate bounds
-        try:
-            Bounds(**region_info.bounds)
-        except Exception as e:
-            raise ValueError(f"Region '{region_id}' has invalid bounds: {e}")
-        
-        # Validate stats
-        try:
-            ElevationStats(**region_info.stats)
-        except Exception as e:
-            raise ValueError(f"Region '{region_id}' has invalid stats: {e}")
-    
-    if missing_files:
-        raise FileNotFoundError(
-            f"Manifest references missing files:\n" +
-            "\n".join(f"  - {f}" for f in missing_files)
-        )
-    
-    print(f"✅ Manifest validated: {len(manifest.regions)} regions")
-
-
-# ============================================================================
-# FILE VALIDATION
-# ============================================================================
-
-def validate_viewer_json_file(filepath: Path) -> ViewerElevationData:
-    """
-    Load and validate a viewer JSON file from disk.
-    
-    Args:
-        filepath: Path to JSON file
+        elevation: 2D elevation array
+        min_coverage: Minimum fraction of non-null pixels required
+        warn_only: If True, only warns; if False, raises exception
         
     Returns:
-        Validated ViewerElevationData object
+        Coverage fraction (0.0 to 1.0)
         
     Raises:
-        FileNotFoundError: If file doesn't exist
-        ValueError: If validation fails
+        BoundingBoxError: If coverage is too low and warn_only=False
     """
-    if not filepath.exists():
-        raise FileNotFoundError(f"File not found: {filepath}")
+    total_pixels = elevation.size
+    valid_pixels = np.count_nonzero(~np.isnan(elevation))
+    coverage = valid_pixels / total_pixels if total_pixels > 0 else 0
     
-    print(f"🔍 Validating {filepath.name}...")
+    if coverage < min_coverage:
+        msg = (
+            f"Low non-null data coverage: {coverage*100:.1f}% "
+            f"(minimum: {min_coverage*100:.1f}%)\n"
+            f"  Total pixels: {total_pixels:,}\n"
+            f"  Valid pixels: {valid_pixels:,}\n"
+            f"  Null pixels:  {total_pixels - valid_pixels:,}\n"
+            f"\n"
+            f"This might indicate:\n"
+            f"  - Incorrect bounding box (too much empty space)\n"
+            f"  - crop=False used during masking (use crop=True instead)\n"
+            f"  - Missing data in source file\n"
+        )
+        
+        if warn_only:
+            warnings.warn(msg, UserWarning)
+        else:
+            raise BoundingBoxError(msg)
     
-    # Load JSON
-    try:
-        with open(filepath) as f:
-            data_dict = json.load(f)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON: {e}")
+    return coverage
+
+
+def validate_export_data(
+    width: int,
+    height: int,
+    elevation: np.ndarray,
+    bounds_degrees: Tuple[float, float, float, float],
+    aspect_tolerance: float = 0.3,
+    min_coverage: float = 0.3
+) -> dict:
+    """
+    Comprehensive validation before exporting data.
     
-    # Check required fields
-    required = {
-        'format_version', 'exported_at', 'source_file',
-        'width', 'height', 'elevation', 'bounds', 'stats', 'orientation'
+    Runs all validation checks and returns diagnostics.
+    
+    Args:
+        width: Raster width
+        height: Raster height
+        elevation: 2D elevation array
+        bounds_degrees: (west, south, east, north)
+        aspect_tolerance: Aspect ratio tolerance
+        min_coverage: Minimum non-null coverage
+        
+    Returns:
+        Dict with validation results and diagnostics
+        
+    Raises:
+        AspectRatioError: If aspect ratio is invalid
+        BoundingBoxError: If coverage is too low (when configured)
+    """
+    # Validate aspect ratio (raises exception if invalid)
+    validate_aspect_ratio(width, height, bounds_degrees, aspect_tolerance)
+    
+    # Validate coverage (warns but doesn't raise)
+    coverage = validate_non_null_coverage(elevation, min_coverage, warn_only=True)
+    
+    # Calculate diagnostics
+    west, south, east, north = bounds_degrees
+    center_lat = (north + south) / 2.0
+    meters_per_deg_lon = 111_320 * np.cos(np.radians(center_lat))
+    geo_width_km = abs(east - west) * meters_per_deg_lon / 1000
+    geo_height_km = abs(north - south) * 111_320 / 1000
+    
+    return {
+        "valid": True,
+        "raster_aspect": width / height,
+        "geographic_aspect": geo_width_km / geo_height_km if geo_height_km > 0 else 0,
+        "coverage_percent": coverage * 100,
+        "dimensions": f"{width} × {height}",
+        "geographic_size": f"{geo_width_km:.1f}km × {geo_height_km:.1f}km"
     }
-    missing = required - set(data_dict.keys())
-    if missing:
-        raise ValueError(f"Missing required fields: {missing}")
-    
-    # Create and validate object
-    try:
-        viewer_data = ViewerElevationData(**data_dict)
-    except Exception as e:
-        raise ValueError(f"Validation failed: {e}")
-    
-    # Additional validation
-    validate_viewer_export(viewer_data)
-    
-    return viewer_data
-
-
-def validate_manifest_file(filepath: Path, data_dir: Optional[Path] = None) -> RegionsManifest:
-    """
-    Load and validate a manifest JSON file from disk.
-    
-    Args:
-        filepath: Path to manifest JSON file
-        data_dir: Optional directory to check for referenced files
-        
-    Returns:
-        Validated RegionsManifest object
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        ValueError: If validation fails
-    """
-    if not filepath.exists():
-        raise FileNotFoundError(f"File not found: {filepath}")
-    
-    print(f"🔍 Validating manifest {filepath.name}...")
-    
-    # Load JSON
-    try:
-        with open(filepath) as f:
-            data_dict = json.load(f)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON: {e}")
-    
-    # Import RegionInfo for conversion
-    from src.data_types import RegionInfo
-    
-    # Convert regions dict to RegionInfo objects
-    regions = {}
-    for region_id, region_data in data_dict['regions'].items():
-        try:
-            regions[region_id] = RegionInfo(**region_data)
-        except Exception as e:
-            raise ValueError(f"Invalid region '{region_id}': {e}")
-    
-    # Create manifest
-    manifest = RegionsManifest(
-        version=data_dict['version'],
-        regions=regions
-    )
-    
-    # Validate
-    if data_dir:
-        validate_manifest(manifest, data_dir)
-    
-    return manifest
-
-
-# ============================================================================
-# BATCH VALIDATION
-# ============================================================================
-
-def validate_all_viewer_files(directory: Path) -> Dict[str, bool]:
-    """
-    Validate all viewer JSON files in a directory.
-    
-    Args:
-        directory: Directory containing JSON files
-        
-    Returns:
-        Dict mapping filename to validation status (True=valid, False=invalid)
-    """
-    results = {}
-    
-    for json_file in directory.glob("*.json"):
-        if json_file.name == "regions_manifest.json":
-            continue
-        
-        try:
-            validate_viewer_json_file(json_file)
-            results[json_file.name] = True
-            print(f"  ✅ {json_file.name}")
-        except Exception as e:
-            results[json_file.name] = False
-            print(f"  ❌ {json_file.name}: {e}")
-    
-    return results
-
-
-# ============================================================================
-# QUICK VALIDATION (for debugging)
-# ============================================================================
-
-def quick_check_viewer_json(filepath: Path) -> str:
-    """
-    Quick check of viewer JSON without full validation.
-    Returns a summary string.
-    
-    Args:
-        filepath: Path to JSON file
-        
-    Returns:
-        Summary string describing the file
-    """
-    try:
-        with open(filepath) as f:
-            data = json.load(f)
-        
-        version = data.get('format_version', '?')
-        width = data.get('width', '?')
-        height = data.get('height', '?')
-        has_elevation = 'elevation' in data
-        
-        elev_rows = len(data.get('elevation', [])) if has_elevation else 0
-        elev_cols = len(data['elevation'][0]) if elev_rows > 0 else 0
-        
-        return (
-            f"{filepath.name}: "
-            f"v{version}, {width}x{height}, "
-            f"elevation={'✅' if has_elevation else '❌'} ({elev_rows}x{elev_cols})"
-        )
-    except Exception as e:
-        return f"{filepath.name}: ❌ ERROR - {e}"
-

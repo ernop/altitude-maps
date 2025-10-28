@@ -1,0 +1,25 @@
+# ========================================================================
+# QUICK FIX - Use your existing data (no national file needed!)
+# ========================================================================
+
+# Step 1: Activate environment
+.\venv\Scripts\Activate.ps1
+
+# Step 2: Reprocess all existing states with the fixed code
+python reprocess_existing_states.py --target-pixels 4096 --force
+
+# Step 3: Verify the fix
+python fix_all_regions_aspect_ratio.py --check-only
+
+# Step 4: View results
+python serve_viewer.py
+# Open: http://localhost:8001/interactive_viewer_advanced.html
+
+# ========================================================================
+# This will process ~29 states from your existing data files
+# Time: ~1-2 hours (automated)
+# ========================================================================
+
+# Alternative: Process without deleting existing files (faster if some are OK)
+# python reprocess_existing_states.py --target-pixels 4096
+

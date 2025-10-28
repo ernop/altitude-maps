@@ -184,11 +184,11 @@ class BorderManager:
         # Convert to geometries
         geoms = [mapping(geom) for geom in combined.geometry]
         
-        # Mask the raster
+        # Mask the raster and crop to actual country bounds
         out_image, out_transform = rasterio_mask(
             raster_src, 
             geoms, 
-            crop=False, 
+            crop=True,  # Crop to minimum bounding box containing the geometry
             nodata=np.nan,
             invert=invert
         )
@@ -380,11 +380,11 @@ class BorderManager:
         # Convert to geometries
         geoms = [mapping(geom) for geom in state_reproj.geometry]
         
-        # Mask the raster
+        # Mask the raster and crop to actual state bounds
         out_image, out_transform = rasterio_mask(
             raster_src, 
             geoms, 
-            crop=False, 
+            crop=True,  # Crop to minimum bounding box containing the state
             nodata=np.nan,
             invert=False
         )

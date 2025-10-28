@@ -506,18 +506,16 @@ function createEdgeMarkers() {
         zExtent = (gridHeight - 1) * bucketMultiplier / 2;  // NO aspect ratio scaling!
         avgSize = (xExtent + zExtent);
     } else if (params.renderMode === 'points') {
-        // Points use meter-based positioning
-        const bucketSizeMetersX = processedData.bucketSizeMetersX || calculateRealWorldScale().metersPerPixelX;
-        const bucketSizeMetersY = processedData.bucketSizeMetersY || calculateRealWorldScale().metersPerPixelY;
-        xExtent = (gridWidth - 1) * bucketSizeMetersX / 2;
-        zExtent = (gridHeight - 1) * bucketSizeMetersY / 2;
+        // Points use uniform grid positioning
+        const bucketSize = 1;
+        xExtent = (gridWidth - 1) * bucketSize / 2;
+        zExtent = (gridHeight - 1) * bucketSize / 2;
         avgSize = (xExtent + zExtent);
     } else {
-        // Surface uses meter-based positioning (centered PlaneGeometry)
-        const scale = calculateRealWorldScale();
-        xExtent = scale.widthMeters / 2;
-        zExtent = scale.heightMeters / 2;
-        avgSize = (scale.widthMeters + scale.heightMeters) / 2;
+        // Surface uses uniform grid positioning (centered PlaneGeometry)
+        xExtent = gridWidth / 2;
+        zExtent = gridHeight / 2;
+        avgSize = (gridWidth + gridHeight) / 2;
     }
     
     // Create text sprites for N, E, S, W at appropriate edges
@@ -942,11 +940,11 @@ function autoAdjustBucketSize() {
     
     const { width, height } = rawElevationData;
     // Reduced from 10000 to ~3900 (60% larger bucket size means ~40% of original bucket count)
-    const MAX_BUCKETS = 3900;
+    const TARGET_BUCKET_COUNT = 35000;
     
-    // Calculate optimal bucket size to stay within MAX_BUCKETS constraint
-    // Start with direct calculation: bucketSize = ceil(sqrt(width * height / MAX_BUCKETS))
-    let optimalSize = Math.ceil(Math.sqrt((width * height) / MAX_BUCKETS));
+    // Calculate optimal bucket size to stay within TARGET_BUCKET_COUNT constraint
+    // Start with direct calculation: bucketSize = ceil(sqrt(width * height / TARGET_BUCKET_COUNT))
+    let optimalSize = Math.ceil(Math.sqrt((width * height) / TARGET_BUCKET_COUNT));
     
     // Verify and adjust if needed (in case of rounding edge cases)
     let bucketedWidth = Math.floor(width / optimalSize);
@@ -954,7 +952,7 @@ function autoAdjustBucketSize() {
     let totalBuckets = bucketedWidth * bucketedHeight;
     
     // If we're still over the limit, increment until we're under
-    while (totalBuckets > MAX_BUCKETS && optimalSize < 500) {
+    while (totalBuckets > TARGET_BUCKET_COUNT && optimalSize < 500) {
         optimalSize++;
         bucketedWidth = Math.floor(width / optimalSize);
         bucketedHeight = Math.floor(height / optimalSize);
@@ -971,7 +969,7 @@ function autoAdjustBucketSize() {
     
     console.log(`🎯 AUTO-ADJUST: Raw data ${width}×${height} pixels (${(width*height).toLocaleString()} total)`);
     console.log(`🎯 Optimal bucket size: ${optimalSize}× → ${bucketedWidth}×${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
-    console.log(`🎯 Constraint: ${totalBuckets <= MAX_BUCKETS ? '✅' : '❌'} ${totalBuckets} / ${MAX_BUCKETS.toLocaleString()} buckets`);
+    console.log(`🎯 Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '✅' : '❌'} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
     
     // Update params and UI
     params.bucketSize = optimalSize;
@@ -1205,12 +1203,11 @@ function createTerrain() {
             terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2;  // NO aspect ratio scaling!
             console.log(`ðŸŽ¯ Bars centered: uniform grid ${width}Ã—${height}, tile size ${bucketMultiplier}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
         } else if (params.renderMode === 'points') {
-            // Points use meter-based positioning, center based on actual extent
-            const bucketSizeMetersX = processedData.bucketSizeMetersX || scale.metersPerPixelX;
-            const bucketSizeMetersY = processedData.bucketSizeMetersY || scale.metersPerPixelY;
-            terrainMesh.position.x = -(width - 1) * bucketSizeMetersX / 2;
-            terrainMesh.position.z = -(height - 1) * bucketSizeMetersY / 2;
-            console.log(`ðŸŽ¯ Points centered: ${width}Ã—${height}, offset (${terrainMesh.position.x.toFixed(0)}, ${terrainMesh.position.z.toFixed(0)})m`);
+            // Points use uniform grid positioning
+            const bucketSize = 1;
+            terrainMesh.position.x = -(width - 1) * bucketSize / 2;
+            terrainMesh.position.z = -(height - 1) * bucketSize / 2;
+            console.log(`ðŸŽ¯ Points centered: uniform grid ${width}Ã—${height}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
         } else {
             // Surface mode: PlaneGeometry is already centered, but position it at origin
             terrainMesh.position.set(0, 0, 0);
@@ -1386,20 +1383,18 @@ function createPointCloudTerrain(width, height, elevation, scale) {
     const positions = [];
     const colors = [];
     
-    // Each bucket has been sized to exactly tile the map
-    const bucketSizeMetersX = processedData.bucketSizeMetersX;
-    const bucketSizeMetersY = processedData.bucketSizeMetersY;
+    // Uniform grid spacing - treat as simple 2D grid
+    const bucketSize = 1;  // Uniform spacing
     
-    // GeoTIFF: elevation[row][col] where row=Northâ†’South (i), col=Westâ†’East (j)
+    // GeoTIFF: elevation[row][col] where row=Northâ†'South (i), col=Westâ†'East (j)
     for (let i = 0; i < height; i++) {  // row (North to South)
         for (let j = 0; j < width; j++) {  // column (West to East)
             let z = elevation[i] && elevation[i][j];
             if (z === null || z === undefined) z = 0;
             
-            // Three.js position: x=East (meters), y=elevation (meters), z=South (meters)
-            // Center point within its bucket
-            const xPos = j * bucketSizeMetersX + bucketSizeMetersX / 2;
-            const zPos = i * bucketSizeMetersY + bucketSizeMetersY / 2;
+            // Uniform 2D grid positioning
+            const xPos = j * bucketSize;
+            const zPos = i * bucketSize;
             positions.push(xPos, z * params.verticalExaggeration, zPos);
             
             const color = getColorForElevation(z);
@@ -1410,9 +1405,8 @@ function createPointCloudTerrain(width, height, elevation, scale) {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     
-    const avgBucketSize = (bucketSizeMetersX + bucketSizeMetersY) / 2;
     const material = new THREE.PointsMaterial({
-        size: avgBucketSize * 1.5,  // Point size scales with bucket size
+        size: bucketSize * 1.5,  // Point size scales with bucket size
         vertexColors: true,
         sizeAttenuation: true
     });
@@ -1422,14 +1416,16 @@ function createPointCloudTerrain(width, height, elevation, scale) {
 }
 
 function createSurfaceTerrain(width, height, elevation, scale) {
+    // Create uniform 2D grid - no geographic corrections
+    // Treat data as simple evenly-spaced grid points
     const geometry = new THREE.PlaneGeometry(
-        scale.widthMeters, scale.heightMeters, width - 1, height - 1
+        width, height, width - 1, height - 1
     );
     
     const colors = [];
     const positions = geometry.attributes.position;
     
-    // GeoTIFF: elevation[row][col] where row=Northâ†’South, col=Westâ†’East
+    // GeoTIFF: elevation[row][col] where row=Northâ†'South, col=Westâ†'East
     for (let i = 0; i < height; i++) {  // row (North to South)
         for (let j = 0; j < width; j++) {  // column (West to East)
             const idx = i * width + j;
@@ -1617,20 +1613,20 @@ function recreateBorders() {
                     xCoord -= (bWidth - 1) * bucketMultiplier / 2;
                     zCoord -= (bHeight - 1) * bucketMultiplier / 2;
                 } else if (params.renderMode === 'points') {
-                    // Points use meter-based positioning
-                    const bucketSizeMetersX = processedData.bucketSizeMetersX || scale.metersPerPixelX;
-                    const bucketSizeMetersY = processedData.bucketSizeMetersY || scale.metersPerPixelY;
+                    // Points use uniform grid positioning
                     const bWidth = processedData.width;
                     const bHeight = processedData.height;
-                    xCoord = colNormalized * (bWidth - 1) * bucketSizeMetersX;
-                    zCoord = rowNormalized * (bHeight - 1) * bucketSizeMetersY;
+                    xCoord = colNormalized * (bWidth - 1);
+                    zCoord = rowNormalized * (bHeight - 1);
                     // Apply same centering offset as terrain
-                    xCoord -= (bWidth - 1) * bucketSizeMetersX / 2;
-                    zCoord -= (bHeight - 1) * bucketSizeMetersY / 2;
+                    xCoord -= (bWidth - 1) / 2;
+                    zCoord -= (bHeight - 1) / 2;
                 } else {
-                    // Surface uses meter-based positioning (PlaneGeometry centered at origin)
-                    xCoord = (colNormalized - 0.5) * scale.widthMeters;
-                    zCoord = (rowNormalized - 0.5) * scale.heightMeters;
+                    // Surface uses uniform grid positioning (PlaneGeometry centered at origin)
+                    const bWidth = processedData.width;
+                    const bHeight = processedData.height;
+                    xCoord = (colNormalized - 0.5) * bWidth;
+                    zCoord = (rowNormalized - 0.5) * bHeight;
                 }
                 
                 // Three.js: x=East, z=South, y=elevation
@@ -1661,7 +1657,7 @@ function recreateBorders() {
 function updateStats() {
     const statsDiv = document.getElementById('stats');
     const { width, height, stats: dataStats } = rawElevationData;
-    const { width: bWidth, height: bHeight, bucketSizeMetersX, bucketSizeMetersY } = processedData;
+    const { width: bWidth, height: bHeight } = processedData;
     
     statsDiv.innerHTML = `
         <div class="stat-line">
@@ -1670,7 +1666,7 @@ function updateStats() {
         </div>
         <div class="stat-line">
             <span class="stat-label">Bucket Multiplier:</span> 
-            <span class="stat-value">${params.bucketSize}Ã— (${(bucketSizeMetersX/1000).toFixed(1)}km Ã— ${(bucketSizeMetersY/1000).toFixed(1)}km)</span>
+            <span class="stat-value">${params.bucketSize}Ã—</span>
         </div>
         <div class="stat-line">
             <span class="stat-label">Bucketed Grid:</span> 

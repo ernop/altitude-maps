@@ -177,7 +177,7 @@ def downsample_for_viewer(
         with rasterio.open(clipped_tif_path) as src:
             print(f"      Input: {src.width} × {src.height} pixels", flush=True)
             
-            # Calculate downsampling factor
+            # Calculate downsampling factor - PRESERVE ASPECT RATIO
             max_dim = max(src.height, src.width)
             if max_dim <= target_pixels:
                 # No downsampling needed
@@ -186,23 +186,24 @@ def downsample_for_viewer(
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(clipped_tif_path, output_path)
             else:
-                # Downsample
-                scale_factor = target_pixels / max_dim
-                new_height = int(src.height * scale_factor)
-                new_width = int(src.width * scale_factor)
+                # Downsample with SAME step size for both dimensions to preserve aspect ratio
+                import math
+                scale_factor = max_dim / target_pixels
+                step_size = max(1, int(math.ceil(scale_factor)))
+                
+                new_height = src.height // step_size
+                new_width = src.width // step_size
                 
                 print(f"      Target: {new_width} × {new_height} pixels")
-                print(f"      Scale factor: {scale_factor:.3f}x")
+                print(f"      Scale factor: {1.0/step_size:.3f}x")
                 
                 # Read and downsample
                 print(f"      Reading elevation data...")
                 elevation = src.read(1)
                 
-                # Simple downsampling (could use better resampling later)
-                step_y = max(1, src.height // new_height)
-                step_x = max(1, src.width // new_width)
-                print(f"      Downsampling (step: {step_y}×{step_x})...")
-                downsampled = elevation[::step_y, ::step_x]
+                # Use SINGLE step size for both dimensions to preserve aspect ratio
+                print(f"      Downsampling (step: {step_size}×{step_size})...")
+                downsampled = elevation[::step_size, ::step_size]
                 
                 # Update metadata
                 out_meta = src.meta.copy()
@@ -247,7 +248,8 @@ def export_for_viewer(
     processed_tif_path: Path,
     region_id: str,
     source: str,
-    output_path: Path
+    output_path: Path,
+    validate_output: bool = True
 ) -> bool:
     """
     Export processed TIF to JSON format for web viewer.
@@ -257,6 +259,7 @@ def export_for_viewer(
         region_id: Region identifier
         source: Data source (e.g., 'srtm_30m', 'usa_3dep')
         output_path: Where to save JSON
+        validate_output: If True, validate aspect ratio and coverage
         
     Returns:
         True if successful
@@ -272,6 +275,20 @@ def export_for_viewer(
             print(f"      Reading raster: {src.width} × {src.height}", flush=True)
             elevation = src.read(1)
             bounds = src.bounds
+            
+            # VALIDATION: Check aspect ratio and coverage
+            if validate_output:
+                from src.validation import validate_export_data
+                try:
+                    bounds_tuple = (bounds.left, bounds.bottom, bounds.right, bounds.top)
+                    diagnostics = validate_export_data(
+                        src.width, src.height, elevation, bounds_tuple,
+                        aspect_tolerance=0.3, min_coverage=0.2
+                    )
+                    print(f"      ✅ Validation passed: aspect={diagnostics['raster_aspect']:.3f}, coverage={diagnostics['coverage_percent']:.1f}%")
+                except Exception as e:
+                    print(f"      ❌ VALIDATION FAILED: {e}")
+                    return False
             
             # Filter bad values (nodata, extreme negatives) BEFORE stats calculation
             # Replace bad values with NaN for proper stats
