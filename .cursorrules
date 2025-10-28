@@ -93,6 +93,13 @@ python download_regions.py  # If using regions
 - Be humble about work you've done, not ostentatiously humble, just light and clear
 - Explain things as needed without self-praise
 
+**What "learnings" actually means:**
+- Learnings are about project-specific constraints, patterns, and gotchas discovered through experience
+- NOT just "how to fix X" - that's procedural knowledge anyone could look up
+- YES: "We need to watch for large files because geospatial data grows quickly and breaks git"
+- NO: "Here's the git command to remove large files from history"
+- Think: What would future you need to remember about this project's unique characteristics?
+
 ## Data Sources Strategy
 
 ### Elevation Data Priority (User Preference)
@@ -171,4 +178,11 @@ python border_utils.py --test your_data.tif  # Test borders on data
 - Use `mask_country` parameter to clip data (e.g., "United States of America")
 - Use `draw_borders` parameter in rendering to overlay border lines
 - Primary workflow: Interactive 3D viewer at localhost:8001
+
+### Git and Large Files
+- This project works with large geospatial data files (GeoTIFFs, HGT files, etc.)
+- When adding new data directories or processing outputs, consider whether they might contain large files
+- If so, add them to `.gitignore` immediately to prevent accidental commits
+- Examples: new cache directories, intermediate processing outputs, downloaded tiles
+- Keep an eye on new file types that might grow large over time
 

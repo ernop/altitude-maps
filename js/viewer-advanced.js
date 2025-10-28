@@ -61,10 +61,10 @@ async function init() {
         // Sync UI to match params (ensures no mismatch on initial load)
         syncUIControls();
         
-        // Initial processing and rendering
-        rebucketData();
-        createTerrain();
-        updateStats();
+        // Auto-adjust bucket size to meet complexity constraints
+        autoAdjustBucketSize();
+        
+        // updateStats() is called by autoAdjustBucketSize(), no need to call again
         
         // Reset camera to appropriate distance for this terrain size
         resetCamera();
@@ -177,7 +177,10 @@ async function populateRegionSelector() {
         $('#regionSelect').select2({
             placeholder: 'Select a region...',
             allowClear: false,
-            width: '100%'
+            width: '100%',
+            dropdownAutoWidth: true,
+            minimumResultsForSearch: 5,
+            closeOnSelect: true
         });
         
         return 'default';
@@ -254,7 +257,12 @@ async function populateRegionSelector() {
     $('#regionSelect').select2({
         placeholder: 'Select a region...',
         allowClear: false,
-        width: '100%'
+        width: '100%',
+        dropdownAutoWidth: true,
+        minimumResultsForSearch: 5,
+        closeOnSelect: true,
+        templateResult: formatRegionOption,
+        templateSelection: formatRegionSelection
     });
     
     return firstRegionId;
@@ -863,12 +871,30 @@ function setupScene() {
     };
 }
 
+// Optimized rendering for Select2 options
+function formatRegionOption(option) {
+    if (!option.id) return option.text;
+    // Simple text rendering without extra DOM manipulation
+    return $('<span>').text(option.text);
+}
+
+function formatRegionSelection(option) {
+    if (!option.id) return option.text;
+    // Simple text rendering for selected item
+    return option.text;
+}
+
 function setupControls() {
     // Initialize Select2 for region selector (typeahead with autocomplete)
     $('#regionSelect').select2({
         placeholder: 'Select a region...',
         allowClear: false,
-        width: '100%'
+        width: '100%',
+        dropdownAutoWidth: true,
+        minimumResultsForSearch: 5, // Show search box only when scrolling is needed
+        closeOnSelect: true,
+        templateResult: formatRegionOption,
+        templateSelection: formatRegionSelection
     });
     
     // Initialize Select2 for color scheme (typeahead with autocomplete)
@@ -876,7 +902,9 @@ function setupControls() {
         placeholder: 'Select a color scheme...',
         allowClear: false,
         width: '100%',
-        minimumResultsForSearch: Infinity // Disable search for short lists
+        minimumResultsForSearch: Infinity, // Disable search for short lists
+        dropdownAutoWidth: true,
+        closeOnSelect: true
     });
     
     // Region selector
@@ -1037,6 +1065,59 @@ function setupControls() {
         params.autoRotate = e.target.checked;
         controls.autoRotate = params.autoRotate;
     });
+}
+
+function autoAdjustBucketSize() {
+    if (!rawElevationData) {
+        console.warn('⚠️ No data loaded, cannot auto-adjust bucket size');
+        return;
+    }
+    
+    const { width, height } = rawElevationData;
+    const MAX_BUCKETS = 10000;
+    
+    // Calculate optimal bucket size to stay within MAX_BUCKETS constraint
+    // Start with direct calculation: bucketSize = ceil(sqrt(width * height / MAX_BUCKETS))
+    let optimalSize = Math.ceil(Math.sqrt((width * height) / MAX_BUCKETS));
+    
+    // Verify and adjust if needed (in case of rounding edge cases)
+    let bucketedWidth = Math.floor(width / optimalSize);
+    let bucketedHeight = Math.floor(height / optimalSize);
+    let totalBuckets = bucketedWidth * bucketedHeight;
+    
+    // If we're still over the limit, increment until we're under
+    while (totalBuckets > MAX_BUCKETS && optimalSize < 500) {
+        optimalSize++;
+        bucketedWidth = Math.floor(width / optimalSize);
+        bucketedHeight = Math.floor(height / optimalSize);
+        totalBuckets = bucketedWidth * bucketedHeight;
+    }
+    
+    // Clamp to valid range [1, 500]
+    optimalSize = Math.max(1, Math.min(500, optimalSize));
+    
+    // Recalculate final bucket count with clamped size
+    bucketedWidth = Math.floor(width / optimalSize);
+    bucketedHeight = Math.floor(height / optimalSize);
+    totalBuckets = bucketedWidth * bucketedHeight;
+    
+    console.log(`🎯 AUTO-ADJUST: Raw data ${width}×${height} pixels (${(width*height).toLocaleString()} total)`);
+    console.log(`🎯 Optimal bucket size: ${optimalSize}× → ${bucketedWidth}×${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
+    console.log(`🎯 Constraint: ${totalBuckets <= MAX_BUCKETS ? '✅' : '❌'} ${totalBuckets} / ${MAX_BUCKETS.toLocaleString()} buckets`);
+    
+    // Update params and UI
+    params.bucketSize = optimalSize;
+    document.getElementById('bucketSize').value = optimalSize;
+    document.getElementById('bucketSizeInput').value = optimalSize;
+    
+    // Clear edge markers so they get recreated at new positions
+    edgeMarkers.forEach(marker => scene.remove(marker));
+    edgeMarkers = [];
+    
+    // Rebucket and recreate terrain
+    rebucketData();
+    recreateTerrain();
+    updateStats();
 }
 
 function setupEventListeners() {
