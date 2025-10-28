@@ -1827,15 +1827,21 @@ function resetCamera() {
         zExtent = scale.heightMeters;
     }
     
-    const maxDim = Math.max(xExtent, zExtent);
-    const camDistance = maxDim * 0.8;  // View from 80% of max dimension
-    const camHeight = maxDim * 0.5;    // Height is 50% of max dimension
+    // F key behavior: Position directly above center, looking straight down
+    // Height = half the average of width and depth for clear view
+    const avgExtent = (xExtent + zExtent) / 2;
+    const camHeight = avgExtent * 0.5;
     
-    camera.position.set(camDistance * 0.5, camHeight, camDistance * 0.6);
+    // Position camera directly above center (0, 0) looking straight down
+    camera.position.set(0, camHeight, 0);
     controls.target.set(0, 0, 0);
+    
+    // Reset camera rotation to ensure North is at top of screen
+    camera.rotation.set(-Math.PI / 2, 0, 0);
+    
     controls.update();
     
-    console.log(`ðŸ“· Camera reset: grid ${gridWidth}Ã—${gridHeight}, extent ${xExtent.toFixed(0)}Ã—${zExtent.toFixed(0)} units`);
+    console.log(`ðŸ"· Camera reset: grid ${gridWidth}Ã—${gridHeight}, extent ${xExtent.toFixed(0)}Ã—${zExtent.toFixed(0)} units, height ${camHeight.toFixed(0)}`);
 }
 
 function exportImage() {

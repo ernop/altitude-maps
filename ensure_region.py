@@ -9,8 +9,19 @@ Usage:
     python ensure_region.py california --force-reprocess
 """
 import sys
+import io
 import argparse
 from pathlib import Path
+
+# Fix Windows console encoding for emoji/Unicode
+if sys.platform == 'win32':
+    try:
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        if hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    except (AttributeError, ValueError):
+        pass
 
 # State name mapping
 STATE_NAMES = {

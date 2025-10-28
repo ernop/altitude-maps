@@ -326,6 +326,9 @@ class GroundPlaneCamera extends CameraScheme {
     }
     
     // Reframe view to center of terrain (F key)
+    // Position: Directly above center, looking straight down
+    // Height: Half the average of width and depth for clear view
+    // Orientation: North at top of screen
     reframeView() {
         // Get terrain bounds from the scene (passed via external reference)
         if (!this.terrainBounds) {
@@ -343,19 +346,22 @@ class GroundPlaneCamera extends CameraScheme {
         // Calculate size of terrain
         const width = bounds.maxX - bounds.minX;
         const depth = bounds.maxZ - bounds.minZ;
-        const size = Math.max(width, depth);
+        const avgSize = (width + depth) / 2;
         
-        // Position camera to frame the terrain
-        // Distance based on terrain size (adjusted for comfortable view)
-        const distance = size * 0.8;
-        const height = distance * 0.6; // Look down at ~30-degree angle
+        // Height = half the average of width and depth for clear view
+        const height = avgSize * 0.5;
         
-        // Place camera above and behind center
-        this.camera.position.set(center.x, height, center.z + distance * 0.5);
+        // Position camera directly above center, looking straight down
+        this.camera.position.set(center.x, height, center.z);
         this.focusPoint.copy(center);
         this.controls.target.copy(this.focusPoint);
         
-        console.log(`📐 Reframed view to terrain center: (${center.x.toFixed(1)}, ${center.z.toFixed(1)})`);
+        // Ensure North is at top (camera looks down negative Y axis)
+        // Reset any rotation around the vertical axis
+        this.camera.up.set(0, 1, 0);
+        this.camera.lookAt(this.focusPoint);
+        
+        console.log(`📐 Reframed view: center (${center.x.toFixed(1)}, ${center.z.toFixed(1)}), height ${height.toFixed(1)}, size ${width.toFixed(1)}×${depth.toFixed(1)}`);
     }
     
     // Set terrain bounds (called externally by viewer)

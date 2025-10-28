@@ -168,6 +168,7 @@ python download_regions.py  # If using regions
 ### Camera Controls - Best Known Scheme (Oct 2025)
 **Ground Plane Camera System** - Tested and confirmed buttery smooth, modeled after Google Maps/Earth.
 
+
 **Core Architecture (CRITICAL for smoothness):**
 - Fixed ground plane at y=0 (the map surface)
 - Focus point anchored ON the plane (where camera looks)
@@ -278,6 +279,8 @@ update() {
 - ❌ Don't use continuous raycasting for pan (too slow/jerky)
 - ❌ Don't make focus shift unidirectional (breaks zoom out feel)
 - ❌ Don't forget to cancel operations if modifier keys released mid-drag
+- ❌ Don't process keyboard shortcuts when user is typing in input fields
+- ❌ Don't break existing controls when adding new features (additive only)
 
 ### Testing
 - Test with small data samples first before processing large datasets
