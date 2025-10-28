@@ -95,7 +95,7 @@ python border_utils.py --bbox "-125,25,-65,50"
 python border_utils.py --test your_data.tif
 ```
 
-See [BORDERS_GUIDE.md](BORDERS_GUIDE.md) for complete documentation.
+See borders documentation in `tech/TECHNICAL_REFERENCE.md`.
 
 ### 3. Work With Real Data
 
@@ -128,7 +128,7 @@ python -m http.server 8001
 python visualize_usa_overhead.py
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for more details.
+See [User Guide](tech/USER_GUIDE.md) for more details.
 
 ## Key Features
 
@@ -211,10 +211,12 @@ altitude-maps/
 
 ## Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** - Get running in 5 minutes
-- **[TECH.md](TECH.md)** - Technical reference (data sources, controls, options)
+- **[tech/USER_GUIDE.md](tech/USER_GUIDE.md)** - Complete usage guide
+- **[tech/TECHNICAL_REFERENCE.md](tech/TECHNICAL_REFERENCE.md)** - Technical specs and API reference
+- **[tech/DOWNLOAD_GUIDE.md](tech/DOWNLOAD_GUIDE.md)** - Data acquisition workflows
+- **[tech/CAMERA_CONTROLS.md](tech/CAMERA_CONTROLS.md)** - Camera system documentation
 - **[.cursorrules](.cursorrules)** - Development patterns for AI agents
-- **[learnings/](learnings/)** - Session notes and deep dives
+- **[learnings/](learnings/)** - Historical development threads
 
 ## Sample Outputs
 
@@ -259,4 +261,4 @@ Project code is available for personal and educational use. Elevation data has s
 **Status**: Production-ready, actively maintained  
 **Last Updated**: October 22, 2025
 
-**Got questions?** Check [QUICKSTART.md](QUICKSTART.md) or [TECH.md](TECH.md)
+**Got questions?** Check [tech/USER_GUIDE.md](tech/USER_GUIDE.md) or [tech/TECHNICAL_REFERENCE.md](tech/TECHNICAL_REFERENCE.md)

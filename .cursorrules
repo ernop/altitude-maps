@@ -3,12 +3,38 @@
 ## Project Context
 This is a landscape visualization project focused on showing altitude of various regions across the globe.
 
-## Project Organization
-- **Top-level markdown docs**: Only `.cursorrules`, `README.md`, and `TECH.md` at root
-- **Documentation/learnings**: All other markdown files (guides, summaries, learnings) go in `learnings/` folder
-- **Code and resources**: Python scripts, HTML files, etc. can remain at top level
-- **Keep it clean**: Minimize documentation clutter at root - maintain clear project structure
-- **No extra Junk**: Don't overload the docs with too much information - just put the key points, product requirements, and difficult-to-remember hints.
+## Project Organization - Documentation Structure
+
+### Root Level - ONLY These Two Files
+- **`.cursorrules`** - AI agent guidance and development patterns
+- **`README.md`** - Public user documentation (product-focused)
+
+### Technical Documentation (`tech/` folder)
+All technical documentation goes in `tech/` folder with standardized naming:
+- **`USER_GUIDE.md`** - Complete usage guide (consolidated from QUICKSTART, PRODUCT_REQUIREMENTS, etc.)
+- **`TECHNICAL_REFERENCE.md`** - Complete API reference, file formats, technical specs (from TECH.md)
+- **`DOWNLOAD_GUIDE.md`** - Data acquisition workflows (from UNIFIED_DOWNLOADER_GUIDE.md)
+- **`CAMERA_CONTROLS.md`** - Camera system documentation (consolidated from learnings/*CAMERA*.md)
+
+### Historical Learnings (`learnings/` folder)
+Session notes and development threads only:
+- **`SESSION_YYYYMMDD_description.md`** - Session-specific notes (use standardized date format)
+- **`[FEATURE]_SUMMARY.md`** - Feature-specific learnings (e.g., DEPTH_BUFFER_PRECISION_CRITICAL.md)
+- **`[FEATURE]_FIX.md`** - Bug fix summaries (e.g., ASPECT_RATIO_FIX_SUMMARY.md)
+
+### Rules for Creating Documentation
+1. **New user-facing content**: Add to `tech/USER_GUIDE.md` (don't create new files)
+2. **New technical specs**: Add to `tech/TECHNICAL_REFERENCE.md` (don't create new files)
+3. **New features**: Update both README.md (brief mention) and tech/USER_GUIDE.md (detailed)
+4. **Session notes**: Create `learnings/SESSION_YYYYMMDD_description.md` with standardized naming
+5. **Bug fixes/learnings**: Create `learnings/[FEATURE]_FIX_SUMMARY.md` or similar
+6. **Never create**: Root-level markdown files except .cursorrules and README.md
+
+### Why This Structure
+- **Clean root**: Easy to find the main docs
+- **Logical grouping**: All technical info in one place (`tech/`)
+- **Historical preservation**: Session notes preserved in `learnings/`
+- **Easy maintenance**: Fewer files, less duplication, single source of truth
 
 ## Development Patterns
 
@@ -28,6 +54,12 @@ This is a landscape visualization project focused on showing altitude of various
 - **CSS styling**: Avoid inline styles. Use rationally-named CSS classes instead.
 - **File organization**: Separate HTML and JS into different files rather than mixing them.
 - **Code reuse**: Don't duplicate code, but also don't force artificial reuse when use cases actually differ. Balance DRY with clarity.
+
+#### UI Control Organization
+- **Bidirectional controls**: Split into two clear columns (e.g., "SMALLER" vs "BIGGER")
+- **Visual hierarchy**: Use color-coded headers to distinguish control groups
+- **Button layout**: Vertical stacking within columns works better than horizontal wrapping
+- **Labels**: Remove technical jargon from user-facing controls (e.g., "Bucket Size" not "Bucket Size (pixel multiplier)")
 
 ### Data Handling
 - Store raw data in `data/` directory (gitignored)
@@ -78,6 +110,12 @@ python download_regions.py  # If using regions
 - Symptoms: Jagged artifacts that vary with camera angle, worse at oblique views
 - **See `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` before modifying camera settings**
 - Runtime validation will log errors if ratio exceeds safe limits
+
+#### Performance Tuning
+- **Default bucket size**: Auto-adjust targets ~3,900 buckets (not 10,000) for better initial performance
+- **User can refine**: Provide granular controls (-10/-5/-1/+1/+5/+10) for users who want more detail
+- **Performance over quality**: Start conservative (larger buckets), let users increase detail if they want
+- **Rationale**: Better to load fast with decent quality than slow with perfect quality - users will adjust if needed
 
 ### Camera Controls - Best Known Scheme (Oct 2025)
 **Ground Plane Camera System** - Tested and confirmed buttery smooth, modeled after Google Maps/Earth.
