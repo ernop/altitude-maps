@@ -1,0 +1,55 @@
+# Enable gzip compression for altitude-maps
+# This dramatically reduces JSON file transfer sizes (typically 85-95% compression)
+
+<IfModule mod_deflate.c>
+    # Compress JSON files (elevation data)
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE text/json
+    
+    # Also compress other text-based files
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE text/javascript
+    
+    # Don't compress images (already compressed)
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|ico)$ no-gzip
+    
+    # Set compression level (1=fastest, 9=best compression)
+    # 6 is a good balance
+    DeflateCompressionLevel 6
+</IfModule>
+
+# Enable browser caching for static files
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # JSON elevation data - cache for 1 hour (update when you re-export data)
+    ExpiresByType application/json "access plus 1 hour"
+    
+    # HTML - cache for 5 minutes
+    ExpiresByType text/html "access plus 5 minutes"
+    
+    # CSS and JavaScript - cache for 1 day
+    ExpiresByType text/css "access plus 1 day"
+    ExpiresByType application/javascript "access plus 1 day"
+    
+    # Images - cache for 1 month
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+</IfModule>
+
+# Security headers (optional but recommended)
+<IfModule mod_headers.c>
+    # Allow loading from CDN (Three.js, jQuery, etc.)
+    Header set Access-Control-Allow-Origin "*"
+    
+    # Prevent clickjacking
+    Header always append X-Frame-Options SAMEORIGIN
+    
+    # Enable XSS protection
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
