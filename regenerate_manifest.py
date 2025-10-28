@@ -46,7 +46,7 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                     "stats": data.get("stats", {})
                 }
             except Exception as e:
-                print(f"      ⚠️  Skipping {json_file.name}: {e}", flush=True)
+                print(f"      [!] Skipping {json_file.name}: {e}", flush=True)
                 continue
         
         # Write manifest
@@ -54,31 +54,31 @@ def update_manifest_directly(generated_dir: Path) -> bool:
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2)
         
-        print(f"      ✅ Manifest updated ({len(manifest['regions'])} regions)", flush=True)
+        print(f"      [+] Manifest updated ({len(manifest['regions'])} regions)", flush=True)
         return True
         
     except Exception as e:
-        print(f"      ⚠️  Warning: Could not update manifest: {e}", flush=True)
+        print(f"      [!] Warning: Could not update manifest: {e}", flush=True)
         return False
 
 def main():
     generated_dir = Path("generated/regions")
     
     if not generated_dir.exists():
-        print(f"❌ Directory not found: {generated_dir}", flush=True)
+        print(f"[X] Directory not found: {generated_dir}", flush=True)
         return 1
     
-    print("🔄 Regenerating regions manifest...", flush=True)
+    print("[*] Regenerating regions manifest...", flush=True)
     print(f"   Scanning: {generated_dir}", flush=True)
     
     success = update_manifest_directly(generated_dir)
     
     if success:
-        print("\n✅ Manifest regenerated successfully!", flush=True)
+        print("\n[+] Manifest regenerated successfully!", flush=True)
         print("   File: generated/regions/regions_manifest.json", flush=True)
-        print("\n💡 Refresh the viewer to see corrected region names.", flush=True)
+        print("\n[*] Refresh the viewer to see corrected region names.", flush=True)
     else:
-        print("\n❌ Failed to regenerate manifest", flush=True)
+        print("\n[X] Failed to regenerate manifest", flush=True)
         return 1
     
     return 0

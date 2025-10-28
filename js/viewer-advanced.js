@@ -169,20 +169,6 @@ async function populateRegionSelector() {
         selectElement.innerHTML = '<option value="default">USA (Default)</option>';
         document.getElementById('currentRegion').textContent = 'USA';
         currentRegionId = 'default';
-        
-        // Reinitialize Select2
-        if ($('#regionSelect').hasClass('select2-hidden-accessible')) {
-            $('#regionSelect').select2('destroy');
-        }
-        $('#regionSelect').select2({
-            placeholder: 'Select a region...',
-            allowClear: false,
-            width: '100%',
-            dropdownAutoWidth: true,
-            minimumResultsForSearch: 5,
-            closeOnSelect: true
-        });
-        
         return 'default';
     }
     
@@ -198,7 +184,7 @@ async function populateRegionSelector() {
             group = 'USA';
         } else if (['canada', 'mexico'].includes(regionId)) {
             group = 'North America';
-        } else if (['japan', 'china', 'south_korea', 'india', 'thailand', 'vietnam', 'nepal', 'shikoku', 'hokkaido', 'honshu', 'kyushu'].includes(regionId)) {
+        } else if (['japan', 'china', 'south_korea', 'india', 'thailand', 'vietnam', 'nepal', 'shikoku', 'hokkaido', 'honshu', 'kyushu', 'kochi'].includes(regionId)) {
             group = 'Asia';
         } else if (['germany', 'france', 'italy', 'spain', 'uk', 'poland', 'norway', 'sweden', 'switzerland', 'austria', 'greece', 'netherlands', 'iceland'].includes(regionId)) {
             group = 'Europe';
@@ -250,21 +236,7 @@ async function populateRegionSelector() {
     currentRegionId = firstRegionId;
     updateRegionInfo(firstRegionId);
     
-    // Reinitialize Select2 after populating options
-    if ($('#regionSelect').hasClass('select2-hidden-accessible')) {
-        $('#regionSelect').select2('destroy');
-    }
-    $('#regionSelect').select2({
-        placeholder: 'Select a region...',
-        allowClear: false,
-        width: '100%',
-        dropdownAutoWidth: true,
-        minimumResultsForSearch: 5,
-        closeOnSelect: true,
-        templateResult: formatRegionOption,
-        templateSelection: formatRegionSelection
-    });
-    
+    // NOTE: Select2 initialization happens in setupControls(), not here
     return firstRegionId;
 }
 
@@ -299,6 +271,21 @@ async function loadRegion(regionId) {
         currentRegionId = regionId;
         updateRegionInfo(regionId);
         
+        // Update Select2 dropdown to show the loaded region (without triggering change event)
+        const $regionSelect = $('#regionSelect');
+        if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
+            // Temporarily unbind the change handler to avoid recursion
+            $regionSelect.off('change');
+            $regionSelect.val(regionId).trigger('change.select2');
+            // Re-bind the change handler
+            $regionSelect.on('change', function(e) {
+                const newRegionId = $(this).val();
+                if (newRegionId && newRegionId !== currentRegionId) {
+                    loadRegion(newRegionId);
+                }
+            });
+        }
+        
         // Clear edge markers so they get recreated for new region
         edgeMarkers.forEach(marker => scene.remove(marker));
         edgeMarkers = [];
@@ -321,6 +308,19 @@ async function loadRegion(regionId) {
         console.error(`âŒ Failed to load region ${regionId}:`, error);
         alert(`Failed to load region: ${error.message}`);
         hideLoading();
+        
+        // On error, revert Select2 dropdown to previous region
+        const $regionSelect = $('#regionSelect');
+        if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
+            $regionSelect.off('change');
+            $regionSelect.val(currentRegionId).trigger('change.select2');
+            $regionSelect.on('change', function(e) {
+                const newRegionId = $(this).val();
+                if (newRegionId && newRegionId !== currentRegionId) {
+                    loadRegion(newRegionId);
+                }
+            });
+        }
     }
 }
 
@@ -884,7 +884,15 @@ function formatRegionSelection(option) {
     return option.text;
 }
 
+// Track if controls have been set up to prevent duplicate initialization
+let controlsInitialized = false;
+
 function setupControls() {
+    if (controlsInitialized) {
+        console.warn('⚠️ setupControls() called multiple times - skipping to prevent memory leak');
+        return;
+    }
+    
     // Initialize Select2 for region selector (typeahead with autocomplete)
     $('#regionSelect').select2({
         placeholder: 'Select a region...',
@@ -907,8 +915,8 @@ function setupControls() {
         closeOnSelect: true
     });
     
-    // Region selector
-    $('#regionSelect').on('change', function(e) {
+    // Region selector - use .off() first to prevent duplicate handlers
+    $('#regionSelect').off('change').on('change', function(e) {
         const regionId = $(this).val();
         if (regionId && regionId !== currentRegionId) {
             loadRegion(regionId);
@@ -1065,6 +1073,37 @@ function setupControls() {
         params.autoRotate = e.target.checked;
         controls.autoRotate = params.autoRotate;
     });
+    
+    // Mark controls as initialized to prevent duplicate setup
+    controlsInitialized = true;
+    console.log('✅ Controls initialized successfully');
+}
+
+function adjustBucketSize(delta) {
+    if (!rawElevationData) {
+        console.warn('⚠️ No data loaded, cannot adjust bucket size');
+        return;
+    }
+    
+    // Calculate new bucket size with clamping to valid range [1, 500]
+    let newSize = params.bucketSize + delta;
+    newSize = Math.max(1, Math.min(500, newSize));
+    
+    // Update params and UI
+    params.bucketSize = newSize;
+    document.getElementById('bucketSize').value = newSize;
+    document.getElementById('bucketSizeInput').value = newSize;
+    
+    // Clear edge markers so they get recreated at new positions
+    edgeMarkers.forEach(marker => scene.remove(marker));
+    edgeMarkers = [];
+    
+    // Rebucket and recreate terrain
+    rebucketData();
+    recreateTerrain();
+    updateStats();
+    
+    console.log(`🎯 Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} → ${newSize}×`);
 }
 
 function autoAdjustBucketSize() {
@@ -1154,8 +1193,8 @@ function setupEventListeners() {
         switchCameraScheme(e.target.value);
     });
     
-    // Initialize default scheme (Google Earth Ground Plane)
-    switchCameraScheme('google-earth-plane');
+    // Initialize default scheme (Google Maps Ground Plane)
+    switchCameraScheme('ground-plane');
 }
 
 // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES

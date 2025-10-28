@@ -33,45 +33,6 @@
         <div id="compass-label">🧭 ORIENTATION</div>
         <div id="compass-container"></div>
         
-        <!-- Controls Help Toggle Button -->
-        <button id="controls-help-toggle" onclick="toggleControlsHelp()">❓ Controls</button>
-        
-        <!-- Controls Help Window -->
-        <div id="controls-help-window">
-            <button class="close-btn" onclick="toggleControlsHelp()">✕</button>
-            <h3>💡 Controls</h3>
-            <div class="controls-content">
-                <div class="controls-section">
-                    <div class="controls-section-title">🖱️ MOUSE</div>
-                    <div><b>Left-Click Drag:</b> Pan/strafe view</div>
-                    <div><b>Right-Click Drag:</b> Rotate/orbit around target 🔄</div>
-                    <div><b>Middle Mouse Drag:</b> Rotate/orbit (alternative)</div>
-                    <div><b>Scroll Wheel:</b> Zoom in/out</div>
-                    <div><b>Shift+Scroll:</b> Precise zoom (1/20× speed) 🎯</div>
-                </div>
-                
-                <div class="controls-section">
-                    <div class="controls-section-title">⌨️ KEYBOARD</div>
-                    <div><b>W / S:</b> Move up / down ⬆️⬇️</div>
-                    <div><b>A / D:</b> Rotate left / right 🔄</div>
-                    <div><b>Q / E:</b> Forward / backward</div>
-                </div>
-                
-                <div class="controls-section">
-                    <div class="controls-section-title">🎮 MODIFIERS</div>
-                    <div><b>Shift:</b> 2.5× faster ⚡</div>
-                    <div><b>Ctrl:</b> 0.3× slower (precise)</div>
-                    <div><b>Alt:</b> 4× faster 🚀</div>
-                </div>
-                
-                <div class="controls-section">
-                    <div class="controls-section-title">⚡ HOTKEYS</div>
-                    <div><b>F or R:</b> Reset camera</div>
-                    <div><b>Space:</b> Toggle auto-rotate</div>
-                </div>
-            </div>
-        </div>
-        
         <div id="controls">
             <h2>Region Selector</h2>
             
@@ -101,7 +62,15 @@
                                style="width: 70px; padding: 2px 6px; text-align: right; font-size: 12px;">
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-10)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">-10</button>
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-5)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">-5</button>
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-1)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">-1</button>
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(1)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">+1</button>
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(5)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">+5</button>
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(10)" style="font-size: 14px; padding: 8px 12px; flex: 1; min-width: 60px;">+10</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">1</span>
                     <input type="range" id="bucketSize" min="1" max="500" step="1" value="4" style="flex: 1;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">500</span>
@@ -216,8 +185,8 @@
             <div class="control-group">
                 <label>Control Scheme</label>
                 <select id="cameraScheme">
-                    <option value="google-earth-plane" selected>Google Earth (Ground Plane)</option>
-                    <option value="ground-plane">Google Maps (Ground Plane)</option>
+                    <option value="google-earth-plane">Google Earth (Ground Plane)</option>
+                    <option value="ground-plane" selected>Google Maps (Ground Plane)</option>
                     <option value="roblox">Roblox Studio</option>
                     <option value="google-maps">Google Maps (Old)</option>
                     <option value="google-earth">Google Earth (Old)</option>
