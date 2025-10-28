@@ -326,42 +326,25 @@ class GroundPlaneCamera extends CameraScheme {
     }
     
     // Reframe view to center of terrain (F key)
-    // Position: Directly above center, looking straight down
-    // Height: Half the average of width and depth for clear view
-    // Orientation: North at top of screen
+    // Fixed camera position: directly above center, looking straight down
+    // This gives a consistent map view with North at top every time
     reframeView() {
-        // Get terrain bounds from the scene (passed via external reference)
-        if (!this.terrainBounds) {
-            console.log('⚠️ No terrain bounds available for reframing');
-            return;
-        }
+        // Standard fixed height that works well for most states
+        const fixedHeight = 50000;
         
-        const bounds = this.terrainBounds;
-        const center = new THREE.Vector3(
-            (bounds.minX + bounds.maxX) / 2,
-            0, // Keep focus on ground plane
-            (bounds.minZ + bounds.maxZ) / 2
-        );
+        // Position: directly above origin at (0, 0)
+        // Small Z offset toward south (-Z) ensures North (+Z) appears at top
+        this.camera.position.set(0, fixedHeight, -fixedHeight * 0.001);
         
-        // Calculate size of terrain
-        const width = bounds.maxX - bounds.minX;
-        const depth = bounds.maxZ - bounds.minZ;
-        const avgSize = (width + depth) / 2;
-        
-        // Height = half the average of width and depth for clear view
-        const height = avgSize * 0.5;
-        
-        // Position camera directly above center, looking straight down
-        this.camera.position.set(center.x, height, center.z);
-        this.focusPoint.copy(center);
+        // Look at center of terrain
+        this.focusPoint.set(0, 0, 0);
         this.controls.target.copy(this.focusPoint);
         
-        // Ensure North is at top (camera looks down negative Y axis)
-        // Reset any rotation around the vertical axis
+        // Standard up vector for normal camera controls
         this.camera.up.set(0, 1, 0);
         this.camera.lookAt(this.focusPoint);
         
-        console.log(`📐 Reframed view: center (${center.x.toFixed(1)}, ${center.z.toFixed(1)}), height ${height.toFixed(1)}, size ${width.toFixed(1)}×${depth.toFixed(1)}`);
+        console.log(`📐 Reframed view: fixed position (0, ${fixedHeight}, ${(-fixedHeight * 0.001).toFixed(1)}) looking at origin, North at top`);
     }
     
     // Set terrain bounds (called externally by viewer)

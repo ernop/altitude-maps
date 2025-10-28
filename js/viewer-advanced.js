@@ -222,10 +222,10 @@ async function populateRegionSelector() {
         selectElement.appendChild(optgroup);
     }
     
-    // Select USA as default if available, otherwise first region
+    // Select California as default if available, otherwise first region
     let firstRegionId;
-    if (regionsManifest.regions['usa_full']) {
-        firstRegionId = 'usa_full';
+    if (regionsManifest.regions['california']) {
+        firstRegionId = 'california';
     } else {
         firstRegionId = Object.keys(regionsManifest.regions)[0];
     }
@@ -1801,47 +1801,26 @@ function setVertExag(value) {
 }
 
 function resetCamera() {
-    if (!rawElevationData || !processedData) {
-        camera.position.set(50, 50, 80);
-        controls.target.set(0, 0, 0);
-        controls.update();
-        return;
-    }
+    // Fixed camera position: directly above center, looking straight down
+    // This gives a consistent map view with North at top every time
     
-    // Calculate appropriate camera distance based on actual coordinate extent
-    const gridWidth = processedData.width;
-    const gridHeight = processedData.height;
-    const scale = calculateRealWorldScale();
+    // Standard fixed height that works well for most states
+    const fixedHeight = 50000;
     
-    // Calculate actual coordinate extent (varies by render mode)
-    let xExtent, zExtent;
-    if (params.renderMode === 'bars') {
-        // Bars use integer grid with aspect ratio scaling
-        const bucketMultiplier = params.bucketSize;
-        const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
-        xExtent = (gridWidth - 1) * bucketMultiplier;
-        zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio;
-    } else {
-        // Other modes use meter-based coordinates
-        xExtent = scale.widthMeters;
-        zExtent = scale.heightMeters;
-    }
+    // Position: directly above origin at (0, 0)
+    // Small Z offset toward south (-Z) ensures North (+Z) appears at top
+    camera.position.set(0, fixedHeight, -fixedHeight * 0.001);
     
-    // F key behavior: Position directly above center, looking straight down
-    // Height = half the average of width and depth for clear view
-    const avgExtent = (xExtent + zExtent) / 2;
-    const camHeight = avgExtent * 0.5;
-    
-    // Position camera directly above center (0, 0) looking straight down
-    camera.position.set(0, camHeight, 0);
+    // Look at center of terrain
     controls.target.set(0, 0, 0);
     
-    // Reset camera rotation to ensure North is at top of screen
-    camera.rotation.set(-Math.PI / 2, 0, 0);
+    // Standard up vector for normal camera controls
+    camera.up.set(0, 1, 0);
+    camera.lookAt(0, 0, 0);
     
     controls.update();
     
-    console.log(`ðŸ"· Camera reset: grid ${gridWidth}Ã—${gridHeight}, extent ${xExtent.toFixed(0)}Ã—${zExtent.toFixed(0)} units, height ${camHeight.toFixed(0)}`);
+    console.log(`📷 Camera reset: fixed position (0, ${fixedHeight}, ${(-fixedHeight * 0.001).toFixed(1)}) looking at origin, North at top`);
 }
 
 function exportImage() {

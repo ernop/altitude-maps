@@ -221,7 +221,7 @@ python download_regions.py  # If using regions
      - This ensures camera AND focus move in same direction (no conflict)
    - Cursor point stays visually stable under mouse
 
-5. **WASD/QE Keys = Keyboard Movement**
+5. **WASD/QE/F Keys = Keyboard Movement**
    - Behavior: First-person style camera movement (always active when not typing)
    - W = move forward in view direction
    - S = move backward
@@ -229,7 +229,12 @@ python download_regions.py  # If using regions
    - D = strafe right
    - Q = move down (descend)
    - E = move up (ascend)
-   - **F = Reframe view** (center camera on terrain, frame entire map)
+   - **F = Reframe view** - Reset to fixed overhead map view:
+     - Position: Fixed at (0, 50000, -50) looking at origin
+     - Height: 50,000 units (works well for most states)
+     - Orientation: North (+Z) at top of screen (consistent every time)
+     - Applied automatically after every region load
+     - Perfect for getting oriented after exploring
    - Works simultaneously with all mouse controls
    - Speed: 2.0 units per frame
    - Focus point moves with camera to maintain ground plane model

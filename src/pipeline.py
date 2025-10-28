@@ -62,9 +62,28 @@ def clip_to_boundary(
     Returns:
         True if successful
     """
+    # Validate input file first
+    if not raw_tif_path.exists():
+        print(f"      ❌ Input file not found: {raw_tif_path}")
+        return False
+    
+    # Check if output exists and is valid
     if output_path.exists():
-        print(f"      ✅ Already clipped: {output_path.name}")
-        return True
+        try:
+            # Validate the existing clipped file
+            with rasterio.open(output_path) as src:
+                if src.width > 0 and src.height > 0:
+                    # Try reading a small sample to ensure it's not corrupted
+                    _ = src.read(1, window=((0, min(10, src.height)), (0, min(10, src.width))))
+                    print(f"      ✅ Already clipped (validated): {output_path.name}")
+                    return True
+        except Exception as e:
+            print(f"      ⚠️  Existing file corrupted: {e}")
+            print(f"      🗑️  Deleting and regenerating...")
+            try:
+                output_path.unlink()
+            except Exception as del_e:
+                print(f"      ⚠️  Could not delete: {del_e}")
     
     # If we're regenerating the clipped file, delete dependent processed and generated files
     # This ensures the entire pipeline uses consistent data
@@ -185,9 +204,28 @@ def downsample_for_viewer(
     Returns:
         True if successful
     """
+    # Validate input file first
+    if not clipped_tif_path.exists():
+        print(f"      ❌ Input file not found: {clipped_tif_path}")
+        return False
+    
+    # Check if output exists and is valid
     if output_path.exists():
-        print(f"      ✅ Already processed: {output_path.name}")
-        return True
+        try:
+            # Validate the existing processed file
+            with rasterio.open(output_path) as src:
+                if src.width > 0 and src.height > 0:
+                    # Try reading a small sample to ensure it's not corrupted
+                    _ = src.read(1, window=((0, min(10, src.height)), (0, min(10, src.width))))
+                    print(f"      ✅ Already processed (validated): {output_path.name}")
+                    return True
+        except Exception as e:
+            print(f"      ⚠️  Existing file corrupted: {e}")
+            print(f"      🗑️  Deleting and regenerating...")
+            try:
+                output_path.unlink()
+            except Exception as del_e:
+                print(f"      ⚠️  Could not delete: {del_e}")
     
     # If we're regenerating the processed file, delete dependent generated files
     generated_dir = Path('generated/regions')
@@ -295,9 +333,36 @@ def export_for_viewer(
     Returns:
         True if successful
     """
+    # Validate input file first
+    if not processed_tif_path.exists():
+        print(f"      ❌ Input file not found: {processed_tif_path}")
+        return False
+    
+    # Check if output exists and is valid
     if output_path.exists():
-        print(f"      ✅ Already exported: {output_path.name}")
-        return True
+        try:
+            import json
+            with open(output_path) as f:
+                data = json.load(f)
+            
+            # Validate required fields
+            required_fields = ['region_id', 'width', 'height', 'elevation', 'bounds']
+            if all(field in data for field in required_fields):
+                if data['width'] > 0 and data['height'] > 0 and len(data['elevation']) > 0:
+                    print(f"      ✅ Already exported (validated): {output_path.name}")
+                    return True
+            
+            print(f"      ⚠️  Existing JSON incomplete or invalid")
+            print(f"      🗑️  Deleting and regenerating...")
+            output_path.unlink()
+            
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"      ⚠️  Existing JSON corrupted: {e}")
+            print(f"      🗑️  Deleting and regenerating...")
+            try:
+                output_path.unlink()
+            except Exception as del_e:
+                print(f"      ⚠️  Could not delete: {del_e}")
     
     print(f"      📤 Exporting to JSON...")
     
