@@ -181,15 +181,16 @@ python download_regions.py  # If using regions
    - Speed: Adaptive based on distance from focus point (distance * 0.001)
    - Camera and focus point move together, maintaining view angle
 
-2. **Shift + Left Drag = Tilt View (Pitch Adjustment)**
+2. **Shift + Left Drag = Tilt View (Pitch Adjustment)** (Alt + Left Drag also works)
    - Behavior: Change viewing angle to see more/less terrain
    - Drag DOWN → tilt down (increase phi angle, see more land/horizon)
    - Drag UP → tilt up (decrease phi angle, more overhead view)
    - Implementation: Spherical coordinate adjustment around focus point
    - Angle limits: 0.1 to π/2 - 0.01 radians (prevents camera flip)
    - Tilt speed: 0.005 radians per pixel
-   - Cancels smoothly if Shift released mid-drag (prevents jank)
+   - Cancels smoothly if Shift/Alt released mid-drag (prevents jank)
    - Focus point stays fixed on ground plane
+   - **Alternative mapping:** Alt + Left Drag (common in professional 3D tools)
 
 3. **Right Drag = Rotate Around Focus Point**
    - Behavior: Orbit camera around current focus point
@@ -211,6 +212,29 @@ python download_regions.py  # If using regions
      - Zoom OUT: Focus moves away from cursor (focusShift = -0.1)
      - This ensures camera AND focus move in same direction (no conflict)
    - Cursor point stays visually stable under mouse
+
+5. **Right Button + WASD/QE = Flythrough Mode** (NEW)
+   - Behavior: First-person style camera movement (like Unity/Unreal)
+   - Hold right mouse button to activate flythrough mode
+   - W = move forward in view direction
+   - S = move backward
+   - A = strafe left
+   - D = strafe right
+   - Q = move down (descend)
+   - E = move up (ascend)
+   - Mouse movement while right button held = look around (rotate view)
+   - Release right button = return to normal controls
+   - Speed: 2.0 units per frame (adjust for terrain scale)
+   - Focus point moves with camera during flythrough
+
+6. **Touch/Trackpad Gestures** (NEW)
+   - **Single finger drag** = Pan (same as left mouse drag)
+   - **Two-finger pinch** = Zoom in/out (pinch together = zoom in, spread apart = zoom out)
+   - **Two-finger drag** = Pan while zoomed (simultaneous pan during pinch gesture)
+   - Implementation: Touch event handlers with gesture recognition
+   - Prevents default touch behavior to avoid page scrolling
+   - Zoom sensitivity: 1% per pixel of pinch distance change
+   - All gestures maintain ground plane model (focus stays at y=0)
 
 **Implementation Pattern (DO NOT DEVIATE):**
 ```javascript

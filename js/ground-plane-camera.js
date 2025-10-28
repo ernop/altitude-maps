@@ -8,10 +8,20 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Maps)', 'Left drag = pan, Shift+Left = tilt, Scroll = zoom, Right = rotate');
+        super('Ground Plane (Google Maps)', 'Left drag = pan, Shift+Left = tilt, Scroll = zoom, Right = rotate, Right+WASD = fly');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
+        
+        // WASD flythrough state
+        this.keysPressed = {};
+        this.flythroughActive = false;
+        
+        // Touch/trackpad gesture state
+        this.touches = {};
+        this.lastPinchDistance = 0;
+        this.lastTouchCenter = null;
+        this.touchStartPositions = null;
     }
     
     activate(camera, controls, renderer) {
@@ -31,7 +41,40 @@ class GroundPlaneCamera extends CameraScheme {
         // Make sure controls.target is on the plane
         this.controls.target.copy(this.focusPoint);
         
+        // Setup keyboard event listeners for WASD flythrough
+        this.keyDownHandler = this.onKeyDown.bind(this);
+        this.keyUpHandler = this.onKeyUp.bind(this);
+        window.addEventListener('keydown', this.keyDownHandler);
+        window.addEventListener('keyup', this.keyUpHandler);
+        
+        // Setup touch/trackpad gesture listeners
+        this.touchStartHandler = this.onTouchStart.bind(this);
+        this.touchMoveHandler = this.onTouchMove.bind(this);
+        this.touchEndHandler = this.onTouchEnd.bind(this);
+        this.renderer.domElement.addEventListener('touchstart', this.touchStartHandler, { passive: false });
+        this.renderer.domElement.addEventListener('touchmove', this.touchMoveHandler, { passive: false });
+        this.renderer.domElement.addEventListener('touchend', this.touchEndHandler, { passive: false });
+        this.renderer.domElement.addEventListener('touchcancel', this.touchEndHandler, { passive: false });
+        
         console.log(`📍 Ground plane camera initialized. Focus point: (${this.focusPoint.x.toFixed(1)}, ${this.focusPoint.y.toFixed(1)}, ${this.focusPoint.z.toFixed(1)})`);
+    }
+    
+    deactivate() {
+        // Clean up keyboard listeners
+        if (this.keyDownHandler) {
+            window.removeEventListener('keydown', this.keyDownHandler);
+            window.removeEventListener('keyup', this.keyUpHandler);
+        }
+        
+        // Clean up touch listeners
+        if (this.touchStartHandler) {
+            this.renderer.domElement.removeEventListener('touchstart', this.touchStartHandler);
+            this.renderer.domElement.removeEventListener('touchmove', this.touchMoveHandler);
+            this.renderer.domElement.removeEventListener('touchend', this.touchEndHandler);
+            this.renderer.domElement.removeEventListener('touchcancel', this.touchEndHandler);
+        }
+        
+        super.deactivate();
     }
     
     // Raycast from screen position to ground plane
@@ -49,24 +92,33 @@ class GroundPlaneCamera extends CameraScheme {
     }
     
     onMouseDown(event) {
-        if (event.button === 0 && event.shiftKey) { // Shift+Left = Tilt (adjust viewing angle)
+        if (event.button === 2) { // Right button
+            // Right = Activate flythrough mode (if WASD pressed, will move camera)
+            // Also allows rotation when dragged
+            this.flythroughActive = true;
+            this.state.rotating = true;
+            this.state.rotateStart = { x: event.clientX, y: event.clientY };
+            this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
+            console.log('✈️ Flythrough mode active (Right button)');
+        } else if (event.button === 0 && event.shiftKey) { // Shift+Left = Tilt (adjust viewing angle)
             this.state.tilting = true;
             this.state.tiltStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
             console.log('🔽 Tilt started (Shift+Left)');
+        } else if (event.button === 0 && event.altKey) { // Alt+Left = Also tilt (alternative mapping)
+            this.state.tilting = true;
+            this.state.tiltStart = { x: event.clientX, y: event.clientY };
+            this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
+            console.log('🔽 Tilt started (Alt+Left)');
         } else if (event.button === 0) { // Left = Pan along plane
             this.state.panning = true;
             this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
             console.log('🖱️ Pan started on plane');
-        } else if (event.button === 2) { // Right = Rotate around focus point
-            this.state.rotating = true;
-            this.state.rotateStart = { x: event.clientX, y: event.clientY };
-            this.state.cameraStart = this.camera.position.clone();
-            this.state.focusStart = this.focusPoint.clone();
-            console.log('🔄 Rotation started around focus point');
         }
     }
     
@@ -110,9 +162,9 @@ class GroundPlaneCamera extends CameraScheme {
         }
         
         if (this.state.tilting) {
-            // If Shift key is released mid-drag, cancel tilt operation smoothly
-            if (!event.shiftKey) {
-                console.log('🔽 Tilt cancelled (Shift released)');
+            // If Shift/Alt key is released mid-drag, cancel tilt operation smoothly
+            if (!event.shiftKey && !event.altKey) {
+                console.log('🔽 Tilt cancelled (modifier released)');
                 this.state.tilting = false;
                 return;
             }
@@ -182,6 +234,8 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.panning = false;
         } else if (event.button === 2) {
             this.state.rotating = false;
+            this.flythroughActive = false;
+            console.log('✈️ Flythrough mode deactivated');
         }
     }
     
@@ -226,7 +280,239 @@ class GroundPlaneCamera extends CameraScheme {
         // This prevents jitter from multiple lookAt calls per frame
     }
     
+    // Keyboard handlers for WASD flythrough
+    onKeyDown(event) {
+        // Track which keys are pressed
+        this.keysPressed[event.key.toLowerCase()] = true;
+    }
+    
+    onKeyUp(event) {
+        this.keysPressed[event.key.toLowerCase()] = false;
+    }
+    
+    // Touch/trackpad gesture handlers
+    onTouchStart(event) {
+        event.preventDefault();
+        
+        // Store touch positions
+        this.touches = {};
+        for (let i = 0; i < event.touches.length; i++) {
+            const touch = event.touches[i];
+            this.touches[touch.identifier] = {
+                x: touch.clientX,
+                y: touch.clientY,
+                startX: touch.clientX,
+                startY: touch.clientY
+            };
+        }
+        
+        // Two-finger gestures
+        if (event.touches.length === 2) {
+            const touch1 = event.touches[0];
+            const touch2 = event.touches[1];
+            
+            // Calculate initial pinch distance
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            this.lastPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Calculate initial touch center
+            this.lastTouchCenter = {
+                x: (touch1.clientX + touch2.clientX) / 2,
+                y: (touch1.clientY + touch2.clientY) / 2
+            };
+            
+            // Store starting camera position for gestures
+            this.touchStartPositions = {
+                camera: this.camera.position.clone(),
+                focus: this.focusPoint.clone()
+            };
+            
+            console.log('👆 Two-finger gesture started');
+        }
+    }
+    
+    onTouchMove(event) {
+        event.preventDefault();
+        
+        if (event.touches.length === 1) {
+            // Single finger = pan (like mouse drag)
+            const touch = event.touches[0];
+            const prevTouch = this.touches[touch.identifier];
+            
+            if (prevTouch) {
+                const deltaX = touch.clientX - prevTouch.x;
+                const deltaY = touch.clientY - prevTouch.y;
+                
+                // Get camera vectors
+                const right = new THREE.Vector3();
+                this.camera.getWorldDirection(right);
+                right.cross(this.camera.up).normalize();
+                
+                const forward = new THREE.Vector3();
+                this.camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+                
+                // Calculate movement
+                const distance = this.camera.position.distanceTo(this.focusPoint);
+                const moveSpeed = distance * 0.002; // Slightly faster than mouse for touch
+                
+                const movement = new THREE.Vector3();
+                movement.addScaledVector(right, -deltaX * moveSpeed);
+                movement.addScaledVector(forward, deltaY * moveSpeed);
+                movement.y = 0;
+                
+                // Move camera and focus
+                this.camera.position.add(movement);
+                this.focusPoint.add(movement);
+                this.focusPoint.y = 0;
+                
+                this.controls.target.copy(this.focusPoint);
+                
+                // Update stored position
+                prevTouch.x = touch.clientX;
+                prevTouch.y = touch.clientY;
+            }
+        } else if (event.touches.length === 2) {
+            // Two fingers = pinch zoom + pan
+            const touch1 = event.touches[0];
+            const touch2 = event.touches[1];
+            
+            // Calculate current pinch distance
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            const currentDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Calculate current center
+            const currentCenter = {
+                x: (touch1.clientX + touch2.clientX) / 2,
+                y: (touch1.clientY + touch2.clientY) / 2
+            };
+            
+            // Pinch zoom
+            if (this.lastPinchDistance > 0) {
+                const pinchDelta = currentDistance - this.lastPinchDistance;
+                const zoomFactor = 1 - (pinchDelta * 0.01); // Sensitivity
+                
+                // Get center point on ground plane
+                const centerPoint = this.raycastToPlane(currentCenter.x, currentCenter.y);
+                
+                if (centerPoint) {
+                    // Move camera toward/away from center point
+                    const direction = new THREE.Vector3();
+                    direction.subVectors(centerPoint, this.camera.position);
+                    const distance = direction.length();
+                    direction.normalize();
+                    
+                    const newDistance = distance * zoomFactor;
+                    if (newDistance > 5 && newDistance < 100000) {
+                        const moveAmount = distance - newDistance;
+                        this.camera.position.addScaledVector(direction, moveAmount);
+                        
+                        // Adjust focus point slightly
+                        const towardsCursor = new THREE.Vector3();
+                        towardsCursor.subVectors(centerPoint, this.focusPoint);
+                        this.focusPoint.addScaledVector(towardsCursor, pinchDelta > 0 ? 0.05 : -0.05);
+                        this.focusPoint.y = 0;
+                        
+                        this.controls.target.copy(this.focusPoint);
+                    }
+                }
+            }
+            
+            // Two-finger pan
+            if (this.lastTouchCenter) {
+                const panDeltaX = currentCenter.x - this.lastTouchCenter.x;
+                const panDeltaY = currentCenter.y - this.lastTouchCenter.y;
+                
+                const right = new THREE.Vector3();
+                this.camera.getWorldDirection(right);
+                right.cross(this.camera.up).normalize();
+                
+                const forward = new THREE.Vector3();
+                this.camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+                
+                const distance = this.camera.position.distanceTo(this.focusPoint);
+                const moveSpeed = distance * 0.002;
+                
+                const movement = new THREE.Vector3();
+                movement.addScaledVector(right, -panDeltaX * moveSpeed);
+                movement.addScaledVector(forward, panDeltaY * moveSpeed);
+                movement.y = 0;
+                
+                this.camera.position.add(movement);
+                this.focusPoint.add(movement);
+                this.focusPoint.y = 0;
+                
+                this.controls.target.copy(this.focusPoint);
+            }
+            
+            // Update for next frame
+            this.lastPinchDistance = currentDistance;
+            this.lastTouchCenter = currentCenter;
+        }
+    }
+    
+    onTouchEnd(event) {
+        event.preventDefault();
+        
+        // Remove ended touches
+        const activeTouchIds = new Set();
+        for (let i = 0; i < event.touches.length; i++) {
+            activeTouchIds.add(event.touches[i].identifier);
+        }
+        
+        // Clean up touches that ended
+        for (const id in this.touches) {
+            if (!activeTouchIds.has(parseInt(id))) {
+                delete this.touches[id];
+            }
+        }
+        
+        // Reset gesture state if no touches left
+        if (event.touches.length < 2) {
+            this.lastPinchDistance = 0;
+            this.lastTouchCenter = null;
+            this.touchStartPositions = null;
+        }
+    }
+    
     update() {
+        // WASD flythrough movement (when right mouse button held)
+        if (this.flythroughActive && this.enabled) {
+            const moveSpeed = 2.0; // Units per frame
+            
+            // Get camera vectors
+            const forward = new THREE.Vector3();
+            this.camera.getWorldDirection(forward);
+            
+            const right = new THREE.Vector3();
+            right.crossVectors(forward, this.camera.up).normalize();
+            
+            const up = this.camera.up.clone();
+            
+            const movement = new THREE.Vector3();
+            
+            // WASD movement
+            if (this.keysPressed['w']) movement.addScaledVector(forward, moveSpeed);
+            if (this.keysPressed['s']) movement.addScaledVector(forward, -moveSpeed);
+            if (this.keysPressed['a']) movement.addScaledVector(right, -moveSpeed);
+            if (this.keysPressed['d']) movement.addScaledVector(right, moveSpeed);
+            if (this.keysPressed['q']) movement.addScaledVector(up, -moveSpeed); // Down
+            if (this.keysPressed['e']) movement.addScaledVector(up, moveSpeed);  // Up
+            
+            // Apply movement
+            if (movement.length() > 0) {
+                this.camera.position.add(movement);
+                this.focusPoint.add(movement);
+                this.focusPoint.y = 0; // Keep focus on ground plane
+                this.controls.target.copy(this.focusPoint);
+            }
+        }
+        
         // Ensure camera always looks at focus point
         if (this.enabled && this.focusPoint) {
             this.camera.lookAt(this.focusPoint);

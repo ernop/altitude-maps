@@ -54,7 +54,9 @@ def main():
     parser.add_argument('--target-pixels', type=int, default=4096,
                        help='Target resolution (default: 4096)')
     parser.add_argument('--force', action='store_true',
-                       help='Force reprocessing even if output exists')
+                       help='Force reprocessing: delete clipped, processed, AND generated files')
+    parser.add_argument('--states', nargs='+',
+                       help='Process only specific states (e.g., ohio kentucky)')
     
     args = parser.parse_args()
     
@@ -91,26 +93,46 @@ def main():
     print(f"Target resolution: {args.target_pixels}px")
     print("=" * 70)
     
-    # If force, delete existing processed files
-    if args.force:
-        print("\n🗑️  Deleting existing processed files...")
-        clipped_dir = Path('data/clipped/srtm_30m')
-        processed_dir = Path('data/processed/srtm_30m')
-        generated_dir = Path('generated/regions')
-        
-        for state_id, _, _ in state_files:
-            # Delete clipped
-            for f in clipped_dir.glob(f'{state_id}_*'):
-                f.unlink()
-                print(f"   Deleted: {f}")
-            # Delete processed
-            for f in processed_dir.glob(f'{state_id}_*'):
-                f.unlink()
-                print(f"   Deleted: {f}")
-            # Delete generated
-            for f in generated_dir.glob(f'{state_id}_*'):
-                f.unlink()
-                print(f"   Deleted: {f}")
+    # Clean intermediate files with proper dependency handling
+    # --force: Delete everything (clipped, processed, generated)
+    # No --force: Delete only generated files (keep clipped/processed if valid)
+    print("\n🗑️  Cleaning old intermediate files...")
+    clipped_dir = Path('data/clipped/srtm_30m')
+    processed_dir = Path('data/processed/srtm_30m')
+    generated_dir = Path('generated/regions')
+    
+    deleted_count = 0
+    for state_id, _, _ in state_files:
+        if args.force:
+            # Delete everything - full rebuild
+            if clipped_dir.exists():
+                for f in clipped_dir.glob(f'{state_id}_*'):
+                    f.unlink()
+                    print(f"   Deleted clipped: {f.name}")
+                    deleted_count += 1
+            if processed_dir.exists():
+                for f in processed_dir.glob(f'{state_id}_*'):
+                    f.unlink()
+                    print(f"   Deleted processed: {f.name}")
+                    deleted_count += 1
+            if generated_dir.exists():
+                for f in generated_dir.glob(f'{state_id}_*'):
+                    f.unlink()
+                    print(f"   Deleted generated: {f.name}")
+                    deleted_count += 1
+        else:
+            # Only delete generated files - let pipeline decide if clipped/processed need regeneration
+            # This allows fixing export bugs without re-clipping/re-downsampling
+            if generated_dir.exists():
+                for f in generated_dir.glob(f'{state_id}_*'):
+                    f.unlink()
+                    print(f"   Deleted generated: {f.name}")
+                    deleted_count += 1
+    
+    if deleted_count > 0:
+        print(f"   Total deleted: {deleted_count} files")
+    else:
+        print("   No old files found to delete")
     
     # Process each state
     succeeded = []

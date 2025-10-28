@@ -66,6 +66,24 @@ def clip_to_boundary(
         print(f"      ✅ Already clipped: {output_path.name}")
         return True
     
+    # If we're regenerating the clipped file, delete dependent processed and generated files
+    # This ensures the entire pipeline uses consistent data
+    processed_dir = Path('data/processed') / source
+    generated_dir = Path('generated/regions')
+    
+    deleted_deps = []
+    if processed_dir.exists():
+        for f in processed_dir.glob(f'{region_id}_*'):
+            f.unlink()
+            deleted_deps.append(f"processed/{f.name}")
+    if generated_dir.exists():
+        for f in generated_dir.glob(f'{region_id}_*'):
+            f.unlink()
+            deleted_deps.append(f"generated/{f.name}")
+    
+    if deleted_deps:
+        print(f"      🗑️  Deleted {len(deleted_deps)} dependent file(s) (will be regenerated)")
+    
     print(f"      🔍 Loading {boundary_type} boundary geometry for {boundary_name}...")
     
     # Get boundary geometry based on type
@@ -171,6 +189,16 @@ def downsample_for_viewer(
         print(f"      ✅ Already processed: {output_path.name}")
         return True
     
+    # If we're regenerating the processed file, delete dependent generated files
+    generated_dir = Path('generated/regions')
+    if generated_dir.exists():
+        deleted_count = 0
+        for f in generated_dir.glob(f'{region_id}_*'):
+            f.unlink()
+            deleted_count += 1
+        if deleted_count > 0:
+            print(f"      🗑️  Deleted {deleted_count} generated file(s) (will be regenerated)")
+    
     print(f"      🔄 Downsampling to {target_pixels}×{target_pixels}...")
     
     try:
@@ -191,12 +219,6 @@ def downsample_for_viewer(
                 scale_factor = max_dim / target_pixels
                 step_size = max(1, int(math.ceil(scale_factor)))
                 
-                new_height = src.height // step_size
-                new_width = src.width // step_size
-                
-                print(f"      Target: {new_width} × {new_height} pixels")
-                print(f"      Scale factor: {1.0/step_size:.3f}x")
-                
                 # Read and downsample
                 print(f"      Reading elevation data...")
                 elevation = src.read(1)
@@ -205,14 +227,23 @@ def downsample_for_viewer(
                 print(f"      Downsampling (step: {step_size}×{step_size})...")
                 downsampled = elevation[::step_size, ::step_size]
                 
+                # CRITICAL: Use actual array shape after slicing, not dimension // step_size
+                # Array slicing includes endpoints, so shape may be 1 pixel larger than expected
+                # Example: array[::8] with length 12833 gives 1605 values, not 1604
+                new_height = downsampled.shape[0]
+                new_width = downsampled.shape[1]
+                
+                print(f"      Target: {new_width} × {new_height} pixels")
+                print(f"      Scale factor: {1.0/step_size:.3f}x")
+                
                 # Update metadata
                 out_meta = src.meta.copy()
                 out_meta.update({
-                    "height": downsampled.shape[0],
-                    "width": downsampled.shape[1],
+                    "height": new_height,
+                    "width": new_width,
                     "transform": src.transform * src.transform.scale(
-                        src.width / downsampled.shape[1],
-                        src.height / downsampled.shape[0]
+                        src.width / new_width,
+                        src.height / new_height
                     )
                 })
                 
