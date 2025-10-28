@@ -18,10 +18,8 @@ from typing import Tuple, Optional
 import numpy as np
 from tqdm import tqdm
 
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# NOTE: This is a library module - do NOT wrap stdout/stderr
+# Modern Python handles UTF-8 correctly by default
 
 
 class USGSElevationDownloader:

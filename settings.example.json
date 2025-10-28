@@ -10,7 +10,7 @@
     "output_dir": "generated/regions"
   },
   "rendering": {
-    "default_bucket_size": 12,
+    "default_bucket_size": 4,
     "default_vertical_exaggeration": 4.0
   }
 }

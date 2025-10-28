@@ -9,14 +9,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Fix Windows console encoding  
-if sys.platform == 'win32':
-    try:
-        if hasattr(sys.stdout, 'buffer') and not isinstance(sys.stdout, io.TextIOWrapper):
-            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        if hasattr(sys.stderr, 'buffer') and not isinstance(sys.stderr, io.TextIOWrapper):
-            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-    except (AttributeError, ValueError, OSError):
-        pass
+# NOTE: This is a library module - DO NOT wrap sys.stdout/stderr here
+# Let the calling script handle UTF-8 encoding via $env:PYTHONIOENCODING="utf-8"
 
 
 def load_settings(settings_file: str = "settings.json") -> Dict[str, Any]:
@@ -122,7 +116,7 @@ def get_rendering_settings() -> Dict[str, Any]:
     """
     settings = load_settings()
     return settings.get('rendering', {
-        'default_bucket_size': 12,
+        'default_bucket_size': 4,
         'default_vertical_exaggeration': 4.0
     })
 

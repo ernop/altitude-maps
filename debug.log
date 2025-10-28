@@ -1,0 +1,4 @@
+Γ¥î Error: region argument is required (unless using --list)
+Usage: python download_unified.py <region> [options]
+Or: python download_unified.py --list
+EXIT CODE: 1

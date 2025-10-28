@@ -11,14 +11,9 @@ This module orchestrates the full workflow from raw download to viewer-ready exp
 User runs ONE command, pipeline handles everything automatically.
 """
 import sys
-import io
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 import json
-
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 try:
     import rasterio
@@ -383,7 +378,16 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                 with open(json_file) as f:
                     data = json.load(f)
                 
-                region_id = data.get("region_id", json_file.stem.split('_')[0])
+                # Extract region_id: prefer from JSON, else infer from filename
+                # Remove suffixes like "_srtm_30m_4000px_v2" but keep multi-word names
+                stem = json_file.stem
+                # Known suffixes to strip
+                for suffix in ['_srtm_30m_4000px_v2', '_srtm_30m_800px_v2', '_srtm_30m_v2', '_bbox_30m']:
+                    if stem.endswith(suffix):
+                        stem = stem[:-len(suffix)]
+                        break
+                
+                region_id = data.get("region_id", stem)
                 
                 manifest["regions"][region_id] = {
                     "name": data.get("name", region_id.replace('_', ' ').title()),

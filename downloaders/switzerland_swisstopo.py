@@ -14,9 +14,8 @@ import io
 from pathlib import Path
 from typing import Tuple, Optional
 
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# NOTE: Can be imported as library - do NOT wrap stdout/stderr
+# Modern Python handles UTF-8 correctly by default
 
 try:
     import requests

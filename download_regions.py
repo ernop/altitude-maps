@@ -12,10 +12,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 import numpy as np
 
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# NOTE: This is a library module that may be imported - DO NOT wrap sys.stdout/stderr
+# Let calling scripts handle UTF-8 encoding via $env:PYTHONIOENCODING="utf-8"
 
 try:
     import rasterio
