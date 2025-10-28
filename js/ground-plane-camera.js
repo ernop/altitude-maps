@@ -8,7 +8,7 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Maps)', 'Left drag = pan, Shift+Left = tilt, Scroll = zoom, Right = rotate, WASD/QE = fly');
+        super('Ground Plane (Google Maps)', 'Left = pan, Shift+Left = tilt, Alt+Left/Right = rotate, Scroll = zoom, WASD/QE = fly');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -97,12 +97,13 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
             console.log('🔽 Tilt started (Shift+Left)');
-        } else if (event.button === 0 && event.altKey) { // Alt+Left = Also tilt (alternative mapping)
-            this.state.tilting = true;
-            this.state.tiltStart = { x: event.clientX, y: event.clientY };
+        } else if (event.button === 0 && event.altKey) { // Alt+Left = Tumble/Rotate (Maya style)
+            this.state.rotating = true;
+            this.state.rotatingWithAlt = true; // Track that Alt was used
+            this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
-            console.log('🔽 Tilt started (Alt+Left)');
+            console.log('🔄 Tumble started (Alt+Left, Maya style)');
         } else if (event.button === 0) { // Left = Pan along plane
             this.state.panning = true;
             this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
@@ -111,6 +112,7 @@ class GroundPlaneCamera extends CameraScheme {
             console.log('🖱️ Pan started on plane');
         } else if (event.button === 2) { // Right = Rotate around focus point
             this.state.rotating = true;
+            this.state.rotatingWithAlt = false; // Right button, not Alt
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
@@ -158,9 +160,9 @@ class GroundPlaneCamera extends CameraScheme {
         }
         
         if (this.state.tilting) {
-            // If Shift/Alt key is released mid-drag, cancel tilt operation smoothly
-            if (!event.shiftKey && !event.altKey) {
-                console.log('🔽 Tilt cancelled (modifier released)');
+            // If Shift key is released mid-drag, cancel tilt operation smoothly
+            if (!event.shiftKey) {
+                console.log('🔽 Tilt cancelled (Shift released)');
                 this.state.tilting = false;
                 return;
             }
@@ -191,29 +193,40 @@ class GroundPlaneCamera extends CameraScheme {
         }
         
         if (this.state.rotating) {
-            // Rotate: Orbit camera around focus point, maintaining distance from plane
+            // If Alt was used to start rotation and Alt is released, cancel smoothly
+            if (this.state.rotatingWithAlt && !event.altKey) {
+                console.log('🔄 Rotation cancelled (Alt released)');
+                this.state.rotating = false;
+                this.state.rotatingWithAlt = false;
+                return;
+            }
+            
+            // Google Earth style rotation: rotate view around focus point
+            // Horizontal drag = rotate around vertical axis (turn left/right)
+            // Vertical drag = tilt view up/down
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
             
-            // Get vector from focus point to camera
+            // Get current offset from focus to camera
             const offset = new THREE.Vector3();
             offset.subVectors(this.state.cameraStart, this.state.focusStart);
             
-            // Convert to spherical coordinates for rotation
+            // Convert to spherical coordinates
             const spherical = new THREE.Spherical();
             spherical.setFromVector3(offset);
             
-            // Rotate horizontally (theta)
+            // Apply rotation
+            // Horizontal: rotate around vertical axis (theta)
             spherical.theta -= deltaX * 0.005;
             
-            // Rotate vertically (phi) - limit to prevent flipping
+            // Vertical: tilt (phi) - drag right to tilt down (see more ground)
             spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi - deltaY * 0.005));
             
-            // Convert back to Cartesian and apply
+            // Convert back and update camera position
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.focusPoint).add(offset);
             
-            // Update controls target (lookAt will be handled by update() loop for smoothness)
+            // Update controls target
             this.controls.target.copy(this.focusPoint);
         }
     }
@@ -227,9 +240,15 @@ class GroundPlaneCamera extends CameraScheme {
             if (this.state.panning) {
                 console.log(`📍 Pan ended. Focus point: (${this.focusPoint.x.toFixed(1)}, ${this.focusPoint.y.toFixed(1)}, ${this.focusPoint.z.toFixed(1)})`);
             }
+            if (this.state.rotating) {
+                console.log('🔄 Rotation ended');
+                this.state.rotating = false;
+                this.state.rotatingWithAlt = false;
+            }
             this.state.panning = false;
         } else if (event.button === 2) {
             this.state.rotating = false;
+            this.state.rotatingWithAlt = false;
         }
     }
     
@@ -276,12 +295,58 @@ class GroundPlaneCamera extends CameraScheme {
     
     // Keyboard handlers for WASD flythrough
     onKeyDown(event) {
-        // Track which keys are pressed
-        this.keysPressed[event.key.toLowerCase()] = true;
+        const key = event.key.toLowerCase();
+        
+        // F key = reframe view to center of terrain
+        if (key === 'f') {
+            this.reframeView();
+            return;
+        }
+        
+        // Track which keys are pressed for continuous movement
+        this.keysPressed[key] = true;
     }
     
     onKeyUp(event) {
         this.keysPressed[event.key.toLowerCase()] = false;
+    }
+    
+    // Reframe view to center of terrain (F key)
+    reframeView() {
+        // Get terrain bounds from the scene (passed via external reference)
+        if (!this.terrainBounds) {
+            console.log('⚠️ No terrain bounds available for reframing');
+            return;
+        }
+        
+        const bounds = this.terrainBounds;
+        const center = new THREE.Vector3(
+            (bounds.minX + bounds.maxX) / 2,
+            0, // Keep focus on ground plane
+            (bounds.minZ + bounds.maxZ) / 2
+        );
+        
+        // Calculate size of terrain
+        const width = bounds.maxX - bounds.minX;
+        const depth = bounds.maxZ - bounds.minZ;
+        const size = Math.max(width, depth);
+        
+        // Position camera to frame the terrain
+        // Distance based on terrain size (adjusted for comfortable view)
+        const distance = size * 0.8;
+        const height = distance * 0.6; // Look down at ~30-degree angle
+        
+        // Place camera above and behind center
+        this.camera.position.set(center.x, height, center.z + distance * 0.5);
+        this.focusPoint.copy(center);
+        this.controls.target.copy(this.focusPoint);
+        
+        console.log(`📐 Reframed view to terrain center: (${center.x.toFixed(1)}, ${center.z.toFixed(1)})`);
+    }
+    
+    // Set terrain bounds (called externally by viewer)
+    setTerrainBounds(minX, maxX, minZ, maxZ) {
+        this.terrainBounds = { minX, maxX, minZ, maxZ };
     }
     
     // Touch/trackpad gesture handlers

@@ -49,10 +49,11 @@ STATE_NAMES = {
 
 def main():
     import argparse
+    from src.config import DEFAULT_TARGET_PIXELS
     
     parser = argparse.ArgumentParser(description='Reprocess existing state data')
-    parser.add_argument('--target-pixels', type=int, default=4096,
-                       help='Target resolution (default: 4096)')
+    parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS,
+                       help=f'Target resolution (default: {DEFAULT_TARGET_PIXELS})')
     parser.add_argument('--force', action='store_true',
                        help='Force reprocessing: delete clipped, processed, AND generated files')
     parser.add_argument('--states', nargs='+',

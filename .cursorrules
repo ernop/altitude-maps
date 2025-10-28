@@ -186,16 +186,15 @@ python download_regions.py  # If using regions
    - Speed: Adaptive based on distance from focus point (distance * 0.001)
    - Camera and focus point move together, maintaining view angle
 
-2. **Shift + Left Drag = Tilt View (Pitch Adjustment)** (Alt + Left Drag also works)
+2. **Shift + Left Drag = Tilt View (Pitch Adjustment)**
    - Behavior: Change viewing angle to see more/less terrain
    - Drag DOWN → tilt down (increase phi angle, see more land/horizon)
    - Drag UP → tilt up (decrease phi angle, more overhead view)
    - Implementation: Spherical coordinate adjustment around focus point
    - Angle limits: 0.1 to π/2 - 0.01 radians (prevents camera flip)
    - Tilt speed: 0.005 radians per pixel
-   - Cancels smoothly if Shift/Alt released mid-drag (prevents jank)
+   - Cancels smoothly if Shift released mid-drag (prevents jank)
    - Focus point stays fixed on ground plane
-   - **Alternative mapping:** Alt + Left Drag (common in professional 3D tools)
 
 3. **Right Drag = Rotate Around Focus Point**
    - Behavior: Orbit camera around current focus point
@@ -205,6 +204,8 @@ python download_regions.py  # If using regions
    - Rotation speed: 0.005 radians per pixel
    - Maintains constant distance from focus point
    - Same angle limits as tilt to prevent flipping
+   - **Alternative mapping:** Alt + Left Drag (Maya/3ds Max/Cinema 4D style "tumble")
+   - Cancels smoothly if Alt released mid-drag (prevents jank)
 
 4. **Mouse Wheel = Zoom Toward/Away From Cursor**
    - Behavior: Zoom toward point under cursor (Google Maps style)
@@ -230,14 +231,16 @@ python download_regions.py  # If using regions
    - Speed: 2.0 units per frame
    - Focus point moves with camera to maintain ground plane model
 
-6. **Touch/Trackpad Gestures** (NEW)
-   - **Single finger drag** = Pan (same as left mouse drag)
+6. **Touch/Trackpad Gestures** (NEW - Google Maps style)
+   - **Single finger drag** = Pan (mobile touch)
+   - **Two-finger drag** = Pan (trackpad/desktop, Google Maps style)
    - **Two-finger pinch** = Zoom in/out (pinch together = zoom in, spread apart = zoom out)
-   - **Two-finger drag** = Pan while zoomed (simultaneous pan during pinch gesture)
+   - **Simultaneous pan + zoom** = Two-finger gesture supports both at once
    - Implementation: Touch event handlers with gesture recognition
    - Prevents default touch behavior to avoid page scrolling
    - Zoom sensitivity: 1% per pixel of pinch distance change
    - All gestures maintain ground plane model (focus stays at y=0)
+   - Works on mobile devices (phones/tablets) and desktop trackpads (MacBook, etc.)
 
 **Implementation Pattern (DO NOT DEVIATE):**
 ```javascript
@@ -337,6 +340,20 @@ Priority order for any country:
 
 # Interactive 3D viewer (primary interface)
 python serve_viewer.py  # Visit http://localhost:8001
+
+# ONE COMMAND: Ensure a region is ready (download + process + check)
+python ensure_region.py ohio                    # Download if needed, process if needed
+python ensure_region.py tennessee --force-reprocess  # Force full rebuild
+python ensure_region.py california --target-pixels 4096  # High resolution
+
+# Check region data through entire pipeline
+python check_region.py ohio                     # Check all stages (raw → JSON)
+python check_region.py kentucky --verbose       # Detailed output
+python check_region.py tennessee --raw-only     # Only check raw file
+
+# Reprocess existing state data
+python reprocess_existing_states.py --target-pixels 2048 --states ohio kentucky
+python reprocess_existing_states.py --target-pixels 2048 --force  # Full rebuild all states
 
 # Export data for web viewer
 python export_for_web_viewer.py data/usa.tif

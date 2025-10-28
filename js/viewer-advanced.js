@@ -940,7 +940,7 @@ function autoAdjustBucketSize() {
     
     const { width, height } = rawElevationData;
     // Reduced from 10000 to ~3900 (60% larger bucket size means ~40% of original bucket count)
-    const TARGET_BUCKET_COUNT = 35000;
+    const TARGET_BUCKET_COUNT = 190000;
     
     // Calculate optimal bucket size to stay within TARGET_BUCKET_COUNT constraint
     // Start with direct calculation: bucketSize = ceil(sqrt(width * height / TARGET_BUCKET_COUNT))
