@@ -18,9 +18,11 @@ def update_manifest_directly(generated_dir: Path) -> bool:
             "regions": {}
         }
         
-        # Find all JSON files (excluding manifests and metadata)
+        # Find all JSON files (excluding manifests, metadata, and borders)
         for json_file in sorted(generated_dir.glob("*.json")):
-            if json_file.stem.endswith('_meta') or 'manifest' in json_file.stem:
+            if (json_file.stem.endswith('_meta') or 
+                json_file.stem.endswith('_borders') or 
+                'manifest' in json_file.stem):
                 continue
             
             try:

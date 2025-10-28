@@ -9,10 +9,6 @@ let borderData = null;
 let frameCount = 0;
 let lastTime = performance.now();
 
-// Compass/orientation indicator
-let compassScene, compassCamera, compassRenderer;
-let compassSphere, compassLabels = [];
-
 // Directional edge markers (N, E, S, W)
 // PRODUCT REQUIREMENT: These markers must NOT move when user adjusts vertical exaggeration slider
 // Implementation: Create once at current exaggeration, don't recreate on exaggeration changes
@@ -28,7 +24,7 @@ let params = {
     colorScheme: 'terrain',
     wireframeOverlay: false,
     showGrid: false,
-    showBorders: true,
+    showBorders: false,
     flatShading: true,
     autoRotate: false
 };
@@ -37,7 +33,6 @@ let params = {
 async function init() {
     try {
         setupScene();
-        setupCompass();
         setupEventListeners();
         
         // Populate region selector and load first region
@@ -498,167 +493,6 @@ function rebucketData() {
     const duration = (performance.now() - startTime).toFixed(2);
     const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
     console.log(`âœ… Bucketed to ${bucketedWidth}Ã—${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
-}
-
-function setupCompass() {
-    // Create a separate scene for the compass gizmo
-    compassScene = new THREE.Scene();
-    
-    // Create camera for the compass
-    // Note: 0.1 to 100 = 1000:1 ratio is acceptable here because compass scene
-    // has minimal depth (all objects within a few units). Main camera needs stricter limits.
-    compassCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    compassCamera.position.set(0, 0, 4);
-    compassCamera.lookAt(0, 0, 0);
-    
-    // Create compass renderer (small viewport)
-    compassRenderer = new THREE.WebGLRenderer({ 
-        antialias: true,
-        alpha: true
-    });
-    compassRenderer.setSize(120, 120);
-    compassRenderer.setClearColor(0x0a0a0a, 1);
-    document.getElementById('compass-container').appendChild(compassRenderer.domElement);
-    
-    // Create a group to hold all gizmo elements
-    const gizmoGroup = new THREE.Group();
-    compassScene.add(gizmoGroup);
-    compassSphere = gizmoGroup; // Reuse this variable for the group
-    
-    // Create three torus rings for X, Y, Z axes (like Roblox Studio)
-    const torusRadius = 1.0;
-    const tubeRadius = 0.04;
-    const radialSegments = 64;
-    const tubularSegments = 12;
-    
-    // X-axis ring (RED) - rotates around X
-    const xRingGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, tubularSegments, radialSegments);
-    const xRingMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0xff4444,
-        transparent: true,
-        opacity: 0.9
-    });
-    const xRing = new THREE.Mesh(xRingGeometry, xRingMaterial);
-    xRing.rotation.y = Math.PI / 2; // Rotate to align with X axis
-    gizmoGroup.add(xRing);
-    
-    // Y-axis ring (GREEN) - rotates around Y
-    const yRingGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, tubularSegments, radialSegments);
-    const yRingMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x44ff44,
-        transparent: true,
-        opacity: 0.9
-    });
-    const yRing = new THREE.Mesh(yRingGeometry, yRingMaterial);
-    yRing.rotation.x = Math.PI / 2; // Rotate to align with Y axis
-    gizmoGroup.add(yRing);
-    
-    // Z-axis ring (BLUE) - rotates around Z
-    const zRingGeometry = new THREE.TorusGeometry(torusRadius, tubeRadius, tubularSegments, radialSegments);
-    const zRingMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x4444ff,
-        transparent: true,
-        opacity: 0.9
-    });
-    const zRing = new THREE.Mesh(zRingGeometry, zRingMaterial);
-    // Z ring stays in default orientation
-    gizmoGroup.add(zRing);
-    
-    // Add cardinal direction arrows
-    // Geographic mapping: +X=East, -X=West, -Z=North, +Z=South, +Y=Up
-    const arrowLength = 1.3;
-    const arrowHeadLength = 0.25;
-    const arrowHeadWidth = 0.18;
-    
-    // North (negative Z direction) - RED
-    const northArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, -1),
-        new THREE.Vector3(0, 0, 0),
-        arrowLength,
-        0xff4444,
-        arrowHeadLength,
-        arrowHeadWidth
-    );
-    gizmoGroup.add(northArrow);
-    
-    // South (positive Z direction) - LIGHT BLUE
-    const southArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1),
-        new THREE.Vector3(0, 0, 0),
-        arrowLength,
-        0x4488ff,
-        arrowHeadLength,
-        arrowHeadWidth
-    );
-    gizmoGroup.add(southArrow);
-    
-    // East (positive X direction) - GREEN
-    const eastArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(1, 0, 0),
-        new THREE.Vector3(0, 0, 0),
-        arrowLength,
-        0x44ff44,
-        arrowHeadLength,
-        arrowHeadWidth
-    );
-    gizmoGroup.add(eastArrow);
-    
-    // West (negative X direction) - YELLOW
-    const westArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(-1, 0, 0),
-        new THREE.Vector3(0, 0, 0),
-        arrowLength,
-        0xffff44,
-        arrowHeadLength,
-        arrowHeadWidth
-    );
-    gizmoGroup.add(westArrow);
-    
-    // Add text labels for cardinal directions
-    addCompassLabel('N', new THREE.Vector3(0, 0, -1.6), 0xff4444);
-    addCompassLabel('S', new THREE.Vector3(0, 0, 1.6), 0x4488ff);
-    addCompassLabel('E', new THREE.Vector3(1.6, 0, 0), 0x44ff44);
-    addCompassLabel('W', new THREE.Vector3(-1.6, 0, 0), 0xffff44);
-    
-    // Add subtle lighting
-    const compassLight = new THREE.AmbientLight(0xffffff, 1.2);
-    compassScene.add(compassLight);
-}
-
-function addCompassLabel(text, position, color) {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    canvas.width = 64;
-    canvas.height = 64;
-    
-    context.font = 'Bold 48px Arial';
-    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(text, 32, 32);
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    const spriteMaterial = new THREE.SpriteMaterial({ 
-        map: texture,
-        transparent: true
-    });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.position.copy(position);
-    sprite.scale.set(0.3, 0.3, 0.3);
-    compassScene.add(sprite);
-    
-    compassLabels.push(sprite);
-}
-
-function updateCompass() {
-    if (!compassSphere || !camera) return;
-    
-    // Make the compass camera match the main camera's rotation
-    // This shows where world north/south/east/west are relative to current view
-    compassCamera.quaternion.copy(camera.quaternion);
-    
-    // Render compass
-    compassRenderer.render(compassScene, compassCamera);
 }
 
 function createEdgeMarkers() {
@@ -2271,7 +2105,6 @@ function animate() {
     
     controls.update();
     renderer.render(scene, camera);
-    updateCompass();  // Update orientation compass
     updateFPS();
 }
 

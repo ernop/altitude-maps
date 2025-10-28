@@ -269,35 +269,6 @@ input[type="checkbox"] {
     color: #5588cc;
 }
 
-/* Compass */
-#compass-container {
-    position: absolute;
-    bottom: 20px;
-    left: 20px;
-    width: 120px;
-    height: 120px;
-    border: 2px solid #5588cc;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(10px);
-    overflow: hidden;
-}
-
-#compass-label {
-    position: absolute;
-    bottom: 70px;
-    left: 20px;
-    background: rgba(0, 0, 0, 0.85);
-    padding: 5px 10px;
-    border-radius: 5px 5px 0 0;
-    border: 2px solid #5588cc;
-    border-bottom: none;
-    font-family: 'Courier New', monospace;
-    font-size: 10px;
-    color: #5588cc;
-    font-weight: bold;
-}
-
 /* Controls Help Window */
 #controls-help-window {
     position: absolute;

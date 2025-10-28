@@ -357,11 +357,19 @@ def process_state_to_json(state_id: str, state_info: Dict, tif_file: Path,
             elevation = src.read(1)
             bounds = src.bounds
             
-            # Downsample if needed
+            # Downsample if needed - PRESERVE ASPECT RATIO
             if max_size > 0 and (src.height > max_size or src.width > max_size):
-                step_y = max(1, src.height // max_size)
-                step_x = max(1, src.width // max_size)
-                elevation = elevation[::step_y, ::step_x]
+                # Calculate step size based on the LARGER dimension to preserve aspect ratio
+                scale_factor = max(src.height / max_size, src.width / max_size)
+                step_size = max(1, int(scale_factor))
+                elevation = elevation[::step_size, ::step_size]
+                
+                # Validate aspect ratio preservation
+                orig_aspect = src.width / src.height
+                result_width, result_height = elevation.shape[1], elevation.shape[0]
+                result_aspect = result_width / result_height
+                if abs(result_aspect - orig_aspect) > 0.1:
+                    print(f"   WARNING: Aspect ratio changed! Original: {orig_aspect:.3f}, Result: {result_aspect:.3f}")
             
             height, width = elevation.shape
             

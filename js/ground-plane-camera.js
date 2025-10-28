@@ -51,14 +51,10 @@ class GroundPlaneCamera extends CameraScheme {
     onMouseDown(event) {
         if (event.button === 0) { // Left = Pan along plane
             this.state.panning = true;
-            this.state.panStart = this.raycastToPlane(event.clientX, event.clientY);
-            if (this.state.panStart) {
-                this.state.focusStart = this.focusPoint.clone();
-                this.state.cameraStart = this.camera.position.clone();
-                console.log('🖱️ Pan started on plane');
-            } else {
-                this.state.panning = false;
-            }
+            this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
+            this.state.focusStart = this.focusPoint.clone();
+            this.state.cameraStart = this.camera.position.clone();
+            console.log('🖱️ Pan started on plane');
         } else if (event.button === 2) { // Right = Rotate around focus point
             this.state.rotating = true;
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
@@ -70,24 +66,41 @@ class GroundPlaneCamera extends CameraScheme {
     
     onMouseMove(event) {
         if (this.state.panning && this.state.panStart) {
-            // Pan: Slide the focus point along the ground plane
-            const currentPoint = this.raycastToPlane(event.clientX, event.clientY);
+            // Pan: Use screen-space movement for smooth dragging
+            // This is much smoother than continuous raycasting
+            const deltaX = event.clientX - this.state.panStart.x;
+            const deltaY = event.clientY - this.state.panStart.y;
             
-            if (currentPoint) {
-                // Calculate how much the plane point moved
-                const delta = new THREE.Vector3();
-                delta.subVectors(this.state.panStart, currentPoint);
-                
-                // Move focus point on the plane (only XZ, Y stays 0)
-                this.focusPoint.copy(this.state.focusStart).add(delta);
-                this.focusPoint.y = 0; // Keep on plane
-                
-                // Move camera by the same amount (parallel to plane)
-                this.camera.position.copy(this.state.cameraStart).add(delta);
-                
-                // Update controls target
-                this.controls.target.copy(this.focusPoint);
-            }
+            // Get camera's right and forward vectors (projected onto ground plane)
+            const right = new THREE.Vector3();
+            this.camera.getWorldDirection(right);
+            right.cross(this.camera.up).normalize();
+            
+            const forward = new THREE.Vector3();
+            this.camera.getWorldDirection(forward);
+            forward.y = 0; // Project onto ground plane
+            forward.normalize();
+            
+            // Calculate movement speed based on distance from focus point
+            const distance = this.camera.position.distanceTo(this.focusPoint);
+            const moveSpeed = distance * 0.001; // Adaptive speed
+            
+            // Calculate world-space movement for "grab and drag" behavior
+            // When you drag mouse DOWN, grab the map and pull it DOWN (camera moves back)
+            // When you drag mouse LEFT, grab the map and pull it LEFT (camera moves left)
+            const movement = new THREE.Vector3();
+            movement.addScaledVector(right, -deltaX * moveSpeed);  // Drag left → map left, drag right → map right
+            movement.addScaledVector(forward, deltaY * moveSpeed); // Drag down → map down, drag up → map up
+            movement.y = 0; // Keep movement on ground plane
+            
+            // Move focus point and camera together
+            this.focusPoint.copy(this.state.focusStart).add(movement);
+            this.focusPoint.y = 0; // Keep on plane
+            
+            this.camera.position.copy(this.state.cameraStart).add(movement);
+            
+            // Update controls target
+            this.controls.target.copy(this.focusPoint);
         }
         
         if (this.state.rotating) {

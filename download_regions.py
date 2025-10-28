@@ -333,13 +333,25 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             print(f"   Original size: {src.width} × {src.height}")
             print(f"   Bounds: {bounds}")
             print(f"   Elevation range: {np.nanmin(elevation):.0f}m to {np.nanmax(elevation):.0f}m")
+            print(f"   Aspect ratio: {src.width/src.height:.3f}")
             
-            # Downsample if needed
+            # Downsample if needed - PRESERVE ASPECT RATIO
             if max_size > 0 and (src.height > max_size or src.width > max_size):
-                step_y = max(1, src.height // max_size)
-                step_x = max(1, src.width // max_size)
-                elevation = elevation[::step_y, ::step_x]
-                print(f"   Downsampled to: {elevation.shape[1]} × {elevation.shape[0]} (step: {step_y}×{step_x})")
+                # Calculate step size based on the LARGER dimension to preserve aspect ratio
+                scale_factor = max(src.height / max_size, src.width / max_size)
+                step_size = max(1, int(scale_factor))
+                
+                elevation = elevation[::step_size, ::step_size]
+                result_width, result_height = elevation.shape[1], elevation.shape[0]
+                result_aspect = result_width / result_height
+                
+                print(f"   Downsampled to: {result_width} × {result_height} (step: {step_size})")
+                print(f"   Result aspect ratio: {result_aspect:.3f}")
+                
+                # Validate aspect ratio preservation
+                if abs(result_aspect - (src.width/src.height)) > 0.1:
+                    print(f"   WARNING: Aspect ratio changed significantly!")
+                    print(f"   Original: {src.width/src.height:.3f}, Result: {result_aspect:.3f}")
             
             height, width = elevation.shape
             
