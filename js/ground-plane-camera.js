@@ -8,7 +8,7 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Maps)', 'Left drag = pan on plane, Scroll = zoom perpendicular, Right = rotate');
+        super('Ground Plane (Google Maps)', 'Left drag = pan, Shift+Left = tilt, Scroll = zoom, Right = rotate');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -49,7 +49,13 @@ class GroundPlaneCamera extends CameraScheme {
     }
     
     onMouseDown(event) {
-        if (event.button === 0) { // Left = Pan along plane
+        if (event.button === 0 && event.shiftKey) { // Shift+Left = Tilt (adjust viewing angle)
+            this.state.tilting = true;
+            this.state.tiltStart = { x: event.clientX, y: event.clientY };
+            this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
+            console.log('🔽 Tilt started (Shift+Left)');
+        } else if (event.button === 0) { // Left = Pan along plane
             this.state.panning = true;
             this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
             this.state.focusStart = this.focusPoint.clone();
@@ -103,6 +109,39 @@ class GroundPlaneCamera extends CameraScheme {
             this.controls.target.copy(this.focusPoint);
         }
         
+        if (this.state.tilting) {
+            // If Shift key is released mid-drag, cancel tilt operation smoothly
+            if (!event.shiftKey) {
+                console.log('🔽 Tilt cancelled (Shift released)');
+                this.state.tilting = false;
+                return;
+            }
+            
+            // Tilt: Adjust viewing angle (phi) - drag down = tilt down (see more land), drag up = tilt up (overhead)
+            const deltaY = event.clientY - this.state.tiltStart.y;
+            
+            // Get vector from focus point to camera
+            const offset = new THREE.Vector3();
+            offset.subVectors(this.state.cameraStart, this.state.focusStart);
+            
+            // Convert to spherical coordinates
+            const spherical = new THREE.Spherical();
+            spherical.setFromVector3(offset);
+            
+            // Adjust vertical angle (phi) based on mouse movement
+            // Drag DOWN = positive deltaY = increase phi = tilt down (see more terrain)
+            // Drag UP = negative deltaY = decrease phi = tilt up (more overhead)
+            const tiltSpeed = 0.005;
+            spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi + deltaY * tiltSpeed));
+            
+            // Convert back to Cartesian and apply
+            offset.setFromSpherical(spherical);
+            this.camera.position.copy(this.focusPoint).add(offset);
+            
+            // Update controls target (lookAt will be handled by update() loop for smoothness)
+            this.controls.target.copy(this.focusPoint);
+        }
+        
         if (this.state.rotating) {
             // Rotate: Orbit camera around focus point, maintaining distance from plane
             const deltaX = event.clientX - this.state.rotateStart.x;
@@ -126,14 +165,17 @@ class GroundPlaneCamera extends CameraScheme {
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.focusPoint).add(offset);
             
-            // Always look at focus point
-            this.camera.lookAt(this.focusPoint);
+            // Update controls target (lookAt will be handled by update() loop for smoothness)
             this.controls.target.copy(this.focusPoint);
         }
     }
     
     onMouseUp(event) {
         if (event.button === 0) {
+            if (this.state.tilting) {
+                console.log('🔽 Tilt ended');
+                this.state.tilting = false;
+            }
             if (this.state.panning) {
                 console.log(`📍 Pan ended. Focus point: (${this.focusPoint.x.toFixed(1)}, ${this.focusPoint.y.toFixed(1)}, ${this.focusPoint.z.toFixed(1)})`);
             }
@@ -180,8 +222,8 @@ class GroundPlaneCamera extends CameraScheme {
         
         this.controls.target.copy(this.focusPoint);
         
-        // Make sure camera still looks at focus point
-        this.camera.lookAt(this.focusPoint);
+        // Note: camera.lookAt() is handled by update() loop, not here
+        // This prevents jitter from multiple lookAt calls per frame
     }
     
     update() {

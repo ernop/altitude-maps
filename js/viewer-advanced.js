@@ -132,7 +132,9 @@ async function loadBorderData(elevationUrl) {
             return null;
         }
         const data = await response.json();
-        console.log(`[OK] Loaded border data: ${data.countries.length} countries`);
+        const borderCount = (data.countries?.length || 0) + (data.states?.length || 0);
+        const borderType = data.states ? 'states' : 'countries';
+        console.log(`[OK] Loaded border data: ${borderCount} ${borderType}`);
         return data;
     } catch (error) {
         console.log(`[INFO] Border data not available: ${error.message}`);
@@ -1569,7 +1571,7 @@ function recreateBorders() {
     borderMeshes.forEach(mesh => scene.remove(mesh));
     borderMeshes = [];
     
-    if (!borderData || !borderData.countries) {
+    if (!borderData || (!borderData.countries && !borderData.states)) {
         console.log('[INFO] No border data available');
         return;
     }
@@ -1591,8 +1593,14 @@ function recreateBorders() {
     
     let totalSegments = 0;
     
-    borderData.countries.forEach((country) => {
-        country.segments.forEach((segment) => {
+    // Combine countries and states into a single array for processing
+    const allBorders = [
+        ...(borderData.countries || []),
+        ...(borderData.states || [])
+    ];
+    
+    allBorders.forEach((entity) => {
+        entity.segments.forEach((segment) => {
             const points = [];
             
             // Convert lon/lat to coordinates matching the render mode
@@ -1652,7 +1660,9 @@ function recreateBorders() {
         });
     });
     
-    console.log(`âœ… Created ${totalSegments} border segments for ${borderData.countries.length} countries`);
+    const entityCount = allBorders.length;
+    const entityType = borderData.states ? 'states' : 'countries';
+    console.log(`âœ… Created ${totalSegments} border segments for ${entityCount} ${entityType}`);
 }
 
 function updateStats() {
