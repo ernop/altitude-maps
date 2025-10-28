@@ -98,7 +98,45 @@ async function loadElevationData(url) {
     if (!response.ok) {
         throw new Error(`Failed to load elevation data. HTTP ${response.status}`);
     }
-    const data = await response.json();
+    
+    // Get the content length - required for progress tracking
+    const contentLength = response.headers.get('content-length');
+    if (!contentLength) {
+        console.error('Server did not provide Content-Length header - cannot show progress');
+        throw new Error('Server configuration error: missing Content-Length header');
+    }
+    
+    const total = parseInt(contentLength, 10);
+    let loaded = 0;
+    const reader = response.body.getReader();
+    const chunks = [];
+    
+    // Read the response body with progress tracking
+    while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        chunks.push(value);
+        loaded += value.length;
+        
+        // Update progress bar
+        const percentComplete = Math.round((loaded / total) * 100);
+        updateLoadingProgress(percentComplete, loaded, total);
+    }
+    
+    // Combine chunks into single Uint8Array
+    const chunksAll = new Uint8Array(loaded);
+    let position = 0;
+    for (const chunk of chunks) {
+        chunksAll.set(chunk, position);
+        position += chunk.length;
+    }
+    
+    // Convert to string and parse JSON
+    const textDecoder = new TextDecoder('utf-8');
+    const text = textDecoder.decode(chunksAll);
+    const data = JSON.parse(text);
     
     // Validate format version
     if (data.format_version && data.format_version !== EXPECTED_FORMAT_VERSION) {
@@ -311,8 +349,39 @@ async function loadRegion(regionId) {
 
 function showLoading(message = 'Loading elevation data...') {
     const loadingDiv = document.getElementById('loading');
-    loadingDiv.textContent = message;
+    loadingDiv.innerHTML = `
+        <div style="text-align: center;">
+            ${message}
+            <div class="spinner"></div>
+            <div id="progress-container" style="margin-top: 15px; width: 300px;">
+                <div id="progress-bar-bg" style="width: 100%; height: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden;">
+                    <div id="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #4488cc, #5599dd); transition: width 0.3s ease;"></div>
+                </div>
+                <div id="progress-text" style="margin-top: 8px; font-size: 13px; color: #aaa;">Initializing...</div>
+            </div>
+        </div>
+    `;
     loadingDiv.style.display = 'flex';
+}
+
+function updateLoadingProgress(percent, loaded, total) {
+    const progressFill = document.getElementById('progress-bar-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    if (!progressFill || !progressText) return;
+    
+    progressFill.style.width = `${Math.min(100, percent)}%`;
+    progressText.textContent = `${percent}% (${formatFileSize(loaded)} / ${formatFileSize(total)})`;
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    } else if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    } else {
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
 }
 
 function hideLoading() {

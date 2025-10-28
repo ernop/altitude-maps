@@ -29,11 +29,11 @@ The viewer is a **pure client-side web application** that only needs:
 
 **PowerShell (Windows):**
 ```powershell
-# Dry run first
-.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun
+# Dry run first (test, no changes)
+.\deploy.ps1 -RemoteHost wilson.com -RemotePath /home/x.com/public/maps -RemoteUser smith -DryRun
 
 # Actual deployment
-.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy
+.\deploy.ps1 -RemoteHost wilson.com -RemotePath /home/x.com/public/maps -RemoteUser smith
 ```
 
 **Bash (Linux/Mac):**
@@ -42,11 +42,38 @@ The viewer is a **pure client-side web application** that only needs:
 chmod +x deploy.sh
 
 # Dry run first
-./deploy.sh -h example.com -p /var/www/maps -u deploy -d
+./deploy.sh -h wilson.com -p /home/x.com/public/maps -u smith -d
 
 # Actual deployment
-./deploy.sh -h example.com -p /var/www/maps -u deploy
+./deploy.sh -h wilson.com -p /home/x.com/public/maps -u smith
 ```
+
+### Rsync Path Semantics
+
+**The script uses rsync with trailing slash semantics:**
+
+- Script internally: `rsync $PSScriptRoot\ user@host:/remote/path`
+- Trailing slash (`source/`) = Copy **contents** of source into destination
+- No trailing slash (`source`) = Copy **source folder itself** into destination
+
+**Our script uses trailing slash**, so files appear directly in remote path:
+
+```
+/home/x.com/public/maps/
+├── interactive_viewer_advanced.html  ← Files here
+├── js/
+├── css/
+└── generated/
+```
+
+**NOT nested** like this:
+```
+/home/x.com/public/maps/
+└── altitude-maps/  ← Does NOT create this
+    └── ...
+```
+
+This matches rsync standard behavior exactly.
 
 ### What It Does
 

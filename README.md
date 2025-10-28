@@ -15,6 +15,15 @@ Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Wh
 
 ## Recent Updates (October 2025)
 
+### 🎮 Camera Control Enhancements (October 28, 2025)
+Major updates to interactive viewer controls:
+- **WASD/QE flythrough** - Unity/Unreal-style first-person camera movement
+- **F key reframe** - Instantly center view on terrain bounds (like Maya/Blender)
+- **Touch & trackpad gestures** - Pinch zoom, two-finger pan (Google Maps style)
+- **Alt+Left rotate** - Maya/3ds Max style tumble (same as right-drag)
+- **Smart typing detection** - Keyboard shortcuts disabled while typing in inputs
+- All controls work simultaneously with no conflicts
+
 ### 🎯 Multi-Region Support
 The interactive viewer now supports **45+ pre-configured regions worldwide** with a dropdown selector! Switch between USA, Japan, Switzerland, and more without refreshing. Just download data for your regions and they appear automatically.
 
@@ -150,11 +159,20 @@ See [User Guide](tech/USER_GUIDE.md) for more details.
 - Data caching prevents re-downloading
 - Progressive loading for large datasets
 
-### 🎮 **Controls**
-- **Mouse**: Right-click to rotate, wheel to zoom, left-click to pan
-- **Keyboard**: WASD for flying, QE for up/down, Shift for speed
-- **Modifiers**: Ctrl (slow), Alt (fast), Shift (medium-fast)
-- **Presets**: Overhead, cardinal directions, isometric views
+### 🎮 **Controls** (October 2025 Update)
+- **Mouse**: 
+  - Left-drag = pan, Shift+Left-drag = tilt
+  - Right-drag or Alt+Left-drag = rotate (Google Earth/Maya style)
+  - Wheel = zoom toward cursor
+- **Keyboard**: 
+  - WASD = fly forward/left/back/right
+  - QE = descend/ascend
+  - F = reframe view to terrain center
+  - R = reset camera, Space = toggle auto-rotate
+- **Touch/Trackpad**: 
+  - Single/two-finger drag = pan
+  - Pinch = zoom (mobile & laptop trackpads)
+- **Smart**: Keys disabled while typing in input fields
 
 ## Example Use Cases
 

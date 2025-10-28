@@ -341,7 +341,6 @@ def export_for_viewer(
     # Check if output exists and is valid
     if output_path.exists():
         try:
-            import json
             with open(output_path) as f:
                 data = json.load(f)
             
