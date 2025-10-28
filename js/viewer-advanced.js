@@ -548,7 +548,7 @@ function createEdgeMarkers() {
         sprite.position.set(markerData.x, markerHeight, markerData.z);
         
         // Scale based on terrain size
-        const baseScale = avgSize * 0.02;  // 2% of average dimension
+        const baseScale = avgSize * 0.06;  // 6% of average dimension (tripled from original 2%)
         sprite.scale.set(baseScale, baseScale, baseScale);
         
         scene.add(sprite);
