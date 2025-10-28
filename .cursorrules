@@ -5,9 +5,10 @@ This is a landscape visualization project focused on showing altitude of various
 
 ## Project Organization - Documentation Structure
 
-### Root Level - ONLY These Two Files
+### Root Level - Essential Files Only
 - **`.cursorrules`** - AI agent guidance and development patterns
 - **`README.md`** - Public user documentation (product-focused)
+- **`DEPLOY_README.md`** - Production deployment guide (exception for ops)
 
 ### Technical Documentation (`tech/` folder)
 All technical documentation goes in `tech/` folder with standardized naming:
@@ -31,7 +32,8 @@ Session notes and development threads only:
 4. **New features**: Update both README.md (brief mention) and tech/USER_GUIDE.md (detailed)
 5. **Session notes**: Create `learnings/SESSION_YYYYMMDD_description.md` with standardized naming
 6. **Bug fixes/learnings**: Create `learnings/[FEATURE]_FIX_SUMMARY.md` or similar
-7. **Never create**: Root-level documentation files except .cursorrules and README.md (no `.txt`, no extra `.md` files)
+7. **Deployment/ops**: DEPLOY_README.md at root is acceptable (operational necessity)
+8. **Never create**: Other root-level documentation files (no `.txt`, no extra `.md` files - keep root clean)
 
 ### Why This Structure
 - **Clean root**: Easy to find the main docs
@@ -354,7 +356,64 @@ python download_regions.py
 # Work with borders
 python border_utils.py --list  # List available countries
 python border_utils.py --test your_data.tif  # Test borders on data
+
+# Production deployment
+.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun  # test
+.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy          # deploy
 ```
+
+## Production Deployment
+
+### Architecture
+The viewer is a **pure client-side web application** that runs entirely in the browser:
+- ✅ No server-side code required
+- ✅ Works with any static web server (nginx, apache, etc.)
+- ✅ All paths are relative (no configuration needed)
+- ✅ External dependencies from CDN (Three.js, jQuery, Select2)
+
+### Production vs Development Files
+
+**Production (deploy these):**
+- `interactive_viewer_advanced.html` - Main 3D viewer
+- `viewer.html` - Simple viewer  
+- `js/` - Client-side JavaScript
+- `css/` - Stylesheets
+- `generated/` - Exported elevation data (JSON)
+- `README.md` - Optional documentation
+
+**Development only (DO NOT deploy):**
+- ❌ `data/` - Raw GeoTIFF files (10+ GB, stays local)
+- ❌ `src/` - Python processing code
+- ❌ `*.py` - Python scripts (processing/export only)
+- ❌ `venv/` - Virtual environment
+- ❌ `tech/`, `learnings/` - Documentation
+- ❌ Cache directories, development files
+
+**File Size Expectations:**
+- HTML/JS/CSS: ~100 KB
+- Single US state: ~500 KB - 2 MB
+- All US states: ~50 MB
+- Raw data (not deployed): 10+ GB
+
+### Deployment Scripts
+
+```powershell
+# PowerShell (Windows)
+.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun
+.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy
+
+# Bash (Linux/Mac)
+./deploy.sh -h example.com -p /var/www/maps -u deploy -d  # dry run
+./deploy.sh -h example.com -p /var/www/maps -u deploy      # deploy
+```
+
+Scripts use `rsync` to:
+- Upload only viewer files (excludes raw data)
+- Preserve directory structure
+- Sync changes efficiently (only modified files after first deploy)
+- Show progress
+
+See `DEPLOY_README.md` for detailed deployment documentation.
 
 ## Automation Goals
 - Minimize manual steps
