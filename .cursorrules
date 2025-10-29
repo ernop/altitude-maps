@@ -85,6 +85,15 @@ Session notes and development threads only:
 - GeoTIFF data uses natural orientation (North up, East right) - no transformations needed
 - Use geopandas for geographic borders and masking operations
 
+#### Border Resolution (CRITICAL)
+- **Always use 10m resolution borders** for accurate clipping (Natural Earth 10m dataset)
+- 110m borders are TOO COARSE and miss islands/coastline details (e.g., Iceland missing 4 islands!)
+- Border quality comparison:
+  - 10m: High detail, captures all islands and accurate coastlines (recommended)
+  - 50m: Medium detail (use only if 10m is too slow)
+  - 110m: Low detail, misses features (DO NOT USE for production)
+- Specify with `--border-resolution 10m` flag in ensure_region.py (now the default)
+
 #### Core Data Principles - CRITICAL
 
 ⚠️ **Principle 1: Preserve Real-World Proportions**

@@ -258,6 +258,12 @@ REGIONS = {
         "name": "Iceland",
         "description": "Iceland - volcanic terrain"
     },
+    "faroe_islands": {
+        "bounds": (-7.7, 61.4, -6.2, 62.4),
+        "name": "Faroe Islands",
+        "description": "Faroe Islands - North Atlantic archipelago",
+        "clip_boundary": False  # Not in Natural Earth as separate country (territory of Denmark)
+    },
     "nepal": {
         "bounds": (80.0, 26.3, 88.2, 30.4),
         "name": "Nepal",

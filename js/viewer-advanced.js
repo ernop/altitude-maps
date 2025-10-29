@@ -1,5 +1,5 @@
 ﻿// Version tracking
-const VIEWER_VERSION = '1.2.0-http2';
+const VIEWER_VERSION = '1.31';
 
 // Global variables
 let scene, camera, renderer, controls;
@@ -51,6 +51,15 @@ async function init() {
         // Initialize Select2 and all UI controls BEFORE loading any region data
         // This ensures the region selector is completely loaded and interactive
         setupControls();
+        
+        // Update Select2 to show the initial region that will be loaded
+        const $regionSelect = $('#regionSelect');
+        if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
+            $regionSelect.val(firstRegionId).trigger('change.select2');
+        }
+        
+        // Update URL to reflect the loaded region (for shareable links)
+        updateURLParameter('region', firstRegionId);
         
         // NOW load the initial region data (after UI is ready)
         let dataUrl;
@@ -204,6 +213,13 @@ async function populateRegionSelector() {
         return 'default';
     }
     
+    // Check for URL parameter to specify initial region (e.g., ?region=ohio)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRegion = urlParams.get('region');
+    
+    // Check localStorage for last viewed region
+    const lastRegion = localStorage.getItem('lastViewedRegion');
+    
     // Populate dropdown with available regions
     selectElement.innerHTML = '';
     
@@ -257,13 +273,28 @@ async function populateRegionSelector() {
         selectElement.appendChild(optgroup);
     }
     
-    // Select California as default if available, otherwise first region
+    // Determine which region to load initially
+    // Priority: URL parameter > localStorage > California > first region
     let firstRegionId;
-    if (regionsManifest.regions['california']) {
+    
+    if (urlRegion && regionsManifest.regions[urlRegion]) {
+        // URL parameter takes highest priority (e.g., ?region=ohio)
+        firstRegionId = urlRegion;
+        console.log(`📍 Loading region from URL: ${urlRegion}`);
+    } else if (lastRegion && regionsManifest.regions[lastRegion]) {
+        // Remember last viewed region from localStorage
+        firstRegionId = lastRegion;
+        console.log(`💾 Loading last viewed region: ${lastRegion}`);
+    } else if (regionsManifest.regions['california']) {
+        // Default to California if available
         firstRegionId = 'california';
+        console.log(`🌴 Loading default region: california`);
     } else {
+        // Fallback to first available region
         firstRegionId = Object.keys(regionsManifest.regions)[0];
+        console.log(`📌 Loading first available region: ${firstRegionId}`);
     }
+    
     selectElement.value = firstRegionId;
     currentRegionId = firstRegionId;
     updateRegionInfo(firstRegionId);
@@ -305,6 +336,12 @@ async function loadRegion(regionId) {
         borderData = await loadBorderData(dataUrl);
         currentRegionId = regionId;
         updateRegionInfo(regionId);
+        
+        // Save to localStorage so we remember this region next time
+        localStorage.setItem('lastViewedRegion', regionId);
+        
+        // Update URL parameter so the link is shareable
+        updateURLParameter('region', regionId);
         
         // Update Select2 dropdown to show the loaded region
         const $regionSelect = $('#regionSelect');
@@ -2331,6 +2368,34 @@ function toggleControlsHelp() {
         window.classList.add('open');
         button.textContent = 'â“ Close';
     }
+}
+
+// Update URL parameter without reloading page (for shareable links)
+function updateURLParameter(key, value) {
+    const url = new URL(window.location);
+    url.searchParams.set(key, value);
+    window.history.pushState({}, '', url);
+    console.log(`🔗 URL updated: ${url.href}`);
+}
+
+// Copy current view URL to clipboard
+function copyShareLink() {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+        // Show temporary success message
+        const btn = document.getElementById('copyLinkBtn');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        btn.style.background = '#4CAF50';
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '';
+        }, 2000);
+        console.log(`📋 Copied to clipboard: ${url}`);
+    }).catch(err => {
+        console.error('Failed to copy URL:', err);
+        alert(`Copy this URL to share:\n${url}`);
+    });
 }
 
 // Start when page loads

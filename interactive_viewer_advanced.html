@@ -15,7 +15,7 @@
         
         <div id="loading">
             <div style="text-align: center;">
-                🗺️ Loading elevation data...
+                Loading elevation data...
                 <div class="spinner"></div>
             </div>
         </div>
@@ -33,6 +33,14 @@
                 <label style="margin-top: 8px; display: block;">
                     <span class="value-display" id="currentRegion">Loading...</span>
                 </label>
+                <button id="copyLinkBtn" onclick="copyShareLink()" 
+                        style="width: 100%; margin-top: 8px; padding: 8px; font-size: 12px; background: #2a4a6a; color: #fff; border: 1px solid #3a5a7a; border-radius: 4px; cursor: pointer;"
+                        title="Copy shareable link to this region">
+                    🔗 Copy Share Link
+                </button>
+                <div style="margin-top: 4px; font-size: 10px; color: #888; text-align: center;">
+                    URL updates when you change regions
+                </div>
                 <!-- Info: Select a region to view its elevation data -->
             </div>
             
@@ -42,7 +50,7 @@
                 <!-- Loading overlay for resolution changes -->
                 <div id="resolution-loading-overlay">
                     <div class="loading-content">
-                        <div class="loading-text">⚙️ Adjusting Resolution...</div>
+                        <div class="loading-text">Adjusting Resolution...</div>
                         <div class="loading-spinner"></div>
                     </div>
                 </div>
@@ -177,7 +185,7 @@
                 <label for="autoRotate">Auto-Rotate</label>
             </div>
             
-            <h2>🎮 Camera Controls</h2>
+            <h2>Camera Controls</h2>
             
             <div class="control-group">
                 <label>Control Scheme</label>
@@ -197,18 +205,18 @@
             
             <h2>Camera Views</h2>
             
-            <div class="button-grid">
-                <button onclick="setView('overhead')"><span style="font-size: 18px;">⬇</span> Overhead</button>
-                <button onclick="setView('isometric')">🎯 Isometric</button>
-                <button onclick="setView('north')"><span style="font-size: 18px;">⬆</span> North</button>
-                <button onclick="setView('south')"><span style="font-size: 18px;">⬇</span> South</button>
-                <button onclick="setView('east')"><span style="font-size: 18px;">➡</span> East</button>
-                <button onclick="setView('west')"><span style="font-size: 18px;">⬅</span> West</button>
+            <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬇</span> Overhead</button>
+                <button onclick="setView('isometric')" style="padding: 6px; font-size: 11px;">🎯 Isometric</button>
+                <button onclick="setView('north')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬆</span> North</button>
+                <button onclick="setView('south')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬇</span> South</button>
+                <button onclick="setView('east')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">➡</span> East</button>
+                <button onclick="setView('west')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬅</span> West</button>
             </div>
             
-            <div style="margin-top: 15px;">
-                <button onclick="resetCamera()" style="width: 100%;">🔄 Reset Camera</button>
-                <button onclick="exportImage()" style="width: 100%; margin-top: 8px;">📸 Save Screenshot</button>
+            <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <button onclick="resetCamera()" style="padding: 6px; font-size: 11px;">Reset Camera</button>
+                <button onclick="exportImage()" style="padding: 6px; font-size: 11px;">Screenshot</button>
             </div>
         </div>
     </div>
@@ -216,9 +224,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <!-- Camera Control Schemes -->
-    <script src="js/camera-schemes.js?v=1.2.0-http2"></script>
-    <script src="js/ground-plane-camera.js?v=1.2.0-http2"></script>
-    <script src="js/ground-plane-google-earth.js?v=1.2.0-http2"></script>
+    <script src="js/camera-schemes.js?v=1.31"></script>
+    <script src="js/ground-plane-camera.js?v=1.31"></script>
+    <script src="js/ground-plane-google-earth.js?v=1.31"></script>
     
     <!-- jQuery (required by Select2) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -226,7 +234,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     
     <!-- Main viewer application -->
-    <script src="js/viewer-advanced.js?v=1.2.0-http2"></script>
+    <script src="js/viewer-advanced.js?v=1.31"></script>
 </body>
 </html>
 

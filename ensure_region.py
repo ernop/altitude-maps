@@ -212,11 +212,13 @@ def get_region_info(region_id):
     
     # Check if it's an international region
     if region_id in INTERNATIONAL_REGIONS:
+        region_data = INTERNATIONAL_REGIONS[region_id]
         return 'international', {
-            'name': INTERNATIONAL_REGIONS[region_id]['name'],
-            'display_name': INTERNATIONAL_REGIONS[region_id]['name'],
-            'bounds': INTERNATIONAL_REGIONS[region_id]['bounds'],
-            'description': INTERNATIONAL_REGIONS[region_id]['description']
+            'name': region_data['name'],
+            'display_name': region_data['name'],
+            'bounds': region_data['bounds'],
+            'description': region_data['description'],
+            'clip_boundary': region_data.get('clip_boundary', True)  # Default to True for backward compatibility
         }
     
     return None, None
@@ -419,7 +421,7 @@ def download_region(region_id, region_type, region_info):
         return False
 
 
-def process_region(region_id, raw_path, source, target_pixels, force, region_type, region_info):
+def process_region(region_id, raw_path, source, target_pixels, force, region_type, region_info, border_resolution='10m'):
     """Run the pipeline on a region."""
     sys.path.insert(0, str(Path(__file__).parent))
     
@@ -436,8 +438,13 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
         boundary_type = "state"
     elif region_type == 'international':
         # For international regions, use country-level boundary
-        boundary_name = region_info['name']
-        boundary_type = "country"
+        # Some regions (territories, disputed areas) may not have boundaries in Natural Earth
+        if region_info.get('clip_boundary', True):
+            boundary_name = region_info['name']
+            boundary_type = "country"
+        else:
+            boundary_name = None
+            boundary_type = None
     else:
         boundary_name = None
         boundary_type = "country"
@@ -467,7 +474,8 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
             boundary_name=boundary_name,
             boundary_type=boundary_type,
             target_pixels=target_pixels,
-            skip_clip=(boundary_name is None)
+            skip_clip=(boundary_name is None),
+            border_resolution=border_resolution
         )
         
         return success
@@ -512,9 +520,12 @@ This script will:
   5. Report status
         """
     )
-    parser.add_argument('region_id', help='Region ID (e.g., ohio, iceland, japan)')
+    parser.add_argument('region_id', nargs='?', help='Region ID (e.g., ohio, iceland, japan)')
     parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS,
                        help=f'Target resolution (default: {DEFAULT_TARGET_PIXELS})')
+    parser.add_argument('--border-resolution', type=str, default='10m',
+                       choices=['10m', '50m', '110m'],
+                       help='Border detail level: 10m=high detail (recommended), 50m=medium, 110m=low (default: 10m)')
     parser.add_argument('--force-reprocess', action='store_true',
                        help='Force reprocessing even if files exist')
     parser.add_argument('--check-only', action='store_true',
@@ -539,6 +550,10 @@ This script will:
         print(f"Total: {len(US_STATE_NAMES)} US states + {len(INTERNATIONAL_REGIONS)} international regions")
         print(f"\nUsage: python ensure_region.py <region_id>")
         return 0
+    
+    # Check if region_id was provided
+    if not args.region_id:
+        parser.error("region_id is required (or use --list-regions to see available regions)")
     
     # Normalize region ID: convert spaces to underscores, lowercase
     region_id = args.region_id.lower().replace(' ', '_').replace('-', '_')
@@ -612,7 +627,7 @@ This script will:
     
     # Step 3: Process the region
     success = process_region(region_id, raw_path, source, args.target_pixels, 
-                            args.force_reprocess, region_type, region_info)
+                            args.force_reprocess, region_type, region_info, args.border_resolution)
     
     if success:
         print("\n" + "="*70)

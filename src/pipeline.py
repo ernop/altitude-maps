@@ -44,7 +44,8 @@ def clip_to_boundary(
     boundary_name: str,
     output_path: Path,
     source: str = "srtm_30m",
-    boundary_type: str = "country"
+    boundary_type: str = "country",
+    border_resolution: str = "110m"
 ) -> bool:
     """
     Clip raw elevation data to administrative boundary.
@@ -107,7 +108,7 @@ def clip_to_boundary(
     
     # Get boundary geometry based on type
     if boundary_type == "country":
-        geometry = get_country_geometry(boundary_name)
+        geometry = get_country_geometry(boundary_name, resolution=border_resolution)
     elif boundary_type == "state":
         # Parse "Country/State" format
         if "/" not in boundary_name:
@@ -117,7 +118,7 @@ def clip_to_boundary(
         
         country, state = boundary_name.split("/", 1)
         border_manager = get_border_manager()
-        state_gdf = border_manager.get_state(country, state)
+        state_gdf = border_manager.get_state(country, state, resolution=border_resolution)
         
         if state_gdf is None or state_gdf.empty:
             print(f"      ⚠️  Warning: State '{state}' not found in '{country}'")
@@ -158,24 +159,25 @@ def clip_to_boundary(
             
             print(f"      Output dimensions: {out_meta['width']} × {out_meta['height']} pixels")
             
-            # ASPECT RATIO FIX: Reproject high-latitude regions to preserve real-world proportions
-            # At high latitudes, EPSG:4326 (lat/lon) has distorted aspect ratios
+            # ASPECT RATIO FIX: Reproject ALL EPSG:4326 regions to preserve real-world proportions
+            # EPSG:4326 (lat/lon) has distorted aspect ratios at ALL latitudes (except equator)
             # because longitude degrees are compressed by cos(latitude)
+            # This affects mid-latitude regions significantly (e.g., Kansas at 38.5°N has 27.6% distortion)
             needs_reprojection = False
             if src.crs and 'EPSG:4326' in str(src.crs).upper():
                 # Calculate average latitude of the clipped region
                 bounds = src.bounds
                 avg_lat = (bounds.top + bounds.bottom) / 2
                 
-                # High-latitude threshold: > 45° North or < -45° South
-                if abs(avg_lat) > 45:
+                # Reproject ALL regions (except near equator where distortion is minimal)
+                if abs(avg_lat) > 5:  # Only skip regions within 5° of equator
                     needs_reprojection = True
                     import math
                     # Calculate distortion factor
                     cos_lat = math.cos(math.radians(avg_lat))
                     distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                    print(f"      ⚠️  High latitude ({avg_lat:.1f}°) detected - aspect ratio distorted {distortion:.2f}x")
-                    print(f"      🔄 Reprojecting to equal-area projection...")
+                    print(f"      ⚠️  Latitude {avg_lat:.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                    print(f"      🔄 Reprojecting to equal-area projection to preserve real-world proportions...")
             
             if needs_reprojection:
                 # Reproject to Web Mercator or UTM to preserve distances
@@ -439,6 +441,20 @@ def export_for_viewer(
             elevation = src.read(1)
             bounds = src.bounds
             
+            # Transform bounds to EPSG:4326 (lat/lon) for consistent export
+            # The viewer always expects lat/lon bounds regardless of the TIF's CRS
+            from rasterio.warp import transform_bounds
+            if src.crs and src.crs != 'EPSG:4326':
+                print(f"      Converting bounds from {src.crs} to EPSG:4326...", flush=True)
+                bounds_4326 = transform_bounds(src.crs, 'EPSG:4326', 
+                                               bounds.left, bounds.bottom, 
+                                               bounds.right, bounds.top)
+                # transform_bounds returns (left, bottom, right, top)
+                from rasterio.coords import BoundingBox
+                bounds = BoundingBox(bounds_4326[0], bounds_4326[1], 
+                                    bounds_4326[2], bounds_4326[3])
+                print(f"      Lat/lon bounds: {bounds.left:.2f}, {bounds.bottom:.2f}, {bounds.right:.2f}, {bounds.top:.2f}", flush=True)
+            
             # VALIDATION: Check aspect ratio and coverage
             if validate_output:
                 from src.validation import validate_non_null_coverage
@@ -625,7 +641,8 @@ def run_pipeline(
     boundary_name: Optional[str] = None,
     boundary_type: str = "country",
     target_pixels: int = 800,
-    skip_clip: bool = False
+    skip_clip: bool = False,
+    border_resolution: str = "110m"
 ) -> Tuple[bool, Dict]:
     """
     Run the complete data processing pipeline.
@@ -672,9 +689,9 @@ def run_pipeline(
         print(f"[2/4] ⏭️  Skipping clipping (using raw data)")
         clipped_path = raw_tif_path
     else:
-        print(f"[2/4] ✂️  Clipping to {boundary_type} boundary: {boundary_name}")
+        print(f"[2/4] ✂️  Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
         clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
-        if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type):
+        if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution):
             print(f"\n⚠️  Clipping failed, using raw data instead")
             clipped_path = raw_tif_path
     
