@@ -197,7 +197,7 @@ const panDeltaY = currentCenter.y - this.lastTouchCenter.y;
 - **Touch ID tracking:** Handles multi-touch properly (each finger tracked separately)
 - **Center-based zoom:** Pinch zooms toward center of two fingers
 - **Simultaneous pan+zoom:** Two-finger gesture can pan AND zoom at once
-- **Speed tuning:** Touch movement 2× faster than mouse (0.002 vs 0.001) for better feel
+- **Speed tuning:** Touch movement 2x faster than mouse (0.002 vs 0.001) for better feel
 - **Ground plane maintained:** All touches respect y=0 plane model
 
 ### Compatibility

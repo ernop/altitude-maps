@@ -130,8 +130,8 @@ class RealDataVisualizer:
                               alpha=0.95)
         
         # Styling
-        ax.set_xlabel('Longitude →', fontsize=14, color='white', labelpad=15)
-        ax.set_ylabel('Latitude →', fontsize=14, color='white', labelpad=15)
+        ax.set_xlabel('Longitude ->', fontsize=14, color='white', labelpad=15)
+        ax.set_ylabel('Latitude ->', fontsize=14, color='white', labelpad=15)
         ax.set_zlabel('Elevation (m)', fontsize=14, color='white', labelpad=15)
         
         # Set viewing angle
@@ -150,7 +150,7 @@ class RealDataVisualizer:
         # Title with location information
         bounds = metadata['bounds']
         title = f'3D Terrain Visualization - USGS 10m Elevation Data\n'
-        title += f'Location: {bounds.left:.2f}°W to {bounds.right:.2f}°W, {bounds.bottom:.2f}°N to {bounds.top:.2f}°N\n'
+        title += f'Location: {bounds.left:.2f}degW to {bounds.right:.2f}degW, {bounds.bottom:.2f}degN to {bounds.top:.2f}degN\n'
         title += f'Elevation: {np.nanmin(elevation):.0f}m - {np.nanmax(elevation):.0f}m  |  '
         title += f'Vertical Exaggeration: {vertical_exaggeration}x'
         ax.set_title(title, fontsize=16, color='white', pad=30, fontweight='bold')
@@ -203,8 +203,8 @@ class RealDataVisualizer:
                             color=color, alpha=0.9, edgecolor='none')
         
         # Styling
-        ax.set_xlabel('Longitude →', fontsize=14, color='white', labelpad=15)
-        ax.set_ylabel('Latitude →', fontsize=14, color='white', labelpad=15)
+        ax.set_xlabel('Longitude ->', fontsize=14, color='white', labelpad=15)
+        ax.set_ylabel('Latitude ->', fontsize=14, color='white', labelpad=15)
         ax.set_zlabel('Elevation (m)', fontsize=14, color='white', labelpad=15)
         
         ax.view_init(elev=35, azim=225)
@@ -221,7 +221,7 @@ class RealDataVisualizer:
         
         bounds = metadata['bounds']
         title = f'Height Bar Visualization - USGS 10m Elevation Data\n'
-        title += f'Location: {bounds.left:.2f}°W to {bounds.right:.2f}°W, {bounds.bottom:.2f}°N to {bounds.top:.2f}°N\n'
+        title += f'Location: {bounds.left:.2f}degW to {bounds.right:.2f}degW, {bounds.bottom:.2f}degN to {bounds.top:.2f}degN\n'
         title += f'{len(y_coords) * len(x_coords)} bars  |  Elevation: {elev_min:.0f}m - {elev_max:.0f}m'
         ax.set_title(title, fontsize=16, color='white', pad=30, fontweight='bold')
         
@@ -268,7 +268,7 @@ class RealDataVisualizer:
         
         bounds = metadata['bounds']
         title = f'Aerial Hillshade View - USGS 10m Elevation Data\n'
-        title += f'Location: {bounds.left:.2f}°W to {bounds.right:.2f}°W, {bounds.bottom:.2f}°N to {bounds.top:.2f}°N'
+        title += f'Location: {bounds.left:.2f}degW to {bounds.right:.2f}degW, {bounds.bottom:.2f}degN to {bounds.top:.2f}degN'
         ax.set_title(title, fontsize=18, color='white', pad=20, fontweight='bold')
         ax.axis('off')
         

@@ -35,10 +35,10 @@ The camera system is based on a **ground plane** architecture, modeled after Goo
 
 **Behavior**: "Grab and drag" the map surface
 
-- Drag DOWN → map moves down (northward)
-- Drag UP → map moves up (southward)
-- Drag LEFT → map moves left (eastward)
-- Drag RIGHT → map moves right (westward)
+- Drag DOWN -> map moves down (northward)
+- Drag UP -> map moves up (southward)
+- Drag LEFT -> map moves left (eastward)
+- Drag RIGHT -> map moves right (westward)
 
 **Implementation**: Screen-space movement for smoothness
 - Speed: Adaptive based on distance from focus point (distance * 0.001)
@@ -49,8 +49,8 @@ The camera system is based on a **ground plane** architecture, modeled after Goo
 
 **Behavior**: Change viewing angle to see more/less terrain
 
-- Drag DOWN → tilt down (increase phi angle, see more land/horizon)
-- Drag UP → tilt up (decrease phi angle, more overhead view)
+- Drag DOWN -> tilt down (increase phi angle, see more land/horizon)
+- Drag UP -> tilt up (decrease phi angle, more overhead view)
 
 **Implementation**: Spherical coordinate adjustment around focus point
 - Angle limits: 0.1 to π/2 - 0.01 radians (prevents camera flip)
@@ -62,8 +62,8 @@ The camera system is based on a **ground plane** architecture, modeled after Goo
 
 **Behavior**: Orbit camera around current focus point
 
-- Horizontal drag (deltaX) → rotate around vertical axis (theta)
-- Vertical drag (deltaY) → adjust pitch angle (phi)
+- Horizontal drag (deltaX) -> rotate around vertical axis (theta)
+- Vertical drag (deltaY) -> adjust pitch angle (phi)
 
 **Implementation**: Spherical coordinate transformation
 - Rotation speed: 0.005 radians per pixel
@@ -74,8 +74,8 @@ The camera system is based on a **ground plane** architecture, modeled after Goo
 
 **Behavior**: Zoom toward point under cursor (Google Maps style)
 
-- Scroll UP (negative delta) → zoom IN (camera moves toward cursor point)
-- Scroll DOWN (positive delta) → zoom OUT (camera moves away from cursor point)
+- Scroll UP (negative delta) -> zoom IN (camera moves toward cursor point)
+- Scroll DOWN (positive delta) -> zoom OUT (camera moves away from cursor point)
 - Zoom factor: 10% of distance per scroll tick
 - Minimum distance: 5 meters (prevents getting too close)
 
@@ -99,11 +99,11 @@ The camera system is based on a **ground plane** architecture, modeled after Goo
 - **Space**: Auto-rotate (toggle automatic rotation)
 
 ### Speed Modifiers
-- **None**: 1.0× (normal speed)
-- **Shift**: 2.5× (fast movement)
-- **Ctrl**: 0.3× (brush/precise movement)
-- **Alt**: 4.0× (very fast movement)
-- **Shift+Alt**: 10× (turbo mode)
+- **None**: 1.0x (normal speed)
+- **Shift**: 2.5x (fast movement)
+- **Ctrl**: 0.3x (brush/precise movement)
+- **Alt**: 4.0x (very fast movement)
+- **Shift+Alt**: 10x (turbo mode)
 
 ### Examples
 - `Shift + W` = Move up fast

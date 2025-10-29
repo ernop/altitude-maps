@@ -139,7 +139,7 @@ def clip_to_boundary(
     
     try:
         with rasterio.open(raw_tif_path) as src:
-            print(f"      Input dimensions: {src.width} × {src.height} pixels")
+            print(f"      Input dimensions: {src.width} x {src.height} pixels")
             print(f"      Input size: {raw_tif_path.stat().st_size / (1024*1024):.1f} MB")
             
             # Prepare boundary geometry in raster CRS and GeoJSON mapping
@@ -170,7 +170,7 @@ def clip_to_boundary(
                 "transform": out_transform
             })
             
-            print(f"      Output dimensions: {out_meta['width']} × {out_meta['height']} pixels")
+            print(f"      Output dimensions: {out_meta['width']} x {out_meta['height']} pixels")
 
             # Ensure nodata is set and masked pixels are written as nodata
             import numpy as _np
@@ -190,7 +190,7 @@ def clip_to_boundary(
             # ASPECT RATIO FIX: Reproject ALL EPSG:4326 regions to preserve real-world proportions
             # EPSG:4326 (lat/lon) has distorted aspect ratios at ALL latitudes (except equator)
             # because longitude degrees are compressed by cos(latitude)
-            # This affects mid-latitude regions significantly (e.g., Kansas at 38.5°N has 27.6% distortion)
+            # This affects mid-latitude regions significantly (e.g., Kansas at 38.5degN has 27.6% distortion)
             needs_reprojection = False
             if src.crs and 'EPSG:4326' in str(src.crs).upper():
                 # Calculate average latitude of the CLIPPED region (CRITICAL: use clipped bounds, not raw bounds!)
@@ -199,8 +199,8 @@ def clip_to_boundary(
                 from rasterio.transform import array_bounds
                 left, bottom, right, top = array_bounds(out_image.shape[1], out_image.shape[2], out_transform)
                 avg_lat = (top + bottom) / 2
-                print(f"      📍 Clipped region bounds: {left:.2f}°E, {bottom:.2f}°N to {right:.2f}°E, {top:.2f}°N")
-                print(f"      📍 Average latitude: {avg_lat:.2f}°")
+                print(f"      📍 Clipped region bounds: {left:.2f}degE, {bottom:.2f}degN to {right:.2f}degE, {top:.2f}degN")
+                print(f"      📍 Average latitude: {avg_lat:.2f}deg")
                 
                 # Reproject ALL EPSG:4326 regions to fix distortion (no equator exception)
                 needs_reprojection = True
@@ -209,7 +209,7 @@ def clip_to_boundary(
                 abs_lat = abs(avg_lat)
                 cos_lat = math.cos(math.radians(abs_lat))
                 distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                print(f"        Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                print(f"        Latitude {avg_lat:+.1f}deg - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
                 print(f"      🔄 Reprojecting to equal-area projection to preserve real-world proportions...")
             
             if needs_reprojection:
@@ -263,12 +263,12 @@ def clip_to_boundary(
                 )
                 
                 out_image = reprojected
-                print(f"       Reprojected to {dst_crs}: {width} × {height} pixels")
+                print(f"       Reprojected to {dst_crs}: {width} x {height} pixels")
                 
                 # Verify aspect ratio improvement
                 old_aspect = out_meta['width'] / out_meta['height'] if 'width' in out_meta else 0
                 new_aspect = width / height
-                print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
+                print(f"      Aspect ratio: {old_aspect:.2f}:1 -> {new_aspect:.2f}:1")
             
             # VALIDATION: Check elevation range to catch corruption
             from src.validation import validate_elevation_range
@@ -364,11 +364,11 @@ def downsample_for_viewer(
         if deleted_count > 0:
             print(f"      🗑  Deleted {deleted_count} generated file(s) (will be regenerated)")
     
-    print(f"      🔄 Downsampling to {target_pixels}×{target_pixels}...")
+    print(f"      🔄 Downsampling to {target_pixels}x{target_pixels}...")
     
     try:
         with rasterio.open(clipped_tif_path) as src:
-            print(f"      Input: {src.width} × {src.height} pixels", flush=True)
+            print(f"      Input: {src.width} x {src.height} pixels", flush=True)
             # RAW INPUT VALIDATION (pre-flight)
             try:
                 if src.count < 1:
@@ -412,7 +412,7 @@ def downsample_for_viewer(
                 abs_lat = abs(avg_lat)
                 cos_lat = math.cos(math.radians(abs_lat))
                 distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                print(f"        Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                print(f"        Latitude {avg_lat:+.1f}deg - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
                 print(f"      🔄 Reprojecting to fix latitude distortion...")
             
             # Reproject if needed (before downsampling)
@@ -485,10 +485,10 @@ def downsample_for_viewer(
                 })
                 src_transform = dst_transform
                 
-                print(f"       Reprojected to {dst_crs}: {dst_width} × {dst_height} pixels")
+                print(f"       Reprojected to {dst_crs}: {dst_width} x {dst_height} pixels")
                 old_aspect = src.width / src.height
                 new_aspect = dst_width / dst_height if dst_height != 0 else old_aspect
-                print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
+                print(f"      Aspect ratio: {old_aspect:.2f}:1 -> {new_aspect:.2f}:1")
             else:
                 # No reprojection needed; read directly at target size using resampling
                 from rasterio.warp import Resampling
@@ -517,7 +517,7 @@ def downsample_for_viewer(
             # At this point, elevation and src_meta reflect the desired (possibly reprojected) target size
             new_height = elevation.shape[0]
             new_width = elevation.shape[1]
-            print(f"      Target: {new_width} × {new_height} pixels")
+            print(f"      Target: {new_width} x {new_height} pixels")
             
             # Update metadata using src_meta (already updated above)
             out_meta = src_meta.copy()
@@ -605,7 +605,7 @@ def export_for_viewer(
     
     try:
         with rasterio.open(processed_tif_path) as src:
-            print(f"      Reading raster: {src.width} × {src.height}", flush=True)
+            print(f"      Reading raster: {src.width} x {src.height}", flush=True)
             elevation = src.read(1)
             bounds = src.bounds
             

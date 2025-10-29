@@ -15,8 +15,8 @@ real_aspect = 504 / 337  # Real Iceland dimensions in km
 
 print(f" ICELAND ASPECT RATIO FIX VERIFICATION")
 print(f"="*50)
-print(f"Data aspect:  {d['width']}px × {d['height']}px = {data_aspect:.2f}:1")
-print(f"Real aspect:  ~504km × 337km = {real_aspect:.2f}:1")
+print(f"Data aspect:  {d['width']}px x {d['height']}px = {data_aspect:.2f}:1")
+print(f"Real aspect:  ~504km x 337km = {real_aspect:.2f}:1")
 print(f"")
 if abs(data_aspect - real_aspect) < 0.05:
     print(f" PERFECT MATCH! Aspect ratio is now correct!")

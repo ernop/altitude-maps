@@ -138,8 +138,8 @@ def download_opentopography_srtm(
     height = abs(north - south)
     
     if width > 4.0 or height > 4.0:
-        print(f"     WARNING: Region is very large ({width:.1f}° × {height:.1f}°)", flush=True)
-        print(f"   OpenTopography may reject requests > 4° in any direction", flush=True)
+        print(f"     WARNING: Region is very large ({width:.1f}deg x {height:.1f}deg)", flush=True)
+        print(f"   OpenTopography may reject requests > 4deg in any direction", flush=True)
         print(f"   ", flush=True)
         print(f"   ⚡ RECOMMENDED: Use tiling for large states", flush=True)
         print(f"      python downloaders/tile_large_states.py {region_id}", flush=True)
@@ -168,7 +168,7 @@ def download_opentopography_srtm(
     
     print(f"   📥 Downloading from OpenTopography (SRTM 30m)...", flush=True)
     print(f"      Bounds: [{west:.2f}, {south:.2f}, {east:.2f}, {north:.2f}]", flush=True)
-    print(f"      Size: {width:.1f}° × {height:.1f}°", flush=True)
+    print(f"      Size: {width:.1f}deg x {height:.1f}deg", flush=True)
     print(f"      Note: This is 30m SRTM, not high-res 3DEP", flush=True)
     print(f"      ", flush=True)
     
@@ -263,8 +263,8 @@ def download_opentopography_srtm(
     except requests.exceptions.HTTPError as e:
         print(f"    HTTP Error: {e}", flush=True)
         if e.response.status_code == 400:
-            print(f"      Likely cause: Region too large (>{width:.1f}° × {height:.1f}°)", flush=True)
-            print(f"      OpenTopography limit is ~4° in each direction", flush=True)
+            print(f"      Likely cause: Region too large (>{width:.1f}deg x {height:.1f}deg)", flush=True)
+            print(f"      OpenTopography limit is ~4deg in each direction", flush=True)
             print(f"      Try downloading smaller sub-regions or use --manual", flush=True)
         elif e.response.status_code == 401:
             print(f"      API key may be invalid or expired", flush=True)
@@ -297,7 +297,7 @@ def print_manual_instructions(region_id: str, bounds: Tuple[float, float, float,
     print("\n1. Go to USGS EarthExplorer:")
     print("   https://earthexplorer.usgs.gov/")
     print("\n2. Create free account (if needed):")
-    print("   - Click 'Login' → 'Register'")
+    print("   - Click 'Login' -> 'Register'")
     print("   - Fill in details (takes 2 minutes)")
     print("\n3. Set search area:")
     print("   - Click 'Use Map' tab")
@@ -407,13 +407,13 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
     elif args.auto:
         output_path = Path(args.output_dir) / f"{region_id}_bbox_30m.tif"
         
-        # Check if state needs tiling (> 4° in any direction)
+        # Check if state needs tiling (> 4deg in any direction)
         width = bounds[2] - bounds[0]
         height = bounds[3] - bounds[1]
         needs_tiling = (width > 4.0 or height > 4.0)
         
         if needs_tiling and region_id in US_STATES:
-            print(f"\n[AUTO-TILING] State is large ({width:.1f}° × {height:.1f}°)", flush=True)
+            print(f"\n[AUTO-TILING] State is large ({width:.1f}deg x {height:.1f}deg)", flush=True)
             print(f"              Automatically splitting into tiles...", flush=True)
             print(f"              (This is transparent - merging happens automatically)\n", flush=True)
             

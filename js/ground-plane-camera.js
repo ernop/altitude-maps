@@ -2,7 +2,28 @@
 // Console sanitizer: strip non-ASCII (e.g., emojis) from log output
 (() => {
     const sanitize = (v) => typeof v === 'string' ? v.replace(/[^\x00-\x7F]/g, '') : v;
-    const wrap = (fn) => (...args) => fn.apply(console, args.map(sanitize));
+    // Blocklist of noisy messages to suppress globally in F12 console
+    const blockedPatterns = [
+        /Camera reset: fixed position/,
+        /Bars centered:/,
+        /Scene now has/,
+        /Sample bars/,
+        /Vertical exaggeration:/,
+        /Bucketing with multiplier/,
+        /Bucketed to /,
+        /recreateTerrain\(\) called/,
+        /Creating terrain in .* mode/,
+        /Removing old terrainMesh/
+    ];
+    const shouldBlock = (args) => {
+        const first = args && args.length ? args[0] : '';
+        const msg = typeof first === 'string' ? first : '';
+        return blockedPatterns.some((re) => re.test(msg));
+    };
+    const wrap = (fn) => (...args) => {
+        if (shouldBlock(args)) return; // Drop noisy logs
+        return fn.apply(console, args.map(sanitize));
+    };
     console.log = wrap(console.log);
     console.info = wrap(console.info);
     console.warn = wrap(console.warn);
@@ -155,8 +176,8 @@ class GroundPlaneCamera extends CameraScheme {
             // When you drag mouse DOWN, grab the map and pull it DOWN (camera moves back)
             // When you drag mouse LEFT, grab the map and pull it LEFT (camera moves left)
             const movement = new THREE.Vector3();
-            movement.addScaledVector(right, -deltaX * moveSpeed);  // Drag left → map left, drag right → map right
-            movement.addScaledVector(forward, deltaY * moveSpeed); // Drag down → map down, drag up → map up
+            movement.addScaledVector(right, -deltaX * moveSpeed);  // Drag left -> map left, drag right -> map right
+            movement.addScaledVector(forward, deltaY * moveSpeed); // Drag down -> map down, drag up -> map up
             movement.y = 0; // Keep movement on ground plane
             
             // Move focus point and camera together
@@ -343,7 +364,7 @@ class GroundPlaneCamera extends CameraScheme {
 		const fixedHeight = 1320;
 		
 		// Slight tilt around X axis (east-west) so we see some relief
-		// 15° from straight-down: z offset = y * tan(15°)
+		// 15deg from straight-down: z offset = y * tan(15deg)
 		const tiltDeg = 45;
 		const zOffset = fixedHeight * Math.tan(THREE.MathUtils.degToRad(tiltDeg));
 		this.camera.position.set(0, fixedHeight, zOffset);

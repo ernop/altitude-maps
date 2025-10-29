@@ -9,8 +9,8 @@ When running `reprocess_existing_states.py`, the pipeline was failing with error
 
 ```
  VALIDATION FAILED: Aspect ratio mismatch detected!
-  Raster:     1935 × 1605 = 1.206
-  Geographic: 365.6km × 396.8km = 0.921
+  Raster:     1935 x 1605 = 1.206
+  Geographic: 365.6km x 396.8km = 0.921
   Difference: 30.8% (tolerance: 30.0%)
 ```
 
@@ -45,11 +45,11 @@ Our GeoTIFFs use EPSG:4326 (WGS84 lat/lon) with **square pixels in degrees**, no
 ### Why the "Validation" Was Failing
 
 Example: Ohio
-- **Raster:** 1935 × 1605 pixels = aspect 1.206 (wider than tall in pixels)
-- **Geographic (meters):** 365.6km × 396.8km = aspect 0.921 (taller than wide in meters)  
+- **Raster:** 1935 x 1605 pixels = aspect 1.206 (wider than tall in pixels)
+- **Geographic (meters):** 365.6km x 396.8km = aspect 0.921 (taller than wide in meters)  
 - **Diff:** 30.8%
 
-This is **completely normal and correct**! At Ohio's latitude (~40°N), longitude degrees are ~76% as wide as latitude degrees in meters (cos(40°) ≈ 0.766). The raster correctly preserves the degree-based grid spacing.
+This is **completely normal and correct**! At Ohio's latitude (~40degN), longitude degrees are ~76% as wide as latitude degrees in meters (cos(40deg) ~ 0.766). The raster correctly preserves the degree-based grid spacing.
 
 ## The Fix
 

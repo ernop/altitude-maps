@@ -30,8 +30,8 @@ function calculateRealWorldScale(rawElevationData) {
     const metersPerPixelY = heightMeters / height;
     
     console.log(`📏 Real-world scale:`);
-    console.log(`   Size: ${(widthMeters/1000).toFixed(1)} × ${(heightMeters/1000).toFixed(1)} km`);
-    console.log(`   Resolution: ${metersPerPixelX.toFixed(1)} × ${metersPerPixelY.toFixed(1)} m/pixel`);
+    console.log(`   Size: ${(widthMeters/1000).toFixed(1)} x ${(heightMeters/1000).toFixed(1)} km`);
+    console.log(`   Resolution: ${metersPerPixelX.toFixed(1)} x ${metersPerPixelY.toFixed(1)} m/pixel`);
     
     return {
         metersPerPixelX,

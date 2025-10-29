@@ -188,7 +188,7 @@ def download_region_srtm(region_id: str, bounds: Tuple[float, float, float, floa
             src.close()
         
         print(f"    Saved: {output_file}")
-        print(f"      Size: {mosaic.shape[2]} × {mosaic.shape[1]}")
+        print(f"      Size: {mosaic.shape[2]} x {mosaic.shape[1]}")
         
         return True
         

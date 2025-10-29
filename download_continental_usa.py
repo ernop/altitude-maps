@@ -52,7 +52,7 @@ def main():
     area_deg_sq = (east - west) * (north - south)
     
     print(f"\n📍 Region: {args.region.replace('_', ' ').title()}")
-    print(f"   Bounds: {west:.1f}°W to {east:.1f}°W, {south:.1f}°N to {north:.1f}°N")
+    print(f"   Bounds: {west:.1f}degW to {east:.1f}degW, {south:.1f}degN to {north:.1f}degN")
     print(f"   Area: {area_deg_sq:.1f} square degrees")
     
     if args.region in ['nationwide_usa', 'continental_usa']:

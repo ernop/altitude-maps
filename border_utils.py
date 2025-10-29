@@ -62,8 +62,8 @@ def countries_in_bbox(bbox_str, resolution='110m'):
     print(f"Countries in Bounding Box")
     print(f"{'='*70}")
     print(f"Bbox: {bbox}")
-    print(f"  Left: {bbox[0]}°, Bottom: {bbox[1]}°")
-    print(f"  Right: {bbox[2]}°, Top: {bbox[3]}°\n")
+    print(f"  Left: {bbox[0]}deg, Bottom: {bbox[1]}deg")
+    print(f"  Right: {bbox[2]}deg, Top: {bbox[3]}deg\n")
     
     border_manager = get_border_manager()
     countries_gdf = border_manager.get_countries_in_bbox(bbox, resolution=resolution)
@@ -113,10 +113,10 @@ def country_info(country_name, resolution='110m'):
     # Get bounding box
     bounds = country_data.geometry.bounds
     print(f"\nBounding Box:")
-    print(f"  West: {bounds[0]:.4f}°")
-    print(f"  South: {bounds[1]:.4f}°")
-    print(f"  East: {bounds[2]:.4f}°")
-    print(f"  North: {bounds[3]:.4f}°")
+    print(f"  West: {bounds[0]:.4f}deg")
+    print(f"  South: {bounds[1]:.4f}deg")
+    print(f"  East: {bounds[2]:.4f}deg")
+    print(f"  North: {bounds[3]:.4f}deg")
     
     # Get border coordinates
     border_coords = border_manager.get_border_coordinates(

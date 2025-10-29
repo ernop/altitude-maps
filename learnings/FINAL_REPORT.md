@@ -34,18 +34,18 @@
 ### Ohio Example (Detailed Analysis)
 
 **Raw File:**
-- Dimensions: 15,480 × 12,888 pixels
-- Bounds: -84.82°W to -80.52°W, 38.40°N to 41.98°N  
+- Dimensions: 15,480 x 12,888 pixels
+- Bounds: -84.82degW to -80.52degW, 38.40degN to 41.98degN  
 - 100% valid data (full rectangular bounding box)
 
 **Clipped File:**
-- Dimensions: 15,480 × 12,833 pixels (-55 pixels height)
-- Bounds: Adjusted bottom from 38.40°N to 38.42°N
+- Dimensions: 15,480 x 12,833 pixels (-55 pixels height)
+- Bounds: Adjusted bottom from 38.40degN to 38.42degN
 - 78.9% valid data (21.1% masked out due to irregular state border)
 - **All-empty edges removed:**  0 all-empty rows/columns remain
 
 **Downsampled File (2048px target):**
-- Dimensions: 1,935 × 1,605 pixels
+- Dimensions: 1,935 x 1,605 pixels
 - Aspect ratio: 1.206 (preserved from clipped file)
 - Coverage: 78.8% valid pixels
 
@@ -141,7 +141,7 @@ All now export without validation errors.
 
 For EPSG:4326 (WGS84 lat/lon):
 - Pixels are square in **degrees**, not meters
-- At latitude 40°N (Ohio): 1° longitude ≈ 76% the width of 1° latitude in meters
+- At latitude 40degN (Ohio): 1deg longitude ~ 76% the width of 1deg latitude in meters
 - Raster aspect = pixel dimensions ratio (in degrees)
 - Geographic aspect = real-world dimensions ratio (in meters)
 - **These SHOULD differ** - it's not a bug!

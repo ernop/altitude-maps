@@ -34,33 +34,33 @@ This release includes major camera control enhancements:
 
 **Basic Mouse Operations:**
 - [ ] **Left drag** = Pan (grab and drag the map)
-  - [ ] Drag up → map moves up
-  - [ ] Drag down → map moves down
-  - [ ] Drag left → map moves left
-  - [ ] Drag right → map moves right
+  - [ ] Drag up -> map moves up
+  - [ ] Drag down -> map moves down
+  - [ ] Drag left -> map moves left
+  - [ ] Drag right -> map moves right
   - [ ] Movement is smooth and responsive
 
 - [ ] **Shift+Left drag** = Tilt (adjust viewing angle)
-  - [ ] Drag down → tilt down (see more horizon)
-  - [ ] Drag up → tilt up (more overhead)
+  - [ ] Drag down -> tilt down (see more horizon)
+  - [ ] Drag up -> tilt up (more overhead)
   - [ ] Angle limits prevent camera flip
   - [ ] Releasing Shift mid-drag cancels smoothly (no jank)
 
 - [ ] **Alt+Left drag** = Rotate (Maya style)  NEW
-  - [ ] Horizontal drag → turn left/right
-  - [ ] Vertical drag → tilt up/down
+  - [ ] Horizontal drag -> turn left/right
+  - [ ] Vertical drag -> tilt up/down
   - [ ] Same behavior as Right drag
   - [ ] Releasing Alt mid-drag cancels smoothly
 
 - [ ] **Right drag** = Rotate (Google Earth style)
-  - [ ] Horizontal drag → turn left/right
-  - [ ] Vertical drag → tilt up/down
+  - [ ] Horizontal drag -> turn left/right
+  - [ ] Vertical drag -> tilt up/down
   - [ ] Maintains distance from focus point
   - [ ] Smooth rotation at all angles
 
 - [ ] **Mouse wheel** = Zoom
-  - [ ] Scroll up → zoom IN toward cursor
-  - [ ] Scroll down → zoom OUT from cursor
+  - [ ] Scroll up -> zoom IN toward cursor
+  - [ ] Scroll down -> zoom OUT from cursor
   - [ ] Point under cursor stays visually stable
   - [ ] Minimum distance limit prevents clipping (5 meters)
   - [ ] Focus point shifts bidirectionally (smooth zoom feel)
@@ -90,7 +90,7 @@ This release includes major camera control enhancements:
 - [ ] Can use mouse to look around while holding WASD
 
 **F Key Reframe:**  NEW - CRITICAL TEST
-- [ ] Press **F** → Camera reframes to show full terrain
+- [ ] Press **F** -> Camera reframes to show full terrain
 - [ ] View centers on terrain bounds
 - [ ] Entire terrain visible with margins
 - [ ] Works in bars mode
@@ -101,20 +101,20 @@ This release includes major camera control enhancements:
 - [ ] Console logs terrain center (debugging)
 
 **R Key Reset:**
-- [ ] Press **R** → Camera resets to initial position
+- [ ] Press **R** -> Camera resets to initial position
 - [ ] Works as fallback if F key fails
 
 **Space Bar:**
-- [ ] Press **Space** → Toggle auto-rotate on/off
+- [ ] Press **Space** -> Toggle auto-rotate on/off
 - [ ] Auto-rotate checkbox updates
 - [ ] Works correctly
 
 **Typing Detection:**  CRITICAL - NEW FIX
-- [ ] Type in region search box → WASD/F/R keys don't affect camera
-- [ ] Type in bucket size input → Keys don't affect camera
-- [ ] Type in exaggeration input → Keys don't affect camera
-- [ ] Click Select2 dropdown, search → Keys don't affect camera
-- [ ] Tab out of input → Keys resume working
+- [ ] Type in region search box -> WASD/F/R keys don't affect camera
+- [ ] Type in bucket size input -> Keys don't affect camera
+- [ ] Type in exaggeration input -> Keys don't affect camera
+- [ ] Click Select2 dropdown, search -> Keys don't affect camera
+- [ ] Tab out of input -> Keys resume working
 - [ ] No lag or delay in typing response
 
 ---
@@ -293,10 +293,10 @@ This release includes major camera control enhancements:
 **Smoke Test (5 minutes):**
 - [ ] Open viewer on production URL
 - [ ] Load default region (should be USA)
-- [ ] Press F → reframe works
+- [ ] Press F -> reframe works
 - [ ] Pan, rotate, zoom all work
 - [ ] Switch to different region
-- [ ] Press F again → reframes to new region
+- [ ] Press F again -> reframes to new region
 - [ ] No console errors
 
 **Full Test (15 minutes):**

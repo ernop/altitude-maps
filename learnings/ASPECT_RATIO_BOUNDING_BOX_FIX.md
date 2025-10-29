@@ -14,9 +14,9 @@ State and region data was rendering with incorrect aspect ratios due to violatio
 2. **Viewer reinterpreted data incorrectly** - Applied geographic transformations to already-correct data
 
 **Example - Tennessee:**
-- **BEFORE**: 812 × 871 pixels (aspect ratio 0.932 - almost square!)
-- **AFTER**: 1023 × 202 pixels (aspect ratio 5.044 - correctly wide!)
-- **Reality**: Tennessee is ~8.7° wide and ~1.7° tall (should be ~5:1 aspect ratio)
+- **BEFORE**: 812 x 871 pixels (aspect ratio 0.932 - almost square!)
+- **AFTER**: 1023 x 202 pixels (aspect ratio 5.044 - correctly wide!)
+- **Reality**: Tennessee is ~8.7deg wide and ~1.7deg tall (should be ~5:1 aspect ratio)
 
 **Root Cause**: Using `crop=False` in `rasterio.mask()` operations kept the full rectangular bounding box including empty (NaN) pixels outside the actual state boundaries. This made wide states appear square.
 

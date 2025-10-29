@@ -21,7 +21,7 @@ Since the server is Dreamhost (Apache), we can enable compression with an `.htac
 ### What the .htaccess Does
 
 1. **Enables gzip compression** for JSON files using `mod_deflate`
-2. **Reduces transfer size by 85-95%** (8 MB → 0.5-1 MB typical)
+2. **Reduces transfer size by 85-95%** (8 MB -> 0.5-1 MB typical)
 3. **Adds browser caching** to avoid re-downloading unchanged files
 4. **Sets security headers** for better security
 
@@ -109,7 +109,7 @@ If compression still not working after deploying `.htaccess`:
 To verify in the browser:
 
 1. Open https://fuseki.net/altitude-maps/interactive_viewer_advanced.html
-2. Open DevTools (F12) → Network tab
+2. Open DevTools (F12) -> Network tab
 3. Load a region (e.g., select "Nebraska")
 4. Find the JSON file in Network tab
 5. Check:

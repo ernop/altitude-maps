@@ -60,7 +60,7 @@ chmod +x deploy.sh
 
 ```
 /home/x.com/public/maps/
-├── interactive_viewer_advanced.html  ← Files here
+├── interactive_viewer_advanced.html  <- Files here
 ├── js/
 ├── css/
 └── generated/
@@ -69,7 +69,7 @@ chmod +x deploy.sh
 **NOT nested** like this:
 ```
 /home/x.com/public/maps/
-└── altitude-maps/  ← Does NOT create this
+└── altitude-maps/  <- Does NOT create this
     └── ...
 ```
 
@@ -141,9 +141,9 @@ Raw data (NOT deployed):
 
 ```
 /var/www/maps/
-├── interactive_viewer_advanced.html  ← Main viewer
-├── viewer.html                       ← Simple viewer
-├── README.md                         ← Optional
+├── interactive_viewer_advanced.html  <- Main viewer
+├── viewer.html                       <- Simple viewer
+├── README.md                         <- Optional
 ├── css/
 │   ├── viewer.css
 │   └── viewer-advanced.css
@@ -153,7 +153,7 @@ Raw data (NOT deployed):
 │   ├── ground-plane-camera.js
 │   └── ...
 └── generated/
-    ├── manifest.json                 ← Region list
+    ├── manifest.json                 <- Region list
     └── regions/
         ├── USA_Alabama.json
         ├── USA_California.json
@@ -272,7 +272,7 @@ gzip_static on;  # Serve pre-compressed .gz files
 ```
 
 ### Benefits
-- 85-95% smaller transfer size (8 MB → 0.5-1 MB typical)
+- 85-95% smaller transfer size (8 MB -> 0.5-1 MB typical)
 - No runtime compression overhead on server
 - Faster for servers without mod_deflate
 - Works with any static file host (S3, CDN, etc.)

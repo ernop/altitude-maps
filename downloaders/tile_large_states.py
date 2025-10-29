@@ -1,6 +1,6 @@
 """
 Download large US states in tiles to avoid OpenTopography size limits.
-OpenTopography rejects requests larger than ~4° in any direction.
+OpenTopography rejects requests larger than ~4deg in any direction.
 """
 import sys
 from pathlib import Path
@@ -21,20 +21,20 @@ except ImportError as e:
 from downloaders.usa_3dep import US_STATES, download_opentopography_srtm
 from src.pipeline import run_pipeline
 
-# States that need tiling (dimension > 4° in any direction)
+# States that need tiling (dimension > 4deg in any direction)
 LARGE_STATES = {
-    "california": {"tiles": (3, 3)},   # 10.35° × 9.48° → 3×3 tiles
-    "texas": {"tiles": (4, 3)},        # 13.14° × 10.66° → 4×3 tiles
-    "alaska": {"tiles": (10, 6)},      # 40° × 20.5° → 10×6 tiles (huge!)
-    "montana": {"tiles": (4, 2)},      # 12.01° × 4.64° → 4×2 tiles
-    "new_mexico": {"tiles": (2, 2)},   # 6.05° × 5.67° → 2×2 tiles
-    "nevada": {"tiles": (2, 2)},       # 5.97° × 7° → 2×2 tiles
-    "arizona": {"tiles": (2, 2)},      # 5.77° × 5.67° → 2×2 tiles
-    "oregon": {"tiles": (3, 2)},       # 8.11° × 4.3° → 3×2 tiles
-    "utah": {"tiles": (2, 2)},         # 5.01° × 5° → 2×2 tiles
-    "idaho": {"tiles": (2, 2)},        # 6.2° × 7.01° → 2×2 tiles
-    "wyoming": {"tiles": (2, 2)},      # 7.01° × 4.02° → 2×2 tiles
-    "florida": {"tiles": (2, 2)},      # 7.6° × 6.48° → 2×2 tiles
+    "california": {"tiles": (3, 3)},   # 10.35deg x 9.48deg -> 3x3 tiles
+    "texas": {"tiles": (4, 3)},        # 13.14deg x 10.66deg -> 4x3 tiles
+    "alaska": {"tiles": (10, 6)},      # 40deg x 20.5deg -> 10x6 tiles (huge!)
+    "montana": {"tiles": (4, 2)},      # 12.01deg x 4.64deg -> 4x2 tiles
+    "new_mexico": {"tiles": (2, 2)},   # 6.05deg x 5.67deg -> 2x2 tiles
+    "nevada": {"tiles": (2, 2)},       # 5.97deg x 7deg -> 2x2 tiles
+    "arizona": {"tiles": (2, 2)},      # 5.77deg x 5.67deg -> 2x2 tiles
+    "oregon": {"tiles": (3, 2)},       # 8.11deg x 4.3deg -> 3x2 tiles
+    "utah": {"tiles": (2, 2)},         # 5.01deg x 5deg -> 2x2 tiles
+    "idaho": {"tiles": (2, 2)},        # 6.2deg x 7.01deg -> 2x2 tiles
+    "wyoming": {"tiles": (2, 2)},      # 7.01deg x 4.02deg -> 2x2 tiles
+    "florida": {"tiles": (2, 2)},      # 7.6deg x 6.48deg -> 2x2 tiles
 }
 
 
@@ -45,7 +45,7 @@ def calculate_tiles(bounds: Tuple[float, float, float, float],
     
     Args:
         bounds: (west, south, east, north) in degrees
-        tile_size: Maximum tile dimension in degrees (default 3.5° for safety)
+        tile_size: Maximum tile dimension in degrees (default 3.5deg for safety)
         
     Returns:
         List of tile bounding boxes
@@ -103,7 +103,7 @@ def download_state_tiles(region_id: str,
     print(f"STEP 1: DOWNLOADING {state_name.upper()} IN TILES", flush=True)
     print(f"{'='*70}", flush=True)
     print(f"Full bounds: {bounds}", flush=True)
-    print(f"Size: {bounds[2]-bounds[0]:.2f}° × {bounds[3]-bounds[1]:.2f}°", flush=True)
+    print(f"Size: {bounds[2]-bounds[0]:.2f}deg x {bounds[3]-bounds[1]:.2f}deg", flush=True)
     
     # Calculate tiles
     num_cols, num_rows = tiles_config['tiles']
@@ -111,8 +111,8 @@ def download_state_tiles(region_id: str,
     tile_height = (bounds[3] - bounds[1]) / num_rows
     
     print(f"\nTiling configuration:", flush=True)
-    print(f"  Grid: {num_cols}×{num_rows}", flush=True)
-    print(f"  Tile size: ~{tile_width:.2f}° × {tile_height:.2f}° each", flush=True)
+    print(f"  Grid: {num_cols}x{num_rows}", flush=True)
+    print(f"  Tile size: ~{tile_width:.2f}deg x {tile_height:.2f}deg each", flush=True)
     print(f"  Total tiles: {num_cols * num_rows}", flush=True)
     print(f"  Output dir: {output_dir}", flush=True)
     print(f"{'='*70}\n", flush=True)
@@ -299,7 +299,7 @@ def merge_tiles(tile_paths: List[Path], output_path: Path) -> bool:
         print(f"  [3/4] Combining rasters into mosaic...", flush=True)
         mosaic, out_transform = merge(src_files)
         
-        print(f"        Merged dimensions: {mosaic.shape[2]} × {mosaic.shape[1]} pixels", flush=True)
+        print(f"        Merged dimensions: {mosaic.shape[2]} x {mosaic.shape[1]} pixels", flush=True)
         
         # Get metadata from first tile
         out_meta = src_files[0].meta.copy()
@@ -376,7 +376,7 @@ def download_large_state(region_id: str, api_key: str = None, target_pixels: int
     
     print(f"State: {state_info['name']}")
     print(f"Region ID: {region_id}")
-    print(f"Tile configuration: {tiles_config['tiles'][0]}×{tiles_config['tiles'][1]} grid")
+    print(f"Tile configuration: {tiles_config['tiles'][0]}x{tiles_config['tiles'][1]} grid")
     print(f"Target resolution: {target_pixels}px")
     print(f"\n{'#'*70}\n")
     
@@ -467,7 +467,7 @@ Use the main downloader instead: python downloaders/usa_3dep.py california --aut
 (Tiling happens automatically for large states)
 
 Large states configured for tiling:
-{chr(10).join(f"  - {k}: {v['tiles'][0]}×{v['tiles'][1]} tiles" for k, v in LARGE_STATES.items())}
+{chr(10).join(f"  - {k}: {v['tiles'][0]}x{v['tiles'][1]} tiles" for k, v in LARGE_STATES.items())}
         """
     )
     

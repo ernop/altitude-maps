@@ -25,13 +25,13 @@ function rebucketData(rawElevationData, params) {
     const bucketedWidth = Math.floor(width / bucketSize);
     const bucketedHeight = Math.floor(height / bucketSize);
     
-    // Bucket physical size = pixel spacing × multiplier
+    // Bucket physical size = pixel spacing x multiplier
     const bucketSizeMetersX = scale.metersPerPixelX * bucketSize;
     const bucketSizeMetersY = scale.metersPerPixelY * bucketSize;
     
-    console.log(`📐 Raw data: ${width}×${height} pixels @ ${scale.metersPerPixelX.toFixed(0)}×${scale.metersPerPixelY.toFixed(0)}m/pixel`);
-    console.log(`📐 Bucket multiplier: ${bucketSize}× → ${bucketedWidth}×${bucketedHeight} buckets`);
-    console.log(`📐 Bucket size: ${(bucketSizeMetersX/1000).toFixed(2)}km × ${(bucketSizeMetersY/1000).toFixed(2)}km`);
+    console.log(`📐 Raw data: ${width}x${height} pixels @ ${scale.metersPerPixelX.toFixed(0)}x${scale.metersPerPixelY.toFixed(0)}m/pixel`);
+    console.log(`📐 Bucket multiplier: ${bucketSize}x -> ${bucketedWidth}x${bucketedHeight} buckets`);
+    console.log(`📐 Bucket size: ${(bucketSizeMetersX/1000).toFixed(2)}km x ${(bucketSizeMetersY/1000).toFixed(2)}km`);
     
     // Pre-allocate array for better performance
     const bucketedElevation = new Array(bucketedHeight);
@@ -50,7 +50,7 @@ function rebucketData(rawElevationData, params) {
             const pixelY0 = by * bucketSize;
             const pixelY1 = (by + 1) * bucketSize;
             
-            // Collect all values in this bucket (bucketSize × bucketSize pixels)
+            // Collect all values in this bucket (bucketSize x bucketSize pixels)
             let count = 0;
             for (let py = pixelY0; py < pixelY1 && py < height; py++) {
                 for (let px = pixelX0; px < pixelX1 && px < width; px++) {

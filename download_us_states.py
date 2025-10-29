@@ -182,7 +182,7 @@ def download_opentopography_region(region_id: str, bounds: Tuple[float, float, f
         try:
             import rasterio
             with rasterio.open(output_file) as src:
-                print(f"      Dimensions: {src.width} × {src.height}")
+                print(f"      Dimensions: {src.width} x {src.height}")
                 print(f"      Resolution: ~30m")
         except Exception as e:
             print(f"     Warning: Could not verify file: {e}")

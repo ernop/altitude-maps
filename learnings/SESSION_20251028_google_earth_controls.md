@@ -7,7 +7,7 @@
 
 ## Changes Made
 
-### 1. Right-Drag → Google Earth Style Rotation
+### 1. Right-Drag -> Google Earth Style Rotation
 
 **Previous Behavior:**
 - Right drag = Orbit around focus point (Maya/Blender style)
@@ -44,7 +44,7 @@ offset.setFromSpherical(spherical);
 this.camera.position.copy(this.focusPoint).add(offset);
 ```
 
-### 2. F Key → Reframe View
+### 2. F Key -> Reframe View
 
 **New Feature:**
 Press F to automatically reframe the camera to show the entire terrain, centered on the map.
@@ -126,7 +126,7 @@ if (controls && controls.activeScheme && controls.activeScheme.setTerrainBounds)
 | D | Strafe right |
 | Q | Move down |
 | E | Move up |
-| **F** | **Reframe view** ← NEW |
+| **F** | **Reframe view** <- NEW |
 
 ### Touch/Trackpad Controls
 
@@ -206,22 +206,22 @@ Different render modes have different coordinate systems:
 
 **Bars Mode:**
 - Uses bucket multiplier for spacing
-- Bounds: `±(width-1) * bucketMultiplier / 2`
+- Bounds: `+/-(width-1) * bucketMultiplier / 2`
 
 **Points Mode:**
 - Uses unit spacing
-- Bounds: `±(width-1) / 2`
+- Bounds: `+/-(width-1) / 2`
 
 **Surface Mode:**
 - Uses real-world scale
-- Bounds: `±scale.width / 2` and `±scale.depth / 2`
+- Bounds: `+/-scale.width / 2` and `+/-scale.depth / 2`
 
 ### Reframe Algorithm
 
 1. Calculate center: `(minX + maxX) / 2`, `(minZ + maxZ) / 2`
 2. Calculate size: `max(width, depth)`
 3. Set distance: `size * 0.8` (80% for margin)
-4. Set height: `distance * 0.6` (creates ~30° viewing angle)
+4. Set height: `distance * 0.6` (creates ~30deg viewing angle)
 5. Position: `center.x, height, center.z + distance * 0.5`
 
 The formula ensures the entire terrain fits in view with comfortable margins.

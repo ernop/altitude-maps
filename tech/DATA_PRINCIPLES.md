@@ -13,9 +13,9 @@ Display geographic data with accurate real-world proportions. A wide state like 
 
 ### Why This Matters
 Geographic features have characteristic shapes that are recognizable and meaningful:
-- **Tennessee**: 8.7° wide × 1.7° tall = ~5:1 aspect ratio (very wide)
-- **New Jersey**: 1.3° wide × 2.5° tall = ~0.5:1 aspect ratio (very tall)  
-- **Kansas**: 5° wide × 3° tall = ~1.7:1 aspect ratio (moderately wide)
+- **Tennessee**: 8.7deg wide x 1.7deg tall = ~5:1 aspect ratio (very wide)
+- **New Jersey**: 1.3deg wide x 2.5deg tall = ~0.5:1 aspect ratio (very tall)  
+- **Kansas**: 5deg wide x 3deg tall = ~1.7:1 aspect ratio (moderately wide)
 
 Incorrect proportions make states unrecognizable and misleading.
 
@@ -103,17 +103,17 @@ const geometry = new THREE.PlaneGeometry(
 
 ```
 GeoTIFF Source (geographic CRS)
-    ↓
-[Masking with crop=True]  ← Principle 1 applied here
-    ↓
+    ->
+[Masking with crop=True]  <- Principle 1 applied here
+    ->
 Elevation Array (correct proportions baked in)
-    ↓
+    ->
 [Export to JSON]
-    ↓
+    ->
 Viewer receives simple 2D array
-    ↓
-[Render as uniform grid]  ← Principle 2 applied here
-    ↓
+    ->
+[Render as uniform grid]  <- Principle 2 applied here
+    ->
 Display (correct proportions)
 ```
 

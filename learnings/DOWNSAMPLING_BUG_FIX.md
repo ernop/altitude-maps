@@ -11,7 +11,7 @@ step_x = max(1, src.width // new_width)    # Different for width
 downsampled = elevation[::step_y, ::step_x]  # Distorts aspect ratio!
 ```
 
-This caused aspect ratio distortion during downsampling (Connecticut 6840×3949 became 4282×1692 instead of correct proportions).
+This caused aspect ratio distortion during downsampling (Connecticut 6840x3949 became 4282x1692 instead of correct proportions).
 
 ## The Solution
 

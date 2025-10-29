@@ -200,7 +200,7 @@ def main():
         for i, view in enumerate(nine_views, 1):
             print(f"\n{'='*70}")
             print(f"  VIEW {i}/9: {view['desc']}")
-            print(f"  Camera: Elevation {view['elevation']}°, Azimuth {view['azimuth']}°")
+            print(f"  Camera: Elevation {view['elevation']}deg, Azimuth {view['azimuth']}deg")
             print(f"{'='*70}")
             
             # Create filename prefix with view name

@@ -12,9 +12,9 @@
 
 **Root Cause Analysis**:
 The bucketing system works correctly:
-- Takes raw data (e.g., 1200×1200 pixels)
-- With bucket size 12, creates 100×100 buckets
-- Each bucket aggregates 12×12 = 144 raw pixels into ONE value
+- Takes raw data (e.g., 1200x1200 pixels)
+- With bucket size 12, creates 100x100 buckets
+- Each bucket aggregates 12x12 = 144 raw pixels into ONE value
 
 However, the bar rendering had issues:
 1. Bars were forced to square dimensions using `Math.min()`
@@ -80,16 +80,16 @@ Regenerated `generated/regions/usa_full.json` with correct format.
 
 For bucket size = 12:
 
-1. **Input**: Raw elevation data (e.g., 1200×1200 pixels)
+1. **Input**: Raw elevation data (e.g., 1200x1200 pixels)
 2. **Bucketing**: 
-   - Divide into 12×12 pixel regions
-   - Each region → 1 aggregated value (max/min/avg/median)
-   - Result: 100×100 bucketed values
+   - Divide into 12x12 pixel regions
+   - Each region -> 1 aggregated value (max/min/avg/median)
+   - Result: 100x100 bucketed values
 3. **Bar Creation**:
-   - Each bucketed value → 1 rectangular prism
-   - Bar width = 12 × metersPerPixelX
-   - Bar depth = 12 × metersPerPixelY
-   - Bar height = elevation × vertical_exaggeration
+   - Each bucketed value -> 1 rectangular prism
+   - Bar width = 12 x metersPerPixelX
+   - Bar depth = 12 x metersPerPixelY
+   - Bar height = elevation x vertical_exaggeration
 4. **Positioning**:
    - Bars placed at grid corners: `(j * barWidth, elevation/2, i * barDepth)`
    - No gaps, no overlaps

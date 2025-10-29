@@ -19,14 +19,14 @@ The interactive 3D elevation viewer now supports multiple regions worldwide with
 - 🔄 44 more regions ready to add (need elevation data downloaded)
 
 ### 🎮 Controls (Roblox Studio Style)
--  Left-click drag → Pan
--  Ctrl+Left drag → Rotate
--  Right-click drag → Rotate
--  W/S → Move up/down
--  A/D → Rotate left/right
--  Q/E → Move forward/backward
--  Shift/Ctrl/Alt modifiers → Speed control
--  Mouse wheel → Zoom
+-  Left-click drag -> Pan
+-  Ctrl+Left drag -> Rotate
+-  Right-click drag -> Rotate
+-  W/S -> Move up/down
+-  A/D -> Rotate left/right
+-  Q/E -> Move forward/backward
+-  Shift/Ctrl/Alt modifiers -> Speed control
+-  Mouse wheel -> Zoom
 
 ### 🔧 Features
 -  Real-time bucketing (1-50 pixels)
@@ -45,7 +45,7 @@ The interactive 3D elevation viewer now supports multiple regions worldwide with
 
 ```
 altitude-maps/
-├── interactive_viewer_advanced.html  ← OPEN THIS!
+├── interactive_viewer_advanced.html  <- OPEN THIS!
 ├── generated/
 │   ├── elevation_data.json           (Legacy single-region)
 │   └── regions/
@@ -54,7 +54,7 @@ altitude-maps/
 ├── data/
 │   └── regions/
 │       └── usa_full.tif               Source data
-├── download_regions.py               (Process .tif → .json)
+├── download_regions.py               (Process .tif -> .json)
 ├── download_srtm_direct.py           (Windows-compatible downloader)
 ├── MANUAL_DOWNLOAD_GUIDE.md          📖 How to add regions
 └── DOWNLOAD_GUIDE.md                 📖 Alternative guide
@@ -124,10 +124,10 @@ interactive_viewer_advanced.html
 ## Performance
 
 ### Current Settings
-- Default bucket size: 12×12 pixels
+- Default bucket size: 12x12 pixels
 - Vertical exaggeration: 0.01x (adjustable)
 - Render mode: Bars (instanced)
-- Max data size: 800×800
+- Max data size: 800x800
 
 ### Performance by Bar Count
 - < 5,000 bars: 60 FPS (butter smooth)
@@ -138,9 +138,9 @@ interactive_viewer_advanced.html
 ### Tips
 - Increase bucket size if laggy
 - Use Surface mode for very large regions
-- Shift = 2.5× faster movement
-- Ctrl = 0.3× slower (precise)
-- Alt = 4× faster (rapid)
+- Shift = 2.5x faster movement
+- Ctrl = 0.3x slower (precise)
+- Alt = 4x faster (rapid)
 
 ---
 
@@ -149,7 +149,7 @@ interactive_viewer_advanced.html
 ### Data Format
 - **Source**: GeoTIFF (.tif) elevation data
 - **Processed**: JSON with 2D elevation arrays
-- **Resolution**: Configurable (default 800×800)
+- **Resolution**: Configurable (default 800x800)
 - **Compression**: Minimal for web
 
 ### Rendering
@@ -209,7 +209,7 @@ interactive_viewer_advanced.html
 -  Browser: Modern browsers with WebGL
 
 ### Coverage
--  SRTM: 60°N to 56°S (most populated areas)
+-  SRTM: 60degN to 56degS (most populated areas)
 -  Arctic/Antarctic: Need alternative sources
 -  Resolution: 90m (SRTM3) to custom
 
@@ -241,7 +241,7 @@ python download_regions.py --regions usa_full
 ```
 
 ### "Viewer is laggy"
-- Increase bucket size (12 → 20)
+- Increase bucket size (12 -> 20)
 - Switch to Surface render mode
 - Lower vertical exaggeration
 - Check console for bar count warnings

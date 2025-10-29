@@ -64,7 +64,7 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
     }
     
     print(f"   📥 Downloading SRTM 30m data...")
-    print(f"      Bounds: {west:.2f}°W to {east:.2f}°E, {south:.2f}°S to {north:.2f}°N")
+    print(f"      Bounds: {west:.2f}degW to {east:.2f}degE, {south:.2f}degS to {north:.2f}degN")
     
     try:
         response = requests.get(url, params=params, stream=True, timeout=300)
@@ -106,7 +106,7 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
         try:
             with rasterio.open(output_file) as src:
                 file_size_mb = output_file.stat().st_size / (1024 * 1024)
-                print(f"    Success: {src.width}×{src.height} pixels ({file_size_mb:.1f} MB)")
+                print(f"    Success: {src.width}x{src.height} pixels ({file_size_mb:.1f} MB)")
                 return True
         except Exception as e:
             print(f"    File verification failed: {e}")
@@ -138,7 +138,7 @@ def process_state_to_json(state_id: str, state_info: Dict, tif_file: Path,
             elevation = src.read(1)
             bounds = src.bounds
             
-            print(f"      Original: {src.width}×{src.height} pixels")
+            print(f"      Original: {src.width}x{src.height} pixels")
             print(f"      Aspect ratio: {src.width/src.height:.3f}")
             
             # Downsample if needed - PRESERVE ASPECT RATIO
@@ -149,7 +149,7 @@ def process_state_to_json(state_id: str, state_info: Dict, tif_file: Path,
                 elevation = elevation[::step_size, ::step_size]
                 result_width, result_height = elevation.shape[1], elevation.shape[0]
                 result_aspect = result_width / result_height
-                print(f"      Downsampled: {result_width}×{result_height} (step: {step_size})")
+                print(f"      Downsampled: {result_width}x{result_height} (step: {step_size})")
                 print(f"      Result aspect ratio: {result_aspect:.3f}")
                 
                 # Validate aspect ratio preservation
@@ -201,7 +201,7 @@ def process_state_to_json(state_id: str, state_info: Dict, tif_file: Path,
                 json.dump(export_data, f, separators=(',', ':'))
             
             file_size_mb = output_file.stat().st_size / (1024 * 1024)
-            print(f"      JSON: {file_size_mb:.1f} MB ({width}×{height} = {width*height:,} points)")
+            print(f"      JSON: {file_size_mb:.1f} MB ({width}x{height} = {width*height:,} points)")
             
             return True
             

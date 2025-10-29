@@ -210,9 +210,9 @@ def render_visualization(data: dict, output_dir: str = "generated",
     x_size_display = width_meters
     y_size_display = height_meters
     
-    print(f"   - Data dimensions: {x_size} × {y_size} pixels")
-    print(f"   - Real-world size: {width_meters/1000:.1f} × {height_meters/1000:.1f} km")
-    print(f"   - Resolution: {meters_per_pixel_x:.1f} m/pixel (lon) × {meters_per_pixel_y:.1f} m/pixel (lat)")
+    print(f"   - Data dimensions: {x_size} x {y_size} pixels")
+    print(f"   - Real-world size: {width_meters/1000:.1f} x {height_meters/1000:.1f} km")
+    print(f"   - Resolution: {meters_per_pixel_x:.1f} m/pixel (lon) x {meters_per_pixel_y:.1f} m/pixel (lat)")
     print(f"   - Aspect ratio: {x_size/y_size:.3f} (width/height)")
     print(f"   - Vertical exaggeration: {VERTICAL_EXAGGERATION}x (1.0 = true Earth scale)")
     print(f"   Time: {time.time() - step_start:.2f}s")
@@ -231,8 +231,8 @@ def render_visualization(data: dict, output_dir: str = "generated",
     fig_width_inches = target_width_px / DPI
     fig_height_inches = target_height_px / DPI
     
-    print(f"   - Output resolution: {target_width_px} × {target_height_px} pixels ({SCALE_FACTOR:.1f}x data size)")
-    print(f"   - Figure: {fig_width_inches:.1f} × {fig_height_inches:.1f} inches @ {DPI} DPI")
+    print(f"   - Output resolution: {target_width_px} x {target_height_px} pixels ({SCALE_FACTOR:.1f}x data size)")
+    print(f"   - Figure: {fig_width_inches:.1f} x {fig_height_inches:.1f} inches @ {DPI} DPI")
     
     fig = plt.figure(figsize=(fig_width_inches, fig_height_inches), facecolor=background_color)
     ax = fig.add_subplot(111, projection='3d', facecolor=background_color)
@@ -362,7 +362,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
                             col, row = ~transform * (lon, lat)
                             
                             # No transformations applied to elevation data anymore
-                            # GeoTIFF natural orientation: row=North→South, col=West→East
+                            # GeoTIFF natural orientation: row=North->South, col=West->East
                             # Map directly to visualization coordinates
                             final_x = col * coordinate_scale
                             final_y = row * coordinate_scale
@@ -540,12 +540,12 @@ def render_visualization(data: dict, output_dir: str = "generated",
         print("\n✍  Adding text overlays...")
         
         # Title at the very top
-        title_str = f'USA Elevation Map | {bounds.left:.1f}°W to {bounds.right:.1f}°W, {bounds.bottom:.1f}°N to {bounds.top:.1f}°N | USGS 3DEP | Vertical Exag: {VERTICAL_EXAGGERATION}x'
+        title_str = f'USA Elevation Map | {bounds.left:.1f}degW to {bounds.right:.1f}degW, {bounds.bottom:.1f}degN to {bounds.top:.1f}degN | USGS 3DEP | Vertical Exag: {VERTICAL_EXAGGERATION}x'
         wrapped_title = "\n".join(textwrap.wrap(title_str, width=120))
         ax.text2D(0.5, 0.98, wrapped_title, transform=ax.transAxes, fontsize=14, color='#aaaaaa', ha='center', va='top', family='monospace')
         
         # Generated/metadata line just below title
-        footer_str = f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")} | View Angle: Elev {ax.elev}°, Azim {ax.azim}° | Data Points: {elevation_viz_resampled.size:,}'
+        footer_str = f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")} | View Angle: Elev {ax.elev}deg, Azim {ax.azim}deg | Data Points: {elevation_viz_resampled.size:,}'
         wrapped_footer = "\n".join(textwrap.wrap(footer_str, width=120))
         ax.text2D(0.5, 0.94, wrapped_footer, transform=ax.transAxes, fontsize=10, color='#888888', ha='center', va='top', family='monospace')
         
@@ -560,9 +560,9 @@ def render_visualization(data: dict, output_dir: str = "generated",
         bucket_miles = data.get("bucket_size_miles")
         bucket_pixels = data.get("bucket_size_pixels")
         if bucket_miles is not None:
-            config_lines.append(f'Bucket: {bucket_miles}×{bucket_miles} mi')
+            config_lines.append(f'Bucket: {bucket_miles}x{bucket_miles} mi')
         elif bucket_pixels is not None:
-            config_lines.append(f'Bucket: {bucket_pixels}×{bucket_pixels} px')
+            config_lines.append(f'Bucket: {bucket_pixels}x{bucket_pixels} px')
         else:
             config_lines.append(f'Bucket: None (full res)')
         
@@ -573,7 +573,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
             config_lines.append(f'Render: Surface')
         
         # Camera settings
-        config_lines.append(f'Camera: {CAMERA_ELEVATION}°/{CAMERA_AZIMUTH}°')
+        config_lines.append(f'Camera: {CAMERA_ELEVATION}deg/{CAMERA_AZIMUTH}deg')
         config_lines.append(f'Vert Exag: {VERTICAL_EXAGGERATION}x')
         config_lines.append(f'Zoom: {PROJECTION_ZOOM:.2f}')
         config_lines.append(f'Colormap: {colormap}')
@@ -613,15 +613,15 @@ def render_visualization(data: dict, output_dir: str = "generated",
     plt.savefig(output_path, dpi=DPI, bbox_inches='tight', facecolor=background_color, edgecolor='none', pad_inches=0.02)
     plt.close(fig)
     print(f"   - PNG saved to: {output_path}")
-    print(f"   - Initial resolution: ~{target_width_px} × {int(target_height_px)} pixels")
+    print(f"   - Initial resolution: ~{target_width_px} x {int(target_height_px)} pixels")
     
     # Auto-crop black borders (1% border = very tight framing)
     if autocrop:
         print(f"\n✂  Auto-cropping black borders...")
         orig_size, cropped_size, border_px = auto_crop_black_borders(output_path, border_percent=1.0)
         space_saved = (1 - (cropped_size[0] * cropped_size[1]) / (orig_size[0] * orig_size[1])) * 100
-        print(f"   - Original: {orig_size[0]} × {orig_size[1]} pixels")
-        print(f"   - Cropped: {cropped_size[0]} × {cropped_size[1]} pixels")
+        print(f"   - Original: {orig_size[0]} x {orig_size[1]} pixels")
+        print(f"   - Cropped: {cropped_size[0]} x {cropped_size[1]} pixels")
         print(f"   - Border added: {border_px[0]}px (width), {border_px[1]}px (height)")
         print(f"   - Space saved: {space_saved:.1f}%")
     else:

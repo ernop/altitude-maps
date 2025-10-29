@@ -70,8 +70,8 @@ reproject(
 
 EPSG:4326 (WGS84 lat/lon) uses square pixels in **degrees**, not meters:
 - Longitude degrees shrink toward poles by factor of `cos(latitude)`
-- At Kansas (38.5°N): 1.28x distortion in longitude direction
-- At Iceland (65°N): 2.37x distortion in longitude direction
+- At Kansas (38.5degN): 1.28x distortion in longitude direction
+- At Iceland (65degN): 2.37x distortion in longitude direction
 
 Without reprojection:
 - Kansas appears **27% too wide** (2.47:1 vs 1.94:1 correct ratio)
@@ -122,10 +122,10 @@ reproject(...)  # No nodata info = data corruption
 
 ### 3. Reprojection is Essential for Mid-High Latitudes
 
-- Any region >5° from equator needs reprojection
+- Any region >5deg from equator needs reprojection
 - Distortion increases dramatically with latitude
 - Web Mercator (EPSG:3857) is appropriate for most regions
-- Polar regions (>85°) may need polar stereographic (EPSG:3413/3031)
+- Polar regions (>85deg) may need polar stereographic (EPSG:3413/3031)
 
 ### 4. Validation Catches Issues
 

@@ -134,7 +134,7 @@ def create_state_from_usa():
                 dst.write(ca_data, 1)
             
             print(f"    Saved: {ca_file}")
-            print(f"   Size: {ca_data.shape[1]} × {ca_data.shape[0]}")
+            print(f"   Size: {ca_data.shape[1]} x {ca_data.shape[0]}")
             
             # New Jersey bounds
             nj_bounds = (-75.56, 38.93, -73.89, 41.36)
@@ -162,7 +162,7 @@ def create_state_from_usa():
                 dst.write(nj_data, 1)
             
             print(f"    Saved: {nj_file}")
-            print(f"   Size: {nj_data.shape[1]} × {nj_data.shape[0]}")
+            print(f"   Size: {nj_data.shape[1]} x {nj_data.shape[0]}")
             
             print(f"\n Success! Extracted both states from USA data")
             return True

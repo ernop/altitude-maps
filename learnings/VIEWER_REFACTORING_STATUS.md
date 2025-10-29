@@ -22,7 +22,7 @@ The interactive 3D elevation viewer underwent a partial refactoring to break the
 3. **`js/bucketing.js`** - 118 lines
    - `rebucketData()` - Complete bucketing algorithm
    - Supports max/min/average/median aggregation
-   - Integer-multiplier based (1×, 2×, 3×, etc.)
+   - Integer-multiplier based (1x, 2x, 3x, etc.)
    - Performance optimized with typed arrays
 
 ### 📂 Current Files
@@ -134,9 +134,9 @@ Even with partial refactoring:
 ## Recommendation
 
 The refactoring foundation is solid. Choose based on priorities:
-- **Need maintainability?** → Complete the extraction (Option A)
-- **Need stability now?** → Use current state (Option B)
-- **Prefer simplicity?** → Revert to monolithic (Option C)
+- **Need maintainability?** -> Complete the extraction (Option A)
+- **Need stability now?** -> Use current state (Option B)
+- **Prefer simplicity?** -> Revert to monolithic (Option C)
 
 The current state is functional and stable. No urgent action required.
 

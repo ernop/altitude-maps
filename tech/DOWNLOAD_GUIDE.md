@@ -2,7 +2,7 @@
 
 ## Overview
 
-The unified downloader (`download_unified.py`) provides **one command** to download and process elevation data for any region worldwide. No need to remember which script handles which country—the system routes automatically.
+The unified downloader (`download_unified.py`) provides **one command** to download and process elevation data for any region worldwide. No need to remember which script handles which country-the system routes automatically.
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ With `--process` flag:
 - **Clips** to admin boundaries (state/country) when known
 - **Downsamples** to viewer-friendly size (default 800px)
 - **Exports** to JSON format
-- **Updates** `generated/regions/regions_manifest.json` ← **this makes it show in dropdown**
+- **Updates** `generated/regions/regions_manifest.json` <- **this makes it show in dropdown**
 - Region appears in viewer dropdown at http://localhost:8001
 
 ## Command Reference
@@ -128,32 +128,32 @@ Opens http://localhost:8001/interactive_viewer_advanced.html
 ### US State with Auto Processing
 ```powershell
 python download_unified.py tennessee --process
-# → Downloads 30m SRTM
-# → Clips to Tennessee state boundary
-# → Exports to viewer format
-# → Shows as "Tennessee" in dropdown
+# -> Downloads 30m SRTM
+# -> Clips to Tennessee state boundary
+# -> Exports to viewer format
+# -> Shows as "Tennessee" in dropdown
 ```
 
 ### Japanese Prefecture
 ```powershell
 python download_unified.py kochi --process
-# → Downloads 30m AW3D30 (best for Asia)
-# → Exports with country context
-# → Shows as "Kochi" in dropdown
+# -> Downloads 30m AW3D30 (best for Asia)
+# -> Exports with country context
+# -> Shows as "Kochi" in dropdown
 ```
 
 ### Custom Mountain Range
 ```powershell
 python download_unified.py cascade_range --bounds -122 46 -120 49 --process --dataset AW3D30
-# → Downloads specified bounds
-# → Processes as "Cascade Range"
-# → Shows in dropdown
+# -> Downloads specified bounds
+# -> Processes as "Cascade Range"
+# -> Shows in dropdown
 ```
 
 ### High-Resolution Download
 ```powershell
 python download_unified.py california --process --target-pixels 4000
-# → Creates 4000px export (very detailed, larger file)
+# -> Creates 4000px export (very detailed, larger file)
 ```
 
 ## Troubleshooting

@@ -38,14 +38,14 @@ You can now view these regions in `interactive_viewer_advanced.html`:
 **Shikoku:**
 - Resolution: 30m (ALOS World 3D - excellent for Japan)
 - Elevation range: -76m to 1,970m
-- Original size: 8,280 × 5,400 pixels
-- Processed: 2,070 × 2,700 pixels
+- Original size: 8,280 x 5,400 pixels
+- Processed: 2,070 x 2,700 pixels
 
 **Central California:**
 - Resolution: 30m (SRTM GL1)
 - Elevation range: -67m to 4,412m (peak: Mt. Whitney area)
-- Original size: 18,000 × 10,800 pixels
-- Processed: 2,250 × 2,160 pixels
+- Original size: 18,000 x 10,800 pixels
+- Processed: 2,250 x 2,160 pixels
 
 ## 🚀 Next Steps
 
@@ -91,7 +91,7 @@ python download_high_resolution.py california_central --usgs-instructions
 
 Then follow the instructions to manually download from:
 - **USGS National Map:** https://apps.nationalmap.gov/downloader/
-- Select "Elevation Products (3DEP)" → "1/3 arc-second DEM" (10m)
+- Select "Elevation Products (3DEP)" -> "1/3 arc-second DEM" (10m)
 
 ### Explore Other Regions
 
@@ -129,18 +129,18 @@ python download_high_resolution.py mt_fuji --bounds 138.5 35.0 139.0 35.5 --data
 ### Resolution Options
 - `--max-size 800` - Quick preview (~2-10 MB JSON)
 - `--max-size 1024` - Standard viewing (~5-15 MB JSON)
-- `--max-size 2048` - High-resolution (~20-60 MB JSON) **← Current setting**
+- `--max-size 2048` - High-resolution (~20-60 MB JSON) **<- Current setting**
 - `--max-size 4096` - Maximum detail (~80-250 MB JSON)
 - `--max-size 0` - Full resolution (very large files)
 
 ### API Limitations
-- Maximum region size: ~500,000 km² (enforced by OpenTopography)
-- Full California (962,000 km²) is too large → split into sub-regions
+- Maximum region size: ~500,000 km^2 (enforced by OpenTopography)
+- Full California (962,000 km^2) is too large -> split into sub-regions
 - Japan fits within limits:
-  - Shikoku: 35,000 km² 
-  - Hokkaido: ~240,000 km² 
-  - Honshu: ~500,000 km²  (borderline, may need splitting)
-  - Kyushu: ~100,000 km² 
+  - Shikoku: 35,000 km^2 
+  - Hokkaido: ~240,000 km^2 
+  - Honshu: ~500,000 km^2  (borderline, may need splitting)
+  - Kyushu: ~100,000 km^2 
 
 ## 📁 File Locations
 

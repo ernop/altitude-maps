@@ -90,7 +90,7 @@ class AltitudeVisualizer:
         m = plt.cm.ScalarMappable(cmap=plt.cm.RdYlBu_r)
         m.set_array([data['temperature'].min(), data['temperature'].max()])
         cbar = plt.colorbar(m, ax=ax, shrink=0.5, aspect=5)
-        cbar.set_label('Temperature (°C)', rotation=270, labelpad=20, fontsize=11)
+        cbar.set_label('Temperature (degC)', rotation=270, labelpad=20, fontsize=11)
         
         # Better viewing angle
         ax.view_init(elev=25, azim=45)
@@ -135,7 +135,7 @@ class AltitudeVisualizer:
         axes[1].set_ylabel('Latitude', fontsize=12)
         axes[1].set_title('Temperature Distribution', fontsize=14, fontweight='bold')
         cbar2 = plt.colorbar(contour2, ax=axes[1])
-        cbar2.set_label('Temperature (°C)', rotation=270, labelpad=20)
+        cbar2.set_label('Temperature (degC)', rotation=270, labelpad=20)
         
         plt.suptitle('Elevation and Temperature Contour Maps', 
                     fontsize=16, fontweight='bold', y=1.02)
@@ -171,10 +171,10 @@ class AltitudeVisualizer:
         p = np.poly1d(z)
         elevation_sorted = np.sort(elevation_flat)
         ax.plot(elevation_sorted, p(elevation_sorted), "b--", 
-               linewidth=2, label=f'Trend: T = {z[0]:.4f}·h + {z[1]:.2f}')
+               linewidth=2, label=f'Trend: T = {z[0]:.4f}xh + {z[1]:.2f}')
         
         ax.set_xlabel('Elevation (m)', fontsize=13, fontweight='bold')
-        ax.set_ylabel('Temperature (°C)', fontsize=13, fontweight='bold')
+        ax.set_ylabel('Temperature (degC)', fontsize=13, fontweight='bold')
         ax.set_title('Temperature vs Elevation Relationship\n', 
                     fontsize=16, fontweight='bold')
         ax.legend(fontsize=11)
@@ -185,7 +185,7 @@ class AltitudeVisualizer:
         
         # Add statistics text
         stats_text = f'Points: {len(elevation_flat):,}\n'
-        stats_text += f'Lapse rate: {-z[0]*1000:.2f}°C/1000m'
+        stats_text += f'Lapse rate: {-z[0]*1000:.2f}degC/1000m'
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
                fontsize=10, verticalalignment='top',
                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
@@ -244,7 +244,7 @@ def main():
     # Get sample data
     print("\nGenerating sample dataset...")
     data = visualizer.data_manager.create_sample_dataset()
-    print(f"✓ Dataset ready: {data['elevation'].shape[0]}×{data['elevation'].shape[1]} grid")
+    print(f"✓ Dataset ready: {data['elevation'].shape[0]}x{data['elevation'].shape[1]} grid")
     
     # Create visualizations
     visualizer.create_all_visualizations(data)

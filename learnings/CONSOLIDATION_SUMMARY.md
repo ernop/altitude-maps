@@ -91,41 +91,41 @@ Every documented feature was verified:
 ### 4. Archived Session Notes
 
 Session-specific status updates moved to `learnings/`:
-- `FINAL_STATUS.md` → `learnings/session_final_status_oct21.md`
-- `MULTI_REGION_STATUS.md` → `learnings/session_multi_region_status_oct22.md`
-- `USAGE_SUMMARY.md` → `learnings/session_usage_summary_oct21.md`
+- `FINAL_STATUS.md` -> `learnings/session_final_status_oct21.md`
+- `MULTI_REGION_STATUS.md` -> `learnings/session_multi_region_status_oct22.md`
+- `USAGE_SUMMARY.md` -> `learnings/session_usage_summary_oct21.md`
 
 These provide historical context without cluttering main docs.
 
 ## Files Deleted (Consolidated)
 
-1.  `README_SIMPLE.md` → Merged into README.md
-2.  `COMPLETE_CONTROL_SCHEME.md` → Merged into TECH.md
-3.  `ROBLOX_STUDIO_CONTROLS.md` → Merged into TECH.md
-4.  `MANUAL_DOWNLOAD_GUIDE.md` → Merged into TECH.md
-5.  `DOWNLOAD_GUIDE.md` → Merged into TECH.md
-6.  `DOWNLOAD_US_STATES_GUIDE.md` → Merged into TECH.md
-7.  `DATA_FORMATS_AND_SOURCES.md` → Merged into TECH.md
-8.  `VISUALIZATION_OPTIONS.md` → Merged into TECH.md
-9.  `PERFORMANCE_OPTIMIZATIONS.md` → Merged into TECH.md
-10.  `INTERACTIVE_VIEWER_GUIDE.md` → Merged into TECH.md
+1.  `README_SIMPLE.md` -> Merged into README.md
+2.  `COMPLETE_CONTROL_SCHEME.md` -> Merged into TECH.md
+3.  `ROBLOX_STUDIO_CONTROLS.md` -> Merged into TECH.md
+4.  `MANUAL_DOWNLOAD_GUIDE.md` -> Merged into TECH.md
+5.  `DOWNLOAD_GUIDE.md` -> Merged into TECH.md
+6.  `DOWNLOAD_US_STATES_GUIDE.md` -> Merged into TECH.md
+7.  `DATA_FORMATS_AND_SOURCES.md` -> Merged into TECH.md
+8.  `VISUALIZATION_OPTIONS.md` -> Merged into TECH.md
+9.  `PERFORMANCE_OPTIMIZATIONS.md` -> Merged into TECH.md
+10.  `INTERACTIVE_VIEWER_GUIDE.md` -> Merged into TECH.md
 
 ## Files Moved (Archived)
 
-1. `FINAL_STATUS.md` → `learnings/session_final_status_oct21.md`
-2. `MULTI_REGION_STATUS.md` → `learnings/session_multi_region_status_oct22.md`
-3. `USAGE_SUMMARY.md` → `learnings/session_usage_summary_oct21.md`
+1. `FINAL_STATUS.md` -> `learnings/session_final_status_oct21.md`
+2. `MULTI_REGION_STATUS.md` -> `learnings/session_multi_region_status_oct22.md`
+3. `USAGE_SUMMARY.md` -> `learnings/session_usage_summary_oct21.md`
 
 ## Remaining Documentation Structure
 
 ```
 altitude-maps/
-├── README.md                    ← Start here (product overview)
-├── QUICKSTART.md                ← Get started in 5 minutes
-├── TECH.md                      ← Complete technical reference
-├── .cursorrules                 ← Agent development patterns
-├── CONSOLIDATION_SUMMARY.md     ← This file (consolidation notes)
-├── learnings/                   ← Session notes & deep dives
+├── README.md                    <- Start here (product overview)
+├── QUICKSTART.md                <- Get started in 5 minutes
+├── TECH.md                      <- Complete technical reference
+├── .cursorrules                 <- Agent development patterns
+├── CONSOLIDATION_SUMMARY.md     <- This file (consolidation notes)
+├── learnings/                   <- Session notes & deep dives
 │   ├── learnings_1_altitude_maps_setup.md
 │   ├── learnings_2_continental_usa_visualization.md
 │   ├── learning_3_documentation_consolidation.md
@@ -164,7 +164,7 @@ altitude-maps/
 
 ## Next Steps for Users
 
-1. **New users**: Start with README.md → QUICKSTART.md
+1. **New users**: Start with README.md -> QUICKSTART.md
 2. **Developers**: Read .cursorrules then explore code
 3. **Technical details**: Refer to TECH.md sections as needed
 4. **Historical context**: Check learnings/ for session notes
@@ -172,7 +172,7 @@ altitude-maps/
 ---
 
 **Consolidation completed**: October 22, 2025
-**Files reduced**: 16 → 5 (root level)
+**Files reduced**: 16 -> 5 (root level)
 **Duplication eliminated**: ~90%
 **All content validated**: 
 

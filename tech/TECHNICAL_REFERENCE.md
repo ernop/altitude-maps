@@ -36,7 +36,7 @@ python download_continental_usa.py --region usa_east --yes
 ```
 
 **Available USA Regions**:
-- `nationwide_usa` - Complete USA (-125°W to -66°W, 24°N to 49.5°N)
+- `nationwide_usa` - Complete USA (-125degW to -66degW, 24degN to 49.5degN)
 - `continental_usa` - Continental USA (similar coverage)
 - `usa_west` - Western half
 - `usa_east` - Eastern half
@@ -51,7 +51,7 @@ For regions outside the USA, you need to manually download elevation data.
 
 **Website**: https://portal.opentopography.org/raster?opentopoID=OTSRTM.082015.4326.1
 
-**Coverage**: 60°N to 56°S (most populated areas)
+**Coverage**: 60degN to 56degS (most populated areas)
 **Resolution**: 30m (1 arc-second) or 90m (3 arc-second)
 **Format**: GeoTIFF
 
@@ -68,7 +68,7 @@ For regions outside the USA, you need to manually download elevation data.
 #### Alternative Global Sources
 
 **ASTER GDEM**:
-- Coverage: 83°N to 83°S (99% of Earth)
+- Coverage: 83degN to 83degS (99% of Earth)
 - Resolution: 30m
 - Website: https://asterweb.jpl.nasa.gov/gdem.asp
 
@@ -131,13 +131,13 @@ python visualize_usa_overhead.py data/regions/japan.tif
 
 **Geographic Bucketing** (accounts for Earth's curvature):
 ```powershell
---bucket-miles N      # Divide into N×N mile squares, take MAX elevation
+--bucket-miles N      # Divide into NxN mile squares, take MAX elevation
                       # Example: --bucket-miles 100
 ```
 
 **Pixel Bucketing** (simple grid):
 ```powershell
---bucket-pixels N     # Divide into N×N pixel squares, take MAX elevation
+--bucket-pixels N     # Divide into NxN pixel squares, take MAX elevation
                       # Example: --bucket-pixels 50
 ```
 
@@ -304,11 +304,11 @@ python -m http.server 8001
 #### Keyboard - Speed Modifiers
 | Modifier | Multiplier | Use Case |
 |----------|-----------|----------|
-| None | 1.0× | Normal speed |
-| **Shift** | 2.5× | Fast movement |
-| **Ctrl** | 0.3× | Slow/precise movement |
-| **Alt** | 4.0× | Very fast movement |
-| **Shift+Alt** | 10× | Turbo mode! |
+| None | 1.0x | Normal speed |
+| **Shift** | 2.5x | Fast movement |
+| **Ctrl** | 0.3x | Slow/precise movement |
+| **Alt** | 4.0x | Very fast movement |
+| **Shift+Alt** | 10x | Turbo mode! |
 
 **Examples**:
 - `Shift + W` = Move up fast
@@ -318,7 +318,7 @@ python -m http.server 8001
 ### UI Controls
 
 **Bucketing**:
-- Slider: 1×1 (full resolution) to 50×50 pixels
+- Slider: 1x1 (full resolution) to 50x50 pixels
 - Real-time updates
 
 **Aggregation**:
@@ -329,7 +329,7 @@ python -m http.server 8001
 
 **Rendering**:
 - Render Mode: Bars, Surface, Wireframe, Points
-- Vertical Exaggeration: 0.1× to 50× (interactive slider, 1.0 = true Earth scale)
+- Vertical Exaggeration: 0.1x to 50x (interactive slider, 1.0 = true Earth scale)
 - Grid Resolution: 10% to 100% (performance tuning)
 
 **Visual**:
@@ -353,7 +353,7 @@ The viewer uses several optimizations:
 3. **MeshLambertMaterial**: Fast diffuse shader (vs. PBR)
 4. **Debouncing**: 150ms delay on slider changes
 5. **Typed Arrays**: Pre-allocated buffers for bucketing
-6. **Conservative Defaults**: 12×12 bucket size on load
+6. **Conservative Defaults**: 12x12 bucket size on load
 
 **Performance Targets**:
 | Bar Count | Expected FPS | Experience |
@@ -392,7 +392,7 @@ See `python download_regions.py --list` for complete list.
 - Coordinate Reference System (CRS/projection)
 - Geographic bounds (lat/lon or projected)
 - Spatial resolution (meters per pixel)
-- Affine transform (pixel → real-world coordinates)
+- Affine transform (pixel -> real-world coordinates)
 
 **Tools**:
 - Python: `rasterio`, `GDAL`
@@ -427,7 +427,7 @@ See `python download_regions.py --list` for complete list.
 - 2D array: `elevation[row][col]` where row=0 is top (north)
 - Coordinates in WGS84 (EPSG:4326)
 - Elevation in meters
-- File size: 1-10 MB typical (800×800)
+- File size: 1-10 MB typical (800x800)
 
 ### Regions Manifest
 
@@ -460,11 +460,11 @@ See `python download_regions.py --list` for complete list.
 **Bucketing** dramatically speeds up rendering by reducing data points:
 
 **No Bucketing**:
-- 800×800 = 640,000 data points
+- 800x800 = 640,000 data points
 - Render time: 30-60 seconds
 
 **100-Mile Buckets**:
-- ~40×30 = 1,200 data points
+- ~40x30 = 1,200 data points
 - Render time: 5-10 seconds
 
 **Trade-off**: Bucketing loses fine detail but highlights major features.
@@ -474,7 +474,7 @@ See `python download_regions.py --list` for complete list.
 **Instanced Rendering**:
 - Before: 10,000 meshes = 10,000 draw calls (1-5 FPS)
 - After: 1 instanced mesh = 1 draw call (60 FPS)
-- **1000× performance improvement**
+- **1000x performance improvement**
 
 **Material Choice**:
 - `MeshStandardMaterial` (PBR): Complex, slow
@@ -485,7 +485,7 @@ See `python download_regions.py --list` for complete list.
 - Optimized with typed arrays (`Float32Array`)
 - Pre-allocated buffers (no dynamic resizing)
 - Manual loops instead of spread operators
-- **2-5× faster** than naive implementation
+- **2-5x faster** than naive implementation
 
 **Debouncing**:
 - Slider changes debounced 100-150ms

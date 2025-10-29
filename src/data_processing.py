@@ -129,8 +129,8 @@ def prepare_visualization_data(tif_path: str, square_bucket_miles: float = None,
             # Geographic bucketing (accounts for Earth's curvature)
             print(f"\n[*] Applying {square_bucket_miles}x{square_bucket_miles} mile square bucketing (MAX, geographic)...", flush=True)
             
-            # Calculate approximate degrees per mile (at mid-latitude ~39°N for continental USA)
-            # At 39°N: 1 degree latitude ≈ 69 miles, 1 degree longitude ≈ 54 miles
+            # Calculate approximate degrees per mile (at mid-latitude ~39degN for continental USA)
+            # At 39degN: 1 degree latitude ~ 69 miles, 1 degree longitude ~ 54 miles
             miles_per_deg_lat = 69.0
             miles_per_deg_lon = 54.0  # Approximate for central USA
             

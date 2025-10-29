@@ -56,7 +56,7 @@ def extract_raster_info(filepath: Path) -> Dict[str, Any]:
         # Calculate approximate resolution in meters
         width_degrees = bounds.right - bounds.left
         height_degrees = bounds.top - bounds.bottom
-        width_meters = width_degrees * 111000  # 1 degree ≈ 111km
+        width_meters = width_degrees * 111000  # 1 degree ~ 111km
         height_meters = height_degrees * 111000
         res_x = width_meters / src.width
         res_y = height_meters / src.height

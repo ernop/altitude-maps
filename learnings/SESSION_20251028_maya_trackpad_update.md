@@ -7,7 +7,7 @@
 
 ## Changes Made
 
-### 1. Alt+Left Drag → Maya-Style Tumble (Rotate)
+### 1. Alt+Left Drag -> Maya-Style Tumble (Rotate)
 
 **Previous Behavior:**
 - Alt+Left drag = Tilt (same as Shift+Left)
@@ -52,7 +52,7 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 **Current Control Scheme:**
 - Left drag = Pan
 - Shift+Left drag = Tilt (viewing angle adjustment)
-- **Alt+Left drag = Rotate (Maya-style tumble)** ← NEW
+- **Alt+Left drag = Rotate (Maya-style tumble)** <- NEW
 - Right drag = Rotate (same as Alt+Left now)
 - Scroll = Zoom
 

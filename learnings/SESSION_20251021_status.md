@@ -4,9 +4,9 @@
 
 ### What We Just Did:
 
-1. ** Modified Data Getter** → Downloads ALL nationwide USA data
-2. ** Downloaded Fresh Data** → `nationwide_usa_elevation.tif` (3.25 MB)
-3. ** Generated Visualization** → Beautiful overhead map created!
+1. ** Modified Data Getter** -> Downloads ALL nationwide USA data
+2. ** Downloaded Fresh Data** -> `nationwide_usa_elevation.tif` (3.25 MB)
+3. ** Generated Visualization** -> Beautiful overhead map created!
 
 ---
 
@@ -15,10 +15,10 @@
 ### Downloaded Data:
 - **File**: `data/usa_elevation/nationwide_usa_elevation.tif`
 - **Size**: 3.25 MB
-- **Coverage**: -125°W to -66°W, 24°N to 49.5°N (COMPLETE USA)
+- **Coverage**: -125degW to -66degW, 24degN to 49.5degN (COMPLETE USA)
 - **Resolution**: ~6.5km per pixel
 - **Elevation Range**: -145m to 4,090m
-- **Shape**: 1024 × 1024 pixels
+- **Shape**: 1024 x 1024 pixels
 
 ### Generated Visualization:
 - **File**: `generated/20251021_131539_continental_usa_overhead_view.png`
@@ -26,7 +26,7 @@
 - **Quality**: 300 DPI high resolution
 - **Features**:
   - ✓ Complete nationwide USA coverage
-  - ✓ Beautiful terrain colors (blue→green→brown→white)
+  - ✓ Beautiful terrain colors (blue->green->brown->white)
   - ✓ 3D relief with hillshade lighting
   - ✓ Geographic coordinates labeled
   - ✓ Elevation statistics displayed
@@ -49,15 +49,15 @@ python visualize_usa_overhead.py
 
 ```
 User Request
-    ↓
+    ->
 download_continental_usa.py --region nationwide_usa --yes
-    ↓ [USGS 3DEP API]
+    -> [USGS 3DEP API]
 nationwide_usa_elevation.tif (3.25 MB)
-    ↓ [Load & Process]
+    -> [Load & Process]
 visualize_usa_overhead.py
-    ↓ [Render with hillshade & colors]
+    -> [Render with hillshade & colors]
 20251021_131539_continental_usa_overhead_view.png
-    ↓
+    ->
 BEAUTIFUL OVERHEAD MAP! ✨
 ```
 
@@ -68,8 +68,8 @@ BEAUTIFUL OVERHEAD MAP! ✨
 ### Geographic Coverage:
 - **West Coast**: Pacific Ocean to Rocky Mountains
 - **East Coast**: Atlantic seaboard
-- **South**: Florida Keys (24°N)
-- **North**: Canadian border (49.5°N)
+- **South**: Florida Keys (24degN)
+- **North**: Canadian border (49.5degN)
 - **Area**: 1,504.5 square degrees
 
 ### Visible Features:
@@ -88,7 +88,7 @@ BEAUTIFUL OVERHEAD MAP! ✨
 - **Mountains** (1500-3000m): Brown
 - **High peaks** (3000-4090m): Gray to white
 - **Lighting**: Northwest sun angle for dramatic shadows
-- **Perspective**: 35° overhead view from southwest
+- **Perspective**: 35deg overhead view from southwest
 
 ---
 
@@ -119,7 +119,7 @@ default='data/usa_elevation/nationwide_usa_elevation.tif'  # Uses nationwide dat
 | API | REST ImageServer |
 | Format | GeoTIFF (32-bit float) |
 | Projection | WGS84 (EPSG:4326) |
-| Pixels | 1,048,576 (1024²) |
+| Pixels | 1,048,576 (1024^2) |
 | Coverage | Full Continental USA |
 | Vertical Exag | 15x |
 | Output Format | PNG, 300 DPI |
@@ -188,11 +188,11 @@ Each run creates a new timestamped file - never loses previous versions!
 
 ## 🎯 Mission Status: COMPLETE 
 
- Data getter modified → Uses nationwide coverage  
- Data downloaded → 3.25 MB nationwide elevation data  
- Script updated → Uses nationwide data automatically  
- Visualization generated → Beautiful overhead map created  
- One-command workflow → `python visualize_usa_overhead.py`  
+ Data getter modified -> Uses nationwide coverage  
+ Data downloaded -> 3.25 MB nationwide elevation data  
+ Script updated -> Uses nationwide data automatically  
+ Visualization generated -> Beautiful overhead map created  
+ One-command workflow -> `python visualize_usa_overhead.py`  
 
 **Everything is working perfectly!**
 

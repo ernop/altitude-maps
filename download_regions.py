@@ -58,8 +58,8 @@ REGIONS = {
     },
     "turkiye": {
         "bounds": (25.0, 35.8, 45.0, 42.3),
-        "name": "Türkiye",
-        "description": "Republic of Türkiye"
+        "name": "Turkiye",
+        "description": "Republic of Turkiye"
     },
     "kyrgyzstan": {
         "bounds": (69.2, 39.1, 80.3, 43.3),
@@ -469,7 +469,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             elevation = src.read(1)
             bounds = src.bounds
             
-            print(f"   Original size: {src.width} × {src.height}")
+            print(f"   Original size: {src.width} x {src.height}")
             print(f"   Bounds: {bounds}")
             print(f"   Elevation range: {np.nanmin(elevation):.0f}m to {np.nanmax(elevation):.0f}m")
             print(f"   Aspect ratio: {src.width/src.height:.3f}")
@@ -484,7 +484,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
                 result_width, result_height = elevation.shape[1], elevation.shape[0]
                 result_aspect = result_width / result_height
                 
-                print(f"   Downsampled to: {result_width} × {result_height} (step: {step_size})")
+                print(f"   Downsampled to: {result_width} x {result_height} (step: {step_size})")
                 print(f"   Result aspect ratio: {result_aspect:.3f}")
                 
                 # Validate aspect ratio preservation

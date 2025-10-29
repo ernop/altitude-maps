@@ -5,15 +5,15 @@ This module defines all data structures used throughout the pipeline,
 with validation and clear documentation of expected formats.
 
 DATA FLOW:
-    Raw GeoTIFF → RawElevationData
-         ↓
-    Clipped → ClippedElevationData
-         ↓
-    Processed → ProcessedElevationData
-         ↓
-    Export → ViewerElevationData
-         ↓
-    Manifest → RegionsManifest
+    Raw GeoTIFF -> RawElevationData
+         ->
+    Clipped -> ClippedElevationData
+         ->
+    Processed -> ProcessedElevationData
+         ->
+    Export -> ViewerElevationData
+         ->
+    Manifest -> RegionsManifest
 
 Each stage has strict validation to ensure data integrity.
 """

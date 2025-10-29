@@ -98,7 +98,7 @@ class DataManager:
     def get_sample_temperature_data(self, elevation: np.ndarray) -> np.ndarray:
         """
         Generate sample temperature data based on elevation.
-        Uses standard lapse rate: ~6.5°C per 1000m
+        Uses standard lapse rate: ~6.5degC per 1000m
         
         Args:
             elevation: 2D array of elevation values
@@ -163,6 +163,6 @@ if __name__ == "__main__":
     
     print("\n=== Sample Dataset Created ===")
     print(f"Elevation range: {dataset['elevation'].min():.0f}m - {dataset['elevation'].max():.0f}m")
-    print(f"Temperature range: {dataset['temperature'].min():.1f}°C - {dataset['temperature'].max():.1f}°C")
+    print(f"Temperature range: {dataset['temperature'].min():.1f}degC - {dataset['temperature'].max():.1f}degC")
     print(f"Grid size: {dataset['elevation'].shape}")
 

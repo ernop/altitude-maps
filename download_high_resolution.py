@@ -36,37 +36,37 @@ DATASETS = {
     'SRTMGL1': {
         'name': 'SRTM GL1 (30m)',
         'resolution': '30m',
-        'coverage': 'Global (60°N-56°S)',
+        'coverage': 'Global (60degN-56degS)',
         'description': 'NASA SRTM 30m - good quality, global coverage'
     },
     'SRTMGL3': {
         'name': 'SRTM GL3 (90m)',
         'resolution': '90m',
-        'coverage': 'Global (60°N-56°S)',
+        'coverage': 'Global (60degN-56degS)',
         'description': 'NASA SRTM 90m - lower resolution'
     },
     'AW3D30': {
         'name': 'ALOS World 3D (30m)',
         'resolution': '30m',
-        'coverage': 'Global (82°N-82°S)',
+        'coverage': 'Global (82degN-82degS)',
         'description': 'JAXA ALOS 30m - excellent for mountains and Asia'
     },
     'NASADEM': {
         'name': 'NASADEM (30m)',
         'resolution': '30m',
-        'coverage': 'Global (60°N-56°S)',
+        'coverage': 'Global (60degN-56degS)',
         'description': 'Improved SRTM with void-filling'
     },
     'COP30': {
         'name': 'Copernicus DEM (30m)',
         'resolution': '30m',
-        'coverage': 'Global (90°N-90°S)',
+        'coverage': 'Global (90degN-90degS)',
         'description': 'ESA Copernicus 30m - excellent global coverage'
     },
     'COP90': {
         'name': 'Copernicus DEM (90m)',
         'resolution': '90m',
-        'coverage': 'Global (90°N-90°S)',
+        'coverage': 'Global (90degN-90degS)',
         'description': 'ESA Copernicus 90m - full polar coverage'
     }
 }
@@ -175,13 +175,13 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
     
     print(f"   📥 Downloading from OpenTopography...")
     print(f"      Region: {region_id}")
-    print(f"      Bounds: {west:.2f}°W to {east:.2f}°E, {south:.2f}°S to {north:.2f}°N")
+    print(f"      Bounds: {west:.2f}degW to {east:.2f}degE, {south:.2f}degS to {north:.2f}degN")
     print(f"      Dataset: {DATASETS[dataset]['name']}")
-    print(f"      Approx area: {approx_area_sq_km:,.0f} km²")
+    print(f"      Approx area: {approx_area_sq_km:,.0f} km^2")
     
     # Check size limits (warn but allow)
     if approx_area_sq_km > 500000:
-        print(f"     WARNING: Very large region ({approx_area_sq_km:,.0f} km²)")
+        print(f"     WARNING: Very large region ({approx_area_sq_km:,.0f} km^2)")
         print(f"      This may take several minutes or exceed API limits...")
         print(f"      Attempting download anyway...")
     
@@ -241,7 +241,7 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
         # Verify
         try:
             with rasterio.open(output_file) as src:
-                print(f"      Dimensions: {src.width} × {src.height}")
+                print(f"      Dimensions: {src.width} x {src.height}")
                 print(f"      CRS: {src.crs}")
                 
                 # Calculate actual resolution

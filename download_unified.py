@@ -199,7 +199,7 @@ Notes:
     # Decide dataset
     dataset = (args.dataset or suggest_dataset_for_region(entry)).upper()
 
-    # Auto-switch to COP30 for regions outside SRTM coverage (~60°N to 56°S)
+    # Auto-switch to COP30 for regions outside SRTM coverage (~60degN to 56degS)
     west, south, east, north = entry.bounds
     if (north > 60.0 or south < -56.0) and dataset in {"SRTMGL1", "SRTMGL3", "NASADEM"}:
         print("\n High-latitude region detected. Switching dataset to COP30 for coverage.")
@@ -254,7 +254,7 @@ Notes:
 
     if args.target_pixels == DEFAULT_TARGET_PIXELS and area_km2 <= 400:
         suggested_pixels = 4096
-        print(f"\n Small region detected (~{area_km2:,.0f} km²). Suggesting higher target-pixels: {suggested_pixels}.")
+        print(f"\n Small region detected (~{area_km2:,.0f} km^2). Suggesting higher target-pixels: {suggested_pixels}.")
         args.target_pixels = suggested_pixels
 
     # Validate raw file before processing (ensure proper GeoTIFF)

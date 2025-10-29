@@ -7,7 +7,7 @@
 Previously, vertical exaggeration was applied as a multiplier on elevation values (in meters) while horizontal coordinates used arbitrary pixel indices. This meant:
 
 - **Horizontal scale**: 0 to width_pixels (arbitrary units)
-- **Vertical scale**: elevation_meters × exaggeration
+- **Vertical scale**: elevation_meters x exaggeration
 
 This made the meaning of "vertical exaggeration" confusing and dependent on:
 - Image resolution (pixels)
@@ -21,7 +21,7 @@ Even values like 0.01 or 0.05 felt "very exaggerated" because elevation in meter
 Both horizontal and vertical coordinates now use **real-world meters** calculated from geographic bounds (lat/lon):
 
 - **Horizontal scale**: Calculated from degrees to meters at appropriate latitude
-- **Vertical scale**: elevation_meters × exaggeration
+- **Vertical scale**: elevation_meters x exaggeration
 - **Vertical exaggeration = 1.0**: True Earth scale (1000m horizontal = 1000m vertical)
 - **Vertical exaggeration = 2.0**: Mountains twice as steep as reality
 
@@ -54,29 +54,29 @@ y_meters = elevation * vertical_exaggeration
 1. **`src/rendering.py`**:
    - Added real-world scale calculation from geographic bounds
    - Converts X/Y coordinates from pixels to meters
-   - Default vertical_exaggeration: 8.0 → 4.0
+   - Default vertical_exaggeration: 8.0 -> 4.0
 
 2. **`interactive_viewer_advanced.html`**:
    - Added `calculateRealWorldScale()` function
    - Updated all terrain creation functions (bars, points, surface)
    - Updated border rendering to use meter coordinates
-   - Slider range: 0.0001-5.0 → 0.1-50.0
-   - Default: 0.01 → 4.0
-   - Updated preset buttons: 0.001x, 0.01x, 0.1x, 1.0x, 2.0x → 0.5x, 1.0x (True), 4.0x, 10.0x, 25.0x
+   - Slider range: 0.0001-5.0 -> 0.1-50.0
+   - Default: 0.01 -> 4.0
+   - Updated preset buttons: 0.001x, 0.01x, 0.1x, 1.0x, 2.0x -> 0.5x, 1.0x (True), 4.0x, 10.0x, 25.0x
 
 3. **`visualize_real_data.py`**:
-   - Default: 3.0 → 4.0
+   - Default: 3.0 -> 4.0
    - Updated docstring and help text with range info
 
 4. **`visualize_usa_overhead.py`**:
-   - Default: 8.0 → 4.0
+   - Default: 8.0 -> 4.0
    - Updated help text with range info
 
 5. **Settings files**:
    - `settings.json`
    - `settings.example.json`
    - `load_settings.py`
-   - All updated: 0.01 → 4.0
+   - All updated: 0.01 -> 4.0
 
 ### Documentation Updates
 
@@ -122,7 +122,7 @@ The slider now uses intuitive ranges (0.1 to 50.0):
 
 ## Technical Notes
 
-- Uses WGS84 approximation: 1° ≈ 111,320 meters
+- Uses WGS84 approximation: 1deg ~ 111,320 meters
 - Adjusts for latitude (longitude degrees get smaller near poles)
 - Both static renderer (matplotlib) and interactive viewer (Three.js) use same scale
 - Borders also converted to meter coordinates for consistency

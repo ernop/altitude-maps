@@ -4,7 +4,7 @@
 
 ### 1. **Full Continental USA Elevation Data** ✓
 - **File**: `data/usa_elevation/continental_usa_elevation.tif`
-- **Coverage**: -125°W to -66°W, 24°N to 49°N (entire continental USA)
+- **Coverage**: -125degW to -66degW, 24degN to 49degN (entire continental USA)
 - **Source**: USGS 3DEP
 - **Resolution**: ~6.4km per pixel (at this zoom level)
 - **Size**: 3.2 MB
@@ -14,7 +14,7 @@
 - **Latest**: `generated/YYYYMMDD_HHMMSS_continental_usa_overhead_view.png`
 - **Style**: Space perspective overhead view
 - **Features**:
-  - Realistic terrain colors (blue→green→brown→white)
+  - Realistic terrain colors (blue->green->brown->white)
   - Hillshade lighting for depth
   - Geographic coordinates labeled
   - Elevation statistics
@@ -99,10 +99,10 @@ colors_list = [...]  # Modify terrain colors
 ## 📍 Geographic Coverage
 
 **Continental USA Bounds:**
-- **West**: 125°W (Pacific Coast)
-- **East**: 66°W (Atlantic Coast)
-- **South**: 24°N (Florida Keys)
-- **North**: 49°N (Canadian border)
+- **West**: 125degW (Pacific Coast)
+- **East**: 66degW (Atlantic Coast)
+- **South**: 24degN (Florida Keys)
+- **North**: 49degN (Canadian border)
 
 **Notable Features Visible:**
 - Rocky Mountains (Colorado, Wyoming)

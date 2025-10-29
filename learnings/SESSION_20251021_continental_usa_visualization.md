@@ -16,7 +16,7 @@ User provided a reference image showing a 3D elevation map with distinctive char
 
 ### 1.  Downloaded Full Continental USA Data
 Successfully obtained elevation data for the entire continental USA:
-- **Bounds**: 125°W to 66°W, 24°N to 49°N
+- **Bounds**: 125degW to 66degW, 24degN to 49degN
 - **Area**: 1,475 square degrees
 - **Source**: USGS 3DEP via REST API
 - **File size**: 3.2 MB (manageable!)
@@ -60,28 +60,28 @@ colors_list = [
 ]
 ```
 
-Progression mimics natural terrain: ocean → lowlands → plains → foothills → mountains → peaks
+Progression mimics natural terrain: ocean -> lowlands -> plains -> foothills -> mountains -> peaks
 
 **Lighting**:
-- Hillshade with azimuth 315° (NW light source)
-- Altitude 60° (high angle for overhead view)
+- Hillshade with azimuth 315deg (NW light source)
+- Altitude 60deg (high angle for overhead view)
 - Soft blend mode for realistic shading
 
 **Viewing Angle**:
-- Elevation: 35° (overhead but not directly above)
-- Azimuth: 230° (viewing from SW toward NE)
+- Elevation: 35deg (overhead but not directly above)
+- Azimuth: 230deg (viewing from SW toward NE)
 - Shows 3D relief while maintaining overhead perspective
 
 ## Technical Decisions
 
 ### Why 15x Vertical Exaggeration?
-- Continental USA is VERY wide (~59° longitude) vs elevation (~4km max)
+- Continental USA is VERY wide (~59deg longitude) vs elevation (~4km max)
 - Without exaggeration: mountains would be invisible bumps
 - 15x makes features clearly visible while maintaining realism
 - Can be adjusted: try 10x for subtle, 25x for dramatic
 
 ### Resolution Management
-Original data: 1024×1024 pixels
+Original data: 1024x1024 pixels
 - Sufficient for continental overview
 - ~6.4km per pixel at this scale
 - For details: download regional data at 10m resolution
@@ -91,7 +91,7 @@ Original data: 1024×1024 pixels
 -  Automated, scriptable
 -  Works well for areas up to ~2000 square degrees
 -  Instant results
--  Limited to 1024×1024 or similar
+-  Limited to 1024x1024 or similar
 
 **Manual Approach** (for highest resolution):
 - Earth Explorer: https://earthexplorer.usgs.gov/
@@ -144,13 +144,13 @@ In the generated visualization, you can clearly see:
 ## Challenges & Solutions
 
 ### Challenge 1: Coordinate System Confusion
-**Issue**: GeoTIFF bounds showed 7°N to 66°N (incorrect for USA)
+**Issue**: GeoTIFF bounds showed 7degN to 66degN (incorrect for USA)
 **Cause**: Automatic reprojection or metadata issue
 **Solution**: Verified actual coverage by visual inspection
 **Learning**: Always validate geographic data visually
 
 ### Challenge 2: Windows Console Encoding
-**Issue**: UTF-8 characters (✓, °, ) causing crashes
+**Issue**: UTF-8 characters (✓, deg, ) causing crashes
 **Solution**: Wrap stdout/stderr in UTF-8 TextIOWrapper at script start
 **Pattern**: Add to ALL scripts for consistency
 
@@ -179,7 +179,7 @@ Benefits:
 
 **Continental USA Visualization**:
 - Load time: ~1 second
-- Render time: ~5 seconds (1024×1024)
+- Render time: ~5 seconds (1024x1024)
 - Output file: ~2-5 MB at 300 DPI
 
 **Memory Usage**:
@@ -194,15 +194,15 @@ Benefits:
 
 ```
 1. USER REQUEST
-   ↓
+   ->
 2. download_continental_usa.py --yes
-   ↓ (API call to USGS)
+   -> (API call to USGS)
 3. data/usa_elevation/continental_usa_elevation.tif
-   ↓ (GeoTIFF with elevation)
+   -> (GeoTIFF with elevation)
 4. visualize_usa_overhead.py
-   ↓ (Load → Process → Render)
+   -> (Load -> Process -> Render)
 5. generated/YYYYMMDD_HHMMSS_continental_usa_overhead_view.png
-   ↓
+   ->
 6. BEAUTIFUL VISUALIZATION ✨
 ```
 
@@ -217,8 +217,8 @@ Benefits:
 
 **Our Implementation**:
 -  Smooth 3D surface with hillshade
--  Overhead perspective (35° elevation)
--  Similar color scheme (blue→green→brown→white)
+-  Overhead perspective (35deg elevation)
+-  Similar color scheme (blue->green->brown->white)
 -  Geographic coordinates labeled
 -  Elevation statistics included
 -  Could add more "blocky" style with discrete height bars
@@ -237,7 +237,7 @@ Create alternate version with actual bar3d elements for more discrete/blocky app
 
  **3. Include lat/long bounds**
    - Explicit coordinates in title
-   - Example: "-125.0°W to -66.0°W, 24.0°N to 49.0°N"
+   - Example: "-125.0degW to -66.0degW, 24.0degN to 49.0degN"
 
  **4. Simple overhead map of entire continental USA**
    - One command: `python visualize_usa_overhead.py`
@@ -253,8 +253,8 @@ Create alternate version with actual bar3d elements for more discrete/blocky app
 ## Insights & Best Practices
 
 ### 1. **Resolution vs Coverage Trade-off**
-- Continental scale → lower resolution (~6km/px) acceptable
-- Regional scale → need high resolution (10m-30m)
+- Continental scale -> lower resolution (~6km/px) acceptable
+- Regional scale -> need high resolution (10m-30m)
 - Use appropriate resolution for purpose
 
 ### 2. **Vertical Exaggeration is Essential**
@@ -263,7 +263,7 @@ Create alternate version with actual bar3d elements for more discrete/blocky app
 - Document exaggeration factor clearly
 
 ### 3. **Color Choice Matters**
-- Use intuitive progression (blue→green→brown→white)
+- Use intuitive progression (blue->green->brown->white)
 - Consider colorblind accessibility
 - Hillshade adds crucial depth perception
 

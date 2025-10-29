@@ -48,7 +48,7 @@ The interactive viewer provides real-time exploration with:
 - **45+ Pre-configured Regions**: Switch between USA, Japan, Switzerland, and more without refreshing
 - **Real-Time Bucketing**: Adjust detail level (1-50 pixels) for performance
 - **Multiple Render Modes**: Bars, surface, wireframe, or point cloud
-- **Vertical Exaggeration**: Adjust from 0.1× to 50× (1.0 = true Earth scale)
+- **Vertical Exaggeration**: Adjust from 0.1x to 50x (1.0 = true Earth scale)
 - **Color Schemes**: 6 options including terrain, earth, ocean, viridis
 - **Country Borders**: Toggle country/state boundaries overlay
 - **Screenshots**: Export current view as PNG
@@ -115,7 +115,7 @@ Then open http://localhost:8001 in your browser. Select your region from the dro
 - Or follow manual download instructions for 10m data
 
 ### Global - SRTM (30m)
-- **Good coverage**: 60°N to 56°S (most populated areas)
+- **Good coverage**: 60degN to 56degS (most populated areas)
 - **Works everywhere**: Automatic download via OpenTopography
 - **Download**: `python download_unified.py <region> --process`
 
@@ -168,10 +168,10 @@ Switch between 45+ pre-configured regions with a dropdown selector. All regions 
 ### Vertical Exaggeration
 
 **Meter-based Scale**:
-- **1.0×**: True Earth proportions (1000m horizontal = 1000m vertical)
-- **4.0×**: Default (moderately dramatic)
-- **10.0×**: Very dramatic terrain
-- **25.0×**: Extreme exaggeration
+- **1.0x**: True Earth proportions (1000m horizontal = 1000m vertical)
+- **4.0x**: Default (moderately dramatic)
+- **10.0x**: Very dramatic terrain
+- **25.0x**: Extreme exaggeration
 
 Both X/Z (horizontal) and Y (elevation) axes use real meters based on lat/lon bounds.
 
@@ -194,7 +194,7 @@ python export_for_web_viewer.py data/usa.tif --mask-country "United States of Am
 ## Performance Tips
 
 ### Interactive Viewer
-- **Default bucket size**: 12×12 pixels works for most cases
+- **Default bucket size**: 12x12 pixels works for most cases
 - **If laggy**: Increase to 16-25 in sidebar
 - **For smooth 60 FPS**: Keep bar count under 15,000
 - **Surface mode**: Faster rendering for very large datasets
@@ -333,7 +333,7 @@ States requiring special formatting:
 
 - **1024px** - Smaller files, faster loading, still good quality
 - **2048px** - Default, recommended for most uses
-- **4096px** - High detail, larger files (~4× size of 2048px)
+- **4096px** - High detail, larger files (~4x size of 2048px)
 - **8192px** - Very high detail, very large files (only for special cases)
 
 Example file sizes for a typical state at 2048px: 5-20 MB JSON

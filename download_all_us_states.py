@@ -337,7 +337,7 @@ def extract_state_from_usa(state_id: str, state_info: Dict, usa_file: Path, outp
             
             file_size_mb = output_file.stat().st_size / (1024 * 1024)
             print(f"    Saved: {output_file.name}")
-            print(f"      Size: {data.shape[1]} × {data.shape[0]} ({file_size_mb:.1f} MB)")
+            print(f"      Size: {data.shape[1]} x {data.shape[0]} ({file_size_mb:.1f} MB)")
             
             return True
             

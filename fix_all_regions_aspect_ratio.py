@@ -239,7 +239,7 @@ def main():
     print(f"{'Region':<20} {'Dimensions':<15} {'Raster':<10} {'Geographic':<10} {'Diff'}")
     print("-" * 70)
     for region in sorted(bad_regions, key=lambda x: x['difference_pct'], reverse=True):
-        dims = f"{region['width']}×{region['height']}"
+        dims = f"{region['width']}x{region['height']}"
         print(f"{region['region_id']:<20} {dims:<15} "
               f"{region['raster_aspect']:<10.3f} {region['geo_aspect']:<10.3f} "
               f"{region['difference_pct']:>5.1f}%")

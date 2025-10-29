@@ -77,7 +77,7 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
         with rasterio.open(file_path) as src:
             # Basic checks
             if src.width == 0 or src.height == 0:
-                print(f"        Invalid dimensions: {src.width}×{src.height}", flush=True)
+                print(f"        Invalid dimensions: {src.width}x{src.height}", flush=True)
                 return False
             
             # Check that CRS and transform exist
@@ -152,7 +152,7 @@ def validate_json_export(file_path: Path) -> bool:
         
         # Validate dimensions
         if data['width'] <= 0 or data['height'] <= 0:
-            print(f"        Invalid dimensions: {data['width']}×{data['height']}")
+            print(f"        Invalid dimensions: {data['width']}x{data['height']}")
             return False
         
         # Validate elevation data structure
@@ -348,9 +348,9 @@ def download_international_region(region_id, region_info):
     west, south, east, north = region_info['bounds']
     
     # Choose dataset based on latitude coverage
-    # SRTM: 60°N to 56°S
-    # Copernicus: 90°N to 90°S (global)
-    # AW3D30: 82°N to 82°S
+    # SRTM: 60degN to 56degS
+    # Copernicus: 90degN to 90degS (global)
+    # AW3D30: 82degN to 82degS
     if north > 60.0 or south < -56.0:
         # Outside SRTM coverage, use Copernicus DEM
         dataset = 'COP30'
@@ -365,9 +365,9 @@ def download_international_region(region_id, region_info):
     print(f"\n📥 Downloading {region_info['name']}...")
     print(f"   Source: OpenTopography ({dataset_name})")
     print(f"   Bounds: {region_info['bounds']}")
-    print(f"   Latitude range: {south:.1f}°N to {north:.1f}°N")
+    print(f"   Latitude range: {south:.1f}degN to {north:.1f}degN")
     if dataset == 'COP30':
-        print(f"   Note: Using Copernicus DEM (SRTM doesn't cover >60°N)")
+        print(f"   Note: Using Copernicus DEM (SRTM doesn't cover >60degN)")
     
     try:
         import requests
@@ -477,11 +477,11 @@ def download_international_region(region_id, region_info):
     km_per_deg_lon = 111.320 * math.cos(math.radians(mid_lat))
     approx_area_km2 = (width_deg * km_per_deg_lon) * (height_deg * km_per_deg_lat)
 
-    # OpenTopography SRTMGL1 has a 450,000 km² limit; tile proactively when over ~420k
+    # OpenTopography SRTMGL1 has a 450,000 km^2 limit; tile proactively when over ~420k
     should_tile = (dataset == 'SRTMGL1') and (approx_area_km2 > 420_000 or width_deg > 4.0 or height_deg > 4.0)
 
     if should_tile:
-        print(f"   📦 Region is large ({approx_area_km2:,.0f} km²). Downloading in tiles...", flush=True)
+        print(f"   📦 Region is large ({approx_area_km2:,.0f} km^2). Downloading in tiles...", flush=True)
         # Use conservative tile size in degrees to keep each tile under area and dimension limits
         tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
         tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
@@ -847,11 +847,11 @@ This script will:
         print("="*70)
         print("\n🇺🇸 US STATES:")
         for state_id in sorted(US_STATE_NAMES.keys()):
-            print(f"  - {state_id:20s} → {US_STATE_NAMES[state_id]}")
+            print(f"  - {state_id:20s} -> {US_STATE_NAMES[state_id]}")
         print(f"\n🌍 INTERNATIONAL REGIONS:")
         for region_id in sorted(INTERNATIONAL_REGIONS.keys()):
             info = INTERNATIONAL_REGIONS[region_id]
-            print(f"  - {region_id:20s} → {info['name']}")
+            print(f"  - {region_id:20s} -> {info['name']}")
         print(f"\n{'='*70}")
         print(f"Total: {len(US_STATE_NAMES)} US states + {len(INTERNATIONAL_REGIONS)} international regions")
         print(f"\nUsage: python ensure_region.py <region_id>")
@@ -873,8 +873,8 @@ This script will:
         print("="*70, flush=True)
         print(f"\nRegion '{region_id}' is not recognized.")
         print(f"\nAvailable options:")
-        print(f"  • {len(US_STATE_NAMES)} US states (ohio, california, etc.)")
-        print(f"  • {len(INTERNATIONAL_REGIONS)} international regions (iceland, japan, etc.)")
+        print(f"  - {len(US_STATE_NAMES)} US states (ohio, california, etc.)")
+        print(f"  - {len(INTERNATIONAL_REGIONS)} international regions (iceland, japan, etc.)")
         print(f"\nRun with --list-regions to see all available regions")
         return 1
     

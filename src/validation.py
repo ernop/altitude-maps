@@ -76,8 +76,8 @@ def validate_aspect_ratio(
         if ratio_diff > tolerance:
             raise AspectRatioError(
                 f"Aspect ratio mismatch detected!\n"
-                f"  Raster:     {width} × {height} = {raster_aspect:.3f}\n"
-                f"  Geographic: {geo_width/1000:.1f}km × {geo_height/1000:.1f}km = {geo_aspect:.3f}\n"
+                f"  Raster:     {width} x {height} = {raster_aspect:.3f}\n"
+                f"  Geographic: {geo_width/1000:.1f}km x {geo_height/1000:.1f}km = {geo_aspect:.3f}\n"
                 f"  Difference: {ratio_diff*100:.1f}% (tolerance: {tolerance*100:.1f}%)\n"
                 f"\n"
                 f"This usually means crop=False was used during masking, keeping empty\n"
@@ -245,6 +245,6 @@ def validate_export_data(
         "raster_aspect": width / height,
         "geographic_aspect": geo_width_km / geo_height_km if geo_height_km > 0 else 0,
         "coverage_percent": coverage * 100,
-        "dimensions": f"{width} × {height}",
-        "geographic_size": f"{geo_width_km:.1f}km × {geo_height_km:.1f}km"
+        "dimensions": f"{width} x {height}",
+        "geographic_size": f"{geo_width_km:.1f}km x {geo_height_km:.1f}km"
     }

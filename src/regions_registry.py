@@ -188,7 +188,7 @@ def _build_registry() -> Dict[str, RegionEntry]:
                 "peru", "australia", "new zealand", "south africa", "egypt", "kenya",
                 "israel", "saudi arabia", "nepal", "angola",
                 # Added countries requested by users
-                "estonia", "georgia", "kyrgyzstan", "turkey", "türkiye", "turkiye", "singapore"
+                "estonia", "georgia", "kyrgyzstan", "turkey", "turkiye", "turkiye", "singapore"
             }
             name_lower = name.lower()
             if name_lower in country_candidates:

@@ -1,4 +1,4 @@
-﻿// Version tracking
+// Version tracking
 const VIEWER_VERSION = '1.333';
 
 // All console logs use plain ASCII - no sanitizer needed
@@ -8,6 +8,64 @@ let scene, camera, renderer, controls;
 let terrainMesh, gridHelper;
 let rawElevationData; // Original full-resolution data
 let processedData; // Bucketed/aggregated data
+
+// Precompute color schemes once to avoid per-vertex allocations during color updates
+const COLOR_SCHEMES = {
+    terrain: [
+        { stop: 0.0, color: new THREE.Color(0x1a4f63) },
+        { stop: 0.2, color: new THREE.Color(0x2d8659) },
+        { stop: 0.4, color: new THREE.Color(0x5ea849) },
+        { stop: 0.6, color: new THREE.Color(0xa8b840) },
+        { stop: 0.8, color: new THREE.Color(0xb87333) },
+        { stop: 1.0, color: new THREE.Color(0xe8e8e8) }
+    ],
+    elevation: [
+        { stop: 0.0, color: new THREE.Color(0x0000ff) },
+        { stop: 0.5, color: new THREE.Color(0x00ff00) },
+        { stop: 1.0, color: new THREE.Color(0xff0000) }
+    ],
+    grayscale: [
+        { stop: 0.0, color: new THREE.Color(0x111111) },
+        { stop: 1.0, color: new THREE.Color(0xffffff) }
+    ],
+    rainbow: [
+        { stop: 0.0, color: new THREE.Color(0x9400d3) },
+        { stop: 0.2, color: new THREE.Color(0x0000ff) },
+        { stop: 0.4, color: new THREE.Color(0x00ff00) },
+        { stop: 0.6, color: new THREE.Color(0xffff00) },
+        { stop: 0.8, color: new THREE.Color(0xff7f00) },
+        { stop: 1.0, color: new THREE.Color(0xff0000) }
+    ],
+    earth: [
+        { stop: 0.0, color: new THREE.Color(0x2C1810) },
+        { stop: 0.3, color: new THREE.Color(0x6B5244) },
+        { stop: 0.6, color: new THREE.Color(0x8B9A6B) },
+        { stop: 1.0, color: new THREE.Color(0xC4B89C) }
+    ],
+    heatmap: [
+        { stop: 0.0, color: new THREE.Color(0x000033) },
+        { stop: 0.25, color: new THREE.Color(0x0066ff) },
+        { stop: 0.5, color: new THREE.Color(0x00ff66) },
+        { stop: 0.75, color: new THREE.Color(0xffff00) },
+        { stop: 1.0, color: new THREE.Color(0xff0000) }
+    ],
+    test: [
+        { stop: 0.00, color: new THREE.Color(0x001b3a) },
+        { stop: 0.08, color: new THREE.Color(0x004e98) },
+        { stop: 0.16, color: new THREE.Color(0x00b4d8) },
+        { stop: 0.28, color: new THREE.Color(0x28a745) },
+        { stop: 0.38, color: new THREE.Color(0xfff275) },
+        { stop: 0.46, color: new THREE.Color(0xffb703) },
+        { stop: 0.54, color: new THREE.Color(0xfb8500) },
+        { stop: 0.64, color: new THREE.Color(0xe85d04) },
+        { stop: 0.74, color: new THREE.Color(0xd00000) },
+        { stop: 0.86, color: new THREE.Color(0x9d0208) },
+        { stop: 0.94, color: new THREE.Color(0xf5f5f5) },
+        { stop: 1.00, color: new THREE.Color(0xffffff) }
+    ]
+};
+// Temporary color reused to avoid per-vertex allocations
+const __tmpColor = new THREE.Color();
 let stats = {};
 let borderMeshes = [];
 let borderData = null;
@@ -54,13 +112,17 @@ function debounce(func, wait) {
 
 // UI activity log utilities
 function appendActivityLog(message) {
-    const logEl = document.getElementById('activityLog');
-    if (!logEl) return;
+    const logEls = document.querySelectorAll('#activityLog');
+    if (!logEls || logEls.length === 0) return;
     const time = new Date().toLocaleTimeString();
-    const row = document.createElement('div');
-    row.textContent = `[${time}] ${message}`;
-    logEl.appendChild(row);
-    logEl.scrollTop = logEl.scrollHeight;
+    const text = `[${time}] ${message}`;
+    logEls.forEach((logEl) => {
+        const row = document.createElement('div');
+        row.textContent = text;
+        logEl.appendChild(row);
+        // Natural auto-scroll to bottom
+        logEl.scrollTop = logEl.scrollHeight;
+    });
 }
 
 function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
@@ -109,7 +171,11 @@ let params = {
     colorScheme: 'terrain',
     showGrid: false,
     showBorders: false,
-    autoRotate: false
+    autoRotate: false,
+    hillshadeEnabled: false,
+    sunAzimuthDeg: 315,
+    sunAltitudeDeg: 45,
+    colorGamma: 1.0
 };
 
 // Initialize
@@ -120,6 +186,16 @@ async function init() {
         
         // Ensure activity log is visible by adding an initial entry
         appendActivityLog('Viewer initialized');
+        // Mirror console logs into activity log (info-level only)
+        if (!window.__consolePatched) {
+            const origLog = console.log.bind(console);
+            const origWarn = console.warn.bind(console);
+            const origError = console.error.bind(console);
+            console.log = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) {} origLog(...args); };
+            console.warn = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) {} origWarn(...args); };
+            console.error = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) {} origError(...args); };
+            window.__consolePatched = true;
+        }
         
         // Display version number
         const versionDisplay = document.getElementById('version-display');
@@ -659,6 +735,25 @@ function syncUIControls() {
     if (controls) {
         controls.autoRotate = params.autoRotate;
     }
+
+    // Shading controls
+    const hs = document.getElementById('hillshadeEnabled');
+    if (hs) hs.checked = !!params.hillshadeEnabled;
+    const az = document.getElementById('sunAzimuth');
+    const azIn = document.getElementById('sunAzimuthInput');
+    if (az) az.value = params.sunAzimuthDeg;
+    if (azIn) azIn.value = params.sunAzimuthDeg;
+    const alt = document.getElementById('sunAltitude');
+    const altIn = document.getElementById('sunAltitudeInput');
+    if (alt) alt.value = params.sunAltitudeDeg;
+    if (altIn) altIn.value = params.sunAltitudeDeg;
+
+    // Contrast controls
+    const cg = document.getElementById('colorGamma');
+    const cgIn = document.getElementById('colorGammaInput');
+    if (cg) cg.value = params.colorGamma;
+    if (cgIn) cgIn.value = params.colorGamma;
+    drawSunPad();
 }
 
 // CLIENT-SIDE BUCKETING ALGORITHMS
@@ -1263,7 +1358,7 @@ function setupControls() {
     const aggregationSelect = document.getElementById('aggregation');
     if (aggregationSelect) {
         aggregationSelect.addEventListener('change', (e) => {
-            console.log(`🔄 Aggregation: ${params.aggregation} → ${e.target.value}`);
+            console.log(`🔄 Aggregation: ${params.aggregation} -> ${e.target.value}`);
             params.aggregation = e.target.value;
             // Clear edge markers so they get recreated at new positions
             edgeMarkers.forEach(marker => scene.remove(marker));
@@ -1357,6 +1452,83 @@ function setupControls() {
         params.colorScheme = $(this).val();
         updateColors();
     });
+
+    // Hillshade toggle
+    const hs = document.getElementById('hillshadeEnabled');
+    if (hs) {
+        hs.addEventListener('change', (e) => {
+            params.hillshadeEnabled = !!e.target.checked;
+            updateMaterialsForShading();
+        });
+    }
+    // Sun azimuth
+    const az = document.getElementById('sunAzimuth');
+    const azIn = document.getElementById('sunAzimuthInput');
+    if (az && azIn) {
+        const setAz = (v) => {
+            const n = Math.max(0, Math.min(360, parseInt(v, 10) || 0));
+            params.sunAzimuthDeg = n;
+            az.value = n; azIn.value = n;
+            updateSunLightDirection();
+        };
+        az.addEventListener('input', (e) => setAz(e.target.value));
+        azIn.addEventListener('change', (e) => setAz(e.target.value));
+    }
+    // Sun altitude
+    const alt = document.getElementById('sunAltitude');
+    const altIn = document.getElementById('sunAltitudeInput');
+    if (alt && altIn) {
+        const setAlt = (v) => {
+            const n = Math.max(0, Math.min(90, parseInt(v, 10) || 0));
+            params.sunAltitudeDeg = n;
+            alt.value = n; altIn.value = n;
+            updateSunLightDirection();
+            drawSunPad();
+        };
+        alt.addEventListener('input', (e) => setAlt(e.target.value));
+        altIn.addEventListener('change', (e) => setAlt(e.target.value));
+    }
+
+    // Contrast
+    const cg = document.getElementById('colorGamma');
+    const cgIn = document.getElementById('colorGammaInput');
+    if (cg && cgIn) {
+        const setCg = (v) => {
+            let n = parseFloat(v);
+            if (isNaN(n)) n = 1.0;
+            n = Math.max(0.5, Math.min(2.0, n));
+            params.colorGamma = n;
+            cg.value = n; cgIn.value = n;
+            updateColors();
+        };
+        cg.addEventListener('input', (e) => setCg(e.target.value));
+        cgIn.addEventListener('change', (e) => setCg(e.target.value));
+    }
+
+    // Sun presets
+    const btnMorning = document.getElementById('sunPresetMorning');
+    const btnNoon = document.getElementById('sunPresetNoon');
+    const btnEvening = document.getElementById('sunPresetEvening');
+    const applySun = (az, altDeg) => {
+        params.sunAzimuthDeg = az;
+        params.sunAltitudeDeg = altDeg;
+        const azEl = document.getElementById('sunAzimuth');
+        const azInEl = document.getElementById('sunAzimuthInput');
+        const altEl = document.getElementById('sunAltitude');
+        const altInEl = document.getElementById('sunAltitudeInput');
+        if (azEl) azEl.value = az;
+        if (azInEl) azInEl.value = az;
+        if (altEl) altEl.value = altDeg;
+        if (altInEl) altInEl.value = altDeg;
+        updateSunLightDirection();
+        drawSunPad();
+    };
+    if (btnMorning) btnMorning.addEventListener('click', () => applySun(90, 30));
+    if (btnNoon) btnNoon.addEventListener('click', () => applySun(180, 70));
+    if (btnEvening) btnEvening.addEventListener('click', () => applySun(270, 25));
+
+    // Sun pad (mouse-driven)
+    initSunPad();
     
     // Grid/Borders/Auto-rotate UI controls removed; behavior controlled via params only
     
@@ -1865,9 +2037,9 @@ function createBarsTerrain(width, height, elevation, scale) {
     }
     
     const barCount = barData.length;
-    const material = new THREE.MeshLambertMaterial({
-        vertexColors: true
-    });
+    const material = params.hillshadeEnabled
+        ? new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: false })
+        : new THREE.MeshLambertMaterial({ vertexColors: true });
     
     const instancedMesh = new THREE.InstancedMesh(
         baseGeometry,
@@ -2089,12 +2261,9 @@ function createSurfaceTerrain(width, height, elevation, scale) {
             side: THREE.DoubleSide
         });
     } else {
-        material = new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
-            vertexColors: true,
-            flatShading: false,
-            wireframe: false,
-            side: THREE.DoubleSide
-        });
+        material = params.hillshadeEnabled
+            ? new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: false, flatShading: false, wireframe: false, side: THREE.DoubleSide })
+            : new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
     }
     
     terrainMesh = new THREE.Mesh(geometry, material);
@@ -2109,7 +2278,10 @@ function getColorForElevation(elevation) {
     }
     
     const { min, max } = rawElevationData.stats;
-    const normalized = Math.max(0, Math.min(1, (elevation - min) / (max - min)));
+    let normalized = Math.max(0, Math.min(1, (elevation - min) / (max - min)));
+    // Apply contrast (gamma). >1 darkens lower values, <1 brightens
+    const g = (params && typeof params.colorGamma === 'number') ? Math.max(0.1, Math.min(10, params.colorGamma)) : 1.0;
+    normalized = Math.pow(normalized, g);
     
     const schemes = {
         terrain: [
@@ -2219,11 +2391,175 @@ function updateTerrainHeight() {
 }
 
 function updateColors() {
-    recreateTerrain();
+    if (!terrainMesh || !processedData || !rawElevationData) {
+        // Fallback if not ready yet
+        recreateTerrain();
+        return;
+    }
+
+    // Bars: update per-instance colors without rebuild
+    if (params.renderMode === 'bars') {
+        if (!barsInstancedMesh || !barsBarData) { recreateTerrain(); return; }
+        // If hillshade is enabled, vertex colors are not used; nothing to update visually
+        if (barsInstancedMesh.material && barsInstancedMesh.material.vertexColors) {
+            const colorAttr = barsInstancedMesh.geometry.getAttribute('instanceColor');
+            if (!colorAttr || !colorAttr.array) { recreateTerrain(); return; }
+
+            const arr = colorAttr.array;
+            for (let i = 0; i < barsBarData.length; i++) {
+                const { i: row, j: col } = barsBarData[i];
+                let z = (processedData.elevation[row] && processedData.elevation[row][col]);
+                if (z === null || z === undefined) z = 0;
+                const c = getColorForElevation(z);
+                const idx = i * 3;
+                arr[idx] = c.r;
+                arr[idx + 1] = c.g;
+                arr[idx + 2] = c.b;
+            }
+            colorAttr.needsUpdate = true;
+            return;
+        }
+        return; // hillshade on: colors ignored
+    }
+
+    // Points: update color buffer in-place
+    if (params.renderMode === 'points') {
+        const geom = terrainMesh.geometry;
+        const colorAttr = geom.getAttribute('color');
+        if (!colorAttr || !colorAttr.array) { recreateTerrain(); return; }
+        const width = processedData.width;
+        const height = processedData.height;
+        const arr = colorAttr.array;
+        let k = 0;
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                let z = (processedData.elevation[i] && processedData.elevation[i][j]);
+                if (z === null || z === undefined) z = 0;
+                const c = getColorForElevation(z);
+                arr[k++] = c.r;
+                arr[k++] = c.g;
+                arr[k++] = c.b;
+            }
+        }
+        colorAttr.needsUpdate = true;
+        return;
+    }
+
+    // Surface (and wireframe fallback): update vertex colors in-place if present
+    {
+        const geom = terrainMesh.geometry;
+        const colorAttr = geom.getAttribute('color');
+        if (!colorAttr || !colorAttr.array) { recreateTerrain(); return; }
+        const width = processedData.width;
+        const height = processedData.height;
+        const arr = colorAttr.array;
+        let k = 0;
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                let z = (processedData.elevation[i] && processedData.elevation[i][j]);
+                if (z === null || z === undefined) z = 0;
+                const c = getColorForElevation(z);
+                arr[k++] = c.r;
+                arr[k++] = c.g;
+                arr[k++] = c.b;
+            }
+        }
+        colorAttr.needsUpdate = true;
+        return;
+    }
 }
 
 function recreateTerrain() {
     createTerrain();
+}
+
+function updateMaterialsForShading() {
+    // Recreate terrain with appropriate materials when hillshade toggles
+    recreateTerrain();
+}
+
+function updateSunLightDirection() {
+    const light = window.__sunLight;
+    if (!light) return;
+    const azRad = (params.sunAzimuthDeg % 360) * Math.PI / 180;
+    const altRad = (Math.max(0, Math.min(90, params.sunAltitudeDeg)) * Math.PI) / 180;
+    const x = Math.cos(altRad) * Math.cos(azRad);
+    const y = Math.sin(altRad);
+    const z = Math.cos(altRad) * Math.sin(azRad);
+    light.position.set(x * 200, y * 200, z * 200);
+}
+
+// ===== SUN PAD INTERACTION (mouse-driven sky control) =====
+let sunPadState = { dragging: false };
+function initSunPad() {
+    const canvas = document.getElementById('sunPad');
+    if (!canvas) return;
+    const onPos = (clientX, clientY) => {
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        const R = Math.min(rect.width, rect.height) * 0.5 - 4;
+        const r = Math.min(Math.sqrt(dx*dx + dy*dy), R);
+        // Azimuth: 0° = right (east), 90° = up (north-ish visual), CCW
+        let az = Math.atan2(-dy, dx) * 180 / Math.PI; // invert dy for canvas y
+        if (az < 0) az += 360;
+        // Altitude: center = 90°, edge = 0°
+        const alt = Math.max(0, Math.min(90, (1 - (r / R)) * 90));
+        params.sunAzimuthDeg = Math.round(az);
+        params.sunAltitudeDeg = Math.round(alt);
+        const azEl = document.getElementById('sunAzimuth');
+        const azInEl = document.getElementById('sunAzimuthInput');
+        const altEl = document.getElementById('sunAltitude');
+        const altInEl = document.getElementById('sunAltitudeInput');
+        if (azEl) azEl.value = params.sunAzimuthDeg;
+        if (azInEl) azInEl.value = params.sunAzimuthDeg;
+        if (altEl) altEl.value = params.sunAltitudeDeg;
+        if (altInEl) altInEl.value = params.sunAltitudeDeg;
+        updateSunLightDirection();
+        drawSunPad();
+    };
+    canvas.addEventListener('mousedown', (e) => { sunPadState.dragging = true; onPos(e.clientX, e.clientY); });
+    window.addEventListener('mousemove', (e) => { if (sunPadState.dragging) onPos(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', () => { sunPadState.dragging = false; });
+    drawSunPad();
+}
+
+function drawSunPad() {
+    const canvas = document.getElementById('sunPad');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    const cx = w/2, cy = h/2;
+    const R = Math.min(w, h) * 0.5 - 4;
+    // Background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, w, h);
+    // Horizon circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI*2);
+    ctx.strokeStyle = '#335';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Altitude rings (30° and 60°)
+    const r30 = R * (1 - 30/90);
+    const r60 = R * (1 - 60/90);
+    ctx.beginPath(); ctx.arc(cx, cy, r30, 0, Math.PI*2); ctx.strokeStyle = '#233'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r60, 0, Math.PI*2); ctx.strokeStyle = '#233'; ctx.stroke();
+    // Sun dot
+    const azRad = (params.sunAzimuthDeg % 360) * Math.PI / 180;
+    const altFrac = Math.max(0, Math.min(1, params.sunAltitudeDeg / 90));
+    const r = R * (1 - altFrac);
+    const sx = cx + Math.cos(azRad) * r;
+    const sy = cy - Math.sin(azRad) * r;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 5, 0, Math.PI*2);
+    ctx.fillStyle = '#ffcc66';
+    ctx.fill();
+    ctx.strokeStyle = '#664400';
+    ctx.stroke();
 }
 
 function recreateBorders() {
@@ -2953,3 +3289,4 @@ function copyShareLink() {
 
 // Start when page loads
 window.addEventListener('load', init);
+

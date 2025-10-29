@@ -13,10 +13,10 @@ User requested comprehensive review and consolidation of all markdown documentat
 
 ### Phase 1: Validation (Code Reading)
 Read and validated actual functionality:
--  `visualize_usa_overhead.py --help` → Confirmed all CLI options including `--gen-nine`
--  `download_regions.py` → 60+ regions pre-defined, processes TIF→JSON
--  `download_continental_usa.py` → USA USGS downloads working
--  `interactive_viewer_advanced.html` → Confirmed Roblox controls, region switching
+-  `visualize_usa_overhead.py --help` -> Confirmed all CLI options including `--gen-nine`
+-  `download_regions.py` -> 60+ regions pre-defined, processes TIF->JSON
+-  `download_continental_usa.py` -> USA USGS downloads working
+-  `interactive_viewer_advanced.html` -> Confirmed Roblox controls, region switching
 -  File structure validated: `generated/regions/` with manifest + usa_full.json
 -  Removed references to non-existent automation (elevation package)
 
@@ -41,7 +41,7 @@ Created 4 streamlined documents:
 - Links to QUICKSTART and TECH
 
 **2. QUICKSTART.md** (155 lines) - Practical Getting Started
-- 3-step setup (setup.ps1 → visualize → open viewer)
+- 3-step setup (setup.ps1 -> visualize -> open viewer)
 - First commands
 - Next steps
 - Common tasks
@@ -63,9 +63,9 @@ Kept as-is, still accurate.
 
 ### Phase 4: Archival
 Moved session notes to `learnings/`:
-- `FINAL_STATUS.md` → `learnings/session_final_status_oct21.md`
-- `MULTI_REGION_STATUS.md` → `learnings/session_multi_region_status_oct22.md`
-- `USAGE_SUMMARY.md` → `learnings/session_usage_summary_oct21.md`
+- `FINAL_STATUS.md` -> `learnings/session_final_status_oct21.md`
+- `MULTI_REGION_STATUS.md` -> `learnings/session_multi_region_status_oct22.md`
+- `USAGE_SUMMARY.md` -> `learnings/session_usage_summary_oct21.md`
 
 Created this consolidation log:
 - `learnings/learning_3_documentation_consolidation.md`
@@ -85,7 +85,7 @@ Deleted 10 redundant files (all content preserved in consolidated docs):
 
 ## Results
 
-### Before → After
+### Before -> After
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
 | Root MD files | 16 | 4 + summary | -69% |
@@ -96,12 +96,12 @@ Deleted 10 redundant files (all content preserved in consolidated docs):
 ### Final Structure
 ```
 altitude-maps/
-├── README.md              ← Start: What is this? (product)
-├── QUICKSTART.md          ← Start: How do I use it? (practical)
-├── TECH.md                ← Reference: Technical details
-├── CONSOLIDATION_SUMMARY.md  ← Meta: What changed
-├── .cursorrules           ← Agents: Development patterns
-├── learnings/             ← Archive: Session notes
+├── README.md              <- Start: What is this? (product)
+├── QUICKSTART.md          <- Start: How do I use it? (practical)
+├── TECH.md                <- Reference: Technical details
+├── CONSOLIDATION_SUMMARY.md  <- Meta: What changed
+├── .cursorrules           <- Agents: Development patterns
+├── learnings/             <- Archive: Session notes
 │   ├── learnings_1_altitude_maps_setup.md
 │   ├── learnings_2_continental_usa_visualization.md
 │   ├── learning_3_documentation_consolidation.md (this)

@@ -77,10 +77,10 @@ def check_raw_file(region_id, verbose=False):
                 print(f"    Sample read failed: {e}")
                 return False
             
-            print(f"   Dimensions: {ds.width} × {ds.height} pixels")
+            print(f"   Dimensions: {ds.width} x {ds.height} pixels")
             print(f"   CRS: {ds.crs}")
             print(f"   Bounds: {ds.bounds}")
-            print(f"   Pixel size: {ds.transform[0]:.10f} × {abs(ds.transform[4]):.10f} degrees")
+            print(f"   Pixel size: {ds.transform[0]:.10f} x {abs(ds.transform[4]):.10f} degrees")
             print(f"   File size: {format_size(raw_path.stat().st_size)}")
             print(f"   Sample valid: {valid_pct:.1f}% | range: {smin:.1f}..{smax:.1f} m")
             
@@ -125,7 +125,7 @@ def check_clipped_file(region_id, verbose=False):
             valid = ~np.isnan(data) & (data > -500)
             valid_pct = np.sum(valid) / data.size * 100
             
-            print(f"   Dimensions: {ds.width} × {ds.height} pixels")
+            print(f"   Dimensions: {ds.width} x {ds.height} pixels")
             print(f"   Bounds: {ds.bounds}")
             print(f"   File size: {format_size(clipped_path.stat().st_size)}")
             print(f"   Valid data: {valid_pct:.1f}%")
@@ -214,7 +214,7 @@ def check_processed_file(region_id, verbose=False):
                 valid = ~np.isnan(data) & (data > -500)
                 valid_pct = np.sum(valid) / data.size * 100
                 
-                print(f"   Dimensions: {ds.width} × {ds.height} pixels")
+                print(f"   Dimensions: {ds.width} x {ds.height} pixels")
                 print(f"   Aspect ratio: {ds.width/ds.height:.3f}")
                 print(f"   File size: {format_size(proc_path.stat().st_size)}")
                 print(f"   Valid data: {valid_pct:.1f}%")
@@ -255,7 +255,7 @@ def check_generated_json(region_id, verbose=False):
         
         print(f"   Name: {data.get('name', 'N/A')}")
         print(f"   Format version: {data.get('version', 'N/A')}")
-        print(f"   Dimensions: {data['width']} × {data['height']}")
+        print(f"   Dimensions: {data['width']} x {data['height']}")
         print(f"   Aspect ratio: {data['width']/data['height']:.3f}")
         print(f"   Source: {data.get('source', 'N/A')}")
         

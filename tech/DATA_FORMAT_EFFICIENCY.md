@@ -6,7 +6,7 @@
 
 Our elevation JSON files store data as **full rectangular 2D arrays**, including `null` values for areas outside the region boundary (ocean, neighboring states, etc.).
 
-**Example: Oregon (1374×1453 pixels, downsampled to fit 2048px target)**
+**Example: Oregon (1374x1453 pixels, downsampled to fit 2048px target)**
 - File size: **12.5 MB** (uncompressed)
 - Valid elevation data: **81.4%** (1,625,770 pixels)
 - Null values: **18.6%** (370,370 pixels - coastline, rivers, borders)
@@ -15,8 +15,8 @@ Our elevation JSON files store data as **full rectangular 2D arrays**, including
 ### Why Nulls Exist
 
 When we clip elevation data to state/country boundaries:
-1. We mask pixels outside the boundary → `NaN` in the array
-2. Export converts `NaN` → `null` in JSON
+1. We mask pixels outside the boundary -> `NaN` in the array
+2. Export converts `NaN` -> `null` in JSON
 3. JSON stores the full rectangular bounding box containing the region
 
 **Typical null percentages:**
@@ -29,7 +29,7 @@ When we clip elevation data to state/country boundaries:
 ```python
 for val in row:
     if np.isnan(val):  # Filter bad values (already marked as NaN)
-        row_list.append(None)  # ← Stores 'null' in JSON
+        row_list.append(None)  # <- Stores 'null' in JSON
     else:
         row_list.append(float(val))
 ```
@@ -41,7 +41,7 @@ for val in row:
 **Development Server (`serve_viewer.py`):**
 - Automatically gzips JSON files during transfer
 - Typical compression: **85-95% reduction** for sparse data
-- Oregon: 12.5 MB → ~1.5 MB over the wire
+- Oregon: 12.5 MB -> ~1.5 MB over the wire
 
 **Production Deployment:**
 - Configure nginx/Apache to enable gzip compression
@@ -55,7 +55,7 @@ for val in row:
 ####  2. Downsampling During Export
 
 Target pixels set to reasonable defaults:
-- States: 2048×2048 max (or auto-calculated based on size)
+- States: 2048x2048 max (or auto-calculated based on size)
 - Small regions: Lower resolution
 
 This limits file sizes but doesn't eliminate the sparse data problem.
@@ -124,13 +124,13 @@ The "null spam" looks inefficient when you open the raw file, but with GZIP comp
 - Large states (California, Texas): 1-3 MB transferred
 - Complex coastlines (Oregon, Alaska): Higher due to detail
 
-**Total for all US states:** ~50 MB raw → ~5-10 MB transferred with gzip
+**Total for all US states:** ~50 MB raw -> ~5-10 MB transferred with gzip
 
 ### Monitoring
 
 When loading regions in the viewer, console shows:
 ```
-[GZIP] oregon_srtm_30m_2048px_v2.json: 12234.5 KB → 1456.7 KB (88.1% saved)
+[GZIP] oregon_srtm_30m_2048px_v2.json: 12234.5 KB -> 1456.7 KB (88.1% saved)
 ```
 
 If compression ratios drop below 80%, investigate why (may indicate already-compressed data or binary content).

@@ -67,12 +67,12 @@ For the highest resolution California data (10m), you'll need to manually downlo
 
 | Dataset | Resolution | Coverage | Best For |
 |---------|-----------|----------|----------|
-| **AW3D30** | 30m | Global (82°N-82°S) | **Japan, mountains, Asia** |
-| SRTMGL1 | 30m | Global (60°N-56°S) | General use, USA |
-| NASADEM | 30m | Global (60°N-56°S) | Improved SRTM, void-filled |
-| COP30 | 30m | Global (90°N-90°S) | Polar regions, complete coverage |
-| SRTMGL3 | 90m | Global (60°N-56°S) | Lower resolution, smaller files |
-| COP90 | 90m | Global (90°N-90°S) | Polar regions, smaller files |
+| **AW3D30** | 30m | Global (82degN-82degS) | **Japan, mountains, Asia** |
+| SRTMGL1 | 30m | Global (60degN-56degS) | General use, USA |
+| NASADEM | 30m | Global (60degN-56degS) | Improved SRTM, void-filled |
+| COP30 | 30m | Global (90degN-90degS) | Polar regions, complete coverage |
+| SRTMGL3 | 90m | Global (60degN-56degS) | Lower resolution, smaller files |
+| COP90 | 90m | Global (90degN-90degS) | Polar regions, smaller files |
 
 **Special:** USGS 3DEP (10m) - USA only, manual download required
 

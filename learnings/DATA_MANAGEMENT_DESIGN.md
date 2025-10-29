@@ -52,13 +52,13 @@ generated/
 ### Core Principles:
 1. **Source Transparency**: Filename shows what source data came from
 2. **Resolution Clarity**: Resolution is always visible
-3. **Processing Stage**: Clear separation of raw → clipped → processed → exported
+3. **Processing Stage**: Clear separation of raw -> clipped -> processed -> exported
 4. **Version Control**: Every cached derivative has version metadata
 5. **Backwards Compatible**: Old code continues to work during migration
 6. **Automatic Cleanup**: Version mismatches trigger helpful errors
 
 ### Key Insight:
-**Data flows through stages**: Raw Download → Clipped/Masked → Downsampled → Exported
+**Data flows through stages**: Raw Download -> Clipped/Masked -> Downsampled -> Exported
 
 Each stage should be:
 - **Separate directory** (clear boundaries)
@@ -185,8 +185,8 @@ generated/                          # Stage 4: Exported for viewer
 **Format**: `{region}_{boundary_type}_{resolution}_{pixels}_v{version}.tif`
 
 **Examples**:
-- `california_state_10m_800px_v2.tif` - 800×800 pixels, version 2
-- `california_state_10m_1024px_v2.tif` - 1024×1024 pixels (high-res)
+- `california_state_10m_800px_v2.tif` - 800x800 pixels, version 2
+- `california_state_10m_1024px_v2.tif` - 1024x1024 pixels (high-res)
 - `japan_country_30m_800px_v2.tif`
 
 ### Exported JSON:
@@ -299,7 +299,7 @@ def load_clipped_data(region_id: str, source: str) -> RasterData:
 ```python
 # In src/versioning.py
 CLIPPED_VERSION = "v1"
-PROCESSED_VERSION = "v2"  # ← Bumped from v1
+PROCESSED_VERSION = "v2"  # <- Bumped from v1
 EXPORT_VERSION = "v2"
 ```
 
@@ -342,16 +342,16 @@ python clear_caches.py --all --confirm
 data/
   clipped/
     usa_3dep/
-      california_state_10m_v1.tif  ← Delete this
-      california_state_10m_v1.json ← and this
-      .cache_valid                  ← Flag file (presence = valid)
+      california_state_10m_v1.tif  <- Delete this
+      california_state_10m_v1.json <- and this
+      .cache_valid                  <- Flag file (presence = valid)
 ```
 
 Cache validation:
 1. Check `.cache_valid` flag exists
 2. Check version in metadata matches current
 3. Check source file hash matches
-4. If any fail → regenerate
+4. If any fail -> regenerate
 
 ---
 
@@ -433,8 +433,8 @@ mkdir data
 3. Classify and move files
    - GeoTIFF inspection: check metadata, bounds, resolution
    - Guess source from resolution/bounds:
-     * 1-10m + USA bounds → usa_3dep
-     * 30m + global → srtm_30m
+     * 1-10m + USA bounds -> usa_3dep
+     * 30m + global -> srtm_30m
    - Generate metadata JSON for each file
    
 4. Verification
@@ -469,22 +469,22 @@ dm = DataManager()
 
 # Load best available data for region
 data = dm.load_region("california", prefer_source="usa_3dep")
-# → Checks data/raw/usa_3dep/california_bbox_10m.tif
-# → Falls back to data/raw/srtm_30m/california_bbox_30m.tif if not found
+# -> Checks data/raw/usa_3dep/california_bbox_10m.tif
+# -> Falls back to data/raw/srtm_30m/california_bbox_30m.tif if not found
 
 # Load clipped data (auto-generates if missing)
 clipped = dm.load_clipped("california", boundary="state")
-# → Checks data/clipped/usa_3dep/california_state_10m_v1.tif
-# → Auto-generates from raw if missing or version mismatch
+# -> Checks data/clipped/usa_3dep/california_state_10m_v1.tif
+# -> Auto-generates from raw if missing or version mismatch
 
 # Get metadata
 meta = dm.get_metadata("california")
 print(f"Source: {meta.source}, Resolution: {meta.resolution}m")
-# → "Source: usa_3dep, Resolution: 10m"
+# -> "Source: usa_3dep, Resolution: 10m"
 
 # List all available data for region
 sources = dm.list_sources("california")
-# → ["usa_3dep (10m, raw)", "srtm_30m (30m, raw+clipped)"]
+# -> ["usa_3dep (10m, raw)", "srtm_30m (30m, raw+clipped)"]
 ```
 
 ---

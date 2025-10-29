@@ -41,9 +41,9 @@ Unity/Unreal-style first-person camera movement for exploring terrain:
 
 Instantly reframe camera to show entire terrain (Maya/Blender/Unity style):
 
-- Press **F** → Camera repositions to optimal view of full terrain
+- Press **F** -> Camera repositions to optimal view of full terrain
 - Centers on terrain bounds with comfortable margins
-- ~30° viewing angle (overhead but not flat)
+- ~30deg viewing angle (overhead but not flat)
 - Works in all render modes (bars, surface, points)
 - Updates when switching regions or changing bucket size
 
@@ -63,13 +63,13 @@ Instantly reframe camera to show entire terrain (Maya/Blender/Unity style):
 Mobile and laptop users can now navigate naturally:
 
 **Mobile Touch (Phones/Tablets):**
-- Single finger drag → Pan
-- Two-finger pinch → Zoom (pinch = zoom in, spread = zoom out)
+- Single finger drag -> Pan
+- Two-finger pinch -> Zoom (pinch = zoom in, spread = zoom out)
 - Pinch zooms toward center of fingers
 
 **Laptop Trackpad (MacBook, Windows Precision):**
-- Two-finger drag → Pan (Google Maps style)
-- Two-finger pinch → Zoom
+- Two-finger drag -> Pan (Google Maps style)
+- Two-finger pinch -> Zoom
 - Both gestures work simultaneously
 
 **Details:**
@@ -88,7 +88,7 @@ Mobile and laptop users can now navigate naturally:
 
 Maya/3ds Max/Cinema 4D users can now use familiar controls:
 
-- **Alt+Left drag** → Rotate/tumble around focus point (same as right-drag)
+- **Alt+Left drag** -> Rotate/tumble around focus point (same as right-drag)
 - Horizontal drag = turn left/right
 - Vertical drag = tilt up/down
 - Graceful cancellation if Alt released mid-drag
@@ -107,10 +107,10 @@ Maya/3ds Max/Cinema 4D users can now use familiar controls:
 
 Keyboard shortcuts now disable automatically when typing:
 
-- Type in region search → WASD/F/R keys don't affect camera
-- Type in bucket size input → Keys don't move camera
-- Type in Select2 dropdown search → No conflicts
-- Click outside input → Keys resume working immediately
+- Type in region search -> WASD/F/R keys don't affect camera
+- Type in bucket size input -> Keys don't move camera
+- Type in Select2 dropdown search -> No conflicts
+- Click outside input -> Keys resume working immediately
 
 **Detects:**
 - INPUT tags

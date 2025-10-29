@@ -68,7 +68,7 @@ def download_srtm_for_region(region_id: str, bounds: tuple, output_dir: Path) ->
             print(f"    Downloaded: {output_file}")
             # Check file
             with rasterio.open(output_file) as src:
-                print(f"      Size: {src.width} × {src.height}")
+                print(f"      Size: {src.width} x {src.height}")
                 print(f"      Resolution: ~{90}m")
             return output_file
         else:
@@ -104,7 +104,7 @@ Notes:
   - This uses SRTM 90m global elevation data
   - First run will be slow as it downloads ~25GB of SRTM tiles
   - Subsequent runs use cached tiles (much faster)
-  - Coverage: 60°N to 56°S (most of the world)
+  - Coverage: 60degN to 56degS (most of the world)
   - For areas outside SRTM coverage, manual download needed
         """
     )

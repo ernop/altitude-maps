@@ -34,9 +34,9 @@ Successfully extracted and processed **all 48 contiguous US states** from the na
 ### 4. Manifest Update
 - **File:** `generated/regions/regions_manifest.json`
 - **Total Regions:** 50
-  - 1 × USA (Contiguous) - full nationwide view
-  - 1 × Shikoku Island (Japan)
-  - 48 × Individual US States
+  - 1 x USA (Contiguous) - full nationwide view
+  - 1 x Shikoku Island (Japan)
+  - 48 x Individual US States
 
 ## All Available US States
 
@@ -132,7 +132,7 @@ States are alphabetically sorted within the USA group:
       ... (all 48 states) ...
       ├─ Wisconsin
       ├─ Wyoming
-      └─ USA (Contiguous)  ← full nationwide view
+      └─ USA (Contiguous)  <- full nationwide view
 ```
 
 ### Command-Line Usage

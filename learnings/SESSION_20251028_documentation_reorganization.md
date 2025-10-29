@@ -21,11 +21,11 @@
 - `README.md` - Public user documentation
 
 **Deleted** (consolidated into tech/):
--  `TECH.md` → `tech/TECHNICAL_REFERENCE.md`
--  `QUICKSTART.md` → `tech/USER_GUIDE.md`
--  `PRODUCT_REQUIREMENTS.md` → `tech/USER_GUIDE.md`
--  `UNIFIED_DOWNLOADER_GUIDE.md` → `tech/DOWNLOAD_GUIDE.md`
--  `DATA_STATUS.md` → Archived (contained dated information)
+-  `TECH.md` -> `tech/TECHNICAL_REFERENCE.md`
+-  `QUICKSTART.md` -> `tech/USER_GUIDE.md`
+-  `PRODUCT_REQUIREMENTS.md` -> `tech/USER_GUIDE.md`
+-  `UNIFIED_DOWNLOADER_GUIDE.md` -> `tech/DOWNLOAD_GUIDE.md`
+-  `DATA_STATUS.md` -> Archived (contained dated information)
 
 ### Learnings Folder Standardization
 
@@ -55,7 +55,7 @@
 ### Updated Documentation Rules
 
 Added comprehensive documentation rules to `.cursorrules`:
-- Clear structure: Root → tech/ → learnings/
+- Clear structure: Root -> tech/ -> learnings/
 - Naming conventions for each folder
 - Rules for when to create vs consolidate docs
 - Guidance on what goes where
@@ -63,8 +63,8 @@ Added comprehensive documentation rules to `.cursorrules`:
 ### Updated Links
 
 Updated all cross-references in README.md to point to new structure:
-- Changed `QUICKSTART.md` → `tech/USER_GUIDE.md`
-- Changed `TECH.md` → `tech/TECHNICAL_REFERENCE.md`
+- Changed `QUICKSTART.md` -> `tech/USER_GUIDE.md`
+- Changed `TECH.md` -> `tech/TECHNICAL_REFERENCE.md`
 - Added links to all tech/ files in documentation section
 
 ## Final Structure
@@ -115,7 +115,7 @@ altitude-maps/
  Removed duplicates from learnings/  
 
 **Total files reorganized**: 15+  
-**Root markdown files**: 7 → 2  
+**Root markdown files**: 7 -> 2  
 **New centralized docs**: 4 in tech/  
 **Session files standardized**: 7  
 

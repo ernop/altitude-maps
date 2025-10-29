@@ -69,7 +69,7 @@ class USGSElevationDownloader:
             'srtm_30m': {
                 'name': 'SRTM 30m',
                 'resolution': '~30 meters',
-                'coverage': 'Global (60°N to 56°S)',
+                'coverage': 'Global (60degN to 56degS)',
                 'url_base': 'https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/',
                 'description': 'NASA Shuttle Radar Topography Mission'
             },
@@ -197,8 +197,8 @@ class USARegionBounds:
             area_deg_sq = (e - w) * (n - s)
             area_km_sq = area_deg_sq * 111 * 111  # Rough conversion
             print(f"📍 {name.replace('_', ' ').title()}")
-            print(f"   Bounds: ({w:.2f}°W, {s:.2f}°N) to ({e:.2f}°W, {n:.2f}°N)")
-            print(f"   Area:   ~{area_km_sq:,.0f} km²")
+            print(f"   Bounds: ({w:.2f}degW, {s:.2f}degN) to ({e:.2f}degW, {n:.2f}degN)")
+            print(f"   Area:   ~{area_km_sq:,.0f} km^2")
             print()
     
     @classmethod

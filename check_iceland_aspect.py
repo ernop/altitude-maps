@@ -20,9 +20,9 @@ real_aspect = lon_km / lat_km
 data_aspect = d['width'] / d['height']
 
 print(f"Iceland Geographic Bounds:")
-print(f"  West to East: {bounds['left']:.2f}° to {bounds['right']:.2f}° ({lon_span:.2f}° span)")
-print(f"  South to North: {bounds['bottom']:.2f}° to {bounds['top']:.2f}° ({lat_span:.2f}° span)")
-print(f"  Average latitude: {avg_lat:.1f}°N")
+print(f"  West to East: {bounds['left']:.2f}deg to {bounds['right']:.2f}deg ({lon_span:.2f}deg span)")
+print(f"  South to North: {bounds['bottom']:.2f}deg to {bounds['top']:.2f}deg ({lat_span:.2f}deg span)")
+print(f"  Average latitude: {avg_lat:.1f}degN")
 print()
 print(f"Real-World Dimensions:")
 print(f"  Width: {lon_km:.1f} km")
@@ -39,6 +39,6 @@ print(f"  Distortion: {data_aspect/real_aspect:.2f}x TOO WIDE")
 print(f"  Iceland should be {real_aspect:.2f}:1, but data shows {data_aspect:.2f}:1")
 print()
 print("Why? The GeoTIFF uses EPSG:4326 (lat/lon) projection where pixels")
-print("represent equal ANGULAR spacing, not equal DISTANCE. At 65°N latitude,")
+print("represent equal ANGULAR spacing, not equal DISTANCE. At 65degN latitude,")
 print("longitude degrees are compressed ~2.4x compared to latitude degrees.")
 

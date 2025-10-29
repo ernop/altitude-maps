@@ -29,7 +29,7 @@ User wanted to recreate a visualization from Twitter (@cstats1) showing a 3D map
 Created two-tier data approach:
 1. **Sample/Synthetic Data** (immediate)
    - Generated realistic elevation data using Gaussian peaks
-   - Applied standard atmospheric lapse rate (6.5°C/1000m) for temperature
+   - Applied standard atmospheric lapse rate (6.5degC/1000m) for temperature
    - Good for testing and development
 
 2. **Real USA Data Sources** (researched and documented)
@@ -37,7 +37,7 @@ Created two-tier data approach:
    - USGS NED: 30m resolution (full USA coverage)
    - SRTM: 30m global coverage
    - OpenTopography: Research-grade data (API key required)
-   - Resolution context: 1 square mile ≈ 2.6 km² ≈ 260 pixels at 10m resolution
+   - Resolution context: 1 square mile ~ 2.6 km^2 ~ 260 pixels at 10m resolution
 
 ### 4. Visualization Types Created
 
@@ -89,19 +89,19 @@ Implemented timestamped descriptive filenames:
 
 | Resolution | Area per Pixel | Best For | File Size (estimate) |
 |------------|---------------|----------|---------------------|
-| 1m | 1m² | Urban, detailed terrain | Very large |
-| 10m | 100m² | Regional analysis | Large |
-| 30m | 900m² | State/country level | Manageable |
-| 90m | 8100m² | Continental | Small |
+| 1m | 1m^2 | Urban, detailed terrain | Very large |
+| 10m | 100m^2 | Regional analysis | Large |
+| 30m | 900m^2 | State/country level | Manageable |
+| 90m | 8100m^2 | Continental | Small |
 
-For 1 square mile (2.6 km²):
+For 1 square mile (2.6 km^2):
 - At 10m resolution: ~26,000 pixels
 - At 30m resolution: ~2,900 pixels
 
 ### Climate Data Best Practices
-1. **Lapse Rate**: Standard is 6.5°C per 1000m, but varies:
-   - Dry air: ~10°C/1000m
-   - Saturated air: ~6°C/1000m
+1. **Lapse Rate**: Standard is 6.5degC per 1000m, but varies:
+   - Dry air: ~10degC/1000m
+   - Saturated air: ~6degC/1000m
    - Real data should use actual measurements
 2. **Coordinate Systems**: Always document (we use WGS84/EPSG:4326)
 3. **Caching**: Essential for large datasets - never re-download
@@ -112,7 +112,7 @@ For 1 square mile (2.6 km²):
 Three main approaches:
 1. **API Download** (programmatic)
    - USGS 3DEP ImageServer REST API
-   - Good for small areas (<10° x 10°)
+   - Good for small areas (<10deg x 10deg)
    - Implemented in `usa_elevation_data.py`
 
 2. **Bulk Download** (manual)
