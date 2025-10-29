@@ -1903,12 +1903,15 @@ function createBarsTerrain(width, height, elevation, scale) {
         // IMPORTANT: Bars are created using current params.verticalExaggeration baked into instance scale.
         // The shader uniform represents the RATIO relative to that baked value.
         shader.uniforms.uExaggeration = { value: 1.0 };
+        // uTileScale scales X/Z in local space relative to built tile size
+        shader.uniforms.uTileScale = { value: 1.0 };
         instancedMesh.material.userData = instancedMesh.material.userData || {};
         instancedMesh.material.userData.uExaggerationUniform = shader.uniforms.uExaggeration;
+        instancedMesh.material.userData.uTileScaleUniform = shader.uniforms.uTileScale;
 
         shader.vertexShader = shader.vertexShader.replace(
             '#include <color_pars_vertex>',
-            `#include <color_pars_vertex>\nattribute vec3 instanceColor;\nuniform float uExaggeration;`
+            `#include <color_pars_vertex>\nattribute vec3 instanceColor;\nuniform float uExaggeration;\nuniform float uTileScale;`
         );
 
         // Pass per-instance color
@@ -1922,7 +1925,7 @@ function createBarsTerrain(width, height, elevation, scale) {
         // which becomes (uExaggeration-1)*instanceHeight/2 after instance scaling.
         shader.vertexShader = shader.vertexShader.replace(
             '#include <begin_vertex>',
-            `#include <begin_vertex>\ntransformed.y = transformed.y * uExaggeration + (uExaggeration - 1.0) * 0.5;`
+            `#include <begin_vertex>\ntransformed.xz *= uTileScale;\ntransformed.y = transformed.y * uExaggeration + (uExaggeration - 1.0) * 0.5;`
         );
     };
     
@@ -1931,8 +1934,12 @@ function createBarsTerrain(width, height, elevation, scale) {
     stats.bars = barCount;
     // Record the internal exaggeration used when building bars and reset uniform to 1.0
     lastBarsExaggerationInternal = params.verticalExaggeration;
+    lastBarsTileSize = tileSize;
     if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uExaggerationUniform) {
         terrainMesh.material.userData.uExaggerationUniform.value = 1.0;
+    }
+    if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uTileScaleUniform) {
+        terrainMesh.material.userData.uTileScaleUniform.value = 1.0;
     }
     console.log(`âœ… Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
     console.log(`ðŸ“Š Scene now has ${scene.children.length} total objects`);
