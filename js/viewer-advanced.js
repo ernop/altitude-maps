@@ -8,6 +8,8 @@ let scene, camera, renderer, controls;
 let terrainMesh, gridHelper;
 let rawElevationData; // Original full-resolution data
 let processedData; // Bucketed/aggregated data
+let derivedSlopeDeg = null; // 2D array of slope (degrees)
+let derivedAspectDeg = null; // 2D array of aspect (0-360 degrees)
 
 // Precompute color schemes once to avoid per-vertex allocations during color updates
 const COLOR_SCHEMES = {
@@ -860,6 +862,8 @@ function rebucketData() {
         bucketSizeMetersX: bucketSizeMetersX,  // Actual size to tile perfectly
         bucketSizeMetersY: bucketSizeMetersY
     };
+
+    computeDerivedGrids();
     
     const duration = (performance.now() - startTime).toFixed(2);
     const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
@@ -2026,6 +2030,7 @@ function createBarsTerrain(width, height, elevation, scale) {
             if (z === null || z === undefined) continue;
             
             const elev = Math.max(z * params.verticalExaggeration, 0.1);
+            setLastColorIndex(i, j);
             const color = getColorForElevation(z);
             
             // Position on UNIFORM grid - same spacing in both X and Z directions
@@ -2062,9 +2067,11 @@ function createBarsTerrain(width, height, elevation, scale) {
         instancedMesh.setMatrixAt(i, barsDummy.matrix);
         
         // Set color
-        colorArray[i * 3] = bar.color.r;
-        colorArray[i * 3 + 1] = bar.color.g;
-        colorArray[i * 3 + 2] = bar.color.b;
+        setLastColorIndex(bar.i, bar.j);
+        const c = getColorForElevation(elevation[bar.i][bar.j] ?? 0);
+        colorArray[i * 3] = c.r;
+        colorArray[i * 3 + 1] = c.g;
+        colorArray[i * 3 + 2] = c.b;
     }
     
     // Persist references for fast, in-place updates (no rebuilds)
@@ -2241,6 +2248,7 @@ function createSurfaceTerrain(width, height, elevation, scale) {
             positions.setZ(idx, z * params.verticalExaggeration);
             
             if (!isWireframe) {
+                setLastColorIndex(i, j);
                 const color = getColorForElevation(z);
                 colors.push(color.r, color.g, color.b);
             }
@@ -2274,83 +2282,50 @@ function createSurfaceTerrain(width, height, elevation, scale) {
 function getColorForElevation(elevation) {
     // Special case: elevation at or below sea level (0m) should look like WATER
     if (elevation <= 0.5) {
-        return new THREE.Color(0x0066cc);  // Ocean blue for water
+        return __tmpColor.set(0x0066cc);  // Ocean blue for water
     }
     
+    // Derived map modes
+    if (params.colorScheme === 'slope' && derivedSlopeDeg) {
+        const deg = deriveCurrentSlope();
+        const clamped = Math.max(0, Math.min(60, isFinite(deg) ? deg : 0));
+        const t = clamped / 60; // 0..1
+        // Blue (low) -> green -> yellow -> red (high)
+        const h = (1 - t) * 0.66; // 0.66=blue to 0=red
+        return __tmpColor.setHSL(h, 1.0, 0.5);
+    }
+    if (params.colorScheme === 'aspect' && derivedAspectDeg) {
+        const deg = deriveCurrentAspect();
+        const h = ((isFinite(deg) ? deg : 0) % 360) / 360; // 0..1
+        return __tmpColor.setHSL(h, 1.0, 0.5);
+    }
+
     const { min, max } = rawElevationData.stats;
     let normalized = Math.max(0, Math.min(1, (elevation - min) / (max - min)));
     // Apply contrast (gamma). >1 darkens lower values, <1 brightens
     const g = (params && typeof params.colorGamma === 'number') ? Math.max(0.1, Math.min(10, params.colorGamma)) : 1.0;
     normalized = Math.pow(normalized, g);
     
-    const schemes = {
-        terrain: [
-            { stop: 0.0, color: new THREE.Color(0x1a4f63) },
-            { stop: 0.2, color: new THREE.Color(0x2d8659) },
-            { stop: 0.4, color: new THREE.Color(0x5ea849) },
-            { stop: 0.6, color: new THREE.Color(0xa8b840) },
-            { stop: 0.8, color: new THREE.Color(0xb87333) },
-            { stop: 1.0, color: new THREE.Color(0xe8e8e8) }
-        ],
-        elevation: [
-            { stop: 0.0, color: new THREE.Color(0x0000ff) },
-            { stop: 0.5, color: new THREE.Color(0x00ff00) },
-            { stop: 1.0, color: new THREE.Color(0xff0000) }
-        ],
-        grayscale: [
-            { stop: 0.0, color: new THREE.Color(0x111111) },
-            { stop: 1.0, color: new THREE.Color(0xffffff) }
-        ],
-        rainbow: [
-            { stop: 0.0, color: new THREE.Color(0x9400d3) },
-            { stop: 0.2, color: new THREE.Color(0x0000ff) },
-            { stop: 0.4, color: new THREE.Color(0x00ff00) },
-            { stop: 0.6, color: new THREE.Color(0xffff00) },
-            { stop: 0.8, color: new THREE.Color(0xff7f00) },
-            { stop: 1.0, color: new THREE.Color(0xff0000) }
-        ],
-        earth: [
-            { stop: 0.0, color: new THREE.Color(0x2C1810) },
-            { stop: 0.3, color: new THREE.Color(0x6B5244) },
-            { stop: 0.6, color: new THREE.Color(0x8B9A6B) },
-            { stop: 1.0, color: new THREE.Color(0xC4B89C) }
-        ],
-        heatmap: [
-            { stop: 0.0, color: new THREE.Color(0x000033) },
-            { stop: 0.25, color: new THREE.Color(0x0066ff) },
-            { stop: 0.5, color: new THREE.Color(0x00ff66) },
-            { stop: 0.75, color: new THREE.Color(0xffff00) },
-            { stop: 1.0, color: new THREE.Color(0xff0000) }
-        ],
-        test: [
-            // Intense, high-contrast scheme to emphasize altitude changes
-            // Dense stops around mid-high elevations to highlight relief
-            { stop: 0.00, color: new THREE.Color(0x001b3a) }, // deep navy
-            { stop: 0.08, color: new THREE.Color(0x004e98) }, // strong blue
-            { stop: 0.16, color: new THREE.Color(0x00b4d8) }, // cyan
-            { stop: 0.28, color: new THREE.Color(0x28a745) }, // green
-            { stop: 0.38, color: new THREE.Color(0xfff275) }, // warm yellow
-            { stop: 0.46, color: new THREE.Color(0xffb703) }, // orange
-            { stop: 0.54, color: new THREE.Color(0xfb8500) }, // deep orange
-            { stop: 0.64, color: new THREE.Color(0xe85d04) }, // orange-red
-            { stop: 0.74, color: new THREE.Color(0xd00000) }, // red
-            { stop: 0.86, color: new THREE.Color(0x9d0208) }, // dark red
-            { stop: 0.94, color: new THREE.Color(0xf5f5f5) }, // near white
-            { stop: 1.00, color: new THREE.Color(0xffffff) }  // white peaks
-        ]
-    };
-    
-    const scheme = schemes[params.colorScheme] || schemes.terrain;
+    const scheme = COLOR_SCHEMES[params.colorScheme] || COLOR_SCHEMES.terrain;
     
     for (let i = 0; i < scheme.length - 1; i++) {
-        if (normalized >= scheme[i].stop && normalized <= scheme[i + 1].stop) {
-            const localT = (normalized - scheme[i].stop) / (scheme[i + 1].stop - scheme[i].stop);
-            return new THREE.Color().lerpColors(scheme[i].color, scheme[i + 1].color, localT);
+        const a = scheme[i];
+        const b = scheme[i + 1];
+        if (normalized >= a.stop && normalized <= b.stop) {
+            const localT = (normalized - a.stop) / (b.stop - a.stop);
+            // Reuse temporary color to avoid allocations
+            return __tmpColor.copy(a.color).lerp(b.color, localT);
         }
     }
     
-    return scheme[scheme.length - 1].color;
+    return __tmpColor.copy(scheme[scheme.length - 1].color);
 }
+
+// Helpers for per-cell derived values during colorization
+let __lastColorRow = 0, __lastColorCol = 0;
+function setLastColorIndex(i, j) { __lastColorRow = i; __lastColorCol = j; }
+function deriveCurrentSlope() { return getSlopeDegrees(__lastColorRow, __lastColorCol) ?? 0; }
+function deriveCurrentAspect() { return getAspectDegrees(__lastColorRow, __lastColorCol) ?? 0; }
 
 function updateTerrainHeight() {
     if (!terrainMesh) return;
@@ -2410,6 +2385,7 @@ function updateColors() {
                 const { i: row, j: col } = barsBarData[i];
                 let z = (processedData.elevation[row] && processedData.elevation[row][col]);
                 if (z === null || z === undefined) z = 0;
+                setLastColorIndex(row, col);
                 const c = getColorForElevation(z);
                 const idx = i * 3;
                 arr[idx] = c.r;
@@ -2560,6 +2536,59 @@ function drawSunPad() {
     ctx.fill();
     ctx.strokeStyle = '#664400';
     ctx.stroke();
+}
+
+// ===== DERIVED GRIDS (SLOPE/ASPECT) =====
+function computeDerivedGrids() {
+    derivedSlopeDeg = null;
+    derivedAspectDeg = null;
+    if (!processedData || !processedData.elevation) return;
+    const w = processedData.width;
+    const h = processedData.height;
+    const dx = Math.max(1e-6, processedData.bucketSizeMetersX || 1);
+    const dy = Math.max(1e-6, processedData.bucketSizeMetersY || 1);
+    const elev = processedData.elevation;
+    const slope = new Array(h);
+    const aspect = new Array(h);
+    for (let i = 0; i < h; i++) {
+        slope[i] = new Array(w);
+        aspect[i] = new Array(w);
+        for (let j = 0; j < w; j++) {
+            const zc = elev[i][j] ?? 0;
+            const zl = elev[i][Math.max(0, j - 1)] ?? zc;
+            const zr = elev[i][Math.min(w - 1, j + 1)] ?? zc;
+            const zu = elev[Math.max(0, i - 1)][j] ?? zc;
+            const zd = elev[Math.min(h - 1, i + 1)][j] ?? zc;
+            const dzdx = (zr - zl) / (2 * dx);
+            const dzdy = (zd - zu) / (2 * dy);
+            const gradMag = Math.sqrt(dzdx * dzdx + dzdy * dzdy);
+            const slopeRad = Math.atan(gradMag);
+            const slopeDeg = slopeRad * 180 / Math.PI;
+            // Aspect: downslope direction; atan2(dzdy, dzdx) gives direction of increasing x and y.
+            let asp = Math.atan2(dzdy, dzdx) * 180 / Math.PI; // -180..180
+            if (asp < 0) asp += 360;
+            slope[i][j] = slopeDeg;
+            aspect[i][j] = asp;
+        }
+    }
+    derivedSlopeDeg = slope;
+    derivedAspectDeg = aspect;
+}
+
+function getSlopeDegrees(i, j) {
+    if (!derivedSlopeDeg) return null;
+    const h = derivedSlopeDeg.length;
+    const w = derivedSlopeDeg[0].length;
+    if (i < 0 || j < 0 || i >= h || j >= w) return null;
+    return derivedSlopeDeg[i][j];
+}
+
+function getAspectDegrees(i, j) {
+    if (!derivedAspectDeg) return null;
+    const h = derivedAspectDeg.length;
+    const w = derivedAspectDeg[0].length;
+    if (i < 0 || j < 0 || i >= h || j >= w) return null;
+    return derivedAspectDeg[i][j];
 }
 
 function recreateBorders() {

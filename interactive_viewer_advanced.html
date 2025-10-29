@@ -12,6 +12,11 @@
 <body>
     <div id="container">
         <div id="canvas-container"></div>
+        <div id="info" aria-live="polite">
+            <div><b>Elevation:</b> <span id="hud-elev">--</span> m</div>
+            <div><b>Slope:</b> <span id="hud-slope">--</span>°</div>
+            <div><b>Aspect:</b> <span id="hud-aspect">--</span>°</div>
+        </div>
         <button id="mobile-ui-toggle" aria-label="Toggle controls">Hide Controls</button>
         
         <div id="loading">
@@ -145,6 +150,8 @@
                     <option value="rainbow">Rainbow</option>
                     <option value="earth">Earth Tones</option>
                     <option value="heatmap">Heatmap</option>
+                    <option value="slope">Slope (Degrees)</option>
+                    <option value="aspect">Aspect (Compass)</option>
                     <option value="test">Test (Intense)</option>
                 </select>
             </div>
