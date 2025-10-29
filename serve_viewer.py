@@ -39,13 +39,14 @@ class GzipHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Encoding', 'gzip')
                 self.send_header('Content-Length', len(compressed))
-                self.send_header('Cache-Control', 'public, max-age=3600')
+                # In development, avoid stale JSON by disabling caching
+                self.send_header('Cache-Control', 'no-store, must-revalidate')
                 self.end_headers()
                 self.wfile.write(compressed)
                 
                 # Log compression ratio
                 ratio = (1 - len(compressed) / len(content)) * 100 if content else 0
-                print(f"[GZIP] {Path(path).name}: {len(content)/1024:.1f} KB → {len(compressed)/1024:.1f} KB ({ratio:.1f}% saved)")
+                print(f"[GZIP] {Path(path).name}: {len(content)/1024:.1f} KB -> {len(compressed)/1024:.1f} KB ({ratio:.1f}% saved)")
                 return
             except Exception as e:
                 # Fall back to standard handler if compression fails
@@ -68,7 +69,7 @@ def main():
     print(f"[*] Server address: http://localhost:{PORT}")
     print(f"[*] Viewer URL: http://localhost:{PORT}/interactive_viewer_advanced.html")
     print("\n[!] Press Ctrl+C to stop the server")
-    print(f"[✓] GZIP compression enabled for JSON files")
+    print(f"[OK] GZIP compression enabled for JSON files")
     print("=" * 70)
     
     # Create HTTP request handler with gzip support

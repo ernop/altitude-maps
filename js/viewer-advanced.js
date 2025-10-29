@@ -1,6 +1,36 @@
 ﻿// Version tracking
 const VIEWER_VERSION = '1.32';
 
+// Console sanitizer: normalize messages to ASCII for Windows terminals
+// Replaces common symbols/emojis and strips remaining non-ASCII
+(() => {
+    const replacements = new Map([
+        ['✅', 'OK'], ['✓', 'OK'], ['❌', 'ERROR'], ['✕', 'X'], ['✖', 'X'],
+        ['⚠️', 'WARN'], ['⚠', 'WARN'], ['ℹ️', 'INFO'], ['ℹ', 'INFO'],
+        ['▶', '>'], ['►', '>'], ['•', '-'], ['·', '-'], ['—', '-'], ['–', '-'],
+        ['→', '->'], ['←', '<-'], ['↔', '<->'], ['×', 'x'], ['÷', '/'],
+        ['°', ' deg'], ['…', '...'], ['©', '(c)'], ['®', '(R)']
+    ]);
+    const sanitizeAscii = (input) => {
+        if (typeof input !== 'string') return input;
+        let out = input;
+        replacements.forEach((v, k) => { out = out.split(k).join(v); });
+        // Remove remaining non-ASCII characters
+        out = out.replace(/[^\x00-\x7F]/g, '');
+        return out;
+    };
+    const wrap = (fn) => function(...args){
+        const sanitized = args.map(a => typeof a === 'string' ? sanitizeAscii(a) : a);
+        return fn.apply(console, sanitized);
+    };
+    if (typeof console !== 'undefined') {
+        console.log = wrap(console.log);
+        console.warn = wrap(console.warn);
+        console.error = wrap(console.error);
+        console.info = wrap(console.info || console.log);
+    }
+})();
+
 // Global variables
 let scene, camera, renderer, controls;
 let terrainMesh, gridHelper;
@@ -165,12 +195,16 @@ const EXPECTED_FORMAT_VERSION = 2;
 async function loadElevationData(url) {
     const response = await fetch(url);
     
+    // Extract filename from URL
+    const filename = url.split('/').pop();
+    
     // Log response details for debugging
-    console.log(`Loading: ${url}`);
-    console.log(`HTTP Status: ${response.status} ${response.statusText}`);
-    console.log(`Content-Type: ${response.headers.get('content-type')}`);
-    console.log(`Content-Encoding: ${response.headers.get('content-encoding')}`);
-    console.log(`Content-Length: ${response.headers.get('content-length')}`);
+    console.log(`📁 Loading JSON file: ${filename}`);
+    console.log(`   Full URL: ${url}`);
+    console.log(`   HTTP Status: ${response.status} ${response.statusText}`);
+    console.log(`   Content-Type: ${response.headers.get('content-type')}`);
+    console.log(`   Content-Encoding: ${response.headers.get('content-encoding')}`);
+    console.log(`   Content-Length: ${response.headers.get('content-length')}`);
     
     if (!response.ok) {
         throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${url}`);
@@ -178,12 +212,12 @@ async function loadElevationData(url) {
     
     // HTTP/2 strips Content-Length after auto-decompression, so we load as blob to get size
     // This works with compressed data transparently
-    console.log(`Loading data (HTTP/2 compatible mode)...`);
+    console.log(`   Loading data (HTTP/2 compatible mode)...`);
     const blob = await response.blob();
     const text = await blob.text();
     const data = JSON.parse(text);
     
-    console.log(`Loaded ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
+    console.log(`✅ Loaded ${filename}: ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
     updateLoadingProgress(100, blob.size, blob.size);
     
     // Validate format version
@@ -1639,11 +1673,11 @@ function createBarsTerrain(width, height, elevation, scale) {
     // Use minimal segments (1,1,1) - Y scaling is applied per-instance, XZ never changes
     const baseGeometry = new THREE.BoxGeometry(tileSize, 1, tileSize, 1, 1, 1);
     
-    console.log(`ðŸ“¦ PURE 2D GRID: ${width} Ã— ${height} bars (spacing: ${bucketMultiplier}Ã—, gap: ${params.tileGap}%)`);
-    console.log(`ðŸ“¦ Tile XZ footprint: ${tileSize.toFixed(2)} Ã— ${tileSize.toFixed(2)} (uniform squares, NEVER changes with Y scale)`);
-    console.log(`ðŸ“¦ Grid spacing: X=${bucketMultiplier}, Z=${bucketMultiplier} (uniform, INDEPENDENT of height)`);
-    console.log(`ðŸ“¦ Vertical exaggeration: ${params.verticalExaggeration.toFixed(5)}Ã— (affects ONLY Y-axis)`);
-    console.log(`ðŸ“¦ Grid approach: Each data point [i,j] â†’ one square tile, no distortion`);
+    console.log(`ðŸ"¦ PURE 2D GRID: ${width} Ã— ${height} bars (spacing: ${bucketMultiplier}Ã—, gap: ${params.tileGap}%)`);
+    console.log(`ðŸ"¦ Tile XZ footprint: ${tileSize.toFixed(2)} Ã— ${tileSize.toFixed(2)} (uniform squares, NEVER changes with Y scale)`);
+    console.log(`ðŸ"¦ Grid spacing: X=${bucketMultiplier}, Z=${bucketMultiplier} (uniform, INDEPENDENT of height)`);
+    console.log(`ðŸ"¦ Vertical exaggeration: ${params.verticalExaggeration.toFixed(5)}Ã— (affects ONLY Y-axis)`);
+    console.log(`ðŸ"¦ Grid approach: Each data point [i,j] â†' one square tile, no distortion`);
     
     // Collect bar data - uniform grid positioning with square tiles
     // IMPORTANT: width Ã— height are ALREADY BUCKETED dimensions
