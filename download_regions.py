@@ -189,6 +189,18 @@ REGIONS = {
         "name": "USA (Contiguous)",
         "description": "Continental United States"
     },
+    "anticosti_island": {
+        "bounds": (-64.7, 48.9, -61.6, 50.0),
+        "name": "Anticosti Island",
+        "description": "Canada - Anticosti Island (Quebec)",
+        "clip_boundary": False
+    },
+    "vancouver_island": {
+        "bounds": (-129.0, 48.2, -123.0, 50.9),
+        "name": "Vancouver Island",
+        "description": "Canada - Vancouver Island (British Columbia)",
+        "clip_boundary": False
+    },
     "california": {
         "bounds": (-124.5, 32.5, -114.0, 42.0),
         "name": "California",
@@ -244,6 +256,18 @@ REGIONS = {
         "name": "Mexico",
         "description": "Mexico"
     },
+    "las_malvinas": {
+        "bounds": (-61.5, -53.2, -57.4, -50.9),
+        "name": "Las Malvinas (Falkland Islands)",
+        "description": "Falkland Islands / Islas Malvinas (UK territory)",
+        "clip_boundary": False
+    },
+    "south_georgia_island": {
+        "bounds": (-38.5, -55.1, -35.2, -53.5),
+        "name": "South Georgia Island",
+        "description": "South Georgia (Shackleton rescue at Grytviken)",
+        "clip_boundary": False
+    },
     
     # South America
     "brazil": {
@@ -290,6 +314,12 @@ REGIONS = {
         "description": "New Caledonia archipelago",
         "clip_boundary": False
     },
+    "canary_islands": {
+        "bounds": (-18.5, 27.5, -13.4, 29.8),
+        "name": "Canary Islands",
+        "description": "Spain - Canary Islands (Atlantic archipelago)",
+        "clip_boundary": False
+    },
     
     # Africa
     "south_africa": {
@@ -306,6 +336,11 @@ REGIONS = {
         "bounds": (33.9, -4.7, 41.9, 5.5),
         "name": "Kenya",
         "description": "Kenya - Mt. Kilimanjaro region"
+    },
+    "angola": {
+        "bounds": (11.5, -18.2, 24.1, -4.3),
+        "name": "Angola",
+        "description": "Republic of Angola"
     },
     
     # Middle East

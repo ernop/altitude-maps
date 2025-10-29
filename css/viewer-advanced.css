@@ -293,32 +293,7 @@ input[type="checkbox"] {
     width: 100%;
 }
 
-/* FPS Display */
-#fps-display {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    padding: 10px 15px;
-    border-radius: 5px;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    color: #5588cc;
-}
-
-/* Version Display */
-#version-display {
-    position: absolute;
-    bottom: 50px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 4px 10px;
-    border-radius: 3px;
-    font-family: 'Courier New', monospace;
-    font-size: 9px;
-    color: #888;
-    opacity: 0.7;
-}
+/* FPS/Version moved into controls meta bar (no absolute positioning) */
 
 /* Controls Help Window */
 #controls-help-window {

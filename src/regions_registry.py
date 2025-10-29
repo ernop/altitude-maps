@@ -186,7 +186,7 @@ def _build_registry() -> Dict[str, RegionEntry]:
                 "poland", "norway", "sweden", "switzerland", "austria", "greece",
                 "netherlands", "canada", "mexico", "brazil", "argentina", "chile",
                 "peru", "australia", "new zealand", "south africa", "egypt", "kenya",
-                "israel", "saudi arabia", "nepal",
+                "israel", "saudi arabia", "nepal", "angola",
                 # Added countries requested by users
                 "estonia", "georgia", "kyrgyzstan", "turkey", "türkiye", "turkiye", "singapore"
             }

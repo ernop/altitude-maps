@@ -58,23 +58,34 @@ def check_raw_file(region_id, verbose=False):
     print(f"✅ Found: {raw_path}")
     
     with rasterio.open(raw_path) as ds:
-        data = ds.read(1)
-        valid = ~np.isnan(data) & (data > -500)
-        valid_pct = np.sum(valid) / data.size * 100
+        # Avoid full read; read a central sample window for validation
+        from rasterio.windows import Window
+        win_w = min(1024, max(1, ds.width // 4))
+        win_h = min(1024, max(1, ds.height // 4))
+        col_off = max(0, (ds.width - win_w) // 2)
+        row_off = max(0, (ds.height - win_h) // 2)
+        try:
+            sample = ds.read(1, window=Window(col_off, row_off, win_w, win_h))
+            sample_f = sample.astype(np.float32)
+            sample_f[(sample_f < -10000) | (sample_f > 10000)] = np.nan
+            valid = ~np.isnan(sample_f)
+            valid_pct = np.sum(valid) / sample_f.size * 100
+            smin = float(np.nanmin(sample_f)) if np.any(valid) else float('nan')
+            smax = float(np.nanmax(sample_f)) if np.any(valid) else float('nan')
+        except Exception as e:
+            print(f"   ❌ Sample read failed: {e}")
+            return False
         
         print(f"   Dimensions: {ds.width} × {ds.height} pixels")
         print(f"   CRS: {ds.crs}")
         print(f"   Bounds: {ds.bounds}")
         print(f"   Pixel size: {ds.transform[0]:.10f} × {abs(ds.transform[4]):.10f} degrees")
         print(f"   File size: {format_size(raw_path.stat().st_size)}")
-        print(f"   Valid data: {valid_pct:.1f}%")
+        print(f"   Sample valid: {valid_pct:.1f}% | range: {smin:.1f}..{smax:.1f} m")
         
-        if valid_pct < 90:
-            print(f"   ⚠️  Low valid data - may already be clipped/masked")
-        
-        if verbose:
-            print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
-            print(f"   Total pixels: {data.size:,}")
+        if valid_pct == 0:
+            print(f"   ❌ No valid data in sample window")
+            return False
     
     return True
 

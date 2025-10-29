@@ -397,21 +397,21 @@ async function populateRegionSelector() {
     }
     
     // Determine which region to load initially
-    // Priority: URL parameter > localStorage > California > first region
+    // Priority: URL parameter > California > localStorage > first region
     let firstRegionId;
     
     if (urlRegion && regionsManifest.regions[urlRegion]) {
         // URL parameter takes highest priority (e.g., ?region=ohio)
         firstRegionId = urlRegion;
         console.log(`📍 Loading region from URL: ${urlRegion}`);
-    } else if (lastRegion && regionsManifest.regions[lastRegion]) {
-        // Remember last viewed region from localStorage
-        firstRegionId = lastRegion;
-        console.log(`💾 Loading last viewed region: ${lastRegion}`);
     } else if (regionsManifest.regions['california']) {
         // Default to California if available
         firstRegionId = 'california';
         console.log(`🌴 Loading default region: california`);
+    } else if (lastRegion && regionsManifest.regions[lastRegion]) {
+        // Remember last viewed region from localStorage
+        firstRegionId = lastRegion;
+        console.log(`💾 Loading last viewed region: ${lastRegion}`);
     } else {
         // Fallback to first available region
         firstRegionId = Object.keys(regionsManifest.regions)[0];
@@ -1783,7 +1783,7 @@ function createBarsTerrain(width, height, elevation, scale) {
     // 2. Each data point [i,j] should map to one uniform tile in 3D space
     // 3. Bucket size just creates larger square tiles (more chunky/blurred), not stretching
     // 4. This avoids distortion from real-world projections and maintains data integrity
-    const dummy = new THREE.Object3D();
+    // Use shared dummy object for instancing transforms to avoid reallocations
     
     // Bucket multiplier determines tile size (larger = more chunky visualization)
     const bucketMultiplier = params.bucketSize;
@@ -1820,7 +1820,8 @@ function createBarsTerrain(width, height, elevation, scale) {
             // Position on UNIFORM grid - same spacing in both X and Z directions
             const xPos = j * bucketMultiplier;  // Column Ã— tile size
             const zPos = i * bucketMultiplier;  // Row Ã— tile size (NO aspect ratio!)
-            barData.push({ i, j, x: xPos, z: zPos, height: elev, color });
+            const yPos = elev * 0.5;            // Center cube at half height above ground plane
+            barData.push({ i, j, x: xPos, y: yPos, z: zPos, height: elev, color });
         }
     }
     
@@ -1843,11 +1844,11 @@ function createBarsTerrain(width, height, elevation, scale) {
         
         // CRITICAL: Reset dummy to identity state before setting new transform
         // This ensures no rotation/skew and that scale is ONLY in Y direction
-        dummy.rotation.set(0, 0, 0);
-        dummy.position.set(bar.x, bar.y, bar.z);
-        dummy.scale.set(tileSize, bar.height, tileSize);  // Scale X/Z by tile size, Y by height
-        dummy.updateMatrix();
-        instancedMesh.setMatrixAt(i, dummy.matrix);
+        barsDummy.rotation.set(0, 0, 0);
+        barsDummy.position.set(bar.x, bar.y, bar.z);
+        barsDummy.scale.set(tileSize, bar.height, tileSize);  // Scale X/Z by tile size, Y by height
+        barsDummy.updateMatrix();
+        instancedMesh.setMatrixAt(i, barsDummy.matrix);
         
         // Set color
         colorArray[i * 3] = bar.color.r;
@@ -1880,19 +1881,28 @@ function createBarsTerrain(width, height, elevation, scale) {
     baseGeometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorArray, 3));
     instancedMesh.material.vertexColors = true;
     
-    // Enable custom vertex colors in shader
+    // Enable custom vertex colors and add uExaggeration uniform for instant height scaling
     instancedMesh.material.onBeforeCompile = (shader) => {
+        // Inject attributes/uniforms
+        shader.uniforms.uExaggeration = { value: params.verticalExaggeration };
+        instancedMesh.material.userData = instancedMesh.material.userData || {};
+        instancedMesh.material.userData.uExaggerationUniform = shader.uniforms.uExaggeration;
+
         shader.vertexShader = shader.vertexShader.replace(
             '#include <color_pars_vertex>',
-            `#include <color_pars_vertex>
-            attribute vec3 instanceColor;`
+            `#include <color_pars_vertex>\nattribute vec3 instanceColor;\nuniform float uExaggeration;`
         );
+
+        // Pass per-instance color
         shader.vertexShader = shader.vertexShader.replace(
             '#include <color_vertex>',
-            `#include <color_vertex>
-            #ifdef USE_INSTANCING
-                vColor = instanceColor;
-            #endif`
+            `#include <color_vertex>\n#ifdef USE_INSTANCING\n    vColor = instanceColor;\n#endif`
+        );
+
+        // Apply vertical exaggeration by scaling local-space Y before instancing transform
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>\ntransformed.y *= uExaggeration;`
         );
     };
     
@@ -2067,21 +2077,13 @@ function updateTerrainHeight() {
     if (!terrainMesh) return;
     
     if (params.renderMode === 'bars') {
-        if (!barsInstancedMesh || !barsBarData) { recreateTerrain(); return; }
-        const count = barsBarData.length;
-        const gapMultiplier = 1 - (params.tileGap / 100);
-        const bucketMultiplier = params.bucketSize;
-        const newTileSize = gapMultiplier * bucketMultiplier;
-        for (let i = 0; i < count; i++) {
-            const bar = barsBarData[i];
-            const elev = Math.max((processedData.elevation[bar.i][bar.j] || 0) * params.verticalExaggeration, 0.1);
-            dummy.rotation.set(0, 0, 0);
-            dummy.position.set(bar.x, elev / 2, bar.z);
-            dummy.scale.set(newTileSize, elev, newTileSize);
-            dummy.updateMatrix();
-            barsInstancedMesh.setMatrixAt(i, dummy.matrix);
+        if (!barsInstancedMesh) { recreateTerrain(); return; }
+        // Instant update: just tweak the shader uniform; no per-instance CPU loops
+        const u = barsInstancedMesh.material && barsInstancedMesh.material.userData && barsInstancedMesh.material.userData.uExaggerationUniform;
+        if (u) {
+            u.value = params.verticalExaggeration;
         }
-        barsInstancedMesh.instanceMatrix.needsUpdate = true;
+        // Note: tile gap/bucket changes are handled by their own controls via recreateTerrain()
     } else if (params.renderMode === 'points') {
         const positions = terrainMesh.geometry.attributes.position;
         const { width, height, elevation } = processedData;

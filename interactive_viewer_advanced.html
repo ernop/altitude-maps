@@ -21,10 +21,17 @@
             </div>
         </div>
         
-        <div id="fps-display">FPS: --</div>
-        <div id="version-display">v?.?.?</div>
+        
         
         <div id="controls">
+            <div id="controls-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
+                <div class="controls-meta-left" style="font-size: 11px; color: #88bbff; font-weight: 600;">altitude-maps</div>
+                <div class="controls-meta-right" style="display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11px; color: #88aadd;">
+                    <a id="github-home-link" href="https://github.com/ernop/altitude-maps" target="_blank" rel="noopener" title="GitHub homepage" style="color: #88bbff; text-decoration: none; border-bottom: 1px dotted rgba(136,187,255,0.5);">GitHub</a>
+                    <span id="version-display">v?.?.?</span>
+                    <span id="fps-display">FPS: --</span>
+                </div>
+            </div>
             
             <h2>Region</h2>
             <div class="control-group" style="position: relative;">
@@ -43,11 +50,7 @@
                     </div>
                 </div>
                 
-                <!-- Explanatory labels -->
-                <div style="display: flex; gap: 10px; margin-bottom: 5px;">
-                    <div style="flex: 1; font-size: 11px; color: #ccc; text-align: center;">More Detail</div>
-                    <div style="flex: 1; font-size: 11px; color: #ccc; text-align: center;">Less Detail</div>
-                </div>
+                
                 
                 <!-- Quick adjustment buttons -->
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
