@@ -1201,14 +1201,35 @@ function setupControls() {
         }, 50);
     });
     
-    // Tile gap - immediate UX, but debounce heavy rebuilds while dragging
+    // Tile gap - instant via shader uniform in bars mode; recreate only if not bars
+    const updateTileGapUniform = () => {
+        if (params.renderMode !== 'bars' || !terrainMesh || !terrainMesh.material) return;
+        const u = terrainMesh.material.userData && terrainMesh.material.userData.uTileScaleUniform;
+        if (!u) return;
+        const gapMultiplier = 1 - (params.tileGap / 100);
+        const bucketMultiplier = params.bucketSize;
+        const newTileSize = gapMultiplier * bucketMultiplier;
+        const base = (lastBarsTileSize && lastBarsTileSize > 0) ? lastBarsTileSize : newTileSize;
+        u.value = newTileSize / base;
+    };
+    const scheduleTileGapUpdate = () => {
+        if (pendingTileGapRaf !== null) cancelAnimationFrame(pendingTileGapRaf);
+        pendingTileGapRaf = requestAnimationFrame(() => {
+            pendingTileGapRaf = null;
+            updateTileGapUniform();
+        });
+    };
     
     // Sync slider -> input
-    const debouncedRecreateTerrain = debounce(() => { recreateTerrain(); }, 80);
     document.getElementById('tileGap').addEventListener('input', (e) => {
         params.tileGap = parseInt(e.target.value);
         document.getElementById('tileGapInput').value = params.tileGap;
-        debouncedRecreateTerrain();
+        if (params.renderMode === 'bars') {
+            scheduleTileGapUpdate();
+        } else {
+            // Non-bars modes ignore tile gap; just recreate to reflect any dependent visuals
+            recreateTerrain();
+        }
     });
     
     // Sync input -> slider
@@ -1219,7 +1240,11 @@ function setupControls() {
         params.tileGap = value;
         document.getElementById('tileGap').value = value;
         document.getElementById('tileGapInput').value = value;
-        recreateTerrain();
+        if (params.renderMode === 'bars') {
+            updateTileGapUniform();
+        } else {
+            recreateTerrain();
+        }
     });
     
     // Aggregation method (only if UI exists)

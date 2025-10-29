@@ -168,6 +168,29 @@ downsampled = elevation[::step_y, ::step_x]  # Distorts!
   - Apply immediate lightweight updates for responsiveness (e.g., height value updates) and coalesce heavy work.
 - On input "change/end" events, perform a single prompt final update to settle state (e.g., compute normals once, or recreate if required by mode).
 
+### GPU-Driven Rendering Updates (Performance Best Practices)
+- Prefer GPU-side updates via shader uniforms over CPU loops or geometry rebuilds for continuous controls.
+- Vertical exaggeration:
+  - Use a uniform ratio relative to the build-time baseline (e.g., `uExaggeration = currentInternal / baselineInternal`).
+  - Keep bar bottoms anchored with local-space offset: `transformed.y = transformed.y * uExaggeration + (uExaggeration - 1.0) * 0.5`.
+  - Coalesce updates with `requestAnimationFrame`; cancel older frames and apply only the latest value.
+- Tile gap (bars):
+  - Scale X/Z in the shader with `uTileScale = currentTileSize / baselineTileSize`.
+  - Update per frame during drag; rebuild bars only when the baseline changes (bucket size or aggregation change).
+- Points: apply exaggeration with a uniform; avoid per-vertex CPU updates during drags.
+- Surface: defer normals recompute to input "change"; optional future improvement is shader displacement for instant drags.
+
+### Render Modes Product Guidance
+- Bars: Instanced meshes with GPU uniforms for exaggeration and tile gap; never rebuild for those sliders.
+- Points: GPU uniform for Y scaling.
+- Surface: CPU updates acceptable; compute normals once on settle.
+- Wireframe: Not supported in product due to poor UX and build cost; if selected, map to surface.
+
+### Implementation Patterns
+- Store shader uniform references in `material.userData` for fast updates.
+- Avoid verbose logging in hot paths; keep create/rebuild logs only.
+- Maintain once-per-frame scheduling for all continuous sliders.
+
 ## Libraries
 - Do not add fallback loaders. If a library load fails, fix the primary load path instead of conditionally swapping to alternates.
 

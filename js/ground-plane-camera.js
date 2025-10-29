@@ -582,8 +582,6 @@ class GroundPlaneCamera extends CameraScheme {
             const right = new THREE.Vector3();
             right.crossVectors(forward, this.camera.up).normalize();
             
-            const up = this.camera.up.clone();
-            
             const movement = new THREE.Vector3();
             
             // WASD/QE movement
@@ -591,8 +589,8 @@ class GroundPlaneCamera extends CameraScheme {
             if (this.keysPressed['s']) movement.addScaledVector(forward, -moveSpeed);
             if (this.keysPressed['a']) movement.addScaledVector(right, -moveSpeed);
             if (this.keysPressed['d']) movement.addScaledVector(right, moveSpeed);
-            if (this.keysPressed['q']) movement.addScaledVector(up, -moveSpeed); // Down
-            if (this.keysPressed['e']) movement.addScaledVector(up, moveSpeed);  // Up
+            if (this.keysPressed['q']) movement.y -= moveSpeed;  // Down
+            if (this.keysPressed['e']) movement.y += moveSpeed;  // Up
             
             // Apply movement
             if (movement.length() > 0) {

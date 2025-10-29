@@ -57,35 +57,39 @@ def check_raw_file(region_id, verbose=False):
     
     print(f"✅ Found: {raw_path}")
     
-    with rasterio.open(raw_path) as ds:
-        # Avoid full read; read a central sample window for validation
-        from rasterio.windows import Window
-        win_w = min(1024, max(1, ds.width // 4))
-        win_h = min(1024, max(1, ds.height // 4))
-        col_off = max(0, (ds.width - win_w) // 2)
-        row_off = max(0, (ds.height - win_h) // 2)
-        try:
-            sample = ds.read(1, window=Window(col_off, row_off, win_w, win_h))
-            sample_f = sample.astype(np.float32)
-            sample_f[(sample_f < -10000) | (sample_f > 10000)] = np.nan
-            valid = ~np.isnan(sample_f)
-            valid_pct = np.sum(valid) / sample_f.size * 100
-            smin = float(np.nanmin(sample_f)) if np.any(valid) else float('nan')
-            smax = float(np.nanmax(sample_f)) if np.any(valid) else float('nan')
-        except Exception as e:
-            print(f"   ❌ Sample read failed: {e}")
-            return False
-        
-        print(f"   Dimensions: {ds.width} × {ds.height} pixels")
-        print(f"   CRS: {ds.crs}")
-        print(f"   Bounds: {ds.bounds}")
-        print(f"   Pixel size: {ds.transform[0]:.10f} × {abs(ds.transform[4]):.10f} degrees")
-        print(f"   File size: {format_size(raw_path.stat().st_size)}")
-        print(f"   Sample valid: {valid_pct:.1f}% | range: {smin:.1f}..{smax:.1f} m")
-        
-        if valid_pct == 0:
-            print(f"   ❌ No valid data in sample window")
-            return False
+    try:
+        with rasterio.open(raw_path) as ds:
+            # Avoid full read; read a central sample window for validation
+            from rasterio.windows import Window
+            win_w = min(1024, max(1, ds.width // 4))
+            win_h = min(1024, max(1, ds.height // 4))
+            col_off = max(0, (ds.width - win_w) // 2)
+            row_off = max(0, (ds.height - win_h) // 2)
+            try:
+                sample = ds.read(1, window=Window(col_off, row_off, win_w, win_h))
+                sample_f = sample.astype(np.float32)
+                sample_f[(sample_f < -10000) | (sample_f > 10000)] = np.nan
+                valid = ~np.isnan(sample_f)
+                valid_pct = np.sum(valid) / sample_f.size * 100
+                smin = float(np.nanmin(sample_f)) if np.any(valid) else float('nan')
+                smax = float(np.nanmax(sample_f)) if np.any(valid) else float('nan')
+            except Exception as e:
+                print(f"   ❌ Sample read failed: {e}")
+                return False
+            
+            print(f"   Dimensions: {ds.width} × {ds.height} pixels")
+            print(f"   CRS: {ds.crs}")
+            print(f"   Bounds: {ds.bounds}")
+            print(f"   Pixel size: {ds.transform[0]:.10f} × {abs(ds.transform[4]):.10f} degrees")
+            print(f"   File size: {format_size(raw_path.stat().st_size)}")
+            print(f"   Sample valid: {valid_pct:.1f}% | range: {smin:.1f}..{smax:.1f} m")
+            
+            if valid_pct == 0:
+                print(f"   ❌ No valid data in sample window")
+                return False
+    except Exception as e:
+        print(f"   ❌ Could not open raw file: {e}")
+        return False
     
     return True
 
@@ -115,69 +119,73 @@ def check_clipped_file(region_id, verbose=False):
     
     print(f"✅ Found: {clipped_path}")
     
-    with rasterio.open(clipped_path) as ds:
-        data = ds.read(1)
-        valid = ~np.isnan(data) & (data > -500)
-        valid_pct = np.sum(valid) / data.size * 100
-        
-        print(f"   Dimensions: {ds.width} × {ds.height} pixels")
-        print(f"   Bounds: {ds.bounds}")
-        print(f"   File size: {format_size(clipped_path.stat().st_size)}")
-        print(f"   Valid data: {valid_pct:.1f}%")
-        
-        # Check for all-empty edges
-        all_empty_rows_top = 0
-        for i in range(min(100, ds.height)):
-            if np.sum(valid[i, :]) == 0:
-                all_empty_rows_top += 1
-            else:
-                break
-        
-        all_empty_rows_bottom = 0
-        for i in range(ds.height - 1, max(ds.height - 101, -1), -1):
-            if np.sum(valid[i, :]) == 0:
-                all_empty_rows_bottom += 1
-            else:
-                break
-        
-        all_empty_cols_left = 0
-        for j in range(min(100, ds.width)):
-            if np.sum(valid[:, j]) == 0:
-                all_empty_cols_left += 1
-            else:
-                break
-        
-        all_empty_cols_right = 0
-        for j in range(ds.width - 1, max(ds.width - 101, -1), -1):
-            if np.sum(valid[:, j]) == 0:
-                all_empty_cols_right += 1
-            else:
-                break
-        
-        total_empty_edges = all_empty_rows_top + all_empty_rows_bottom + all_empty_cols_left + all_empty_cols_right
-        
-        if total_empty_edges > 0:
-            print(f"   ❌ crop=True FAILED: {total_empty_edges} all-empty rows/cols remain")
-            print(f"      Top: {all_empty_rows_top}, Bottom: {all_empty_rows_bottom}")
-            print(f"      Left: {all_empty_cols_left}, Right: {all_empty_cols_right}")
-        else:
-            print(f"   ✅ Cropping effective - no all-empty edges")
-        
-        # Check edge sparseness
-        if total_empty_edges == 0:
-            top_edge_valid = np.sum(valid[0, :]) / ds.width * 100
-            bottom_edge_valid = np.sum(valid[-1, :]) / ds.width * 100
-            left_edge_valid = np.sum(valid[:, 0]) / ds.height * 100
-            right_edge_valid = np.sum(valid[:, -1]) / ds.height * 100
+    try:
+        with rasterio.open(clipped_path) as ds:
+            data = ds.read(1)
+            valid = ~np.isnan(data) & (data > -500)
+            valid_pct = np.sum(valid) / data.size * 100
             
-            print(f"   Edge coverage: T:{top_edge_valid:.0f}% B:{bottom_edge_valid:.0f}% "
-                  f"L:{left_edge_valid:.0f}% R:{right_edge_valid:.0f}%")
+            print(f"   Dimensions: {ds.width} × {ds.height} pixels")
+            print(f"   Bounds: {ds.bounds}")
+            print(f"   File size: {format_size(clipped_path.stat().st_size)}")
+            print(f"   Valid data: {valid_pct:.1f}%")
             
-            if min(top_edge_valid, bottom_edge_valid, left_edge_valid, right_edge_valid) < 10:
-                print(f"   ℹ️  Sparse edges normal for irregular boundaries")
-        
-        if verbose:
-            print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
+            # Check for all-empty edges
+            all_empty_rows_top = 0
+            for i in range(min(100, ds.height)):
+                if np.sum(valid[i, :]) == 0:
+                    all_empty_rows_top += 1
+                else:
+                    break
+            
+            all_empty_rows_bottom = 0
+            for i in range(ds.height - 1, max(ds.height - 101, -1), -1):
+                if np.sum(valid[i, :]) == 0:
+                    all_empty_rows_bottom += 1
+                else:
+                    break
+            
+            all_empty_cols_left = 0
+            for j in range(min(100, ds.width)):
+                if np.sum(valid[:, j]) == 0:
+                    all_empty_cols_left += 1
+                else:
+                    break
+            
+            all_empty_cols_right = 0
+            for j in range(ds.width - 1, max(ds.width - 101, -1), -1):
+                if np.sum(valid[:, j]) == 0:
+                    all_empty_cols_right += 1
+                else:
+                    break
+            
+            total_empty_edges = all_empty_rows_top + all_empty_rows_bottom + all_empty_cols_left + all_empty_cols_right
+            
+            if total_empty_edges > 0:
+                print(f"   ❌ crop=True FAILED: {total_empty_edges} all-empty rows/cols remain")
+                print(f"      Top: {all_empty_rows_top}, Bottom: {all_empty_rows_bottom}")
+                print(f"      Left: {all_empty_cols_left}, Right: {all_empty_cols_right}")
+            else:
+                print(f"   ✅ Cropping effective - no all-empty edges")
+            
+            # Check edge sparseness
+            if total_empty_edges == 0:
+                top_edge_valid = np.sum(valid[0, :]) / ds.width * 100
+                bottom_edge_valid = np.sum(valid[-1, :]) / ds.width * 100
+                left_edge_valid = np.sum(valid[:, 0]) / ds.height * 100
+                right_edge_valid = np.sum(valid[:, -1]) / ds.height * 100
+                
+                print(f"   Edge coverage: T:{top_edge_valid:.0f}% B:{bottom_edge_valid:.0f}% "
+                      f"L:{left_edge_valid:.0f}% R:{right_edge_valid:.0f}%")
+                
+                if min(top_edge_valid, bottom_edge_valid, left_edge_valid, right_edge_valid) < 10:
+                    print(f"   ℹ️  Sparse edges normal for irregular boundaries")
+            
+            if verbose:
+                print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
+    except Exception as e:
+        print(f"   ❌ Could not open clipped file: {e}")
+        return False
     
     return True
 
@@ -197,24 +205,28 @@ def check_processed_file(region_id, verbose=False):
         print("   Run: python reprocess_existing_states.py --states", region_id)
         return False
     
+    ok = True
     for proc_path in processed_files:
         print(f"\n✅ Found: {proc_path}")
-        
-        with rasterio.open(proc_path) as ds:
-            data = ds.read(1)
-            valid = ~np.isnan(data) & (data > -500)
-            valid_pct = np.sum(valid) / data.size * 100
-            
-            print(f"   Dimensions: {ds.width} × {ds.height} pixels")
-            print(f"   Aspect ratio: {ds.width/ds.height:.3f}")
-            print(f"   File size: {format_size(proc_path.stat().st_size)}")
-            print(f"   Valid data: {valid_pct:.1f}%")
-            
-            if verbose:
-                print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
-                print(f"   Total pixels: {data.size:,}")
+        try:
+            with rasterio.open(proc_path) as ds:
+                data = ds.read(1)
+                valid = ~np.isnan(data) & (data > -500)
+                valid_pct = np.sum(valid) / data.size * 100
+                
+                print(f"   Dimensions: {ds.width} × {ds.height} pixels")
+                print(f"   Aspect ratio: {ds.width/ds.height:.3f}")
+                print(f"   File size: {format_size(proc_path.stat().st_size)}")
+                print(f"   Valid data: {valid_pct:.1f}%")
+                
+                if verbose:
+                    print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
+                    print(f"   Total pixels: {data.size:,}")
+        except Exception as e:
+            print(f"   ❌ Could not open processed file: {e}")
+            ok = False
     
-    return True
+    return ok
 
 
 def check_generated_json(region_id, verbose=False):
