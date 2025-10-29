@@ -1,6 +1,28 @@
 # Enable gzip compression for altitude-maps
 # This dramatically reduces JSON file transfer sizes (typically 85-95% compression)
 
+# STRATEGY 1: Serve pre-compressed .json.gz files if they exist (fastest, no runtime overhead)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # If client accepts gzip encoding AND a .gz version exists, serve it
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}\.gz -f
+    RewriteRule ^(.*)$ $1.gz [L]
+    
+    # Set proper headers for .gz files
+    <FilesMatch "\.gz$">
+        # Tell browser this is gzipped content
+        Header set Content-Encoding gzip
+        
+        # Restore the original content type (JSON, not gzip)
+        <FilesMatch "\.json\.gz$">
+            ForceType application/json
+        </FilesMatch>
+    </FilesMatch>
+</IfModule>
+
+# STRATEGY 2: Fallback to on-the-fly compression if .gz file doesn't exist
 <IfModule mod_deflate.c>
     # Compress JSON files (elevation data)
     AddOutputFilterByType DEFLATE application/json

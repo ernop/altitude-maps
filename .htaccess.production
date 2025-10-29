@@ -1,0 +1,38 @@
+# Force HTTP/1.1 for JSON to preserve Content-Length during compression
+<IfModule mod_http2.c>
+    <FilesMatch "\.(json|json\.gz)$">
+        # Disable HTTP/2 for these files
+        H2Push off
+    </FilesMatch>
+</IfModule>
+
+# Serve pre-compressed JSON files if available
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # If browser accepts gzip AND .gz file exists, serve it
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}.gz -f
+    RewriteRule ^(.*)\.json$ $1.json.gz [L]
+
+    # Set proper headers for pre-compressed files
+    <FilesMatch "\.json\.gz$">
+        Header set Content-Encoding gzip
+        Header set Content-Type application/json
+        # KEEP Content-Length - browsers need this to properly decompress and parse the response
+        # REMOVED: Header unset Content-Length (this was breaking the viewer)
+        SetEnv no-gzip 1
+    </FilesMatch>
+</IfModule>
+
+# Fallback compression for JSON (if .gz not available)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Cache for 6 months
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType application/json "access plus 6 months"
+</IfModule>
+

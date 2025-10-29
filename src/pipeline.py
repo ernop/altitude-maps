@@ -169,8 +169,9 @@ def clip_to_boundary(
                 bounds = src.bounds
                 avg_lat = (bounds.top + bounds.bottom) / 2
                 
-                # Reproject ALL regions (except near equator where distortion is minimal)
-                if abs(avg_lat) > 5:  # Only skip regions within 5° of equator
+                # DISABLED: Reprojection causes data corruption (negative values in California)
+                # TODO: Fix reprojection to preserve borders and data quality properly
+                if False and abs(avg_lat) > 5:  # Only skip regions within 5° of equator
                     needs_reprojection = True
                     import math
                     # Calculate distortion factor

@@ -1,5 +1,5 @@
 ﻿// Version tracking
-const VIEWER_VERSION = '1.31';
+const VIEWER_VERSION = '1.32';
 
 // Global variables
 let scene, camera, renderer, controls;
@@ -53,9 +53,25 @@ async function init() {
         setupControls();
         
         // Update Select2 to show the initial region that will be loaded
+        // According to Select2 docs, the correct way is: val() then trigger('change')
         const $regionSelect = $('#regionSelect');
         if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            $regionSelect.val(firstRegionId).trigger('change.select2');
+            // Temporarily detach change handler, update value, then reattach
+            $regionSelect.off('change');
+            $regionSelect.val(firstRegionId).trigger('change');
+            console.log(`✅ Select2 value set to: ${firstRegionId}`);
+            
+            // Reattach the handler immediately after
+            $('#regionSelect').off('change').on('change', function(e) {
+                if (isLoadingRegion) return;
+                const regionId = $(this).val();
+                if (regionId && regionId !== currentRegionId) {
+                    isLoadingRegion = true;
+                    loadRegion(regionId).finally(() => {
+                        isLoadingRegion = false;
+                    });
+                }
+            });
         }
         
         // Update URL to reflect the loaded region (for shareable links)
@@ -603,10 +619,9 @@ function createEdgeMarkers() {
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
     
-    // Position markers at a height using CURRENT exaggeration
-    // This ensures they're visible at the right height when created
-    // They won't move because they're only created once (not recreated on exaggeration changes)
-    const markerHeight = rawElevationData.stats.max * params.verticalExaggeration * 1.2;
+    // Position markers at ground level (y=0) so they sit on the terrain surface
+    // They stay at this fixed height regardless of vertical exaggeration changes
+    const markerHeight = 0;
     
     // Calculate actual coordinate extents based on render mode
     let xExtent, zExtent, avgSize;
@@ -849,6 +864,12 @@ function setupControls() {
     // Use a flag to prevent recursion when programmatically updating the value
     let isLoadingRegion = false;
     $('#regionSelect').off('change').on('change', function(e) {
+        // Skip if this is during initial page load setup
+        if (e.originalEvent && e.originalEvent.isInitializing) {
+            console.log('📝 Select2 display updated for initial region (no reload needed)');
+            return;
+        }
+        
         if (isLoadingRegion) return; // Prevent recursion
         
         const regionId = $(this).val();
