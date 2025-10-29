@@ -592,3 +592,11 @@ Always ignore these directories and file types to keep git lean:
 
 **Rationale**: Raw geospatial data is large (hundreds of MB to GB per file), and should be downloaded/reprocessed from source rather than stored in git. Only code, small manifests, and documentation belong in version control.
 
+### UI Essentials
+- **Region selector groups**: Countries → Regions → US States; include non-selectable dividers; alphabetical inside each group.
+- **Text legibility**: Primary HUD/meta/status (project name, GitHub, FPS/version, logs) should be white on dark backgrounds.
+- **Controls**: Conceptual labels ("Resolution", "Vertical Exaggeration"), not technical jargon. Provide MAX/DEFAULT quick actions.
+- **Responsiveness**: Debounce heavy updates (~50–120 ms). Apply lightweight visual changes immediately; settle once on input end.
+
+### Rendering & Performance
+- **GPU-first updates**: Use shader uniforms for continuous changes (exaggeration, tile gap). Rebuild geometry only when baselines change.
