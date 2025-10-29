@@ -56,22 +56,9 @@ async function init() {
         // According to Select2 docs, the correct way is: val() then trigger('change')
         const $regionSelect = $('#regionSelect');
         if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            // Temporarily detach change handler, update value, then reattach
-            $regionSelect.off('change');
+            // According to Select2 docs: val() then trigger('change') to update display
             $regionSelect.val(firstRegionId).trigger('change');
-            console.log(`✅ Select2 value set to: ${firstRegionId}`);
-            
-            // Reattach the handler immediately after
-            $('#regionSelect').off('change').on('change', function(e) {
-                if (isLoadingRegion) return;
-                const regionId = $(this).val();
-                if (regionId && regionId !== currentRegionId) {
-                    isLoadingRegion = true;
-                    loadRegion(regionId).finally(() => {
-                        isLoadingRegion = false;
-                    });
-                }
-            });
+            console.log(`✅ Select2 display set to: ${firstRegionId}`);
         }
         
         // Update URL to reflect the loaded region (for shareable links)
@@ -998,23 +985,15 @@ function setupControls() {
     
     // Sync slider -> input (update immediately)
     document.getElementById('vertExag').addEventListener('input', (e) => {
-        params.verticalExaggeration = parseFloat(e.target.value);
-        document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
-        
-        // Update terrain immediately for responsive feedback
-        updateTerrainHeight();
-    });
-    
-    // Sync input -> slider
-    document.getElementById('vertExagInput').addEventListener('change', (e) => {
-        let value = parseFloat(e.target.value);
-        // Clamp to valid range
-        value = Math.max(0.00001, Math.min(0.3, value));
-        params.verticalExaggeration = value;
-        document.getElementById('vertExag').value = value;
-        document.getElementById('vertExagInput').value = value.toFixed(5);
-        updateTerrainHeight();
-    });
+ Кирилл Кири CONCLUSION
+
+Implementing vertical exaggeration UI:
+- Highlight active button
+- Show loading feedback
+
+Reviewing code after changes:
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+read_lints
     
     // Color scheme
     $('#colorScheme').on('change', function(e) {
@@ -1051,6 +1030,9 @@ function setupControls() {
         params.autoRotate = e.target.checked;
         controls.autoRotate = params.autoRotate;
     });
+    
+    // Initialize vertical exaggeration button states (highlight default active button)
+    updateVertExagButtons(params.verticalExaggeration);
     
     // Mark controls as initialized to prevent duplicate setup
     controlsInitialized = true;
@@ -2007,12 +1989,83 @@ function setView(preset) {
     }
 }
 
+// Track active vertical exaggeration button
+let activeVertExagButton = null;
+
 function setVertExag(value) {
     params.verticalExaggeration = value;
     document.getElementById('vertExag').value = value;
     document.getElementById('vertExagInput').value = value.toFixed(5);
     
+    // Update button active state
+    updateVertExagButtons(value);
+    
+    // Show loading indicator and update terrain
+    showVertExagLoading();
     updateTerrainHeight();
+}
+
+function updateVertExagButtons(activeValue) {
+    // Remove active class from all buttons
+    const buttons = document.querySelectorAll('[id^="vertExagBtn"]');
+    buttons.forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.outline = '';
+    });
+    
+    // Find and highlight the button matching the current value
+    activeValue = parseFloat(activeValue);
+    buttons.forEach(btn => {
+        const btnValue = parseFloat(btn.dataset.value);
+        if (btnValue === activeValue) {
+            btn.classList.add('active');
+            btn.style.outline = '2px solid #ffaa00';
+            activeVertExagButton = btn;
+        }
+    });
+}
+
+function showVertExagLoading() {
+    // Create or show loading overlay
+    let loadingOverlay = document.getElementById('vertExagLoading');
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'vertExagLoading';
+        loadingOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            pointer-events: none;
+        `;
+        loadingOverlay.innerHTML = `
+            <div style="
+                background: rgba(30, 40, 60, 0.95);
+                padding: 20px 40px;
+                border-radius: 8px;
+                border: 2px solid #5588cc;
+                font-size: 16px;
+                color: #88bbff;
+            ">Updating terrain...</div>
+        `;
+        document.body.appendChild(loadingOverlay);
+    }
+    
+    // Show loading overlay
+    loadingOverlay.style.display = 'flex';
+    
+    // Hide after a short delay (enough for the terrain update to start)
+    setTimeout(() => {
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+    }, 100);
 }
 
 function resetCamera() {

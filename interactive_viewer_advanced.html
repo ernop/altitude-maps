@@ -118,14 +118,15 @@
                     <span style="font-size: 11px; opacity: 0.6; min-width: 30px; text-align: right;">0.3</span>
                 </div>
                 <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.00001)">0.00001x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.0001)">0.0001x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.001)">0.001x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.005)">0.005x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.01)">0.01x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.05)">0.05x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.1)">0.1x</button>
-                    <button style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.3)">0.3x</button>
+                    <button id="vertExagBtn0" data-value="0.00001" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.00001)">0.00001x</button>
+                    <button id="vertExagBtn1" data-value="0.0001" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.0001)">0.0001x</button>
+                    <button id="vertExagBtn2" data-value="0.001" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.001)">0.001x</button>
+                    <button id="vertExagBtn3" data-value="0.005" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.005)">0.005x</button>
+                    <button id="vertExagBtn4" data-value="0.01" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.01)">0.01x</button>
+                    <button id="vertExagBtn5" data-value="0.05" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.05)">0.05x</button>
+                    <button id="vertExagBtn6" data-value="0.1" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.1)">0.1x</button>
+                    <button id="vertExagBtn7" data-value="0.3" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExag(0.3)">0.3x</button>
+                    <button id="vertExagBtnTrue" style="font-size: 10px; padding: 4px 8px; background: linear-gradient(135deg, #ccaa55, #bb9944);" onclick="setTrueScale()">TRUE SCALE</button>
                 </div>
             </div>
             

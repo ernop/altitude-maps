@@ -169,9 +169,8 @@ def clip_to_boundary(
                 bounds = src.bounds
                 avg_lat = (bounds.top + bounds.bottom) / 2
                 
-                # DISABLED: Reprojection causes data corruption (negative values in California)
-                # TODO: Fix reprojection to preserve borders and data quality properly
-                if False and abs(avg_lat) > 5:  # Only skip regions within 5° of equator
+                # Reproject ALL regions (except near equator where distortion is minimal)
+                if abs(avg_lat) > 5:  # Only skip regions within 5° of equator
                     needs_reprojection = True
                     import math
                     # Calculate distortion factor
@@ -208,8 +207,9 @@ def clip_to_boundary(
                     'height': height
                 })
                 
-                # Create reprojected array
+                # Create reprojected array with nodata initialized
                 reprojected = np.empty((1, height, width), dtype=out_image.dtype)
+                reprojected.fill(out_meta.get('nodata', np.nan))  # Initialize with nodata value
                 
                 reproject(
                     source=out_image,
@@ -218,7 +218,9 @@ def clip_to_boundary(
                     src_crs=src.crs,
                     dst_transform=transform,
                     dst_crs=dst_crs,
-                    resampling=Resampling.bilinear
+                    resampling=Resampling.bilinear,
+                    src_nodata=out_meta.get('nodata'),
+                    dst_nodata=out_meta.get('nodata')
                 )
                 
                 out_image = reprojected
@@ -314,8 +316,75 @@ def downsample_for_viewer(
         with rasterio.open(clipped_tif_path) as src:
             print(f"      Input: {src.width} × {src.height} pixels", flush=True)
             
+            # Check if reprojection is needed for latitude distortion fix
+            needs_reprojection = False
+            avg_lat = 0  # Initialize to avoid undefined variable error
+            if src.crs and 'EPSG:4326' in str(src.crs).upper():
+                bounds = src.bounds
+                avg_lat = (bounds.top + bounds.bottom) / 2
+                if abs(avg_lat) > 5:  # Only reproject regions away from equator
+                    needs_reprojection = True
+                    import math
+                    cos_lat = math.cos(math.radians(avg_lat))
+                    distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
+                    print(f"      ⚠️  Latitude {avg_lat:.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                    print(f"      🔄 Reprojecting to fix latitude distortion...")
+            
+            # Reproject if needed (before downsampling)
+            if needs_reprojection:
+                from rasterio.warp import calculate_default_transform, reproject, Resampling
+                
+                if abs(avg_lat) < 85:
+                    dst_crs = 'EPSG:3857'  # Web Mercator
+                else:
+                    dst_crs = 'EPSG:3413' if avg_lat > 0 else 'EPSG:3031'
+                
+                # Calculate transform for reprojection
+                transform, width, height = calculate_default_transform(
+                    src.crs, dst_crs,
+                    src.width, src.height,
+                    *src.bounds
+                )
+                
+                # Reproject the data
+                reprojected = np.empty((1, height, width), dtype=src.read(1).dtype)
+                reprojected.fill(src.nodata if src.nodata else np.nan)
+                
+                reproject(
+                    source=src.read(1),
+                    destination=reprojected,
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=dst_crs,
+                    resampling=Resampling.bilinear,
+                    src_nodata=src.nodata,
+                    dst_nodata=src.nodata
+                )
+                
+                # Use reprojected data
+                elevation = reprojected[0]
+                src_meta = src.meta.copy()
+                src_meta.update({
+                    'crs': dst_crs,
+                    'transform': transform,
+                    'width': width,
+                    'height': height
+                })
+                src_transform = transform
+                
+                print(f"      ✅ Reprojected to {dst_crs}: {width} × {height} pixels")
+                old_aspect = src.width / src.height
+                new_aspect = width / height
+                print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
+            else:
+                # No reprojection needed, use original data
+                elevation = src.read(1)
+                src_meta = src.meta.copy()
+                src_transform = src.transform
+            
             # Calculate downsampling factor - PRESERVE ASPECT RATIO
-            max_dim = max(src.height, src.width)
+            max_dim = max(elevation.shape[0], elevation.shape[1])
             if max_dim <= target_pixels:
                 # No downsampling needed
                 print(f"      ℹ️  Already small enough, copying as-is...")
@@ -328,11 +397,8 @@ def downsample_for_viewer(
                 scale_factor = max_dim / target_pixels
                 step_size = max(1, int(math.ceil(scale_factor)))
                 
-                # Read and downsample
-                print(f"      Reading elevation data...")
-                elevation = src.read(1)
-                
                 # Use SINGLE step size for both dimensions to preserve aspect ratio
+                # (elevation already loaded above)
                 print(f"      Downsampling (step: {step_size}×{step_size})...")
                 downsampled = elevation[::step_size, ::step_size]
                 
@@ -345,14 +411,14 @@ def downsample_for_viewer(
                 print(f"      Target: {new_width} × {new_height} pixels")
                 print(f"      Scale factor: {1.0/step_size:.3f}x")
                 
-                # Update metadata
-                out_meta = src.meta.copy()
+                # Update metadata using src_meta instead of src.meta
+                out_meta = src_meta.copy()
                 out_meta.update({
                     "height": new_height,
                     "width": new_width,
-                    "transform": src.transform * src.transform.scale(
-                        src.width / new_width,
-                        src.height / new_height
+                    "transform": src_transform * src_transform.scale(
+                        elevation.shape[1] / new_width,
+                        elevation.shape[0] / new_height
                     )
                 })
                 

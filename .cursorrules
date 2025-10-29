@@ -98,9 +98,20 @@ Session notes and development threads only:
 
 ⚠️ **Principle 1: Preserve Real-World Proportions**
 
-Our goal is to accurately represent geographic data with correct proportions. A wide state like Tennessee (8.7° wide × 1.7° tall) must appear wide, not square. A tall state like New Jersey must appear tall. 
+Our goal is to accurately represent geographic data with correct proportions. A wide state like Tennessee (8.7° wide × 1.7° tall) must appear wide, not square. A tall state like New Jersey must appear tall.
 
 **Implementation**: When masking to administrative boundaries (states/countries), crop the output to the actual shape boundaries, not the rectangular bounding box. This removes empty space that would distort aspect ratios.
+
+**Standard Pipeline Flow** (in `src/pipeline.py`):
+1. **Download** raw elevation data (bounding box, EPSG:4326)
+2. **Clip** to boundary using `rasterio_mask()` with `crop=True` and `filled=False`
+3. **Reproject** if needed to fix latitude distortion:
+   - Check if `abs(avg_lat) > 5°` (only skip regions near equator)
+   - Reproject to EPSG:3857 (Web Mercator) to correct longitude compression
+   - **CRITICAL**: Initialize output array with nodata, pass `src_nodata` and `dst_nodata` parameters
+   - Example: Kansas (38°N) has 1.28x distortion, Iceland (65°N) has 2.37x distortion
+4. **Downsample** to target resolution while preserving aspect ratio
+5. **Export** to JSON with bounds converted back to EPSG:4326 for viewer
 
 **Validation**: Export process automatically validates aspect ratio against geographic reality (see `src/validation.py`). Exports fail if proportions are >30% incorrect.
 
