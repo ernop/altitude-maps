@@ -23,13 +23,13 @@ python -m http.server 8001
 ```
 
 **Controls**:
-- **Left-click drag**: Pan the map
-- **Right-click drag**: Rotate around focus point  
-- **Mouse wheel**: Zoom toward cursor
-- **WASD**: Keyboard camera movement
-- **Q/E**: Move up/down vertically
-- **Shift**: Speed modifier
-- **R**: Reset camera
+-**Left-click drag**: Pan the map
+-**Right-click drag**: Rotate around focus point
+-**Mouse wheel**: Zoom toward cursor
+-**WASD**: Keyboard camera movement
+-**Q/E**: Move up/down vertically
+-**Shift**: Speed modifier
+-**R**: Reset camera
 
 ### Generate Static Visualization
 
@@ -45,13 +45,13 @@ python visualize_usa_overhead.py
 
 The interactive viewer provides real-time exploration with:
 
-- **45+ Pre-configured Regions**: Switch between USA, Japan, Switzerland, and more without refreshing
-- **Real-Time Bucketing**: Adjust detail level (1-50 pixels) for performance
-- **Multiple Render Modes**: Bars, surface, wireframe, or point cloud
-- **Vertical Exaggeration**: Adjust from 0.1x to 50x (1.0 = true Earth scale)
-- **Color Schemes**: 6 options including terrain, earth, ocean, viridis
-- **Country Borders**: Toggle country/state boundaries overlay
-- **Screenshots**: Export current view as PNG
+-**45+ Pre-configured Regions**: Switch between USA, Japan, Switzerland, and more without refreshing
+-**Real-Time Bucketing**: Adjust detail level (1-50 pixels) for performance
+-**Multiple Render Modes**: Bars, surface, wireframe, or point cloud
+-**Vertical Exaggeration**: Adjust from 0.1x to 50x (1.0 = true Earth scale)
+-**Color Schemes**: 6 options including terrain, earth, ocean, viridis
+-**Country Borders**: Toggle country/state boundaries overlay
+-**Screenshots**: Export current view as PNG
 
 ### Static Image Generation
 
@@ -83,7 +83,7 @@ The unified downloader provides one command to download elevation data for any r
 python download_unified.py california --process
 python download_unified.py colorado --process
 
-# Japanese regions  
+# Japanese regions
 python download_unified.py shikoku --process
 
 # Switzerland
@@ -109,25 +109,25 @@ Then open http://localhost:8001 in your browser. Select your region from the dro
 ## Data Sources
 
 ### USA - USGS 3DEP (1-10m)
-- **Best quality** for USA
-- **10m resolution** available for all states
-- **Download**: `python downloaders/usa_3dep.py california --auto`
+-**Best quality** for USA
+-**10m resolution** available for all states
+-**Download**: `python downloaders/usa_3dep.py california --auto`
 - Or follow manual download instructions for 10m data
 
 ### Global - SRTM (30m)
-- **Good coverage**: 60degN to 56degS (most populated areas)
-- **Works everywhere**: Automatic download via OpenTopography
-- **Download**: `python download_unified.py <region> --process`
+-**Good coverage**: 60degN to 56degS (most populated areas)
+-**Works everywhere**: Automatic download via OpenTopography
+-**Download**: `python download_unified.py <region> --process`
 
 ### Japan - ALOS World 3D (30m)
-- **Best for Japan** and mountain regions
-- **Excellent quality**: Made by JAXA specifically for terrain
-- **Download**: `python download_unified.py japan --process`
+-**Best for Japan** and mountain regions
+-**Excellent quality**: Made by JAXA specifically for terrain
+-**Download**: `python download_unified.py japan --process`
 
 ### Other High-Quality National Sources
-- **Switzerland**: SwissTopo (0.5-2m) - manual download
-- **Germany**: BKG (1-25m) - manual download  
-- **Australia**: Geoscience (5m) - manual download
+-**Switzerland**: SwissTopo (0.5-2m) - manual download
+-**Germany**: BKG (1-25m) - manual download
+-**Australia**: Geoscience (5m) - manual download
 
 Priority: Always use nation-specific sources when available (better quality than global datasets).
 
@@ -144,10 +144,10 @@ Switch between 45+ pre-configured regions with a dropdown selector. All regions 
 - Infinite zoom capability
 
 **Interaction Modes**:
-1. **Pan** (Left drag): Drag map surface, point under cursor stays locked
-2. **Rotate** (Right drag): Orbit around focus point  
-3. **Tilt** (Shift + Left drag): Adjust viewing angle
-4. **Zoom** (Mouse wheel): Zoom toward cursor point with bidirectional focus shift
+1.**Pan** (Left drag): Drag map surface, point under cursor stays locked
+2.**Rotate** (Right drag): Orbit around focus point
+3.**Tilt** (Shift + Left drag): Adjust viewing angle
+4.**Zoom** (Mouse wheel): Zoom toward cursor point with bidirectional focus shift
 
 ### Visualization Modes
 
@@ -168,10 +168,10 @@ Switch between 45+ pre-configured regions with a dropdown selector. All regions 
 ### Vertical Exaggeration
 
 **Meter-based Scale**:
-- **1.0x**: True Earth proportions (1000m horizontal = 1000m vertical)
-- **4.0x**: Default (moderately dramatic)
-- **10.0x**: Very dramatic terrain
-- **25.0x**: Extreme exaggeration
+-**1.0x**: True Earth proportions (1000m horizontal = 1000m vertical)
+-**4.0x**: Default (moderately dramatic)
+-**10.0x**: Very dramatic terrain
+-**25.0x**: Extreme exaggeration
 
 Both X/Z (horizontal) and Y (elevation) axes use real meters based on lat/lon bounds.
 
@@ -194,16 +194,16 @@ python export_for_web_viewer.py data/usa.tif --mask-country "United States of Am
 ## Performance Tips
 
 ### Interactive Viewer
-- **Default bucket size**: 12x12 pixels works for most cases
-- **If laggy**: Increase to 16-25 in sidebar
-- **For smooth 60 FPS**: Keep bar count under 15,000
-- **Surface mode**: Faster rendering for very large datasets
+-**Default bucket size**: 12x12 pixels works for most cases
+-**If laggy**: Increase to 16-25 in sidebar
+-**For smooth 60 FPS**: Keep bar count under 15,000
+-**Surface mode**: Faster rendering for very large datasets
 
 ### Static Rendering
-- **Bucketing**: Dramatically speeds up rendering
-  - No bucketing: 640,000 data points, 30-60 seconds
-  - 100-mile buckets: ~1,200 data points, 5-10 seconds
-- **Trade-off**: Bucketing loses fine detail but highlights major features
+-**Bucketing**: Dramatically speeds up rendering
+ - No bucketing: 640,000 data points, 30-60 seconds
+ - 100-mile buckets: ~1,200 data points, 5-10 seconds
+-**Trade-off**: Bucketing loses fine detail but highlights major features
 
 ## Troubleshooting
 
@@ -227,7 +227,7 @@ python serve_viewer.py
 ```
 
 ### Slow/Laggy Interactive Viewer
-In the viewer sidebar, increase **Bucket Size** to 16 or 20. This reduces the number of terrain blocks.
+In the viewer sidebar, increase**Bucket Size** to 16 or 20. This reduces the number of terrain blocks.
 
 ### "Unknown region"
 Run `python download_unified.py --list` to see all available regions, or provide custom bounds:
@@ -260,7 +260,7 @@ Then refresh the browser.
 ### Export Screenshot
 1. Position camera to desired view
 2. Adjust visual settings (colors, wireframe, etc.)
-3. Click "📸 Save Screenshot" button in viewer
+3. Click " Save Screenshot" button in viewer
 4. Image downloads automatically
 
 ## Advanced Configuration
@@ -295,23 +295,23 @@ python download_unified.py texas --process --target-pixels 400
 
 ## Multi-Word Region Names
 
-For regions with multiple words (New Hampshire, North Dakota, etc.), you have **three options**:
+For regions with multiple words (New Hampshire, North Dakota, etc.), you have**three options**:
 
-###  Option 1: Underscores (Recommended)
+### Option 1: Underscores (Recommended)
 ```powershell
 python ensure_region.py new_hampshire
 python check_region.py north_dakota
 python reprocess_existing_states.py --states new_hampshire north_dakota
 ```
 
-###  Option 2: Quotes
+### Option 2: Quotes
 ```powershell
 python ensure_region.py "new hampshire"
 python check_region.py "north dakota"
 python reprocess_existing_states.py --states "new hampshire" "north dakota"
 ```
 
-###  Option 3: Hyphens (converted to underscores)
+### Option 3: Hyphens (converted to underscores)
 ```powershell
 python ensure_region.py new-hampshire
 python check_region.py north-dakota
@@ -331,10 +331,10 @@ States requiring special formatting:
 
 **Default: 2048 pixels** (good balance of quality and file size)
 
-- **1024px** - Smaller files, faster loading, still good quality
-- **2048px** - Default, recommended for most uses
-- **4096px** - High detail, larger files (~4x size of 2048px)
-- **8192px** - Very high detail, very large files (only for special cases)
+-**1024px** - Smaller files, faster loading, still good quality
+-**2048px** - Default, recommended for most uses
+-**4096px** - High detail, larger files (~4x size of 2048px)
+-**8192px** - Very high detail, very large files (only for special cases)
 
 Example file sizes for a typical state at 2048px: 5-20 MB JSON
 
@@ -342,10 +342,10 @@ Example file sizes for a typical state at 2048px: 5-20 MB JSON
 
 Every region goes through 4 stages:
 
-1. **Raw** - Downloaded bounding box data
-2. **Clipped** - Masked to state/country boundary
-3. **Processed** - Downsampled to target resolution
-4. **Generated** - Exported as JSON for viewer
+1.**Raw** - Downloaded bounding box data
+2.**Clipped** - Masked to state/country boundary
+3.**Processed** - Downsampled to target resolution
+4.**Generated** - Exported as JSON for viewer
 
 Use `check_region.py` to see status of all stages!
 
@@ -390,23 +390,23 @@ python reprocess_existing_states.py --states ohio kentucky --target-pixels 4096 
 
 ## Default Settings
 
-All scripts use **centralized defaults** from `src/config.py`:
+All scripts use**centralized defaults** from `src/config.py`:
 
-- **Default target pixels:** 2048 (can override with `--target-pixels`)
-- **Export format version:** export_v2
-- **Minimum data coverage:** 20%
+-**Default target pixels:** 2048 (can override with `--target-pixels`)
+-**Export format version:** export_v2
+-**Minimum data coverage:** 20%
 
 ## Technical Reference
 
 For detailed technical information, see:
-- **TECHNICAL_REFERENCE.md**: Complete API, file formats, controls reference
-- **DOWNLOAD_GUIDE.md**: Data acquisition workflows
-- **CAMERA_CONTROLS.md**: Detailed camera system documentation
+-**TECHNICAL_REFERENCE.md**: Complete API, file formats, controls reference
+-**DOWNLOAD_GUIDE.md**: Data acquisition workflows
+-**CAMERA_CONTROLS.md**: Detailed camera system documentation
 
 ## Next Steps
 
 - Explore the interactive viewer with different regions
-- Generate static visualizations with custom parameters  
+- Generate static visualizations with custom parameters
 - Download your own regions of interest
 - Read technical documentation for advanced features
 

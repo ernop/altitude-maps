@@ -1,6 +1,6 @@
 # Camera Controls Update - Maya Style + Trackpad
 
-**Date:** October 28, 2025  
+**Date:** October 28, 2025
 **Summary:** Updated Alt+Left control to match Maya's tumble behavior and verified trackpad gestures match Google Maps
 
 ---
@@ -25,24 +25,24 @@
 ```javascript
 // In onMouseDown:
 else if (event.button === 0 && event.altKey) { // Alt+Left = Tumble/Rotate (Maya style)
-    this.state.rotating = true;
-    this.state.rotatingWithAlt = true; // Track that Alt was used
-    this.state.rotateStart = { x: event.clientX, y: event.clientY };
-    this.state.cameraStart = this.camera.position.clone();
-    this.state.focusStart = this.focusPoint.clone();
-    console.log('🔄 Tumble started (Alt+Left, Maya style)');
+ this.state.rotating = true;
+ this.state.rotatingWithAlt = true; // Track that Alt was used
+ this.state.rotateStart = { x: event.clientX, y: event.clientY };
+ this.state.cameraStart = this.camera.position.clone();
+ this.state.focusStart = this.focusPoint.clone();
+ console.log(' Tumble started (Alt+Left, Maya style)');
 }
 
 // In onMouseMove (rotation handling):
 if (this.state.rotating) {
-    // If Alt was used to start rotation and Alt is released, cancel smoothly
-    if (this.state.rotatingWithAlt && !event.altKey) {
-        console.log('🔄 Rotation cancelled (Alt released)');
-        this.state.rotating = false;
-        this.state.rotatingWithAlt = false;
-        return;
-    }
-    // ... rotation logic
+ // If Alt was used to start rotation and Alt is released, cancel smoothly
+ if (this.state.rotatingWithAlt && !event.altKey) {
+ console.log(' Rotation cancelled (Alt released)');
+ this.state.rotating = false;
+ this.state.rotatingWithAlt = false;
+ return;
+ }
+ // ... rotation logic
 }
 ```
 
@@ -52,7 +52,7 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 **Current Control Scheme:**
 - Left drag = Pan
 - Shift+Left drag = Tilt (viewing angle adjustment)
-- **Alt+Left drag = Rotate (Maya-style tumble)** <- NEW
+-**Alt+Left drag = Rotate (Maya-style tumble)** <- NEW
 - Right drag = Rotate (same as Alt+Left now)
 - Scroll = Zoom
 
@@ -68,16 +68,16 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 | Simultaneous pan+zoom | Supported | Both platforms |
 
 **Google Maps Comparison:**
--  Two-finger drag for pan (trackpad) - we have this
--  Pinch for zoom - we have this
--  Works on mobile touch - we have this
--  Prevents page scrolling - we have this
+- Two-finger drag for pan (trackpad) - we have this
+- Pinch for zoom - we have this
+- Works on mobile touch - we have this
+- Prevents page scrolling - we have this
 
 **Our Implementation vs Google Maps:**
-- **Same:** Two-finger drag pans on trackpad
-- **Same:** Pinch zooms
-- **Better:** We also support single-finger pan for mobile (Google Maps requires two-finger on mobile for some actions)
-- **Same:** Sensitivity is comparable (1% zoom per pixel)
+-**Same:** Two-finger drag pans on trackpad
+-**Same:** Pinch zooms
+-**Better:** We also support single-finger pan for mobile (Google Maps requires two-finger on mobile for some actions)
+-**Same:** Sensitivity is comparable (1% zoom per pixel)
 
 ### 3. Documentation Updates
 
@@ -128,21 +128,21 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 ## Compatibility with Professional Tools
 
 ### Maya
--  Alt+Left = Tumble (rotate) - **NOW MATCHES**
--  Alt+Middle = Track (pan) - we use plain Left drag
--  Alt+Right = Dolly (zoom) - we use scroll wheel
+- Alt+Left = Tumble (rotate) -**NOW MATCHES**
+- Alt+Middle = Track (pan) - we use plain Left drag
+- Alt+Right = Dolly (zoom) - we use scroll wheel
 
 ### 3ds Max
--  Alt+Left-ish = Rotate - **NOW MATCHES**
--  Middle drag = Pan - we use Left drag (different button but same concept)
+- Alt+Left-ish = Rotate -**NOW MATCHES**
+- Middle drag = Pan - we use Left drag (different button but same concept)
 
 ### Cinema 4D
--  Alt+Left = Rotate - **NOW MATCHES**
+- Alt+Left = Rotate -**NOW MATCHES**
 
 ### Altitude Maps Advantage
-- **Simpler:** Don't need Alt for every operation (just rotate)
-- **Mouse-friendly:** Left drag for pan is more intuitive than Alt+Middle
-- **Keyboard support:** WASD movement not available in Maya/3ds Max/Cinema 4D by default
+-**Simpler:** Don't need Alt for every operation (just rotate)
+-**Mouse-friendly:** Left drag for pan is more intuitive than Alt+Middle
+-**Keyboard support:** WASD movement not available in Maya/3ds Max/Cinema 4D by default
 
 ---
 
@@ -151,10 +151,10 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 ### For Users
 
 **If you're used to:**
-- **Maya/3ds Max/Cinema 4D:** Alt+Left now works like you expect (rotate/tumble)
-- **Google Maps:** Trackpad gestures work the same way
-- **Unity/Unreal:** WASD movement works like flythrough mode
-- **Previous Altitude Maps:** All your existing controls still work, Alt+Left just does something different now
+-**Maya/3ds Max/Cinema 4D:** Alt+Left now works like you expect (rotate/tumble)
+-**Google Maps:** Trackpad gestures work the same way
+-**Unity/Unreal:** WASD movement works like flythrough mode
+-**Previous Altitude Maps:** All your existing controls still work, Alt+Left just does something different now
 
 **Breaking Changes:**
 - None - all previous controls still work
@@ -187,17 +187,17 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 
 ### Files Modified
 1. `js/ground-plane-camera.js`
-   - Changed Alt+Left from tilt to rotate
-   - Updated tilt cancellation (only checks Shift now)
-   - Updated constructor description string
+ - Changed Alt+Left from tilt to rotate
+ - Updated tilt cancellation (only checks Shift now)
+ - Updated constructor description string
 
 2. `.cursorrules`
-   - Updated control scheme documentation
-   - Added Alt+Left as alternative to Right drag
-   - Clarified trackpad gesture support
+ - Updated control scheme documentation
+ - Added Alt+Left as alternative to Right drag
+ - Clarified trackpad gesture support
 
 3. `learnings/SESSION_20251028_maya_trackpad_update.md`
-   - This document
+ - This document
 
 ### Code Changes
 
@@ -205,14 +205,14 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 ```javascript
 // OLD:
 else if (event.button === 0 && event.altKey) { // Alt+Left = Tilt
-    this.state.tilting = true;
-    // ...
+ this.state.tilting = true;
+ // ...
 }
 
 // NEW:
 else if (event.button === 0 && event.altKey) { // Alt+Left = Rotate (Maya)
-    this.state.rotating = true;
-    // ...
+ this.state.rotating = true;
+ // ...
 }
 ```
 
@@ -220,12 +220,12 @@ else if (event.button === 0 && event.altKey) { // Alt+Left = Rotate (Maya)
 ```javascript
 // OLD:
 if (!event.shiftKey && !event.altKey) {
-    // Cancel tilt
+ // Cancel tilt
 }
 
 // NEW:
 if (!event.shiftKey) {
-    // Cancel tilt (Alt no longer does tilt)
+ // Cancel tilt (Alt no longer does tilt)
 }
 ```
 
@@ -237,12 +237,12 @@ if (!event.shiftKey) {
 
 | Software | Control | Altitude Maps Equivalent |
 |----------|---------|--------------------------|
-| Maya | Alt+Left = Tumble | Alt+Left = Rotate  |
-| 3ds Max | Alt+MMB = Orbit | Alt+Left = Rotate  |
-| Cinema 4D | Alt+Left = Rotate | Alt+Left = Rotate  |
-| Google Maps | Two-finger drag = Pan | Two-finger drag = Pan  |
-| Google Maps | Pinch = Zoom | Pinch = Zoom  |
-| Unity | WASD = Move | WASD = Move  |
+| Maya | Alt+Left = Tumble | Alt+Left = Rotate |
+| 3ds Max | Alt+MMB = Orbit | Alt+Left = Rotate |
+| Cinema 4D | Alt+Left = Rotate | Alt+Left = Rotate |
+| Google Maps | Two-finger drag = Pan | Two-finger drag = Pan |
+| Google Maps | Pinch = Zoom | Pinch = Zoom |
+| Unity | WASD = Move | WASD = Move |
 
 ### Unique Features
 
@@ -256,10 +256,10 @@ if (!event.shiftKey) {
 
 ## User Benefits
 
-1. **Maya/3ds Max users:** Alt+Left now works like you expect
-2. **Trackpad users:** Full Google Maps-style gesture support
-3. **Keyboard users:** WASD works alongside all mouse controls
-4. **All users:** More control options, same smooth performance
+1.**Maya/3ds Max users:** Alt+Left now works like you expect
+2.**Trackpad users:** Full Google Maps-style gesture support
+3.**Keyboard users:** WASD works alongside all mouse controls
+4.**All users:** More control options, same smooth performance
 
 ---
 
@@ -276,5 +276,5 @@ if (!event.shiftKey) {
 
 Successfully updated controls to match professional 3D software (Maya) while maintaining Google Maps-style trackpad support. All changes are additive or remappings - no existing functionality was removed. Users familiar with Maya, Google Maps, or Unity will find familiar controls.
 
-**Status:**  Complete and ready for testing
+**Status:** Complete and ready for testing
 

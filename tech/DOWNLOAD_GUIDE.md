@@ -29,12 +29,10 @@ python download_unified.py <region_name> --process
 ## How It Works
 
 ### 1. Region Resolution
-The system looks up your region in a **centralized registry** (`src/regions_registry.py`) that aggregates:
-- **US states** (all 50) - clips to state boundaries automatically
-- **Japanese regions** (full country, islands, prefectures)
-- **Switzerland** regions
-- **High-resolution curated** regions (Alps, Nepal, etc.)
-- **Generic global** regions (200+ countries and regions)
+The system looks up your region in a **centralized configuration** (`src/regions_config.py`):
+- **US states** - clips to state boundaries automatically
+- **Countries** - international countries
+- **Regions** - islands, peninsulas, mountain ranges, etc.
 
 ### 2. Auto Mode (Default ON)
 - Downloads via OpenTopography API (30m SRTM or better)
@@ -187,20 +185,23 @@ Region may exceed API limits. Try:
 
 To add a region to the built-in registry (so you can just use its name):
 
-1. Edit `src/regions_registry.py`
-2. Add entry to the appropriate dictionary:
-   - `US_STATES` (imported from downloaders/usa_3dep.py)
-   - `JAPAN_REGIONS` (imported from downloaders/japan_gsi.py)
-   - Or add to `download_regions.py` REGIONS dict for generic global regions
-3. Run `python download_unified.py --list` to verify
+1. Edit `src/regions_config.py`
+2. Add RegionConfig entry to the appropriate category:
+   - `US_STATES` - US states
+   - `COUNTRIES` - Countries
+   - `REGIONS` - Islands, peninsulas, mountain ranges, etc.
+3. Run `python ensure_region.py --list-regions` to verify
 
-Example addition to `download_regions.py`:
+Example addition to `REGIONS` in `src/regions_config.py`:
 ```python
-"kamchatka": {
-    "bounds": (155.0, 50.0, 163.0, 61.0),
-    "name": "Kamchatka Peninsula",
-    "description": "Kamchatka Peninsula, Russia - volcanic terrain"
-},
+"kamchatka": RegionConfig(
+    id="kamchatka",
+    name="Kamchatka Peninsula",
+    bounds=(156.0, 50.5, 163.0, 62.5),
+    description="Russia - Kamchatka Peninsula",
+    category="region",
+    clip_boundary=False,
+),
 ```
 
 ## Migration from Old Scripts

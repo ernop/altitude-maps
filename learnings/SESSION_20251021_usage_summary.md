@@ -1,28 +1,28 @@
-# 🗺 Altitude Maps - Usage Summary
+# Altitude Maps - Usage Summary
 
-##  What We've Accomplished
+## What We've Accomplished
 
-### 1. **Full Continental USA Elevation Data** ✓
-- **File**: `data/usa_elevation/continental_usa_elevation.tif`
-- **Coverage**: -125degW to -66degW, 24degN to 49degN (entire continental USA)
-- **Source**: USGS 3DEP
-- **Resolution**: ~6.4km per pixel (at this zoom level)
-- **Size**: 3.2 MB
-- **Elevation Range**: -152m to 4,115m (Death Valley to high peaks)
+### 1.**Full Continental USA Elevation Data**
+-**File**: `data/usa_elevation/continental_usa_elevation.tif`
+-**Coverage**: -125degW to -66degW, 24degN to 49degN (entire continental USA)
+-**Source**: USGS 3DEP
+-**Resolution**: ~6.4km per pixel (at this zoom level)
+-**Size**: 3.2 MB
+-**Elevation Range**: -152m to 4,115m (Death Valley to high peaks)
 
-### 2. **Beautiful Overhead Visualization** ✓
-- **Latest**: `generated/YYYYMMDD_HHMMSS_continental_usa_overhead_view.png`
-- **Style**: Space perspective overhead view
-- **Features**:
-  - Realistic terrain colors (blue->green->brown->white)
-  - Hillshade lighting for depth
-  - Geographic coordinates labeled
-  - Elevation statistics
-  - 15x vertical exaggeration for dramatic effect
+### 2.**Beautiful Overhead Visualization**
+-**Latest**: `generated/YYYYMMDD_HHMMSS_continental_usa_overhead_view.png`
+-**Style**: Space perspective overhead view
+-**Features**:
+ - Realistic terrain colors (blue->green->brown->white)
+ - Hillshade lighting for depth
+ - Geographic coordinates labeled
+ - Elevation statistics
+ - 15x vertical exaggeration for dramatic effect
 
 ---
 
-## 🚀 Simple Commands
+## Simple Commands
 
 ### Generate the Main Visualization
 ```powershell
@@ -49,11 +49,11 @@ python download_usa_region.py yellowstone
 
 ---
 
-## 📊 What Each File Does
+## What Each File Does
 
 | File | Purpose |
 |------|---------|
-| `visualize_usa_overhead.py` | **Main tool** - Creates overhead USA view |
+| `visualize_usa_overhead.py` |**Main tool** - Creates overhead USA view |
 | `download_continental_usa.py` | Downloads full USA elevation data |
 | `download_usa_region.py` | Downloads specific regions |
 | `visualize_real_data.py` | Creates multiple views (3D, bars, hillshade) |
@@ -61,13 +61,13 @@ python download_usa_region.py yellowstone
 
 ---
 
-## 🎯 Current Status
+## Current Status
 
 **YOU NOW HAVE:**
- Full continental USA elevation data  
- One-command overhead visualization  
- Proper geographic labeling (lat/lon bounds)  
- Realistic terrain coloring  
+ Full continental USA elevation data
+ One-command overhead visualization
+ Proper geographic labeling (lat/lon bounds)
+ Realistic terrain coloring
  High-quality PNG output (300 DPI)
 
 **READY TO USE:**
@@ -79,30 +79,30 @@ python download_usa_region.py yellowstone
 
 ---
 
-## 🎨 Customization Options
+## Customization Options
 
 Edit `visualize_usa_overhead.py` to adjust:
 
 ```python
 # Line 81: Vertical exaggeration
-vertical_exag = 15.0  # Increase for more dramatic peaks
+vertical_exag = 15.0# Increase for more dramatic peaks
 
 # Line 120: Viewing angle
-ax.view_init(elev=35, azim=230)  # elev: height, azim: rotation
+ax.view_init(elev=35, azim=230)# elev: height, azim: rotation
 
 # Line 78-90: Color scheme
-colors_list = [...]  # Modify terrain colors
+colors_list = [...]# Modify terrain colors
 ```
 
 ---
 
-## 📍 Geographic Coverage
+## Geographic Coverage
 
 **Continental USA Bounds:**
-- **West**: 125degW (Pacific Coast)
-- **East**: 66degW (Atlantic Coast)
-- **South**: 24degN (Florida Keys)
-- **North**: 49degN (Canadian border)
+-**West**: 125degW (Pacific Coast)
+-**East**: 66degW (Atlantic Coast)
+-**South**: 24degN (Florida Keys)
+-**North**: 49degN (Canadian border)
 
 **Notable Features Visible:**
 - Rocky Mountains (Colorado, Wyoming)
@@ -115,7 +115,7 @@ colors_list = [...]  # Modify terrain colors
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 **"File not found" error?**
 ```powershell
@@ -134,18 +134,18 @@ python visualize_usa_overhead.py data/usa_elevation/colorado_rockies_elevation_1
 
 ---
 
-## 📈 Next Steps Ideas
+## Next Steps Ideas
 
-1. **Create rotation animation** - Multiple azimuth angles
-2. **Add state boundaries** overlay
-3. **Interactive 3D viewer** with plotly
-4. **Climate data overlay** (temperature by elevation)
-5. **Compare different regions** side-by-side
-6. **Export for 3D printing** (STL format)
-7. **Time-of-day lighting** variations
+1.**Create rotation animation** - Multiple azimuth angles
+2.**Add state boundaries** overlay
+3.**Interactive 3D viewer** with plotly
+4.**Climate data overlay** (temperature by elevation)
+5.**Compare different regions** side-by-side
+6.**Export for 3D printing** (STL format)
+7.**Time-of-day lighting** variations
 
 ---
 
-**Last Updated**: October 21, 2025  
+**Last Updated**: October 21, 2025
 **All outputs**: `generated/` folder with timestamps
 

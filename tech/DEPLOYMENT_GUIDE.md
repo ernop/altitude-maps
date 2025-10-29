@@ -2,7 +2,7 @@
 
 ## What Gets Deployed
 
-The viewer is a **pure client-side web application** that only needs:
+The viewer is a**pure client-side web application** that only needs:
 
 ### Required Files (uploaded)
 - `interactive_viewer_advanced.html` - Main 3D viewer
@@ -17,11 +17,11 @@ The viewer is a **pure client-side web application** that only needs:
 - Select2 (dropdown UI)
 
 ### NOT Needed (stays local)
--  `data/` - Raw GeoTIFF files (10+ GB!)
--  `src/` - Python processing code
--  `*.py` - Python scripts
--  `venv/` - Virtual environment
--  Documentation files
+- `data/` - Raw GeoTIFF files (10+ GB!)
+- `src/` - Python processing code
+- `*.py` - Python scripts
+- `venv/` - Virtual environment
+- Documentation files
 
 ## Deployment
 
@@ -53,24 +53,24 @@ chmod +x deploy.sh
 **The script uses rsync with trailing slash semantics:**
 
 - Script internally: `rsync $PSScriptRoot\ user@host:/remote/path`
-- Trailing slash (`source/`) = Copy **contents** of source into destination
-- No trailing slash (`source`) = Copy **source folder itself** into destination
+- Trailing slash (`source/`) = Copy**contents** of source into destination
+- No trailing slash (`source`) = Copy**source folder itself** into destination
 
 **Our script uses trailing slash**, so files appear directly in remote path:
 
 ```
 /home/x.com/public/maps/
-├── interactive_viewer_advanced.html  <- Files here
-├── js/
-├── css/
-└── generated/
+ interactive_viewer_advanced.html <- Files here
+ js/
+ css/
+ generated/
 ```
 
 **NOT nested** like this:
 ```
 /home/x.com/public/maps/
-└── altitude-maps/  <- Does NOT create this
-    └── ...
+ altitude-maps/ <- Does NOT create this
+ ...
 ```
 
 This matches rsync standard behavior exactly.
@@ -92,29 +92,29 @@ Since all paths are relative, any web server works. Just point it at the deploym
 **Nginx example:**
 ```nginx
 server {
-    listen 80;
-    server_name maps.example.com;
-    
-    root /var/www/maps;
-    index interactive_viewer_advanced.html;
-    
-    location / {
-        try_files $uri $uri/ =404;
-    }
+ listen 80;
+ server_name maps.example.com;
+
+ root /var/www/maps;
+ index interactive_viewer_advanced.html;
+
+ location / {
+ try_files $uri $uri/ =404;
+ }
 }
 ```
 
 **Apache example:**
 ```apache
-<VirtualHost *:80>
-    ServerName maps.example.com
-    DocumentRoot /var/www/maps
-    
-    <Directory /var/www/maps>
-        Options -Indexes +FollowSymLinks
-        AllowOverride None
-        Require all granted
-    </Directory>
+<VirtualHost*:80>
+ ServerName maps.example.com
+ DocumentRoot /var/www/maps
+
+ <Directory /var/www/maps>
+ Options -Indexes +FollowSymLinks
+ AllowOverride None
+ Require all granted
+ </Directory>
 </VirtualHost>
 ```
 
@@ -129,9 +129,9 @@ python3 -m http.server 8001
 Typical deployment sizes:
 - HTML/JS/CSS: ~100 KB
 - Generated data: Varies by regions
-  - Single US state: ~500 KB - 2 MB
-  - All US states: ~50 MB
-  - Global regions: ~100 MB+
+ - Single US state: ~500 KB - 2 MB
+ - All US states: ~50 MB
+ - Global regions: ~100 MB+
 
 Raw data (NOT deployed):
 - Single US state GeoTIFF: 50-500 MB
@@ -141,43 +141,43 @@ Raw data (NOT deployed):
 
 ```
 /var/www/maps/
-├── interactive_viewer_advanced.html  <- Main viewer
-├── viewer.html                       <- Simple viewer
-├── README.md                         <- Optional
-├── css/
-│   ├── viewer.css
-│   └── viewer-advanced.css
-├── js/
-│   ├── viewer-advanced.js
-│   ├── camera-schemes.js
-│   ├── ground-plane-camera.js
-│   └── ...
-└── generated/
-    ├── manifest.json                 <- Region list
-    └── regions/
-        ├── USA_Alabama.json
-        ├── USA_California.json
-        └── ...
+ interactive_viewer_advanced.html <- Main viewer
+ viewer.html <- Simple viewer
+ README.md <- Optional
+ css/
+ viewer.css
+ viewer-advanced.css
+ js/
+ viewer-advanced.js
+ camera-schemes.js
+ ground-plane-camera.js
+ ...
+ generated/
+ manifest.json <- Region list
+ regions/
+ USA_Alabama.json
+ USA_California.json
+ ...
 ```
 
 ## Updating Data
 
 To add new regions or update existing ones:
 
-1. **Local: Process new data**
-   ```powershell
-   # Download and export new region
-   python download_regions.py
-   python export_for_web_viewer.py data/new_region.tif
-   ```
+1.**Local: Process new data**
+ ```powershell
+# Download and export new region
+ python download_regions.py
+ python export_for_web_viewer.py data/new_region.tif
+ ```
 
-2. **Deploy: Upload changes**
-   ```powershell
-   # Only changed files will be uploaded (rsync is smart)
-   .\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy
-   ```
+2.**Deploy: Upload changes**
+ ```powershell
+# Only changed files will be uploaded (rsync is smart)
+ .\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy
+ ```
 
-3. **Done!** Refresh browser to see new regions
+3.**Done!** Refresh browser to see new regions
 
 ## Troubleshooting
 
@@ -197,8 +197,8 @@ To add new regions or update existing ones:
 - If not: `apt install rsync` or `brew install rsync`
 
 ### Problem: Large upload times
-- **First deploy**: Uploads everything (~50-100 MB)
-- **Subsequent deploys**: Only changed files (usually < 1 MB)
+-**First deploy**: Uploads everything (~50-100 MB)
+-**Subsequent deploys**: Only changed files (usually < 1 MB)
 - Tip: Use `-DryRun` to preview what will change
 
 ### Problem: Permission denied
@@ -208,10 +208,10 @@ To add new regions or update existing ones:
 
 ## Security Notes
 
--  No server-side code (static files only)
--  No database or user data
--  All data is public (elevation maps)
--  CDN dependencies use integrity hashes (recommended)
+- No server-side code (static files only)
+- No database or user data
+- All data is public (elevation maps)
+- CDN dependencies use integrity hashes (recommended)
 
 Consider adding:
 - HTTPS via Let's Encrypt
@@ -220,7 +220,7 @@ Consider adding:
 
 ## Optional: Pre-compression
 
-For even faster loads, you can **pre-compress JSON files** before deployment. This creates `.json.gz` files that can be served directly by the web server (avoiding runtime compression overhead).
+For even faster loads, you can**pre-compress JSON files** before deployment. This creates `.json.gz` files that can be served directly by the web server (avoiding runtime compression overhead).
 
 ### Method 1: Python Script (with skip existing)
 
@@ -228,7 +228,7 @@ For even faster loads, you can **pre-compress JSON files** before deployment. Th
 python precompress_json.py
 ```
 
-This compresses all JSON files in `generated/regions/` and **skips** files that already have a `.gz` version (won't overwrite).
+This compresses all JSON files in `generated/regions/` and**skips** files that already have a `.gz` version (won't overwrite).
 
 ### Method 2: Linux Command (production server)
 
@@ -242,8 +242,8 @@ find generated -name "*.json" -type f -exec sh -c '[ ! -e "$1.gz" ] && gzip -k -
 Or with a more readable while loop:
 
 ```bash
-find generated -name "*.json" -type f | while read f; do 
-    [ ! -e "$f.gz" ] && gzip -k -9 "$f"
+find generated -name "*.json" -type f | while read f; do
+ [ ! -e "$f.gz" ] && gzip -k -9 "$f"
 done
 ```
 
@@ -259,15 +259,15 @@ After pre-compressing, configure your web server to serve `.json.gz` files when 
 
 **Nginx:**
 ```nginx
-gzip_static on;  # Serve pre-compressed .gz files
+gzip_static on;# Serve pre-compressed .gz files
 ```
 
 **Apache (.htaccess):**
 ```apache
 <IfModule mod_rewrite.c>
-    RewriteCond %{HTTP:Accept-Encoding} gzip
-    RewriteCond %{REQUEST_FILENAME}\.gz -f
-    RewriteRule ^(.*)$ $1.gz [L]
+ RewriteCond %{HTTP:Accept-Encoding} gzip
+ RewriteCond %{REQUEST_FILENAME}\.gz -f
+ RewriteRule ^(.*)$ $1.gz [L]
 </IfModule>
 ```
 

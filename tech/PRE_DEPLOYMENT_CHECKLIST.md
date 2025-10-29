@@ -1,7 +1,7 @@
 # Pre-Deployment Testing Checklist
 
-**Release Date:** TBD  
-**Version:** October 2025 Camera Enhancements  
+**Release Date:** TBD
+**Version:** October 2025 Camera Enhancements
 **Tester:** _____________
 
 ---
@@ -9,61 +9,61 @@
 ## Summary of Changes
 
 This release includes major camera control enhancements:
-- ✨ **WASD/QE keyboard movement** - Unity/Unreal-style flythrough
-- 📱 **Touch/trackpad gestures** - Pinch zoom, pan (mobile & laptop support)
-- 🎮 **Alt+Left rotate** - Maya/3ds Max style tumble
-- 🎯 **F key reframe** - Quick reset to optimal view
-- 🗺 **Google Earth style** - Right-drag rotation
+-**WASD/QE keyboard movement** - Unity/Unreal-style flythrough
+-**Touch/trackpad gestures** - Pinch zoom, pan (mobile & laptop support)
+-**Alt+Left rotate** - Maya/3ds Max style tumble
+-**F key reframe** - Quick reset to optimal view
+-**Google Earth style** - Right-drag rotation
 
 ---
 
 ## Critical Fixes Before This Test
 
-###  Fixed: Keyboard Handler Conflicts
-- **Issue:** F key was handled by both viewer and camera scheme (duplicate actions)
-- **Issue:** No typing detection in main viewer (hotkeys active while typing)
-- **Fix:** Added typing detection to `viewer-advanced.js` onKeyDown
-- **Fix:** Removed F key handler from viewer (camera scheme handles it now)
-- **Status:** Fixed in this session
+### Fixed: Keyboard Handler Conflicts
+-**Issue:** F key was handled by both viewer and camera scheme (duplicate actions)
+-**Issue:** No typing detection in main viewer (hotkeys active while typing)
+-**Fix:** Added typing detection to `viewer-advanced.js` onKeyDown
+-**Fix:** Removed F key handler from viewer (camera scheme handles it now)
+-**Status:** Fixed in this session
 
 ---
 
 ## Testing Sections
 
-### 1. Mouse Controls ✓ (Core Functionality)
+### 1. Mouse Controls (Core Functionality)
 
 **Basic Mouse Operations:**
-- [ ] **Left drag** = Pan (grab and drag the map)
-  - [ ] Drag up -> map moves up
-  - [ ] Drag down -> map moves down
-  - [ ] Drag left -> map moves left
-  - [ ] Drag right -> map moves right
-  - [ ] Movement is smooth and responsive
+- [ ]**Left drag** = Pan (grab and drag the map)
+ - [ ] Drag up -> map moves up
+ - [ ] Drag down -> map moves down
+ - [ ] Drag left -> map moves left
+ - [ ] Drag right -> map moves right
+ - [ ] Movement is smooth and responsive
 
-- [ ] **Shift+Left drag** = Tilt (adjust viewing angle)
-  - [ ] Drag down -> tilt down (see more horizon)
-  - [ ] Drag up -> tilt up (more overhead)
-  - [ ] Angle limits prevent camera flip
-  - [ ] Releasing Shift mid-drag cancels smoothly (no jank)
+- [ ]**Shift+Left drag** = Tilt (adjust viewing angle)
+ - [ ] Drag down -> tilt down (see more horizon)
+ - [ ] Drag up -> tilt up (more overhead)
+ - [ ] Angle limits prevent camera flip
+ - [ ] Releasing Shift mid-drag cancels smoothly (no jank)
 
-- [ ] **Alt+Left drag** = Rotate (Maya style)  NEW
-  - [ ] Horizontal drag -> turn left/right
-  - [ ] Vertical drag -> tilt up/down
-  - [ ] Same behavior as Right drag
-  - [ ] Releasing Alt mid-drag cancels smoothly
+- [ ]**Alt+Left drag** = Rotate (Maya style) NEW
+ - [ ] Horizontal drag -> turn left/right
+ - [ ] Vertical drag -> tilt up/down
+ - [ ] Same behavior as Right drag
+ - [ ] Releasing Alt mid-drag cancels smoothly
 
-- [ ] **Right drag** = Rotate (Google Earth style)
-  - [ ] Horizontal drag -> turn left/right
-  - [ ] Vertical drag -> tilt up/down
-  - [ ] Maintains distance from focus point
-  - [ ] Smooth rotation at all angles
+- [ ]**Right drag** = Rotate (Google Earth style)
+ - [ ] Horizontal drag -> turn left/right
+ - [ ] Vertical drag -> tilt up/down
+ - [ ] Maintains distance from focus point
+ - [ ] Smooth rotation at all angles
 
-- [ ] **Mouse wheel** = Zoom
-  - [ ] Scroll up -> zoom IN toward cursor
-  - [ ] Scroll down -> zoom OUT from cursor
-  - [ ] Point under cursor stays visually stable
-  - [ ] Minimum distance limit prevents clipping (5 meters)
-  - [ ] Focus point shifts bidirectionally (smooth zoom feel)
+- [ ]**Mouse wheel** = Zoom
+ - [ ] Scroll up -> zoom IN toward cursor
+ - [ ] Scroll down -> zoom OUT from cursor
+ - [ ] Point under cursor stays visually stable
+ - [ ] Minimum distance limit prevents clipping (5 meters)
+ - [ ] Focus point shifts bidirectionally (smooth zoom feel)
 
 **Edge Cases:**
 - [ ] Can combine operations (pan while keyboard moving)
@@ -73,15 +73,15 @@ This release includes major camera control enhancements:
 
 ---
 
-### 2. Keyboard Controls  (New Feature)
+### 2. Keyboard Controls (New Feature)
 
 **WASD/QE Movement:**
-- [ ] **W** = Move forward (in view direction)
-- [ ] **S** = Move backward
-- [ ] **A** = Strafe left
-- [ ] **D** = Strafe right
-- [ ] **Q** = Move down (descend)
-- [ ] **E** = Move up (ascend)
+- [ ]**W** = Move forward (in view direction)
+- [ ]**S** = Move backward
+- [ ]**A** = Strafe left
+- [ ]**D** = Strafe right
+- [ ]**Q** = Move down (descend)
+- [ ]**E** = Move up (ascend)
 
 **Combination Tests:**
 - [ ] W+D moves diagonally forward-right
@@ -89,8 +89,8 @@ This release includes major camera control enhancements:
 - [ ] All 6 keys can be combined smoothly
 - [ ] Can use mouse to look around while holding WASD
 
-**F Key Reframe:**  NEW - CRITICAL TEST
-- [ ] Press **F** -> Camera reframes to show full terrain
+**F Key Reframe:** NEW - CRITICAL TEST
+- [ ] Press**F** -> Camera reframes to show full terrain
 - [ ] View centers on terrain bounds
 - [ ] Entire terrain visible with margins
 - [ ] Works in bars mode
@@ -101,15 +101,15 @@ This release includes major camera control enhancements:
 - [ ] Console logs terrain center (debugging)
 
 **R Key Reset:**
-- [ ] Press **R** -> Camera resets to initial position
+- [ ] Press**R** -> Camera resets to initial position
 - [ ] Works as fallback if F key fails
 
 **Space Bar:**
-- [ ] Press **Space** -> Toggle auto-rotate on/off
+- [ ] Press**Space** -> Toggle auto-rotate on/off
 - [ ] Auto-rotate checkbox updates
 - [ ] Works correctly
 
-**Typing Detection:**  CRITICAL - NEW FIX
+**Typing Detection:** CRITICAL - NEW FIX
 - [ ] Type in region search box -> WASD/F/R keys don't affect camera
 - [ ] Type in bucket size input -> Keys don't affect camera
 - [ ] Type in exaggeration input -> Keys don't affect camera
@@ -119,7 +119,7 @@ This release includes major camera control enhancements:
 
 ---
 
-### 3. Touch/Trackpad Gestures  (New - Cannot fully test without device)
+### 3. Touch/Trackpad Gestures (New - Cannot fully test without device)
 
 **Mobile Touch (Phone/Tablet):**
 - [ ] Single finger drag = Pan
@@ -176,9 +176,9 @@ This release includes major camera control enhancements:
 
 **Region Switching:**
 - [ ] Load default region (USA if available)
-- [ ] F key reframes correctly on initial load  NEW
+- [ ] F key reframes correctly on initial load NEW
 - [ ] Switch to different region
-- [ ] F key reframes to new region bounds  NEW
+- [ ] F key reframes to new region bounds NEW
 - [ ] Terrain bounds update correctly
 
 **Bucket Size Changes:**
@@ -228,30 +228,30 @@ This release includes major camera control enhancements:
 
 ### 7. Documentation Updates Needed
 
-- [ ] **README.md** - Brief mention of new camera features
-  - [ ] F key reframe
-  - [ ] Touch/trackpad support
-  - [ ] Maya-style Alt+Left rotation
+- [ ]**README.md** - Brief mention of new camera features
+ - [ ] F key reframe
+ - [ ] Touch/trackpad support
+ - [ ] Maya-style Alt+Left rotation
 
-- [ ] **tech/USER_GUIDE.md** - Detailed usage guide
-  - [ ] Full keyboard control table
-  - [ ] Touch gesture descriptions
-  - [ ] F key reframe explanation
-  - [ ] Typing detection note
+- [ ]**tech/USER_GUIDE.md** - Detailed usage guide
+ - [ ] Full keyboard control table
+ - [ ] Touch gesture descriptions
+ - [ ] F key reframe explanation
+ - [ ] Typing detection note
 
-- [ ] **tech/CAMERA_CONTROLS.md** - Technical camera documentation
-  - [ ] Updated control scheme summary
-  - [ ] F key implementation details
-  - [ ] Touch gesture architecture
+- [ ]**tech/CAMERA_CONTROLS.md** - Technical camera documentation
+ - [ ] Updated control scheme summary
+ - [ ] F key implementation details
+ - [ ] Touch gesture architecture
 
 ---
 
 ### 8. Known Issues & Limitations
 
 **Touch Gestures:**
--  NOT TESTED on actual touch devices (user has no touch device)
--  Should be tested on mobile/tablet before production
--  Trackpad testing needs laptop with gesture support
+- NOT TESTED on actual touch devices (user has no touch device)
+- Should be tested on mobile/tablet before production
+- Trackpad testing needs laptop with gesture support
 
 **Potential Issues to Watch For:**
 - [ ] F key terrain bounds might be incorrect in some render modes
@@ -309,9 +309,9 @@ This release includes major camera control enhancements:
 
 ## Test Results Summary
 
-**Date Tested:** _____________  
-**Tester:** _____________  
-**Environment:** _____________  
+**Date Tested:** _____________
+**Tester:** _____________
+**Environment:** _____________
 
 ### Critical Issues Found
 _List any blocking issues here_
@@ -328,9 +328,9 @@ _List non-blocking issues here_
 
 ## Sign-Off
 
-- [ ] **Developer:** Code reviewed and tested locally
-- [ ] **Tester:** All critical tests passed
-- [ ] **Approver:** Ready for deployment
+- [ ]**Developer:** Code reviewed and tested locally
+- [ ]**Tester:** All critical tests passed
+- [ ]**Approver:** Ready for deployment
 
 **Notes:**
 _Add any additional notes, concerns, or follow-up items here_

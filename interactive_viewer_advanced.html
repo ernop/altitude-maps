@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Altitude Maps - 3D Elevation Viewer</title>
-    
-    <!-- Select2 for typeahead dropdowns -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="css/viewer-advanced.css">
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Altitude Maps - 3D Elevation Viewer</title>
+
+ <!-- Select2 for typeahead dropdowns -->
+ <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+ <link rel="stylesheet" href="css/viewer-advanced.css">
 </head>
 <body>
-    <div id="container">
-        <div id="canvas-container"></div>
-        <div id="info" aria-live="polite">
+ <div id="container">
+ <div id="canvas-container"></div>
+ <div id="info" aria-live="polite">
 			<button id="hud-minimize" title="Hide HUD">–</button>
-			<button id="hud-config" title="HUD settings">⚙</button>
+			<button id="hud-config" title="HUD settings"></button>
 			<div id="hud-row-elev"><b>Elevation:</b> <span id="hud-elev">--</span></div>
 			<div id="hud-row-slope"><b>Slope:</b> <span id="hud-slope">--</span></div>
 			<div id="hud-row-aspect"><b>Aspect:</b> <span id="hud-aspect">--</span></div>
@@ -36,211 +36,211 @@
 					<label><input type="checkbox" id="hud-show-relief"> Relief radius (100 m)</label>
 				</div>
 			</div>
-        </div>
-        <button id="hud-expand" title="Show HUD">HUD</button>
-        <button id="mobile-ui-toggle" aria-label="Toggle controls">Hide Controls</button>
-        
-        <div id="loading">
-            <div style="text-align: center;">
-                Loading elevation data...
-                <div class="spinner"></div>
-            </div>
-            
-            <h2>Load Log</h2>
-            <div id="activityLog"></div>
-        </div>
-        
-        
-        
-        <div id="controls">
-            <div id="controls-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
-                <div class="controls-meta-left" style="font-size: 11px; color: #fff; font-weight: 600;">altitude-maps</div>
-                <div class="controls-meta-right" style="display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11px; color: #fff;">
-                    <a id="github-home-link" href="https://github.com/ernop/altitude-maps" target="_blank" rel="noopener" title="GitHub homepage" style="color: #fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5);">GitHub</a>
-                    <span id="version-display">v?.?.?</span>
-                    <span id="fps-display">FPS: --</span>
-                </div>
-            </div>
-            
-            <h2>Region</h2>
-            <div class="control-group" style="position: relative;">
-                <input id="regionSelect" placeholder="Type or pick a region" style="width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #555; color: #fff; border-radius: 5px; font-size: 13px;" />
-                <div id="regionDropdown" style="position: absolute; top: 42px; left: 0; right: 0; background: #0a0a0a; border: 1px solid #5588cc; border-radius: 6px; max-height: 260px; overflow-y: auto; z-index: 20; display: none; box-shadow: 0 8px 24px rgba(68,136,255,0.2);"></div>
-            </div>
-            
-            <h2>Resolution</h2>
-            
-            <div class="control-group" style="position: relative;">
-                <!-- Loading overlay for resolution changes -->
-                <div id="resolution-loading-overlay">
-                    <div class="loading-content">
-                        <div class="loading-text">Adjusting Resolution...</div>
-                        <div class="loading-spinner"></div>
-                    </div>
-                </div>
+ </div>
+ <button id="hud-expand" title="Show HUD">HUD</button>
+ <button id="mobile-ui-toggle" aria-label="Toggle controls">Hide Controls</button>
 
-                <!-- Compact clickable scale: MAX to Less -->
-                <div id="resolution-scale" class="resolution-scale" title="Click or drag to adjust resolution">
-                    <button id="resolutionMaxLabel" onclick="setMaxResolution()">MAX</button>
-                    <div class="resolution-scale-track">
-                        <div class="resolution-scale-fill" id="resolutionScaleFill"></div>
-                        <div class="resolution-scale-handle" id="resolutionScaleHandle"></div>
-                        <div class="resolution-scale-tag" id="resolutionScaleTag">1×</div>
-                        <div class="resolution-scale-ticks" id="resolutionScaleTicks"></div>
-                    </div>
-                    <div class="resolution-scale-label right">Less</div>
-                </div>
+ <div id="loading">
+ <div style="text-align: center;">
+ Loading elevation data...
+ <div class="spinner"></div>
+ </div>
 
-                <!-- 
-                    BUCKETING EXPLANATION (PROTECTED - DO NOT REMOVE):
-                    Combine NxN pixels into one bar. 1x = full resolution, 10x = 10x10 pixels per bar.
-                    This is a performance optimization that groups nearby elevation data points into "buckets".
-                    Instead of rendering every pixel as a separate 3D bar, it combines NxN pixels into one bucket.
-                    The aggregation method (MAX, AVERAGE, MIN, MEDIAN) determines which elevation value represents the bucket.
-                -->
-            </div>
-            
-            <div class="control-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <label style="margin: 0;">Tile Gap</label>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">0%</span>
-                    <input type="range" id="tileGap" min="0" max="99" step="1" value="1" style="flex: 1;">
-                    <input type="number" id="tileGapInput" min="0" max="99" step="1" value="1" 
-                           style="width: 60px; padding: 2px 6px; text-align: right; font-size: 12px;">
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <label style="margin: 0;">Vertical Exaggeration</label>
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <input type="number" id="vertExagInput" min="1" max="100" step="1" value="1" 
-                               style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
-                        <button id="vertExagBtnTrue" data-value="true" style="font-size: 10px; padding: 3px 6px; margin: 0;" title="Set real-world proportions (no exaggeration)" onclick="setTrueScale()">True Scale (1:1)</button>
-                    </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 11px; opacity: 0.6; min-width: 30px;">1x</span>
-                    <input type="range" id="vertExag" min="1" max="100" step="1" value="1" style="flex: 1;">
-                    <span style="font-size: 11px; opacity: 0.6; min-width: 40px; text-align: right;">100x</span>
-                </div>
-                <div class="vert-ex-buttons" style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
-                    <button id="vertExagBtn2x" data-multiplier="2" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(2)">2x</button>
-                    <button id="vertExagBtn3x" data-multiplier="3" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(3)">3x</button>
-                    <button id="vertExagBtn4x" data-multiplier="4" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(4)">4x</button>
-                    <button id="vertExagBtn6x" data-multiplier="6" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(6)">6x</button>
-                    <button id="vertExagBtn10x" data-multiplier="10" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(10)">10x</button>
-                    <button id="vertExagBtn25x" data-multiplier="25" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(25)">25x</button>
-                    <button id="vertExagBtn50x" data-multiplier="50" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(50)">50x</button>
-                    <button id="vertExagBtn100x" data-multiplier="100" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(100)">100x</button>
-                </div>
-            </div>
-            
-            
-            
-            <div class="control-group">
-                <select id="renderMode">
-                    <option value="bars" selected>3D Rectangular Prisms</option>
-                    <option value="surface">Smooth Surface</option>
-                    <option value="points">Point Cloud</option>
-                </select>
-            </div>
-            
-            <div class="control-group">
-                <label>Color Scheme</label>
-                <select id="colorScheme">
-                    <option value="terrain">Terrain (Natural)</option>
-                    <option value="test">High-Contrast (Intense)</option>
-                    <option value="hypsometric">Hypsometric (Perceptual)</option>
-                    <option value="slope">Slope (Degrees)</option>
-                    <option value="aspect">Aspect (Compass)</option>
-                    <option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
-                    <option value="auto-stretch">Auto-Stretch (Dynamic)</option>
-                    <option value="elevation">Elevation (Blue-Red)</option>
-                    <option value="grayscale">Grayscale</option>
-                    <option value="rainbow">Rainbow</option>
-                    <option value="earth">Earth Tones</option>
-                    <option value="heatmap">Heatmap</option>
-                    <option value="relief-emphasis">Relief Emphasis (Color)</option>
-                    <option value="diverging-elevation">Diverging Elevation</option>
-                    <option value="terrain-muted">Terrain (Muted)</option>
-                </select>
-                <div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color: #88bbff;"></div>
-            </div>
+ <h2>Load Log</h2>
+ <div id="activityLog"></div>
+ </div>
 
-            <h2>Highlights</h2>
-            <div class="control-group">
-                <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px; align-items: center;">
-                    <label for="highlightEnabled" style="margin: 0;">Enable Highlights</label>
-                    <input type="checkbox" id="highlightEnabled" />
-                    <label for="highlightMetric" style="margin: 0;">Metric</label>
-                    <select id="highlightMetric">
-                        <option value="elevation">Elevation</option>
-                        <option value="slope">Slope (deg)</option>
-                    </select>
-                    <label for="highlightMin" style="margin: 0;">Min</label>
-                    <input type="number" id="highlightMin" step="1" value="100" style="width: 100%; padding: 4px; font-size: 12px;" />
-                    <label for="highlightMax" style="margin: 0;">Max</label>
-                    <input type="number" id="highlightMax" step="1" value="500" style="width: 100%; padding: 4px; font-size: 12px;" />
-                </div>
-            </div>
 
-            <div class="control-group">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="flatLightingEnabled" />
-                    <label for="flatLightingEnabled" style="margin: 0;">Flat lighting (no shading)</label>
-                </div>
-            </div>
 
-            <h2>Camera Controls</h2>
-            
-            <div class="control-group">
-                <select id="cameraScheme">
-                    <option value="google-earth-plane">Google Earth (Ground Plane)</option>
-                    <option value="ground-plane" selected>Google Maps (Ground Plane)</option>
-                    <option value="roblox">Roblox Studio</option>
-                    <option value="google-maps">Google Maps (Old)</option>
-                    <option value="google-earth">Google Earth (Old)</option>
-                    <option value="blender">Blender</option>
-                    <option value="unity">Unity Editor</option>
-                </select>
-            </div>
-            
-            <h2>Camera Views</h2>
-            
-            <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                <button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;">Overhead</button>
-                <button onclick="setView('isometric')" style="padding: 6px; font-size: 11px;">Isometric</button>
-                <button onclick="setView('north')" style="padding: 6px; font-size: 11px;">North</button>
-                <button onclick="setView('south')" style="padding: 6px; font-size: 11px;">South</button>
-                <button onclick="setView('east')" style="padding: 6px; font-size: 11px;">East</button>
-                <button onclick="setView('west')" style="padding: 6px; font-size: 11px;">West</button>
-            </div>
-            
-            <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                <button onclick="resetCamera()" style="padding: 6px; font-size: 11px;">Reset Camera</button>
-                <button onclick="exportImage()" style="padding: 6px; font-size: 11px;">Screenshot</button>
-            </div>
-            
-            <h2>Load Log</h2>
-            <div id="activityLog"></div>
-        </div>
-    </div>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
-    <!-- Camera Control Schemes -->
-    <script src="js/camera-schemes.js?v=1.333"></script>
-    <script src="js/ground-plane-camera.js?v=1.333"></script>
-    <script src="js/ground-plane-google-earth.js?v=1.333"></script>
-    
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    
-    <!-- Main viewer application -->
-    <script src="js/viewer-advanced.js?v=1.333"></script>
+ <div id="controls">
+ <div id="controls-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
+ <div class="controls-meta-left" style="font-size: 11px; color:#fff; font-weight: 600;">altitude-maps</div>
+ <div class="controls-meta-right" style="display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11px; color:#fff;">
+ <a id="github-home-link" href="https://github.com/ernop/altitude-maps" target="_blank" rel="noopener" title="GitHub homepage" style="color:#fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5);">GitHub</a>
+ <span id="version-display">v?.?.?</span>
+ <span id="fps-display">FPS: --</span>
+ </div>
+ </div>
+
+ <h2>Region</h2>
+ <div class="control-group" style="position: relative;">
+ <input id="regionSelect" placeholder="Type or pick a region" style="width: 100%; padding: 10px; background:#1a1a1a; border: 1px solid#555; color:#fff; border-radius: 5px; font-size: 13px;" />
+ <div id="regionDropdown" style="position: absolute; top: 42px; left: 0; right: 0; background:#0a0a0a; border: 1px solid#5588cc; border-radius: 6px; max-height: 260px; overflow-y: auto; z-index: 20; display: none; box-shadow: 0 8px 24px rgba(68,136,255,0.2);"></div>
+ </div>
+
+ <h2>Resolution</h2>
+
+ <div class="control-group" style="position: relative;">
+ <!-- Loading overlay for resolution changes -->
+ <div id="resolution-loading-overlay">
+ <div class="loading-content">
+ <div class="loading-text">Adjusting Resolution...</div>
+ <div class="loading-spinner"></div>
+ </div>
+ </div>
+
+ <!-- Compact clickable scale: MAX to Less -->
+ <div id="resolution-scale" class="resolution-scale" title="Click or drag to adjust resolution">
+ <button id="resolutionMaxLabel" onclick="setMaxResolution()">MAX</button>
+ <div class="resolution-scale-track">
+ <div class="resolution-scale-fill" id="resolutionScaleFill"></div>
+ <div class="resolution-scale-handle" id="resolutionScaleHandle"></div>
+ <div class="resolution-scale-tag" id="resolutionScaleTag">1×</div>
+ <div class="resolution-scale-ticks" id="resolutionScaleTicks"></div>
+ </div>
+ <div class="resolution-scale-label right">Less</div>
+ </div>
+
+ <!--
+ BUCKETING EXPLANATION (PROTECTED - DO NOT REMOVE):
+ Combine NxN pixels into one bar. 1x = full resolution, 10x = 10x10 pixels per bar.
+ This is a performance optimization that groups nearby elevation data points into "buckets".
+ Instead of rendering every pixel as a separate 3D bar, it combines NxN pixels into one bucket.
+ The aggregation method (MAX, AVERAGE, MIN, MEDIAN) determines which elevation value represents the bucket.
+ -->
+ </div>
+
+ <div class="control-group">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+ <label style="margin: 0;">Tile Gap</label>
+ </div>
+ <div style="display: flex; align-items: center; gap: 8px;">
+ <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">0%</span>
+ <input type="range" id="tileGap" min="0" max="99" step="1" value="1" style="flex: 1;">
+ <input type="number" id="tileGapInput" min="0" max="99" step="1" value="1"
+ style="width: 60px; padding: 2px 6px; text-align: right; font-size: 12px;">
+ </div>
+ </div>
+
+ <div class="control-group">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+ <label style="margin: 0;">Vertical Exaggeration</label>
+ <div style="display: flex; align-items: center; gap: 6px;">
+ <input type="number" id="vertExagInput" min="1" max="100" step="1" value="1"
+ style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
+ <button id="vertExagBtnTrue" data-value="true" style="font-size: 10px; padding: 3px 6px; margin: 0;" title="Set real-world proportions (no exaggeration)" onclick="setTrueScale()">True Scale (1:1)</button>
+ </div>
+ </div>
+ <div style="display: flex; align-items: center; gap: 8px;">
+ <span style="font-size: 11px; opacity: 0.6; min-width: 30px;">1x</span>
+ <input type="range" id="vertExag" min="1" max="100" step="1" value="1" style="flex: 1;">
+ <span style="font-size: 11px; opacity: 0.6; min-width: 40px; text-align: right;">100x</span>
+ </div>
+ <div class="vert-ex-buttons" style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+ <button id="vertExagBtn2x" data-multiplier="2" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(2)">2x</button>
+ <button id="vertExagBtn3x" data-multiplier="3" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(3)">3x</button>
+ <button id="vertExagBtn4x" data-multiplier="4" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(4)">4x</button>
+ <button id="vertExagBtn6x" data-multiplier="6" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(6)">6x</button>
+ <button id="vertExagBtn10x" data-multiplier="10" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(10)">10x</button>
+ <button id="vertExagBtn25x" data-multiplier="25" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(25)">25x</button>
+ <button id="vertExagBtn50x" data-multiplier="50" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(50)">50x</button>
+ <button id="vertExagBtn100x" data-multiplier="100" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(100)">100x</button>
+ </div>
+ </div>
+
+
+
+ <div class="control-group">
+ <select id="renderMode">
+ <option value="bars" selected>3D Rectangular Prisms</option>
+ <option value="surface">Smooth Surface</option>
+ <option value="points">Point Cloud</option>
+ </select>
+ </div>
+
+ <div class="control-group">
+ <label>Color Scheme</label>
+ <select id="colorScheme">
+ <option value="terrain">Terrain (Natural)</option>
+ <option value="test">High-Contrast (Intense)</option>
+ <option value="hypsometric">Hypsometric (Perceptual)</option>
+ <option value="slope">Slope (Degrees)</option>
+ <option value="aspect">Aspect (Compass)</option>
+ <option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
+ <option value="auto-stretch">Auto-Stretch (Dynamic)</option>
+ <option value="elevation">Elevation (Blue-Red)</option>
+ <option value="grayscale">Grayscale</option>
+ <option value="rainbow">Rainbow</option>
+ <option value="earth">Earth Tones</option>
+ <option value="heatmap">Heatmap</option>
+ <option value="relief-emphasis">Relief Emphasis (Color)</option>
+ <option value="diverging-elevation">Diverging Elevation</option>
+ <option value="terrain-muted">Terrain (Muted)</option>
+ </select>
+ <div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff;"></div>
+ </div>
+
+ <h2>Highlights</h2>
+ <div class="control-group">
+ <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px; align-items: center;">
+ <label for="highlightEnabled" style="margin: 0;">Enable Highlights</label>
+ <input type="checkbox" id="highlightEnabled" />
+ <label for="highlightMetric" style="margin: 0;">Metric</label>
+ <select id="highlightMetric">
+ <option value="elevation">Elevation</option>
+ <option value="slope">Slope (deg)</option>
+ </select>
+ <label for="highlightMin" style="margin: 0;">Min</label>
+ <input type="number" id="highlightMin" step="1" value="100" style="width: 100%; padding: 4px; font-size: 12px;" />
+ <label for="highlightMax" style="margin: 0;">Max</label>
+ <input type="number" id="highlightMax" step="1" value="500" style="width: 100%; padding: 4px; font-size: 12px;" />
+ </div>
+ </div>
+
+ <div class="control-group">
+ <div style="display: flex; align-items: center; gap: 8px;">
+ <input type="checkbox" id="flatLightingEnabled" />
+ <label for="flatLightingEnabled" style="margin: 0;">Flat lighting (no shading)</label>
+ </div>
+ </div>
+
+ <h2>Camera Controls</h2>
+
+ <div class="control-group">
+ <select id="cameraScheme">
+ <option value="google-earth-plane">Google Earth (Ground Plane)</option>
+ <option value="ground-plane" selected>Google Maps (Ground Plane)</option>
+ <option value="roblox">Roblox Studio</option>
+ <option value="google-maps">Google Maps (Old)</option>
+ <option value="google-earth">Google Earth (Old)</option>
+ <option value="blender">Blender</option>
+ <option value="unity">Unity Editor</option>
+ </select>
+ </div>
+
+ <h2>Camera Views</h2>
+
+ <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+ <button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;">Overhead</button>
+ <button onclick="setView('isometric')" style="padding: 6px; font-size: 11px;">Isometric</button>
+ <button onclick="setView('north')" style="padding: 6px; font-size: 11px;">North</button>
+ <button onclick="setView('south')" style="padding: 6px; font-size: 11px;">South</button>
+ <button onclick="setView('east')" style="padding: 6px; font-size: 11px;">East</button>
+ <button onclick="setView('west')" style="padding: 6px; font-size: 11px;">West</button>
+ </div>
+
+ <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+ <button onclick="resetCamera()" style="padding: 6px; font-size: 11px;">Reset Camera</button>
+ <button onclick="exportImage()" style="padding: 6px; font-size: 11px;">Screenshot</button>
+ </div>
+
+ <h2>Load Log</h2>
+ <div id="activityLog"></div>
+ </div>
+ </div>
+
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+ <!-- Camera Control Schemes -->
+ <script src="js/camera-schemes.js?v=1.333"></script>
+ <script src="js/ground-plane-camera.js?v=1.333"></script>
+ <script src="js/ground-plane-google-earth.js?v=1.333"></script>
+
+ <!-- jQuery -->
+ <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+ <!-- Main viewer application -->
+ <script src="js/viewer-advanced.js?v=1.333"></script>
 </body>
 </html>
 

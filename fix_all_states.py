@@ -16,7 +16,7 @@ import rasterio
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from downloaders.usa_3dep import US_STATES
+from src.regions_config import US_STATES
 from download_regions import process_region
 from src.borders import get_border_manager
 
@@ -161,7 +161,8 @@ def audit_all_states() -> Dict[str, Dict]:
     generated_dir = Path("generated/regions")
     
     for state_id, state_info in US_STATES.items():
-        state_name = state_info['name']
+        # Handle both RegionConfig and dict types
+        state_name = state_info.name if hasattr(state_info, 'name') else state_info['name']
         
         # Check if source TIF exists
         source_tif = data_dir / f"{state_id}.tif"

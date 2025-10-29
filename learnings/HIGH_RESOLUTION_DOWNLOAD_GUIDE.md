@@ -1,73 +1,55 @@
 # High-Resolution Elevation Data Download Guide
 
-This guide explains how to download high-resolution elevation data for California and Shikoku, Japan (or any other region).
+This guide explains how to download elevation data using the `download_high_resolution.py` script.
+
+**Note**: All regions are now defined in `src/regions_config.py` - see `python download_high_resolution.py --list-regions` for current options.
 
 ## Quick Start
 
 ### Option 1: Automated Download via OpenTopography (30m)
 
-**For California:**
->  Note: Full California is too large for the API. Use sub-regions instead:
-
 ```powershell
-# Download Central California (Sierra Nevada, Yosemite) - RECOMMENDED
-python download_high_resolution.py california_central --dataset SRTMGL1 --process
+# List all available regions
+python download_high_resolution.py --list-regions
 
-# Or download all California regions:
-python download_high_resolution.py california_north california_central california_south --dataset SRTMGL1 --process
+# Download any region
+python download_high_resolution.py iceland --dataset SRTMGL1 --process
 
-# Available California regions:
-# - california_north (Cascade Range, Mt. Shasta)
-# - california_central (Sierra Nevada, Yosemite, Lake Tahoe) 
-# - california_south (Death Valley, San Bernardino Mtns)
-# - california_coast (Bay Area, Big Sur)
-```
-
-**For Shikoku, Japan:**
-```powershell
-# Download at 30m resolution using ALOS (best for Japan)
-python download_high_resolution.py shikoku --dataset AW3D30
-
-# Download and process to JSON
-python download_high_resolution.py shikoku --dataset AW3D30 --process
-```
-
-**Download both at once:**
-```powershell
-python download_high_resolution.py california shikoku --dataset AW3D30 --process
+# Multiple regions at once
+python download_high_resolution.py iceland alps kamchatka --dataset AW3D30 --process
 ```
 
 ### Option 2: Manual Download for 10m USGS Data (California only)
 
 For the highest resolution California data (10m), you'll need to manually download from USGS:
 
-1. **Visit USGS National Map Downloader:**  
-   https://apps.nationalmap.gov/downloader/
+1.**Visit USGS National Map Downloader:**
+ https://apps.nationalmap.gov/downloader/
 
-2. **Navigate to California:**
-   - Use the map to zoom to California
-   - Or enter coordinates
+2.**Navigate to California:**
+ - Use the map to zoom to California
+ - Or enter coordinates
 
-3. **Select Data:**
-   - Click "Find Products"
-   - Select "Elevation Products (3DEP)"
-   - Choose "1/3 arc-second DEM" (10m resolution)
+3.**Select Data:**
+ - Click "Find Products"
+ - Select "Elevation Products (3DEP)"
+ - Choose "1/3 arc-second DEM" (10m resolution)
 
-4. **Download:**
-   - Select tiles covering your area of interest
-   - Download as GeoTIFF format
-   - Save to: `data/regions/california.tif`
+4.**Download:**
+ - Select tiles covering your area of interest
+ - Download as GeoTIFF format
+ - Save to: `data/regions/california.tif`
 
-5. **Process:**
-   ```powershell
-   python download_regions.py --regions california --max-size 2048
-   ```
+5.**Process:**
+ ```powershell
+ python download_regions.py --regions california --max-size 2048
+ ```
 
 ## Available Datasets
 
 | Dataset | Resolution | Coverage | Best For |
 |---------|-----------|----------|----------|
-| **AW3D30** | 30m | Global (82degN-82degS) | **Japan, mountains, Asia** |
+|**AW3D30** | 30m | Global (82degN-82degS) |**Japan, mountains, Asia** |
 | SRTMGL1 | 30m | Global (60degN-56degS) | General use, USA |
 | NASADEM | 30m | Global (60degN-56degS) | Improved SRTM, void-filled |
 | COP30 | 30m | Global (90degN-90degS) | Polar regions, complete coverage |
@@ -116,35 +98,38 @@ python download_high_resolution.py custom_name --bounds -120 35 -119 36 --datase
 
 ## Dataset Recommendations
 
-### For Shikoku, Japan:
+### For Regions with Mountains:
 **Best: AW3D30 (ALOS World 3D)**
 - 30m resolution
-- Excellent quality for Japan and mountains
+- Excellent quality for mountains and Asia
 - Made by JAXA specifically for terrain mapping
 
 ```powershell
-python download_high_resolution.py shikoku --dataset AW3D30 --process --max-size 2048
+python download_high_resolution.py iceland --dataset AW3D30 --process --max-size 2048
 ```
 
-### For California:
+### General Use:
 **Good: SRTMGL1 (30m via API)**
+- Most commonly used
+- Good quality for most terrain
+
 ```powershell
 python download_high_resolution.py california --dataset SRTMGL1 --process --max-size 2048
 ```
 
+### For US Regions:
 **Better: USGS 3DEP (10m, manual download)**
-- Follow manual download steps above
 - Best available for USA
-- 1-3m resolution in some urban areas
+- Requires manual download steps
+- See instructions with `--usgs-instructions`
 
-### For Both Regions:
-**Alternative: COP30 (Copernicus)**
-- Good global coverage
+### For Polar Regions:
+**Best: COP30 or COP90 (Copernicus)**
+- Full polar coverage
 - Consistent quality
-- Full polar coverage if needed
 
 ```powershell
-python download_high_resolution.py california shikoku --dataset COP30 --process --max-size 2048
+python download_high_resolution.py <region> --dataset COP30 --process --max-size 2048
 ```
 
 ## Command Reference
@@ -199,16 +184,16 @@ The `--max-size` parameter controls the output resolution:
 
 ```
 altitude-maps/
-├── data/regions/           # Downloaded TIF files (raw data)
-│   ├── california.tif
-│   └── shikoku.tif
-│
-├── generated/regions/      # Processed JSON files (for web viewer)
-│   ├── california.json
-│   ├── shikoku.json
-│   └── regions_manifest.json
-│
-└── interactive_viewer_advanced.html  # Web viewer
+ data/regions/# Downloaded TIF files (raw data)
+ california.tif
+ shikoku.tif
+
+ generated/regions/# Processed JSON files (for web viewer)
+ california.json
+ shikoku.json
+ regions_manifest.json
+
+ interactive_viewer_advanced.html# Web viewer
 ```
 
 ## Web Viewer
@@ -226,10 +211,10 @@ Your OpenTopography API key is already configured in `settings.json`:
 
 ```json
 {
-  "opentopography": {
-    "api_key": "5a2d49a9c28361d6c32f086ee233209d",
-    "base_url": "https://portal.opentopography.org/API/globaldem"
-  }
+ "opentopography": {
+ "api_key": "5a2d49a9c28361d6c32f086ee233209d",
+ "base_url": "https://portal.opentopography.org/API/globaldem"
+ }
 }
 ```
 
@@ -278,7 +263,7 @@ python download_high_resolution.py shikoku --dataset AW3D30 --process --max-size
 # Download Central California (Sierra Nevada) at 30m with SRTM
 python download_high_resolution.py california_central --dataset SRTMGL1 --process --max-size 2048
 
-# Open interactive_viewer_advanced.html  
+# Open interactive_viewer_advanced.html
 # Select "Central California" from dropdown
 ```
 
@@ -316,38 +301,38 @@ python download_high_resolution.py mt_fuji --bounds 138.5 35.0 139.0 35.5 --data
 
 ### File Sizes
 - Raw TIF (30m):
-  - Shikoku: ~20-40 MB
-  - California: ~50-100 MB
+ - Shikoku: ~20-40 MB
+ - California: ~50-100 MB
 - Processed JSON (max-size 2048):
-  - Shikoku: ~30-50 MB
-  - California: ~80-120 MB
+ - Shikoku: ~30-50 MB
+ - California: ~80-120 MB
 
 ## Next Steps
 
-1. **Download your regions:**
-   ```powershell
-   python download_high_resolution.py california shikoku --dataset AW3D30 --process --max-size 2048
-   ```
+1.**Download your regions:**
+ ```powershell
+ python download_high_resolution.py california shikoku --dataset AW3D30 --process --max-size 2048
+ ```
 
-2. **View in browser:**
-   - Open `interactive_viewer_advanced.html`
-   - Select regions from dropdown
-   - Explore elevation data!
+2.**View in browser:**
+ - Open `interactive_viewer_advanced.html`
+ - Select regions from dropdown
+ - Explore elevation data!
 
-3. **Experiment with datasets:**
-   - Try different datasets (AW3D30, SRTMGL1, COP30)
-   - Compare quality and coverage
-   - Adjust resolution with `--max-size`
+3.**Experiment with datasets:**
+ - Try different datasets (AW3D30, SRTMGL1, COP30)
+ - Compare quality and coverage
+ - Adjust resolution with `--max-size`
 
-4. **For highest quality California:**
-   - Follow USGS 3DEP manual download instructions
-   - Get 10m resolution data
-   - Much better detail than 30m
+4.**For highest quality California:**
+ - Follow USGS 3DEP manual download instructions
+ - Get 10m resolution data
+ - Much better detail than 30m
 
 ## Additional Resources
 
-- **OpenTopography Portal:** https://portal.opentopography.org/
-- **USGS National Map:** https://apps.nationalmap.gov/downloader/
-- **ALOS Global DEM:** https://www.eorc.jaxa.jp/ALOS/en/aw3d30/
-- **Copernicus DEM:** https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model
+-**OpenTopography Portal:** https://portal.opentopography.org/
+-**USGS National Map:** https://apps.nationalmap.gov/downloader/
+-**ALOS Global DEM:** https://www.eorc.jaxa.jp/ALOS/en/aw3d30/
+-**Copernicus DEM:** https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model
 

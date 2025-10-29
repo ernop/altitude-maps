@@ -1,7 +1,17 @@
-
 # Altitude Maps - Cursor Rules
 
-## ⚠️ CODE REVIEW REMINDER - READ THIS FIRST ⚠️
+**ABSOLUTE RULE: NEVER use emojis in documentation files, code comments, print statements, or any text content.**
+
+This rule applies to ALL files: .md, .py, .js, .html, .css, .txt, and any other text-based files.
+
+### Console Output and Unicode Handling
+- **AVOID output redirection** when working with Unicode/emoji content - pipelines often fail with encoding errors on Windows
+- For debugging with Unicode content, use temporary files or one-off Python scripts instead of command-line redirection
+- Windows console (PowerShell/CMD) has encoding limitations - handle Unicode carefully in scripts
+- Prefer writing debug output to files when dealing with emojis or non-ASCII text
+- Use Unicode code point notation (U+XXXX) instead of actual emoji characters in console output
+
+## CODE REVIEW REMINDER - READ THIS FIRST
 
 **After writing or modifying ANY code, ALWAYS do this:**
 
@@ -100,7 +110,7 @@ Session notes and development threads only:
 
 #### Core Data Principles - CRITICAL
 
-⚠️ **Principle 1: Preserve Real-World Proportions**
+**Principle 1: Preserve Real-World Proportions**
 
 Our goal is to accurately represent geographic data with correct proportions. A wide state like Tennessee (8.7° wide × 1.7° tall) must appear wide, not square. A tall state like New Jersey must appear tall.
 
@@ -119,21 +129,21 @@ Our goal is to accurately represent geographic data with correct proportions. A 
 
 **Validation**: Export process automatically validates aspect ratio against geographic reality (see `src/validation.py`). Exports fail if proportions are >30% incorrect.
 
-⚠️ **Principle 2: Treat Input Data as Uniform 2D Grid**
+**Principle 2: Treat Input Data as Uniform 2D Grid**
 
 Elevation data from GeoTIFFs is a simple 2D array of height values at evenly-spaced grid points. **Do not reinterpret or transform this data** based on latitude/longitude when rendering:
 
-- ✅ **Correct**: Render as uniform square grid (each pixel = one unit of space)
-- ❌ **Wrong**: Apply latitude-dependent scaling or geographic projections in the viewer
+- **Correct**: Render as uniform square grid (each pixel = one unit of space)
+- **Wrong**: Apply latitude-dependent scaling or geographic projections in the viewer
 
 **Why**: The input data already has correct proportions built in (from the masking/cropping process). Adding transformations in the viewer would apply corrections twice, creating distortion.
 
 **In the viewer (Three.js)**:
 ```javascript
-// ✅ CORRECT - Simple uniform grid
+// CORRECT - Simple uniform grid
 const geometry = new THREE.PlaneGeometry(width, height, width-1, height-1);
 
-// ❌ WRONG - Don't add geographic transformations
+// WRONG - Don't add geographic transformations
 const widthMeters = lonSpan * cos(lat) * 111_320;  // NO!
 const geometry = new THREE.PlaneGeometry(widthMeters, heightMeters, ...);
 ```
@@ -142,11 +152,11 @@ const geometry = new THREE.PlaneGeometry(widthMeters, heightMeters, ...);
 
 **When downsampling**: Always use the **same step size for both dimensions**:
 ```python
-# ✅ CORRECT - Preserves aspect ratio
+# CORRECT - Preserves aspect ratio
 step_size = max(1, int(math.ceil(max_dim / target_pixels)))
 downsampled = elevation[::step_size, ::step_size]
 
-# ❌ WRONG - Distorts aspect ratio
+# WRONG - Distorts aspect ratio
 step_y = height // target_height  # Different
 step_x = width // target_width    # Different
 downsampled = elevation[::step_y, ::step_x]  # Distorts!
@@ -197,7 +207,7 @@ downsampled = elevation[::step_y, ::step_x]  # Distorts!
 
 ### Data Format Versioning & Cache Invalidation
 --- You must clearly and explicitly state what each filetype is andhow  it works. Don't leave it disogranized.
-⚠️ **CRITICAL**: When changing data processing/export format:
+**CRITICAL**: When changing data processing/export format:
 1. **Update the format version number** in export scripts
 2. **Add version validation** on data load (fail if version mismatch)
 3. **Document the change** in code comments
@@ -228,7 +238,7 @@ python download_regions.py  # If using regions
 - **Vertical Exaggeration**: Uses real-world scale where 1.0 = true Earth proportions, 2.0 = mountains twice as steep as reality. Both X/Z (horizontal) and Y (elevation) axes are in meters based on lat/lon bounds.
 
 ### 3D Rendering (Three.js)
-⚠️ **CRITICAL - Camera Near/Far Planes**:
+**CRITICAL - Camera Near/Far Planes**:
 - **ALWAYS** maintain reasonable near/far plane ratios (< 1,000,000:1)
 - Current safe values: `near=1, far=100000` (100,000:1 ratio)
 - **NEVER** use extreme values like `near=0.001, far=50000000`
@@ -362,12 +372,12 @@ update() {
 - Standard pattern used by Three.js OrbitControls and professional systems
 
 **What NOT To Do:**
-- ❌ Don't call camera.lookAt() in mouse handlers (causes jitter)
-- ❌ Don't use continuous raycasting for pan (too slow/jerky)
-- ❌ Don't make focus shift unidirectional (breaks zoom out feel)
-- ❌ Don't forget to cancel operations if modifier keys released mid-drag
-- ❌ Don't process keyboard shortcuts when user is typing in input fields
-- ❌ Don't break existing controls when adding new features (additive only)
+- Don't call camera.lookAt() in mouse handlers (causes jitter)
+- Don't use continuous raycasting for pan (too slow/jerky)
+- Don't make focus shift unidirectional (breaks zoom out feel)
+- Don't forget to cancel operations if modifier keys released mid-drag
+- Don't process keyboard shortcuts when user is typing in input fields
+- Don't break existing controls when adding new features (additive only)
 
 ### Testing
 - Test with small data samples first before processing large datasets
@@ -430,6 +440,7 @@ Priority order for any country:
 - **Categories**: US_STATES, COUNTRIES, REGIONS (three categories only)
 - **Key principle**: Having a region configured does NOT mean data exists - check manifest/files separately
 - **Utility functions**: `check_region_data_available()`, `list_available_regions()`, `is_region_configured()`
+- **CRITICAL RULE**: NO scripts should store local copies of region lists. All region information must come from `src/regions_config.py` via imports. This was enforced across all download scripts to eliminate duplication and maintain consistency.
 
 ### Adding New Regions (Viewer and Pipeline)
 - **Quick path (viewer-focused):**
@@ -516,10 +527,10 @@ python border_utils.py --test your_data.tif  # Test borders on data
 
 ### Architecture
 The viewer is a **pure client-side web application** that runs entirely in the browser:
-- ✅ No server-side code required
-- ✅ Works with any static web server (nginx, apache, etc.)
-- ✅ All paths are relative (no configuration needed)
-- ✅ External dependencies from CDN (Three.js, jQuery)
+- No server-side code required
+- Works with any static web server (nginx, apache, etc.)
+- All paths are relative (no configuration needed)
+- External dependencies from CDN (Three.js, jQuery)
 
 ### Production vs Development Files
 
@@ -532,12 +543,12 @@ The viewer is a **pure client-side web application** that runs entirely in the b
 - `README.md` - Optional documentation
 
 **Development only (DO NOT deploy):**
-- ❌ `data/` - Raw GeoTIFF files (10+ GB, stays local)
-- ❌ `src/` - Python processing code
-- ❌ `*.py` - Python scripts (processing/export only)
-- ❌ `venv/` - Virtual environment
-- ❌ `tech/`, `learnings/` - Documentation
-- ❌ Cache directories, development files
+- `data/` - Raw GeoTIFF files (10+ GB, stays local) - DO NOT deploy
+- `src/` - Python processing code - DO NOT deploy
+- `*.py` - Python scripts (processing/export only) - DO NOT deploy
+- `venv/` - Virtual environment - DO NOT deploy
+- `tech/`, `learnings/` - Documentation - DO NOT deploy
+- Cache directories, development files - DO NOT deploy
 
 **File Size Expectations:**
 - HTML/JS/CSS: ~100 KB

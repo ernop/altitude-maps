@@ -19,23 +19,8 @@ except ImportError as e:
     sys.exit(1)
 
 from downloaders.usa_3dep import US_STATES, download_opentopography_srtm
+from src.regions_config import get_region
 from src.pipeline import run_pipeline
-
-# States that need tiling (dimension > 4deg in any direction)
-LARGE_STATES = {
-    "california": {"tiles": (3, 3)},   # 10.35deg x 9.48deg -> 3x3 tiles
-    "texas": {"tiles": (4, 3)},        # 13.14deg x 10.66deg -> 4x3 tiles
-    "alaska": {"tiles": (10, 6)},      # 40deg x 20.5deg -> 10x6 tiles (huge!)
-    "montana": {"tiles": (4, 2)},      # 12.01deg x 4.64deg -> 4x2 tiles
-    "new_mexico": {"tiles": (2, 2)},   # 6.05deg x 5.67deg -> 2x2 tiles
-    "nevada": {"tiles": (2, 2)},       # 5.97deg x 7deg -> 2x2 tiles
-    "arizona": {"tiles": (2, 2)},      # 5.77deg x 5.67deg -> 2x2 tiles
-    "oregon": {"tiles": (3, 2)},       # 8.11deg x 4.3deg -> 3x2 tiles
-    "utah": {"tiles": (2, 2)},         # 5.01deg x 5deg -> 2x2 tiles
-    "idaho": {"tiles": (2, 2)},        # 6.2deg x 7.01deg -> 2x2 tiles
-    "wyoming": {"tiles": (2, 2)},      # 7.01deg x 4.02deg -> 2x2 tiles
-    "florida": {"tiles": (2, 2)},      # 7.6deg x 6.48deg -> 2x2 tiles
-}
 
 
 def calculate_tiles(bounds: Tuple[float, float, float, float], 
@@ -366,13 +351,15 @@ def download_large_state(region_id: str, api_key: str = None, target_pixels: int
         print(f"Available: {', '.join(US_STATES.keys())}")
         return 1
     
-    if region_id not in LARGE_STATES:
+    # Get tiling config from centralized config
+    config = get_region(region_id)
+    if not config or not config.tiles:
         print(f"INFO: {region_id} is not configured for tiling.")
         print(f"Use regular download: python downloaders/usa_3dep.py {region_id} --auto")
         return 1
     
     state_info = US_STATES[region_id]
-    tiles_config = LARGE_STATES[region_id]
+    tiles_config = {"tiles": config.tiles}
     
     print(f"State: {state_info['name']}")
     print(f"Region ID: {region_id}")
@@ -466,14 +453,14 @@ DEPRECATED: This script is now deprecated.
 Use the main downloader instead: python downloaders/usa_3dep.py california --auto
 (Tiling happens automatically for large states)
 
-Large states configured for tiling:
-{chr(10).join(f"  - {k}: {v['tiles'][0]}x{v['tiles'][1]} tiles" for k, v in LARGE_STATES.items())}
+Tiling configuration comes from src/regions_config.py.
+The tiles field defines the (columns, rows) grid for large regions.
         """
     )
     
     parser.add_argument(
         'state',
-        help='State to download (must be in LARGE_STATES list)'
+        help='State to download (tiling auto-detected from config)'
     )
     
     parser.add_argument(

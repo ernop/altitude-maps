@@ -1,6 +1,6 @@
 # Multi-Region Elevation Viewer - Status
 
-##  COMPLETE AND READY TO USE!
+## COMPLETE AND READY TO USE!
 
 The interactive 3D elevation viewer now supports multiple regions worldwide with a dropdown selector!
 
@@ -8,36 +8,36 @@ The interactive 3D elevation viewer now supports multiple regions worldwide with
 
 ## What's Working Right Now
 
-### 🌍 Multi-Region Support
--  Dropdown region selector in UI
--  Dynamic data loading (switch regions without refresh)
--  Grouped by continent/category
--  45 regions pre-configured worldwide
+### Multi-Region Support
+- Dropdown region selector in UI
+- Dynamic data loading (switch regions without refresh)
+- Grouped by continent/category
+- 45 regions pre-configured worldwide
 
-### 🗺 Available Data
--  **USA (Contiguous)** - Ready to view immediately!
-- 🔄 44 more regions ready to add (need elevation data downloaded)
+### Available Data
+-**USA (Contiguous)** - Ready to view immediately!
+- 44 more regions ready to add (need elevation data downloaded)
 
-### 🎮 Controls (Roblox Studio Style)
--  Left-click drag -> Pan
--  Ctrl+Left drag -> Rotate
--  Right-click drag -> Rotate
--  W/S -> Move up/down
--  A/D -> Rotate left/right
--  Q/E -> Move forward/backward
--  Shift/Ctrl/Alt modifiers -> Speed control
--  Mouse wheel -> Zoom
+### Controls (Roblox Studio Style)
+- Left-click drag -> Pan
+- Ctrl+Left drag -> Rotate
+- Right-click drag -> Rotate
+- W/S -> Move up/down
+- A/D -> Rotate left/right
+- Q/E -> Move forward/backward
+- Shift/Ctrl/Alt modifiers -> Speed control
+- Mouse wheel -> Zoom
 
-### 🔧 Features
--  Real-time bucketing (1-50 pixels)
--  Multiple aggregation methods (MAX, AVG, MIN, MEDIAN)
--  Render modes (Bars, Surface, Wireframe, Points)
--  Vertical exaggeration control (0.0001x to 5x)
--  Color schemes (6 options)
--  Camera presets
--  Screenshot capability
--  FPS counter
--  Performance optimizations (instanced rendering)
+### Features
+- Real-time bucketing (1-50 pixels)
+- Multiple aggregation methods (MAX, AVG, MIN, MEDIAN)
+- Render modes (Bars, Surface, Wireframe, Points)
+- Vertical exaggeration control (0.0001x to 5x)
+- Color schemes (6 options)
+- Camera presets
+- Screenshot capability
+- FPS counter
+- Performance optimizations (instanced rendering)
 
 ---
 
@@ -45,19 +45,19 @@ The interactive 3D elevation viewer now supports multiple regions worldwide with
 
 ```
 altitude-maps/
-├── interactive_viewer_advanced.html  <- OPEN THIS!
-├── generated/
-│   ├── elevation_data.json           (Legacy single-region)
-│   └── regions/
-│       ├── usa_full.json              Ready!
-│       └── regions_manifest.json      Region list
-├── data/
-│   └── regions/
-│       └── usa_full.tif               Source data
-├── download_regions.py               (Process .tif -> .json)
-├── download_srtm_direct.py           (Windows-compatible downloader)
-├── MANUAL_DOWNLOAD_GUIDE.md          📖 How to add regions
-└── DOWNLOAD_GUIDE.md                 📖 Alternative guide
+ interactive_viewer_advanced.html <- OPEN THIS!
+ generated/
+ elevation_data.json (Legacy single-region)
+ regions/
+ usa_full.json Ready!
+ regions_manifest.json Region list
+ data/
+ regions/
+ usa_full.tif Source data
+ download_regions.py (Process .tif -> .json)
+ download_srtm_direct.py (Windows-compatible downloader)
+ MANUAL_DOWNLOAD_GUIDE.md How to add regions
+ DOWNLOAD_GUIDE.md Alternative guide
 ```
 
 ---
@@ -72,7 +72,7 @@ interactive_viewer_advanced.html
 
 ### 2. Select Region
 - Look at top of sidebar
-- **Region Selector** dropdown
+-**Region Selector** dropdown
 - Select "USA (Contiguous)"
 - Data loads automatically!
 
@@ -147,76 +147,76 @@ interactive_viewer_advanced.html
 ## Technical Details
 
 ### Data Format
-- **Source**: GeoTIFF (.tif) elevation data
-- **Processed**: JSON with 2D elevation arrays
-- **Resolution**: Configurable (default 800x800)
-- **Compression**: Minimal for web
+-**Source**: GeoTIFF (.tif) elevation data
+-**Processed**: JSON with 2D elevation arrays
+-**Resolution**: Configurable (default 800x800)
+-**Compression**: Minimal for web
 
 ### Rendering
-- **Engine**: Three.js WebGL
-- **Technique**: Instanced rendering
-- **Optimization**: Typed arrays, debouncing
-- **Materials**: MeshLambertMaterial (fast)
+-**Engine**: Three.js WebGL
+-**Technique**: Instanced rendering
+-**Optimization**: Typed arrays, debouncing
+-**Materials**: MeshLambertMaterial (fast)
 
 ### Controls
-- **Camera**: OrbitControls (modified)
-- **Movement**: Custom WASD+QE system
-- **Modifiers**: Dynamic button reassignment
-- **Speed**: Frame-independent
+-**Camera**: OrbitControls (modified)
+-**Movement**: Custom WASD+QE system
+-**Modifiers**: Dynamic button reassignment
+-**Speed**: Frame-independent
 
 ---
 
 ## Documentation
 
 ### Guides Available
-1. **MANUAL_DOWNLOAD_GUIDE.md** - Step-by-step for adding regions
-2. **DOWNLOAD_GUIDE.md** - Automated download info
-3. **COMPLETE_CONTROL_SCHEME.md** - Full keyboard/mouse reference
-4. **ROBLOX_STUDIO_CONTROLS.md** - Control philosophy
-5. **PERFORMANCE_OPTIMIZATIONS.md** - Technical optimizations
-6. **DATA_FORMATS_AND_SOURCES.md** - Data sources worldwide
-7. **INTERACTIVE_VIEWER_GUIDE.md** - UI features
-8. **VISUALIZATION_OPTIONS.md** - Static rendering options
+1.**MANUAL_DOWNLOAD_GUIDE.md** - Step-by-step for adding regions
+2.**DOWNLOAD_GUIDE.md** - Automated download info
+3.**COMPLETE_CONTROL_SCHEME.md** - Full keyboard/mouse reference
+4.**ROBLOX_STUDIO_CONTROLS.md** - Control philosophy
+5.**PERFORMANCE_OPTIMIZATIONS.md** - Technical optimizations
+6.**DATA_FORMATS_AND_SOURCES.md** - Data sources worldwide
+7.**INTERACTIVE_VIEWER_GUIDE.md** - UI features
+8.**VISUALIZATION_OPTIONS.md** - Static rendering options
 
 ---
 
 ## Next Steps
 
 ### Immediate
--  Open `interactive_viewer_advanced.html`
--  Explore USA elevation data
--  Try different render modes
--  Experiment with controls
+- Open `interactive_viewer_advanced.html`
+- Explore USA elevation data
+- Try different render modes
+- Experiment with controls
 
 ### Short Term
-- 📥 Download 2-3 interesting regions (Japan, Switzerland, Nepal recommended)
-- 🔄 Process them with `download_regions.py`
-- 🔁 Add them to your viewer
+- Download 2-3 interesting regions (Japan, Switzerland, Nepal recommended)
+- Process them with `download_regions.py`
+- Add them to your viewer
 
 ### Long Term
-- 📦 Build complete global collection (45 regions)
-- 🎨 Create custom color schemes
-- 📸 Take stunning screenshots
-- 🗺 Compare terrain across continents
+- Build complete global collection (45 regions)
+- Create custom color schemes
+- Take stunning screenshots
+- Compare terrain across continents
 
 ---
 
 ## Known Limitations
 
 ### Platform
--  Works: Windows, Mac, Linux
--  Auto-download: Manual process recommended
--  Browser: Modern browsers with WebGL
+- Works: Windows, Mac, Linux
+- Auto-download: Manual process recommended
+- Browser: Modern browsers with WebGL
 
 ### Coverage
--  SRTM: 60degN to 56degS (most populated areas)
--  Arctic/Antarctic: Need alternative sources
--  Resolution: 90m (SRTM3) to custom
+- SRTM: 60degN to 56degS (most populated areas)
+- Arctic/Antarctic: Need alternative sources
+- Resolution: 90m (SRTM3) to custom
 
 ### Performance
--  Large regions at high resolution may be slow
--  Solution: Increase bucket size or use Surface mode
--  Optimization: Instanced rendering helps significantly
+- Large regions at high resolution may be slow
+- Solution: Increase bucket size or use Surface mode
+- Optimization: Instanced rendering helps significantly
 
 ---
 
@@ -266,21 +266,21 @@ python download_regions.py --regions usa_full
  45 regions pre-configured
  Simple workflow for adding regions
 
-**Status: PRODUCTION READY** 🎉
+**Status: PRODUCTION READY**
 
 ---
 
 ## Credits
 
-- **Data**: NASA SRTM, USGS 3DEP, various national agencies
-- **Rendering**: Three.js
-- **Controls**: Custom Roblox Studio-inspired system
-- **Performance**: Instanced rendering, typed arrays, debouncing
+-**Data**: NASA SRTM, USGS 3DEP, various national agencies
+-**Rendering**: Three.js
+-**Controls**: Custom Roblox Studio-inspired system
+-**Performance**: Instanced rendering, typed arrays, debouncing
 
 ---
 
 **Built on**: October 22, 2025
-**Status**:  Complete and ready to use
+**Status**: Complete and ready to use
 **Regions Available**: 1 (USA), 44 more ready to add
-**Next**: Download more regions and explore the world! 🌍
+**Next**: Download more regions and explore the world!
 

@@ -10,41 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.pipeline import run_pipeline
-
-# US State name mapping
-STATE_NAMES = {
-    'arizona': 'Arizona',
-    'california': 'California',
-    'colorado': 'Colorado',
-    'connecticut': 'Connecticut',
-    'delaware': 'Delaware',
-    'florida': 'Florida',
-    'indiana': 'Indiana',
-    'iowa': 'Iowa',
-    'kansas': 'Kansas',
-    'kentucky': 'Kentucky',
-    'maine': 'Maine',
-    'maryland': 'Maryland',
-    'massachusetts': 'Massachusetts',
-    'minnesota': 'Minnesota',
-    'nebraska': 'Nebraska',
-    'nevada': 'Nevada',
-    'new_hampshire': 'New Hampshire',
-    'new_jersey': 'New Jersey',
-    'new_mexico': 'New Mexico',
-    'north_dakota': 'North Dakota',
-    'ohio': 'Ohio',
-    'oklahoma': 'Oklahoma',
-    'oregon': 'Oregon',
-    'pennsylvania': 'Pennsylvania',
-    'rhode_island': 'Rhode Island',
-    'south_dakota': 'South Dakota',
-    'utah': 'Utah',
-    'vermont': 'Vermont',
-    'washington': 'Washington',
-    'wisconsin': 'Wisconsin',
-    'wyoming': 'Wyoming'
-}
+from src.regions_config import US_STATES, get_region
 
 
 def main():
@@ -71,14 +37,14 @@ def main():
     if raw_bbox_dir.exists():
         for tif_file in raw_bbox_dir.glob('*_bbox_30m.tif'):
             state_id = tif_file.stem.replace('_bbox_30m', '')
-            if state_id in STATE_NAMES:
+            if state_id in US_STATES:
                 state_files.append((state_id, tif_file, 'srtm_30m'))
-    
+
     # Check regions directory for states not in bbox
     if regions_dir.exists():
         for tif_file in regions_dir.glob('*.tif'):
             state_id = tif_file.stem
-            if state_id in STATE_NAMES:
+            if state_id in US_STATES:
                 # Only add if not already in list from bbox
                 if not any(s[0] == state_id for s in state_files):
                     state_files.append((state_id, tif_file, 'srtm_30m'))
@@ -99,14 +65,14 @@ def main():
             print(f" None of the requested states found: {args.states}")
             return 1
     
-    print(f"\n🗺  Found {len(state_files)} state(s) to process")
+    print(f"\nFound {len(state_files)} state(s) to process")
     print(f"Target resolution: {args.target_pixels}px")
     print("=" * 70)
     
     # Clean intermediate files with proper dependency handling
     # --force: Delete everything (clipped, processed, generated)
     # No --force: Delete only generated files (keep clipped/processed if valid)
-    print("\n🗑  Cleaning old intermediate files...")
+    print("\nCleaning old intermediate files...")
     clipped_dir = Path('data/clipped/srtm_30m')
     processed_dir = Path('data/processed/srtm_30m')
     generated_dir = Path('generated/regions')
@@ -149,10 +115,18 @@ def main():
     failed = []
     
     for i, (state_id, tif_file, source) in enumerate(state_files, 1):
-        state_name = STATE_NAMES[state_id]
-        boundary_name = f"United States of America/{state_name}"
+        # Get region config from centralized source
+        config = get_region(state_id)
+        if not config:
+            print(f"\n[{i}/{len(state_files)}] Warning: Unknown state {state_id}, skipping...")
+            failed.append(state_id)
+            continue
         
-        print(f"\n[{i}/{len(state_files)}] Processing {state_name}...")
+        # Build boundary name from config
+        boundary_name = f"{config.country}/{config.name}" if config.country else None
+        boundary_type = 'state' if config.category == 'usa_state' else 'country'
+        
+        print(f"\n[{i}/{len(state_files)}] Processing {config.name}...")
         print(f"   Source: {tif_file}")
         
         try:
@@ -161,16 +135,16 @@ def main():
                 region_id=state_id,
                 source=source,
                 boundary_name=boundary_name,
-                boundary_type='state',
+                boundary_type=boundary_type,
                 target_pixels=args.target_pixels,
-                skip_clip=False
+                skip_clip=(not config.clip_boundary)
             )
             
             if success:
-                print(f"    {state_name} processed successfully!")
+                print(f"    {config.name} processed successfully!")
                 succeeded.append(state_id)
             else:
-                print(f"    {state_name} failed!")
+                print(f"    {config.name} failed!")
                 failed.append(state_id)
                 
         except Exception as e:

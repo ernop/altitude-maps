@@ -4,36 +4,36 @@
 
 Successfully set up high-resolution elevation data downloads for California and Shikoku, Japan!
 
-###  What's Been Done
+### What's Been Done
 
-1. **Created `download_high_resolution.py`**
-   - New script for downloading from OpenTopography with multiple datasets
-   - Supports ALOS World 3D (30m) - best for Japan and mountains
-   - Supports SRTM GL1 (30m) - good for global coverage
-   - Supports Copernicus DEM (30m/90m) - full polar coverage
-   - Handles API limitations gracefully
+1.**Created `download_high_resolution.py`**
+ - New script for downloading from OpenTopography with multiple datasets
+ - Supports ALOS World 3D (30m) - best for Japan and mountains
+ - Supports SRTM GL1 (30m) - good for global coverage
+ - Supports Copernicus DEM (30m/90m) - full polar coverage
+ - Handles API limitations gracefully
 
-2. **Downloaded Regions**
-   -  **Shikoku, Japan** - 33 MB, 30m resolution (ALOS AW3D30)
-   -  **Central California** - 187 MB, 30m resolution (SRTM GL1)
+2.**Downloaded Regions**
+ -**Shikoku, Japan** - 33 MB, 30m resolution (ALOS AW3D30)
+ -**Central California** - 187 MB, 30m resolution (SRTM GL1)
 
-3. **Processed for Web Viewer**
-   -  Shikoku: 26.6 MB JSON, 2.7M data points at 2048px resolution
-   -  Central California: 28.2 MB JSON, 4.9M data points at 2048px resolution
+3.**Processed for Web Viewer**
+ - Shikoku: 26.6 MB JSON, 2.7M data points at 2048px resolution
+ - Central California: 28.2 MB JSON, 4.9M data points at 2048px resolution
 
-4. **Documentation**
-   - Created comprehensive guide: `HIGH_RESOLUTION_DOWNLOAD_GUIDE.md`
-   - Includes USGS 3DEP instructions for 10m California data
-   - Examples for various use cases
+4.**Documentation**
+ - Created comprehensive guide: `HIGH_RESOLUTION_DOWNLOAD_GUIDE.md`
+ - Includes USGS 3DEP instructions for 10m California data
+ - Examples for various use cases
 
-### 🗺 Available Regions Now
+### Available Regions Now
 
 You can now view these regions in `interactive_viewer_advanced.html`:
-- **Shikoku** - Smallest of Japan's main islands
-- **Central California** - Sierra Nevada, Yosemite, Lake Tahoe
+-**Shikoku** - Smallest of Japan's main islands
+-**Central California** - Sierra Nevada, Yosemite, Lake Tahoe
 - Plus any previously downloaded regions
 
-### 📊 Data Quality
+### Data Quality
 
 **Shikoku:**
 - Resolution: 30m (ALOS World 3D - excellent for Japan)
@@ -47,7 +47,7 @@ You can now view these regions in `interactive_viewer_advanced.html`:
 - Original size: 18,000 x 10,800 pixels
 - Processed: 2,250 x 2,160 pixels
 
-## 🚀 Next Steps
+## Next Steps
 
 ### View Your Data
 ```powershell
@@ -90,7 +90,7 @@ python download_high_resolution.py california_central --usgs-instructions
 ```
 
 Then follow the instructions to manually download from:
-- **USGS National Map:** https://apps.nationalmap.gov/downloader/
+-**USGS National Map:** https://apps.nationalmap.gov/downloader/
 - Select "Elevation Products (3DEP)" -> "1/3 arc-second DEM" (10m)
 
 ### Explore Other Regions
@@ -103,9 +103,9 @@ python download_high_resolution.py --list-regions
 python download_high_resolution.py --list-datasets
 
 # Examples of other interesting regions:
-python download_high_resolution.py alps --dataset AW3D30 --process  # European Alps
-python download_high_resolution.py nepal --dataset AW3D30 --process  # Mt. Everest area
-python download_high_resolution.py new_zealand --dataset AW3D30 --process  # Southern Alps
+python download_high_resolution.py alps --dataset AW3D30 --process# European Alps
+python download_high_resolution.py nepal --dataset AW3D30 --process# Mt. Everest area
+python download_high_resolution.py new_zealand --dataset AW3D30 --process# Southern Alps
 ```
 
 ### Custom Regions
@@ -119,7 +119,7 @@ python download_high_resolution.py yosemite --bounds -119.7 37.7 -119.5 37.9 --d
 python download_high_resolution.py mt_fuji --bounds 138.5 35.0 139.0 35.5 --dataset AW3D30 --process
 ```
 
-## 🔧 Technical Details
+## Technical Details
 
 ### API Configuration
 - Using OpenTopography API
@@ -129,7 +129,7 @@ python download_high_resolution.py mt_fuji --bounds 138.5 35.0 139.0 35.5 --data
 ### Resolution Options
 - `--max-size 800` - Quick preview (~2-10 MB JSON)
 - `--max-size 1024` - Standard viewing (~5-15 MB JSON)
-- `--max-size 2048` - High-resolution (~20-60 MB JSON) **<- Current setting**
+- `--max-size 2048` - High-resolution (~20-60 MB JSON)**<- Current setting**
 - `--max-size 4096` - Maximum detail (~80-250 MB JSON)
 - `--max-size 0` - Full resolution (very large files)
 
@@ -137,32 +137,32 @@ python download_high_resolution.py mt_fuji --bounds 138.5 35.0 139.0 35.5 --data
 - Maximum region size: ~500,000 km^2 (enforced by OpenTopography)
 - Full California (962,000 km^2) is too large -> split into sub-regions
 - Japan fits within limits:
-  - Shikoku: 35,000 km^2 
-  - Hokkaido: ~240,000 km^2 
-  - Honshu: ~500,000 km^2  (borderline, may need splitting)
-  - Kyushu: ~100,000 km^2 
+ - Shikoku: 35,000 km^2
+ - Hokkaido: ~240,000 km^2
+ - Honshu: ~500,000 km^2 (borderline, may need splitting)
+ - Kyushu: ~100,000 km^2
 
-## 📁 File Locations
+## File Locations
 
 ```
 altitude-maps/
-├── download_high_resolution.py          # New high-res download script
-├── HIGH_RESOLUTION_DOWNLOAD_GUIDE.md   # Comprehensive guide
-├── COMPLETED_DOWNLOADS_SUMMARY.md      # This file
-│
-├── data/regions/                        # Raw elevation data (TIF files)
-│   ├── shikoku.tif                     # 33 MB
-│   └── california_central.tif          # 187 MB
-│
-├── generated/regions/                   # Processed JSON for web viewer
-│   ├── shikoku.json                    # 26.6 MB
-│   ├── california_central.json         # 28.2 MB
-│   └── regions_manifest.json           # Region index
-│
-└── interactive_viewer_advanced.html     # Open this to view!
+ download_high_resolution.py# New high-res download script
+ HIGH_RESOLUTION_DOWNLOAD_GUIDE.md# Comprehensive guide
+ COMPLETED_DOWNLOADS_SUMMARY.md# This file
+
+ data/regions/# Raw elevation data (TIF files)
+ shikoku.tif# 33 MB
+ california_central.tif# 187 MB
+
+ generated/regions/# Processed JSON for web viewer
+ shikoku.json# 26.6 MB
+ california_central.json# 28.2 MB
+ regions_manifest.json# Region index
+
+ interactive_viewer_advanced.html# Open this to view!
 ```
 
-## 🎯 Quick Commands Reference
+## Quick Commands Reference
 
 ```powershell
 # List what's available
@@ -185,30 +185,30 @@ python download_high_resolution.py my_region --bounds -120 35 -119 36 --dataset 
 python download_high_resolution.py california_central --usgs-instructions
 ```
 
-## 🌟 Recommended Next Actions
+## Recommended Next Actions
 
-1. **View what you have:**
-   - Open `interactive_viewer_advanced.html`
-   - Try both Shikoku and Central California
-   - Adjust vertical exaggeration and colors
+1.**View what you have:**
+ - Open `interactive_viewer_advanced.html`
+ - Try both Shikoku and Central California
+ - Adjust vertical exaggeration and colors
 
-2. **Download more California:**
-   - Get Northern, Southern, or Coastal California regions
-   - All use same simple command
+2.**Download more California:**
+ - Get Northern, Southern, or Coastal California regions
+ - All use same simple command
 
-3. **Get higher resolution California:**
-   - Follow USGS 3DEP instructions for 10m data
-   - Much more detail than 30m
+3.**Get higher resolution California:**
+ - Follow USGS 3DEP instructions for 10m data
+ - Much more detail than 30m
 
-4. **Explore Japan:**
-   - Download other Japanese islands
-   - ALOS dataset is excellent for Japan
+4.**Explore Japan:**
+ - Download other Japanese islands
+ - ALOS dataset is excellent for Japan
 
-5. **Try other regions:**
-   - Alps, Nepal, New Zealand all work great
-   - Mountains look particularly good with ALOS dataset
+5.**Try other regions:**
+ - Alps, Nepal, New Zealand all work great
+ - Mountains look particularly good with ALOS dataset
 
-## ✨ What's Better Now
+## What's Better Now
 
 **Before:**
 - SRTM 90m resolution only
@@ -223,16 +223,16 @@ python download_high_resolution.py california_central --usgs-instructions
 - Clear path to 10m USGS data for California
 - Comprehensive documentation
 
-## 🔗 Useful Links
+## Useful Links
 
-- **OpenTopography Portal:** https://portal.opentopography.org/
-- **USGS National Map:** https://apps.nationalmap.gov/downloader/
-- **ALOS Global DEM:** https://www.eorc.jaxa.jp/ALOS/en/aw3d30/
-- **Copernicus DEM:** https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model
+-**OpenTopography Portal:** https://portal.opentopography.org/
+-**USGS National Map:** https://apps.nationalmap.gov/downloader/
+-**ALOS Global DEM:** https://www.eorc.jaxa.jp/ALOS/en/aw3d30/
+-**Copernicus DEM:** https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model
 
 ---
 
-**Status:**  Fully operational and tested
+**Status:** Fully operational and tested
 
 **Created:** October 22, 2025
 

@@ -2,7 +2,7 @@
 
 **Purpose**: Comprehensive plan for restructuring internal data storage with careful versioning, naming, and cache management.
 
-**Date**: October 23, 2025  
+**Date**: October 23, 2025
 **Status**: Design Phase (not yet implemented)
 
 ---
@@ -25,46 +25,46 @@
 ### Existing Structure Issues:
 ```
 data/
-  regions/               # Mix of different sources, resolutions
-    california.tif       # Could be SRTM or USGS - unclear!
-    japan.tif
-  usa_elevation/
-    nationwide_usa_elevation.tif
-  .cache/                # Pickled border masks - no version info
-    
+ regions/# Mix of different sources, resolutions
+ california.tif# Could be SRTM or USGS - unclear!
+ japan.tif
+ usa_elevation/
+ nationwide_usa_elevation.tif
+ .cache/# Pickled border masks - no version info
+
 generated/
-  regions/               # JSON outputs - no source tracking
-    california.json
+ regions/# JSON outputs - no source tracking
+ california.json
 ```
 
 **Problems**:
-1.  Can't tell data source from filename
-2.  Can't tell resolution or quality
-3.  Mixing raw downloads with processed data
-4.  No version tracking for cache compatibility
-5.  No distinction between bounding-box and clipped data
-6.  If we re-download from better source, old cached data may be incompatible
+1. Can't tell data source from filename
+2. Can't tell resolution or quality
+3. Mixing raw downloads with processed data
+4. No version tracking for cache compatibility
+5. No distinction between bounding-box and clipped data
+6. If we re-download from better source, old cached data may be incompatible
 
 ---
 
 ## Design Principles
 
 ### Core Principles:
-1. **Source Transparency**: Filename shows what source data came from
-2. **Resolution Clarity**: Resolution is always visible
-3. **Processing Stage**: Clear separation of raw -> clipped -> processed -> exported
-4. **Version Control**: Every cached derivative has version metadata
-5. **Backwards Compatible**: Old code continues to work during migration
-6. **Automatic Cleanup**: Version mismatches trigger helpful errors
+1.**Source Transparency**: Filename shows what source data came from
+2.**Resolution Clarity**: Resolution is always visible
+3.**Processing Stage**: Clear separation of raw -> clipped -> processed -> exported
+4.**Version Control**: Every cached derivative has version metadata
+5.**Backwards Compatible**: Old code continues to work during migration
+6.**Automatic Cleanup**: Version mismatches trigger helpful errors
 
 ### Key Insight:
 **Data flows through stages**: Raw Download -> Clipped/Masked -> Downsampled -> Exported
 
 Each stage should be:
-- **Separate directory** (clear boundaries)
-- **Version tracked** (compatibility checks)
-- **Source labeled** (traceability)
-- **Resolution labeled** (quality awareness)
+-**Separate directory** (clear boundaries)
+-**Version tracked** (compatibility checks)
+-**Source labeled** (traceability)
+-**Resolution labeled** (quality awareness)
 
 ---
 
@@ -72,61 +72,61 @@ Each stage should be:
 
 ```
 data/
-  ├── raw/                          # Stage 1: Raw downloads (never modify!)
-  │   ├── usa_3dep/                 # Source-specific folders
-  │   │   ├── california_bbox_10m.tif          # Bounding box, 10m resolution
-  │   │   ├── california_bbox_10m.json         # Metadata: bounds, download date, version
-  │   │   ├── texas_bbox_10m.tif
-  │   │   └── nationwide_10m.tif
-  │   ├── srtm_30m/                 # Global SRTM data
-  │   │   ├── japan_bbox_30m.tif
-  │   │   ├── germany_bbox_30m.tif
-  │   │   └── japan_bbox_30m.json
-  │   ├── copernicus_30m/           # Copernicus DEM
-  │   │   └── iceland_bbox_30m.tif
-  │   ├── australia_geoscience/     # Nation-specific agencies
-  │   │   └── victoria_bbox_5m.tif
-  │   └── japan_gsi/
-  │       └── shikoku_bbox_5m.tif
-  │
-  ├── clipped/                      # Stage 2: Clipped to boundaries
-  │   ├── usa_3dep/
-  │   │   ├── california_state_10m_v1.tif      # Clipped to state boundary
-  │   │   ├── california_state_10m_v1.json     # Metadata: source, clip boundary, version
-  │   │   └── texas_state_10m_v1.tif
-  │   ├── srtm_30m/
-  │   │   ├── japan_country_30m_v1.tif         # Clipped to country
-  │   │   └── germany_country_30m_v1.tif
-  │   └── [mirrors raw/ structure]
-  │
-  ├── processed/                    # Stage 3: Downsampled/ready for export
-  │   ├── usa_3dep/
-  │   │   ├── california_state_10m_800px_v2.tif     # Downsampled to 800x800
-  │   │   ├── california_state_10m_800px_v2.json    # Processing metadata
-  │   │   └── california_state_10m_1024px_v2.tif    # Multiple resolutions
-  │   └── srtm_30m/
-  │       └── japan_country_30m_800px_v2.tif
-  │
-  ├── borders/                      # Border shapefiles (existing, unchanged)
-  │   └── [Natural Earth data]
-  │
-  └── metadata/                     # Global metadata
-      ├── data_versions.json        # Version registry for all cached data
-      ├── source_registry.json      # What sources are available per region
-      └── download_log.json         # History of all downloads
+ raw/# Stage 1: Raw downloads (never modify!)
+ usa_3dep/# Source-specific folders
+ california_bbox_10m.tif# Bounding box, 10m resolution
+ california_bbox_10m.json# Metadata: bounds, download date, version
+ texas_bbox_10m.tif
+ nationwide_10m.tif
+ srtm_30m/# Global SRTM data
+ japan_bbox_30m.tif
+ germany_bbox_30m.tif
+ japan_bbox_30m.json
+ copernicus_30m/# Copernicus DEM
+ iceland_bbox_30m.tif
+ australia_geoscience/# Nation-specific agencies
+ victoria_bbox_5m.tif
+ japan_gsi/
+ shikoku_bbox_5m.tif
+
+ clipped/# Stage 2: Clipped to boundaries
+ usa_3dep/
+ california_state_10m_v1.tif# Clipped to state boundary
+ california_state_10m_v1.json# Metadata: source, clip boundary, version
+ texas_state_10m_v1.tif
+ srtm_30m/
+ japan_country_30m_v1.tif# Clipped to country
+ germany_country_30m_v1.tif
+ [mirrors raw/ structure]
+
+ processed/# Stage 3: Downsampled/ready for export
+ usa_3dep/
+ california_state_10m_800px_v2.tif# Downsampled to 800x800
+ california_state_10m_800px_v2.json# Processing metadata
+ california_state_10m_1024px_v2.tif# Multiple resolutions
+ srtm_30m/
+ japan_country_30m_800px_v2.tif
+
+ borders/# Border shapefiles (existing, unchanged)
+ [Natural Earth data]
+
+ metadata/# Global metadata
+ data_versions.json# Version registry for all cached data
+ source_registry.json# What sources are available per region
+ download_log.json# History of all downloads
 ```
 
 ```
-generated/                          # Stage 4: Exported for viewer
-  ├── regions/
-  │   ├── california_usa3dep_10m_v2.json       # JSON for web viewer
-  │   ├── california_usa3dep_10m_v2_meta.json  # Export metadata
-  │   ├── japan_srtm_30m_v2.json
-  │   └── regions_manifest_v2.json             # Index of all regions
-  │
-  └── archive/                      # Old versions (auto-moved on version bump)
-      └── v1/
-          └── [old JSON files]
+generated/# Stage 4: Exported for viewer
+ regions/
+ california_usa3dep_10m_v2.json# JSON for web viewer
+ california_usa3dep_10m_v2_meta.json# Export metadata
+ japan_srtm_30m_v2.json
+ regions_manifest_v2.json# Index of all regions
+
+ archive/# Old versions (auto-moved on version bump)
+ v1/
+ [old JSON files]
 ```
 
 ---
@@ -143,19 +143,19 @@ generated/                          # Stage 4: Exported for viewer
 
 **Accompanying metadata** (auto-generated):
 - `california_bbox_10m.json`:
-  ```json
-  {
-    "version": "raw_v1",
-    "source": "usgs_3dep",
-    "region_id": "california",
-    "download_date": "2025-10-23T14:30:00Z",
-    "bounds": [-124.48, 32.53, -114.13, 42.01],
-    "resolution_meters": 10,
-    "crs": "EPSG:4326",
-    "download_url": "https://...",
-    "file_hash": "sha256:..."
-  }
-  ```
+ ```json
+ {
+ "version": "raw_v1",
+ "source": "usgs_3dep",
+ "region_id": "california",
+ "download_date": "2025-10-23T14:30:00Z",
+ "bounds": [-124.48, 32.53, -114.13, 42.01],
+ "resolution_meters": 10,
+ "crs": "EPSG:4326",
+ "download_url": "https://...",
+ "file_hash": "sha256:..."
+ }
+ ```
 
 ### Clipped Data:
 **Format**: `{region}_{boundary_type}_{resolution}_v{version}.tif`
@@ -167,19 +167,19 @@ generated/                          # Stage 4: Exported for viewer
 
 **Metadata**:
 - `california_state_10m_v1.json`:
-  ```json
-  {
-    "version": "clipped_v1",
-    "source_file": "data/raw/usa_3dep/california_bbox_10m.tif",
-    "source_file_hash": "sha256:...",
-    "clip_boundary": "United States of America/California",
-    "clip_source": "natural_earth_10m",
-    "created_date": "2025-10-23T14:35:00Z",
-    "resolution_meters": 10,
-    "elevation_range": [0, 4418],
-    "file_hash": "sha256:..."
-  }
-  ```
+ ```json
+ {
+ "version": "clipped_v1",
+ "source_file": "data/raw/usa_3dep/california_bbox_10m.tif",
+ "source_file_hash": "sha256:...",
+ "clip_boundary": "United States of America/California",
+ "clip_source": "natural_earth_10m",
+ "created_date": "2025-10-23T14:35:00Z",
+ "resolution_meters": 10,
+ "elevation_range": [0, 4418],
+ "file_hash": "sha256:..."
+ }
+ ```
 
 ### Processed/Downsampled:
 **Format**: `{region}_{boundary_type}_{resolution}_{pixels}_v{version}.tif`
@@ -198,10 +198,10 @@ generated/                          # Stage 4: Exported for viewer
 - `germany_copernicus_30m_v2.json`
 
 **Benefits**:
--  Clear what source data came from
--  Resolution visible at a glance
--  Version tracking for compatibility
--  Can have multiple versions/sources for same region
+- Clear what source data came from
+- Resolution visible at a glance
+- Version tracking for compatibility
+- Can have multiple versions/sources for same region
 
 ---
 
@@ -226,37 +226,37 @@ Each version increments when:
 Stored in `data/metadata/data_versions.json`:
 ```json
 {
-  "current_versions": {
-    "clipped": "v1",
-    "processed": "v2",
-    "export": "v2"
-  },
-  "compatibility": {
-    "processed_v2": {
-      "requires": {
-        "clipped": ["v1"],
-        "export": ["v2"]
-      },
-      "incompatible_with": {
-        "clipped": ["v0"],
-        "export": ["v1"]
-      }
-    }
-  },
-  "version_history": [
-    {
-      "version": "processed_v2",
-      "date": "2025-10-23",
-      "changes": "Fixed coordinate system handling in downsampling",
-      "breaking": true
-    },
-    {
-      "version": "export_v2",
-      "date": "2025-10-20",
-      "changes": "Added bounds metadata to JSON",
-      "breaking": false
-    }
-  ]
+ "current_versions": {
+ "clipped": "v1",
+ "processed": "v2",
+ "export": "v2"
+ },
+ "compatibility": {
+ "processed_v2": {
+ "requires": {
+ "clipped": ["v1"],
+ "export": ["v2"]
+ },
+ "incompatible_with": {
+ "clipped": ["v0"],
+ "export": ["v1"]
+ }
+ }
+ },
+ "version_history": [
+ {
+ "version": "processed_v2",
+ "date": "2025-10-23",
+ "changes": "Fixed coordinate system handling in downsampling",
+ "breaking": true
+ },
+ {
+ "version": "export_v2",
+ "date": "2025-10-20",
+ "changes": "Added bounds metadata to JSON",
+ "breaking": false
+ }
+ ]
 }
 ```
 
@@ -266,27 +266,27 @@ Every data loading function checks version compatibility:
 
 ```python
 def load_clipped_data(region_id: str, source: str) -> RasterData:
-    """Load clipped elevation data with version checking."""
-    
-    # Load data
-    tif_path = get_clipped_path(region_id, source)
-    meta_path = tif_path.with_suffix('.json')
-    
-    # Check version
-    with open(meta_path) as f:
-        metadata = json.load(f)
-    
-    required_version = get_current_version('clipped')
-    actual_version = metadata['version']
-    
-    if not is_compatible(actual_version, required_version):
-        raise VersionMismatchError(
-            f"Cached data for {region_id} is version {actual_version}, "
-            f"but current code requires {required_version}.\n"
-            f"Run: python clear_caches.py --stage clipped --region {region_id}"
-        )
-    
-    return load_raster(tif_path)
+ """Load clipped elevation data with version checking."""
+
+# Load data
+ tif_path = get_clipped_path(region_id, source)
+ meta_path = tif_path.with_suffix('.json')
+
+# Check version
+ with open(meta_path) as f:
+ metadata = json.load(f)
+
+ required_version = get_current_version('clipped')
+ actual_version = metadata['version']
+
+ if not is_compatible(actual_version, required_version):
+ raise VersionMismatchError(
+ f"Cached data for {region_id} is version {actual_version}, "
+ f"but current code requires {required_version}.\n"
+ f"Run: python clear_caches.py --stage clipped --region {region_id}"
+ )
+
+ return load_raster(tif_path)
 ```
 
 ---
@@ -299,14 +299,14 @@ def load_clipped_data(region_id: str, source: str) -> RasterData:
 ```python
 # In src/versioning.py
 CLIPPED_VERSION = "v1"
-PROCESSED_VERSION = "v2"  # <- Bumped from v1
+PROCESSED_VERSION = "v2"# <- Bumped from v1
 EXPORT_VERSION = "v2"
 ```
 
 When code detects version bump:
 ```
  Found processed data at v1, but code requires v2
-🗑  Moving old data to: data/processed/archive/v1/
+ Moving old data to: data/processed/archive/v1/
  Cache cleared. Re-run processing.
 ```
 
@@ -314,8 +314,8 @@ When code detects version bump:
 ```python
 # Check source file hash
 if metadata['source_file_hash'] != compute_hash(source_file):
-    warning(f"Source file {source_file} changed since clipping!")
-    prompt("Regenerate clipped data? [y/N]")
+ warning(f"Source file {source_file} changed since clipping!")
+ prompt("Regenerate clipped data? [y/N]")
 ```
 
 **3. Manual Invalidation**:
@@ -340,11 +340,11 @@ python clear_caches.py --all --confirm
 
 ```
 data/
-  clipped/
-    usa_3dep/
-      california_state_10m_v1.tif  <- Delete this
-      california_state_10m_v1.json <- and this
-      .cache_valid                  <- Flag file (presence = valid)
+ clipped/
+ usa_3dep/
+ california_state_10m_v1.tif <- Delete this
+ california_state_10m_v1.json <- and this
+ .cache_valid <- Flag file (presence = valid)
 ```
 
 Cache validation:
@@ -424,26 +424,26 @@ mkdir data
 # migrate_data_structure.py does:
 
 1. Inventory existing files
-   - Scan data/regions/, data/usa_elevation/
-   - Detect source, resolution from file content
-   
+ - Scan data/regions/, data/usa_elevation/
+ - Detect source, resolution from file content
+
 2. Create new structure
-   - Build data/raw/, data/clipped/, data/processed/
-   
+ - Build data/raw/, data/clipped/, data/processed/
+
 3. Classify and move files
-   - GeoTIFF inspection: check metadata, bounds, resolution
-   - Guess source from resolution/bounds:
-     * 1-10m + USA bounds -> usa_3dep
-     * 30m + global -> srtm_30m
-   - Generate metadata JSON for each file
-   
+ - GeoTIFF inspection: check metadata, bounds, resolution
+ - Guess source from resolution/bounds:
+* 1-10m + USA bounds -> usa_3dep
+* 30m + global -> srtm_30m
+ - Generate metadata JSON for each file
+
 4. Verification
-   - Open each moved file to verify readable
-   - Generate report: what went where
-   
+ - Open each moved file to verify readable
+ - Generate report: what went where
+
 5. Update config
-   - Create data/metadata/source_registry.json
-   - Set initial version: clipped_v1, processed_v1, export_v1
+ - Create data/metadata/source_registry.json
+ - Set initial version: clipped_v1, processed_v1, export_v1
 ```
 
 ---
@@ -457,7 +457,7 @@ data = load_tif("data/regions/california.tif")
 
 # Where does this come from? What version?
 with open("generated/regions/california.json") as f:
-    viewer_data = json.load(f)
+ viewer_data = json.load(f)
 ```
 
 ### After (New System):
@@ -491,26 +491,26 @@ sources = dm.list_sources("california")
 
 ## Decisions Confirmed (Oct 23, 2025)
 
- **Source Names**: `usa_3dep` (not `usgs_3dep`)
- **Folder Structure**: 4-stage pipeline approved
- **Version Strategy**: Compatibility checking approved
- **Migration**: Get new high-res data (existing is 30m SRTM, upgrade to 10m)
- **Hash Algorithm**: MD5 for cache validation
- **Resolution Format**: `10m` (concise)
- **Archive Strategy**: Keep one previous version
+**Source Names**: `usa_3dep` (not `usgs_3dep`)
+**Folder Structure**: 4-stage pipeline approved
+**Version Strategy**: Compatibility checking approved
+**Migration**: Get new high-res data (existing is 30m SRTM, upgrade to 10m)
+**Hash Algorithm**: MD5 for cache validation
+**Resolution Format**: `10m` (concise)
+**Archive Strategy**: Keep one previous version
 
 ### Download Priority Order:
-1. **Full USA** (USGS 3DEP)
-2. **All 50 US States** (USGS 3DEP, individual)
-3. **Japan** (GSI - Geospatial Information Authority)
-4. **Shikoku Island / Kochi** (GSI, specific region)
-5. **Switzerland** (SwissTopo)
+1.**Full USA** (USGS 3DEP)
+2.**All 50 US States** (USGS 3DEP, individual)
+3.**Japan** (GSI - Geospatial Information Authority)
+4.**Shikoku Island / Kochi** (GSI, specific region)
+5.**Switzerland** (SwissTopo)
 
 ### Existing Data Assessment:
 - Current USA data: ~6km resolution (too coarse - replace)
 - Current state data: 29 states at ~30m SRTM (upgrade to 10m)
 - Missing states: 21 including CA, TX, FL, NY (download new)
-- **Decision**: Start fresh with USGS 3DEP for better quality
+-**Decision**: Start fresh with USGS 3DEP for better quality
 
 ---
 
@@ -519,20 +519,20 @@ sources = dm.list_sources("california")
 ### High-Priority Countries (Better Than Global Sources):
 
 **North America:**
-- 🇺🇸 **USA**: USGS 3DEP (1-10m) - https://elevation.nationalmap.gov/
-- 🇨🇦 **Canada**: CDEM (20m) - https://open.canada.ca/
+-**USA**: USGS 3DEP (1-10m) - https://elevation.nationalmap.gov/
+-**Canada**: CDEM (20m) - https://open.canada.ca/
 
 **Europe:**
-- 🇩🇪 **Germany**: BKG DGM (1-25m) - https://gdz.bkg.bund.de/
-- 🇬🇧 **UK**: Ordnance Survey (2m) - https://www.ordnancesurvey.co.uk/
-- 🇨🇭 **Switzerland**: SwissTopo (0.5-2m) - https://www.swisstopo.admin.ch/
-- 🇫🇷 **France**: IGN RGE ALTI (1-5m) - https://geoservices.ign.fr/
-- 🇳🇴 **Norway**: Kartverket (10m) - https://www.kartverket.no/
+-**Germany**: BKG DGM (1-25m) - https://gdz.bkg.bund.de/
+-**UK**: Ordnance Survey (2m) - https://www.ordnancesurvey.co.uk/
+-**Switzerland**: SwissTopo (0.5-2m) - https://www.swisstopo.admin.ch/
+-**France**: IGN RGE ALTI (1-5m) - https://geoservices.ign.fr/
+-**Norway**: Kartverket (10m) - https://www.kartverket.no/
 
 **Asia-Pacific:**
-- 🇯🇵 **Japan**: GSI DEM (5-10m) - https://fgd.gsi.go.jp/
-- 🇦🇺 **Australia**: Geoscience Australia (5m) - https://elevation.fsdf.org.au/
-- 🇳🇿 **New Zealand**: LINZ (8m) - https://data.linz.govt.nz/
+-**Japan**: GSI DEM (5-10m) - https://fgd.gsi.go.jp/
+-**Australia**: Geoscience Australia (5m) - https://elevation.fsdf.org.au/
+-**New Zealand**: LINZ (8m) - https://data.linz.govt.nz/
 
 **Implementation**: Each gets a download module in `downloaders/{country_code}.py`
 
@@ -541,7 +541,7 @@ sources = dm.list_sources("california")
 ## Next Steps
 
 **Immediate:**
-1.  Document design (this file)
+1. Document design (this file)
 2. ⏳ Get user feedback on naming/structure
 3. ⏳ Check if USGS 3DEP needs authentication
 

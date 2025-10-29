@@ -17,13 +17,27 @@ IMPORTANT: This file is for REGION DEFINITIONS only.
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 from pathlib import Path
+import math
 
 Bounds = Tuple[float, float, float, float]  # (west, south, east, north)
 
 
 @dataclass
 class RegionConfig:
-    """Configuration for a single region."""
+    """
+    Configuration for a single region.
+    
+    The tiles field specifies tiling configuration for large regions that exceed
+    API size limits (typically >4deg in any dimension). Format is (columns, rows).
+    For example, tiles=(3, 2) means split into a 3-column by 2-row grid.
+    
+    Tiling is used when downloading from OpenTopography or similar APIs that
+    reject requests for areas larger than ~4deg. The downloader will automatically
+    split the region into the specified grid, download each tile, and merge them.
+    
+    Only set tiles for regions that actually need tiling. Leave as None for regions
+    that can be downloaded in a single API request.
+    """
     id: str  # Unique identifier (lowercase with underscores)
     name: str  # Display name
     bounds: Bounds  # (west, south, east, north) in degrees
@@ -32,6 +46,7 @@ class RegionConfig:
     country: Optional[str] = None  # Country name if applicable
     clip_boundary: bool = True  # Whether to clip to administrative boundary
     recommended_dataset: str = "SRTMGL1"  # Default dataset for downloads
+    tiles: Optional[Tuple[int, int]] = None  # Tiling configuration (cols, rows) for large regions that need downloading in parts
 
 
 # ============================================================================
@@ -48,6 +63,7 @@ US_STATES: Dict[str, RegionConfig] = {
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
+        tiles=(2, 2),  # 5.77deg x 5.67deg -> 2x2 tiles
     ),
     "california": RegionConfig(
         id="california",
@@ -57,6 +73,7 @@ US_STATES: Dict[str, RegionConfig] = {
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
+        tiles=(3, 3),  # 10.35deg x 9.48deg -> 3x3 tiles
     ),
     "colorado": RegionConfig(
         id="colorado",
@@ -75,6 +92,7 @@ US_STATES: Dict[str, RegionConfig] = {
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
+        tiles=(2, 2),  # 7.6deg x 6.48deg -> 2x2 tiles
     ),
     
     "kansas": RegionConfig(
@@ -113,6 +131,7 @@ US_STATES: Dict[str, RegionConfig] = {
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
+        tiles=(2, 2),  # 5.97deg x 7deg -> 2x2 tiles
     ),
     "new_hampshire": RegionConfig(
         id="new_hampshire",
@@ -140,6 +159,7 @@ US_STATES: Dict[str, RegionConfig] = {
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
+        tiles=(2, 2),  # 6.05deg x 5.67deg -> 2x2 tiles
     ),
     "new_york": RegionConfig(
         id="new_york",
@@ -185,6 +205,7 @@ US_STATES: Dict[str, RegionConfig] = {
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
+        tiles=(3, 2),  # 8.11deg x 4.3deg -> 3x2 tiles
     ),
     "pennsylvania": RegionConfig(
         id="pennsylvania",
@@ -275,14 +296,6 @@ COUNTRIES: Dict[str, RegionConfig] = {
 # ============================================================================
 
 REGIONS: Dict[str, RegionConfig] = {
-    "alps": RegionConfig(
-        id="alps",
-        name="Alps",
-        bounds=(5.0, 43.5, 17.0, 48.0),
-        description="European Alps",
-        category="region",
-        clip_boundary=False,
-    ),
     "anticosti_island": RegionConfig(
         id="anticosti_island",
         name="Anticosti Island",

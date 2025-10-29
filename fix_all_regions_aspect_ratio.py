@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     from src.pipeline import run_pipeline
+    from src.regions_config import US_STATES, COUNTRIES, REGIONS, ALL_REGIONS, get_region
 except ImportError as e:
     print(f"Error importing: {e}")
     sys.exit(1)
@@ -124,48 +125,25 @@ def fix_region(region_id: str, source_tif: Path, source_type: str, target_pixels
     """
     Regenerate a region with proper cropping.
     
-    Determines the appropriate boundary based on region_id.
+    Determines the appropriate boundary based on region_id from centralized config.
     """
-    # US states need state-level boundaries
-    us_states_list = [
-        'alabama', 'arizona', 'arkansas', 'california', 'colorado', 'connecticut',
-        'delaware', 'florida', 'georgia', 'idaho', 'illinois', 'indiana', 'iowa',
-        'kansas', 'kentucky', 'louisiana', 'maine', 'maryland', 'massachusetts',
-        'michigan', 'minnesota', 'mississippi', 'missouri', 'montana', 'nebraska',
-        'nevada', 'new_hampshire', 'new_jersey', 'new_mexico', 'new_york',
-        'north_carolina', 'north_dakota', 'ohio', 'oklahoma', 'oregon',
-        'pennsylvania', 'rhode_island', 'south_carolina', 'south_dakota',
-        'tennessee', 'texas', 'utah', 'vermont', 'virginia', 'washington',
-        'west_virginia', 'wisconsin', 'wyoming'
-    ]
+    # Look up region config from centralized source
+    config = get_region(region_id)
     
-    # Determine boundary
-    if region_id in us_states_list:
-        # State-level boundary
-        state_names = {
-            'alabama': 'Alabama', 'arizona': 'Arizona', 'arkansas': 'Arkansas',
-            'california': 'California', 'colorado': 'Colorado', 'connecticut': 'Connecticut',
-            'delaware': 'Delaware', 'florida': 'Florida', 'georgia': 'Georgia',
-            'idaho': 'Idaho', 'illinois': 'Illinois', 'indiana': 'Indiana',
-            'iowa': 'Iowa', 'kansas': 'Kansas', 'kentucky': 'Kentucky',
-            'louisiana': 'Louisiana', 'maine': 'Maine', 'maryland': 'Maryland',
-            'massachusetts': 'Massachusetts', 'michigan': 'Michigan', 'minnesota': 'Minnesota',
-            'mississippi': 'Mississippi', 'missouri': 'Missouri', 'montana': 'Montana',
-            'nebraska': 'Nebraska', 'nevada': 'Nevada', 'new_hampshire': 'New Hampshire',
-            'new_jersey': 'New Jersey', 'new_mexico': 'New Mexico', 'new_york': 'New York',
-            'north_carolina': 'North Carolina', 'north_dakota': 'North Dakota',
-            'ohio': 'Ohio', 'oklahoma': 'Oklahoma', 'oregon': 'Oregon',
-            'pennsylvania': 'Pennsylvania', 'rhode_island': 'Rhode Island',
-            'south_carolina': 'South Carolina', 'south_dakota': 'South Dakota',
-            'tennessee': 'Tennessee', 'texas': 'Texas', 'utah': 'Utah',
-            'vermont': 'Vermont', 'virginia': 'Virginia', 'washington': 'Washington',
-            'west_virginia': 'West Virginia', 'wisconsin': 'Wisconsin', 'wyoming': 'Wyoming'
-        }
-        state_name = state_names.get(region_id, region_id.replace('_', ' ').title())
-        boundary_name = f"United States of America/{state_name}"
+    if not config:
+        # Unknown region - try generic country boundary
+        boundary_name = None
+        boundary_type = "country"
+    elif config.category == "usa_state" and config.country and config.clip_boundary:
+        # US state - state-level boundary
+        boundary_name = f"{config.country}/{config.name}"
         boundary_type = "state"
+    elif config.country and config.clip_boundary:
+        # Country - country-level boundary
+        boundary_name = config.country
+        boundary_type = "country"
     else:
-        # For other regions, try country-level or skip
+        # No boundary clipping (islands, custom areas)
         boundary_name = None
         boundary_type = "country"
     
@@ -227,7 +205,7 @@ def main():
         return 1
     
     # Check which regions need fixing
-    print(f"\n🔍 Scanning {generated_dir} for aspect ratio issues...")
+    print(f"\nScanning {generated_dir} for aspect ratio issues...")
     bad_regions = find_regions_needing_fix(generated_dir)
     
     if not bad_regions:

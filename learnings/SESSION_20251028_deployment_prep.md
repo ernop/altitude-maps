@@ -3,28 +3,28 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 This release brings major enhancements to the interactive 3D viewer's camera controls, making it more accessible, professional, and familiar to users from various backgrounds (Google Maps, Unity, Maya, mobile apps).
 
-**Status:**  Code complete, ready for testing  
-**Breaking Changes:** None - all changes are additive or improvements  
+**Status:** Code complete, ready for testing
+**Breaking Changes:** None - all changes are additive or improvements
 **Migration Required:** None
 
 ---
 
-## ✨ New Features
+## New Features
 
 ### 1. WASD/QE Keyboard Flythrough ⌨
 
 Unity/Unreal-style first-person camera movement for exploring terrain:
 
-- **W** - Move forward (in view direction)
-- **S** - Move backward  
-- **A** - Strafe left
-- **D** - Strafe right
-- **Q** - Descend (move down)
-- **E** - Ascend (move up)
+-**W** - Move forward (in view direction)
+-**S** - Move backward
+-**A** - Strafe left
+-**D** - Strafe right
+-**Q** - Descend (move down)
+-**E** - Ascend (move up)
 
 **Details:**
 - Works simultaneously with all mouse controls
@@ -37,11 +37,11 @@ Unity/Unreal-style first-person camera movement for exploring terrain:
 
 ---
 
-### 2. F Key Reframe 🎯
+### 2. F Key Reframe
 
 Instantly reframe camera to show entire terrain (Maya/Blender/Unity style):
 
-- Press **F** -> Camera repositions to optimal view of full terrain
+- Press**F** -> Camera repositions to optimal view of full terrain
 - Centers on terrain bounds with comfortable margins
 - ~30deg viewing angle (overhead but not flat)
 - Works in all render modes (bars, surface, points)
@@ -52,13 +52,13 @@ Instantly reframe camera to show entire terrain (Maya/Blender/Unity style):
 - Loaded new region? F shows you the full view
 - Changed settings? F reframes appropriately
 
-**Implementation:** 
+**Implementation:**
 - Camera: `js/ground-plane-camera.js` - Lines 315-317, reframeView() method
 - Viewer: `js/viewer-advanced.js` - Terrain bounds calculation in createTerrain()
 
 ---
 
-### 3. Touch & Trackpad Gestures 📱
+### 3. Touch & Trackpad Gestures
 
 Mobile and laptop users can now navigate naturally:
 
@@ -80,22 +80,22 @@ Mobile and laptop users can now navigate naturally:
 
 **Implementation:** `js/ground-plane-camera.js` - Lines 327-543
 
- **Testing Note:** User cannot test touch gestures (no touch device). Should be tested on actual mobile/tablet before production.
+**Testing Note:** User cannot test touch gestures (no touch device). Should be tested on actual mobile/tablet before production.
 
 ---
 
-### 4. Alt+Left Drag Rotation 🔄
+### 4. Alt+Left Drag Rotation
 
 Maya/3ds Max/Cinema 4D users can now use familiar controls:
 
-- **Alt+Left drag** -> Rotate/tumble around focus point (same as right-drag)
+-**Alt+Left drag** -> Rotate/tumble around focus point (same as right-drag)
 - Horizontal drag = turn left/right
 - Vertical drag = tilt up/down
 - Graceful cancellation if Alt released mid-drag
 
 **Compatibility:**
 - Matches Maya's tumble behavior
-- Matches 3ds Max's orbit behavior  
+- Matches 3ds Max's orbit behavior
 - Matches Cinema 4D's rotate behavior
 - Professional 3D tool users have familiar muscle memory
 
@@ -103,7 +103,7 @@ Maya/3ds Max/Cinema 4D users can now use familiar controls:
 
 ---
 
-### 5. Smart Typing Detection 🛡
+### 5. Smart Typing Detection
 
 Keyboard shortcuts now disable automatically when typing:
 
@@ -114,18 +114,18 @@ Keyboard shortcuts now disable automatically when typing:
 
 **Detects:**
 - INPUT tags
-- TEXTAREA tags  
+- TEXTAREA tags
 - SELECT tags
 - contentEditable elements
 - Select2 search fields
 
-**Implementation:** 
+**Implementation:**
 - Camera: `js/ground-plane-camera.js` - Lines 298-310
 - Viewer: `js/viewer-advanced.js` - Lines 1948-1960
 
 ---
 
-## 🐛 Fixes
+## Fixes
 
 ### Critical: Keyboard Handler Conflicts
 
@@ -145,19 +145,19 @@ Keyboard shortcuts now disable automatically when typing:
 
 ---
 
-## 📊 Control Scheme Summary
+## Control Scheme Summary
 
 ### Complete Control Map
 
 | Input | Action | Style |
 |-------|--------|-------|
-| **Mouse** |
+|**Mouse** |
 | Left drag | Pan | Google Maps |
 | Shift+Left drag | Tilt | Unique |
 | Alt+Left drag | Rotate | Maya/3ds Max |
 | Right drag | Rotate | Google Earth |
 | Scroll wheel | Zoom toward cursor | Google Maps |
-| **Keyboard** |
+|**Keyboard** |
 | W | Move forward | Unity/Unreal |
 | S | Move backward | Unity/Unreal |
 | A | Strafe left | Unity/Unreal |
@@ -167,14 +167,14 @@ Keyboard shortcuts now disable automatically when typing:
 | F | Reframe view | Maya/Blender/Unity |
 | R | Reset camera | Fallback |
 | Space | Toggle auto-rotate | Viewer-specific |
-| **Touch/Trackpad** |
+|**Touch/Trackpad** |
 | Single finger drag | Pan | Mobile |
 | Two-finger drag | Pan | Google Maps (trackpad) |
 | Two-finger pinch | Zoom | Google Maps/iOS |
 
 ---
 
-## 📝 Files Changed
+## Files Changed
 
 ### JavaScript (Core Changes)
 - `js/ground-plane-camera.js` - Added WASD, F key, touch, Alt+Left
@@ -202,39 +202,39 @@ Keyboard shortcuts now disable automatically when typing:
 
 ---
 
-## 🧪 Testing Status
+## Testing Status
 
-### Completed 
+### Completed
 - [x] Keyboard conflict fix implemented
-- [x] Typing detection added  
+- [x] Typing detection added
 - [x] Documentation updated
 - [x] Pre-deployment checklist created
 - [x] No linter errors
 
 ### Pending User Testing ⏳
-- [ ] **F key reframe** - Critical test needed
-  - Test in bars mode
-  - Test in surface mode
-  - Test after region switch
-  - Test after bucket size change
-- [ ] **WASD movement** - Verify smooth operation
-  - Test all 6 directions
-  - Test key combinations
-  - Test with mouse controls
-- [ ] **Alt+Left rotation** - Verify Maya-style behavior
-- [ ] **Typing detection** - Critical test
-  - Type in region search (Select2)
-  - Type in bucket size input
-  - Type in exaggeration input
-  - Verify keys don't affect camera while typing
+- [ ]**F key reframe** - Critical test needed
+ - Test in bars mode
+ - Test in surface mode
+ - Test after region switch
+ - Test after bucket size change
+- [ ]**WASD movement** - Verify smooth operation
+ - Test all 6 directions
+ - Test key combinations
+ - Test with mouse controls
+- [ ]**Alt+Left rotation** - Verify Maya-style behavior
+- [ ]**Typing detection** - Critical test
+ - Type in region search (Select2)
+ - Type in bucket size input
+ - Type in exaggeration input
+ - Verify keys don't affect camera while typing
 
-### Cannot Test (No Device) 
-- [ ] **Touch gestures on mobile** - Needs phone/tablet
-- [ ] **Trackpad gestures on laptop** - Needs laptop with gesture trackpad
+### Cannot Test (No Device)
+- [ ]**Touch gestures on mobile** - Needs phone/tablet
+- [ ]**Trackpad gestures on laptop** - Needs laptop with gesture trackpad
 
 ---
 
-## 🚀 Deployment Plan
+## Deployment Plan
 
 ### 1. Local Testing (Required)
 - [ ] Run local server: `python serve_viewer.py`
@@ -266,7 +266,7 @@ Keyboard shortcuts now disable automatically when typing:
 
 ---
 
-##  Known Issues & Limitations
+## Known Issues & Limitations
 
 ### Touch Gestures Untested
 - User has no touch device to test on
@@ -294,24 +294,24 @@ Keyboard shortcuts now disable automatically when typing:
 ## User Benefits
 
 ### For General Users
-- **Intuitive:** Google Maps-style controls on trackpad
-- **Mobile-friendly:** Native touch gestures
-- **Keyboard support:** WASD for quick exploration
-- **Quick reset:** F key instantly reframes
+-**Intuitive:** Google Maps-style controls on trackpad
+-**Mobile-friendly:** Native touch gestures
+-**Keyboard support:** WASD for quick exploration
+-**Quick reset:** F key instantly reframes
 
 ### For Professional 3D Tool Users
-- **Maya/3ds Max:** Alt+Left works like you expect
-- **Unity/Unreal:** WASD flythrough familiar
-- **Blender:** F key to frame works the same
+-**Maya/3ds Max:** Alt+Left works like you expect
+-**Unity/Unreal:** WASD flythrough familiar
+-**Blender:** F key to frame works the same
 
 ### For Researchers/Educators
-- **Presentation mode:** F key for consistent framing
-- **Accessibility:** Multiple input methods (mouse, keyboard, touch)
-- **No conflicts:** Type freely without camera jumping
+-**Presentation mode:** F key for consistent framing
+-**Accessibility:** Multiple input methods (mouse, keyboard, touch)
+-**No conflicts:** Type freely without camera jumping
 
 ---
 
-## 📞 Support & Rollback
+## Support & Rollback
 
 ### If Issues Found
 1. Check browser console for errors
@@ -323,7 +323,7 @@ Keyboard shortcuts now disable automatically when typing:
 All changes are in JavaScript - can quickly revert:
 ```powershell
 git checkout HEAD~1 js/ground-plane-camera.js js/viewer-advanced.js
-.\deploy.ps1 -RemoteHost ... # Redeploy old version
+.\deploy.ps1 -RemoteHost ...# Redeploy old version
 ```
 
 ### Getting Help
@@ -333,23 +333,23 @@ git checkout HEAD~1 js/ground-plane-camera.js js/viewer-advanced.js
 
 ---
 
-## 🏁 Sign-Off
+## Sign-Off
 
-**Code Status:**  Complete, no linter errors  
-**Documentation:**  Updated (README, cursorrules, learnings)  
-**Testing:** ⏳ Awaiting user testing (F key critical)  
-**Deployment:** 🔄 Ready for dry run
+**Code Status:** Complete, no linter errors
+**Documentation:** Updated (README, cursorrules, learnings)
+**Testing:** ⏳ Awaiting user testing (F key critical)
+**Deployment:** Ready for dry run
 
 **Next Steps:**
 1. User tests F key reframe functionality
-2. User tests typing detection  
+2. User tests typing detection
 3. Run deployment dry run
 4. Deploy to production (if tests pass)
 5. Test on mobile device (post-deploy)
 
 ---
 
-**Release prepared by:** AI Assistant  
-**Date:** October 28, 2025  
+**Release prepared by:** AI Assistant
+**Date:** October 28, 2025
 **Version:** Camera Enhancements v1.0
 

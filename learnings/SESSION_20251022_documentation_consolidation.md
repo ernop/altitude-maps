@@ -13,20 +13,20 @@ User requested comprehensive review and consolidation of all markdown documentat
 
 ### Phase 1: Validation (Code Reading)
 Read and validated actual functionality:
--  `visualize_usa_overhead.py --help` -> Confirmed all CLI options including `--gen-nine`
--  `download_regions.py` -> 60+ regions pre-defined, processes TIF->JSON
--  `download_continental_usa.py` -> USA USGS downloads working
--  `interactive_viewer_advanced.html` -> Confirmed Roblox controls, region switching
--  File structure validated: `generated/regions/` with manifest + usa_full.json
--  Removed references to non-existent automation (elevation package)
+- `visualize_usa_overhead.py --help` -> Confirmed all CLI options including `--gen-nine`
+- `download_regions.py` -> 60+ regions pre-defined, processes TIF->JSON
+- `download_continental_usa.py` -> USA USGS downloads working
+- `interactive_viewer_advanced.html` -> Confirmed Roblox controls, region switching
+- File structure validated: `generated/regions/` with manifest + usa_full.json
+- Removed references to non-existent automation (elevation package)
 
 ### Phase 2: Analysis
 Identified 16 markdown files with significant issues:
-- **Duplication**: Controls documented in 3 files (~500 lines total)
-- **Duplication**: Downloads documented in 4 files (~1,150 lines total)
-- **Session notes mixed with docs**: FINAL_STATUS, MULTI_REGION_STATUS, USAGE_SUMMARY
-- **Fragmented technical info**: Scattered across 8+ files
-- **Unclear purpose**: Multiple READMEs serving similar roles
+-**Duplication**: Controls documented in 3 files (~500 lines total)
+-**Duplication**: Downloads documented in 4 files (~1,150 lines total)
+-**Session notes mixed with docs**: FINAL_STATUS, MULTI_REGION_STATUS, USAGE_SUMMARY
+-**Fragmented technical info**: Scattered across 8+ files
+-**Unclear purpose**: Multiple READMEs serving similar roles
 
 ### Phase 3: Consolidation
 Created 4 streamlined documents:
@@ -91,24 +91,24 @@ Deleted 10 redundant files (all content preserved in consolidated docs):
 | Root MD files | 16 | 4 + summary | -69% |
 | Total lines | ~3,500 | ~1,400 | -60% |
 | Duplication | ~40-50% | ~5% | -90% |
-| Validated | Partial | 100% |  |
+| Validated | Partial | 100% | |
 
 ### Final Structure
 ```
 altitude-maps/
-├── README.md              <- Start: What is this? (product)
-├── QUICKSTART.md          <- Start: How do I use it? (practical)
-├── TECH.md                <- Reference: Technical details
-├── CONSOLIDATION_SUMMARY.md  <- Meta: What changed
-├── .cursorrules           <- Agents: Development patterns
-├── learnings/             <- Archive: Session notes
-│   ├── learnings_1_altitude_maps_setup.md
-│   ├── learnings_2_continental_usa_visualization.md
-│   ├── learning_3_documentation_consolidation.md (this)
-│   ├── session_final_status_oct21.md
-│   ├── session_multi_region_status_oct22.md
-│   └── session_usage_summary_oct21.md
-└── [code files...]
+ README.md <- Start: What is this? (product)
+ QUICKSTART.md <- Start: How do I use it? (practical)
+ TECH.md <- Reference: Technical details
+ CONSOLIDATION_SUMMARY.md <- Meta: What changed
+ .cursorrules <- Agents: Development patterns
+ learnings/ <- Archive: Session notes
+ learnings_1_altitude_maps_setup.md
+ learnings_2_continental_usa_visualization.md
+ learning_3_documentation_consolidation.md (this)
+ session_final_status_oct21.md
+ session_multi_region_status_oct22.md
+ session_usage_summary_oct21.md
+ [code files...]
 ```
 
 ## Key Learnings
@@ -131,10 +131,10 @@ Each doc was created for a good reason (explaining a specific feature/session), 
 
 ### 3. Separate Product vs Technical vs Temporal
 Clear boundaries help:
-- **Product docs** (README): Benefits, use cases, what you can do
-- **Technical docs** (TECH): How it works, all options, troubleshooting
-- **Getting started** (QUICKSTART): Minimal viable path to success
-- **Session notes** (learnings/): Temporal snapshots, decision context
+-**Product docs** (README): Benefits, use cases, what you can do
+-**Technical docs** (TECH): How it works, all options, troubleshooting
+-**Getting started** (QUICKSTART): Minimal viable path to success
+-**Session notes** (learnings/): Temporal snapshots, decision context
 
 **Lesson**: When creating new docs, ask "which category?" first.
 
@@ -151,10 +151,10 @@ But they shouldn't be in root as "documentation" - they're historical snapshots.
 ## Recommendations
 
 ### For Future Documentation:
-1. **README.md**: Keep product-focused, user benefits, approachable
-2. **QUICKSTART.md**: Maintain 5-minute getting started path
-3. **TECH.md**: Add sections as needed, keep comprehensive
-4. **learnings/**: Continue for session notes and deep dives
+1.**README.md**: Keep product-focused, user benefits, approachable
+2.**QUICKSTART.md**: Maintain 5-minute getting started path
+3.**TECH.md**: Add sections as needed, keep comprehensive
+4.**learnings/**: Continue for session notes and deep dives
 
 ### When Adding Features:
 1. Update TECH.md in appropriate section (don't create new file)
@@ -163,17 +163,17 @@ But they shouldn't be in root as "documentation" - they're historical snapshots.
 4. Document development context in learnings/
 
 ### Maintenance:
-- **Every 3-6 months**: Review for duplication
-- **When things break**: Check docs match reality
-- **After major features**: Update all 3 core docs
-- **Session completions**: Archive notes to learnings/
+-**Every 3-6 months**: Review for duplication
+-**When things break**: Check docs match reality
+-**After major features**: Update all 3 core docs
+-**Session completions**: Archive notes to learnings/
 
 ## What Worked Well
 
- **Validation first**: Reading code before writing prevented documenting non-existent features
- **Clear structure**: 4-file system is much easier to navigate
- **Preservation**: Session notes moved but not deleted
- **Comprehensive consolidation**: All technical info now in one place
+**Validation first**: Reading code before writing prevented documenting non-existent features
+**Clear structure**: 4-file system is much easier to navigate
+**Preservation**: Session notes moved but not deleted
+**Comprehensive consolidation**: All technical info now in one place
 
 ## Future Work
 
