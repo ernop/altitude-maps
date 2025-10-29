@@ -2,9 +2,11 @@
 One command to ensure a region is ready to view.
 
 Downloads if needed, processes if needed, checks if everything is valid.
+Works for both US states and international regions.
 
 Usage:
-    python ensure_region.py ohio
+    python ensure_region.py ohio                    # US state
+    python ensure_region.py iceland                 # International region
     python ensure_region.py tennessee --target-pixels 4096
     python ensure_region.py california --force-reprocess
 """
@@ -22,6 +24,9 @@ if sys.platform == 'win32':
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
     except (AttributeError, ValueError):
         pass
+
+# Import region definitions
+from download_regions import REGIONS as INTERNATIONAL_REGIONS
 
 
 def check_venv():
@@ -165,8 +170,8 @@ def validate_json_export(file_path: Path) -> bool:
         return False
 
 
-# State name mapping
-STATE_NAMES = {
+# US State name mapping
+US_STATE_NAMES = {
     'alabama': 'Alabama', 'arizona': 'Arizona', 'arkansas': 'Arkansas',
     'california': 'California', 'colorado': 'Colorado', 'connecticut': 'Connecticut',
     'delaware': 'Delaware', 'florida': 'Florida', 'georgia': 'Georgia',
@@ -185,6 +190,36 @@ STATE_NAMES = {
     'vermont': 'Vermont', 'virginia': 'Virginia', 'washington': 'Washington',
     'west_virginia': 'West Virginia', 'wisconsin': 'Wisconsin', 'wyoming': 'Wyoming'
 }
+
+
+def get_region_info(region_id):
+    """
+    Get information about a region (US state or international).
+    
+    Returns:
+        Tuple of (region_type, region_data) where:
+        - region_type is 'us_state' or 'international'
+        - region_data is a dict with region info
+        
+        Returns (None, None) if region not found
+    """
+    # Check if it's a US state
+    if region_id in US_STATE_NAMES:
+        return 'us_state', {
+            'name': US_STATE_NAMES[region_id],
+            'display_name': US_STATE_NAMES[region_id]
+        }
+    
+    # Check if it's an international region
+    if region_id in INTERNATIONAL_REGIONS:
+        return 'international', {
+            'name': INTERNATIONAL_REGIONS[region_id]['name'],
+            'display_name': INTERNATIONAL_REGIONS[region_id]['name'],
+            'bounds': INTERNATIONAL_REGIONS[region_id]['bounds'],
+            'description': INTERNATIONAL_REGIONS[region_id]['description']
+        }
+    
+    return None, None
 
 
 def find_raw_file(region_id):
@@ -259,14 +294,10 @@ def check_pipeline_complete(region_id):
     return False
 
 
-def download_state(region_id):
-    """Download raw data for a US state."""
-    if region_id not in STATE_NAMES:
-        print(f"❌ '{region_id}' is not a recognized US state")
-        print(f"   Available states: {', '.join(sorted(STATE_NAMES.keys()))}")
-        return False
-    
-    print(f"\n📥 Downloading {STATE_NAMES[region_id]}...")
+def download_us_state(region_id, state_info):
+    """Download raw data for a US state using USGS 3DEP."""
+    print(f"\n📥 Downloading {state_info['name']}...")
+    print(f"   Source: USGS 3DEP (10m resolution)")
     print(f"   Using: download_all_us_states_highres.py")
     
     import subprocess
@@ -278,7 +309,117 @@ def download_state(region_id):
     return result.returncode == 0
 
 
-def process_region(region_id, raw_path, source, target_pixels, force):
+def download_international_region(region_id, region_info):
+    """Download raw data for an international region using OpenTopography."""
+    west, south, east, north = region_info['bounds']
+    
+    # Choose dataset based on latitude coverage
+    # SRTM: 60°N to 56°S
+    # Copernicus: 90°N to 90°S (global)
+    # AW3D30: 82°N to 82°S
+    if north > 60.0 or south < -56.0:
+        # Outside SRTM coverage, use Copernicus DEM
+        dataset = 'COP30'
+        dataset_name = 'Copernicus DEM 30m'
+        resolution = '30m'
+    else:
+        # Within SRTM coverage, use SRTM (better quality in this range)
+        dataset = 'SRTMGL1'
+        dataset_name = 'SRTM 30m'
+        resolution = '30m'
+    
+    print(f"\n📥 Downloading {region_info['name']}...")
+    print(f"   Source: OpenTopography ({dataset_name})")
+    print(f"   Bounds: {region_info['bounds']}")
+    print(f"   Latitude range: {south:.1f}°N to {north:.1f}°N")
+    if dataset == 'COP30':
+        print(f"   Note: Using Copernicus DEM (SRTM doesn't cover >60°N)")
+    
+    try:
+        import requests
+        from load_settings import get_api_key
+    except ImportError as e:
+        print(f"❌ Missing required package: {e}")
+        return False
+    
+    # Get API key
+    try:
+        api_key = get_api_key()
+        print(f"   🔑 Using API key from settings.json")
+    except SystemExit:
+        print(f"❌ No OpenTopography API key found in settings.json")
+        print(f"   Get a free key at: https://portal.opentopography.org/")
+        print(f"   Add it to settings.json under 'opentopography.api_key'")
+        return False
+    
+    # Prepare output path
+    output_file = Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    if output_file.exists():
+        print(f"   ✅ Already exists: {output_file.name}")
+        return True
+    
+    # Download using OpenTopography API
+    url = "https://portal.opentopography.org/API/globaldem"
+    params = {
+        'demtype': dataset,  # COP30 for high latitudes, SRTMGL1 otherwise
+        'south': south,
+        'north': north,
+        'west': west,
+        'east': east,
+        'outputFormat': 'GTiff',
+        'API_Key': api_key
+    }
+    
+    print(f"   📡 Requesting from OpenTopography...")
+    print(f"      (This may take 30-120 seconds)")
+    
+    try:
+        response = requests.get(url, params=params, stream=True, timeout=300)
+        
+        if response.status_code != 200:
+            print(f"   ❌ API Error: {response.status_code}")
+            print(f"      Response: {response.text[:200]}")
+            return False
+        
+        # Download with progress
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        
+        with open(output_file, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        progress = (downloaded / total_size) * 100
+                        print(f"\r      Progress: {progress:.1f}%", end='', flush=True)
+        
+        print()  # New line after progress
+        file_size_mb = output_file.stat().st_size / (1024 * 1024)
+        print(f"   ✅ Downloaded successfully ({file_size_mb:.1f} MB)")
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ Download failed: {e}")
+        if output_file.exists():
+            output_file.unlink()  # Clean up partial download
+        return False
+
+
+def download_region(region_id, region_type, region_info):
+    """Route to appropriate downloader based on region type."""
+    if region_type == 'us_state':
+        return download_us_state(region_id, region_info)
+    elif region_type == 'international':
+        return download_international_region(region_id, region_info)
+    else:
+        print(f"❌ Unknown region type: {region_type}")
+        return False
+
+
+def process_region(region_id, raw_path, source, target_pixels, force, region_type, region_info):
     """Run the pipeline on a region."""
     sys.path.insert(0, str(Path(__file__).parent))
     
@@ -288,17 +429,22 @@ def process_region(region_id, raw_path, source, target_pixels, force):
         print(f"❌ Error importing pipeline: {e}")
         return False
     
-    # Determine boundary
-    if region_id in STATE_NAMES:
-        state_name = STATE_NAMES[region_id]
+    # Determine boundary based on region type
+    if region_type == 'us_state':
+        state_name = region_info['name']
         boundary_name = f"United States of America/{state_name}"
         boundary_type = "state"
+    elif region_type == 'international':
+        # For international regions, use country-level boundary
+        boundary_name = region_info['name']
+        boundary_type = "country"
     else:
-        # For non-US regions, would need different logic
         boundary_name = None
         boundary_type = "country"
     
-    print(f"\n🔄 Processing {region_id}...", flush=True)
+    print(f"\n🔄 Processing {region_info['display_name']}...", flush=True)
+    print(f"   Region type: {region_type}", flush=True)
+    print(f"   Boundary: {boundary_name}", flush=True)
     
     # Delete existing files if force
     if force:
@@ -341,37 +487,79 @@ def main():
     from src.config import DEFAULT_TARGET_PIXELS
     
     parser = argparse.ArgumentParser(
-        description='One command to ensure a region is ready to view',
+        description='One command to ensure a region is ready to view (US states and international regions)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # US States
   python ensure_region.py ohio                        # Single word state
   python ensure_region.py new_hampshire               # Multi-word with underscore
   python ensure_region.py "new hampshire"             # Multi-word with quotes
   python ensure_region.py tennessee --force-reprocess # Force full rebuild
   python ensure_region.py california --target-pixels 4096  # High resolution
+  
+  # International Regions
+  python ensure_region.py iceland                     # Iceland
+  python ensure_region.py japan                       # Japan
+  python ensure_region.py switzerland                 # Switzerland
+  python ensure_region.py new_zealand                 # New Zealand
 
 This script will:
-  1. Check if raw data exists
-  2. Download it if missing (US states only)
-  3. Run the full pipeline (clip, downsample, export)
-  4. Report status
+  1. Detect region type (US state or international)
+  2. Check if raw data exists
+  3. Download if missing (auto-download for US states and supported international regions)
+  4. Run the full pipeline (clip, downsample, export)
+  5. Report status
         """
     )
-    parser.add_argument('region_id', help='Region ID (e.g., ohio, tennessee)')
+    parser.add_argument('region_id', help='Region ID (e.g., ohio, iceland, japan)')
     parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS,
                        help=f'Target resolution (default: {DEFAULT_TARGET_PIXELS})')
     parser.add_argument('--force-reprocess', action='store_true',
                        help='Force reprocessing even if files exist')
     parser.add_argument('--check-only', action='store_true',
                        help='Only check status, do not download or process')
+    parser.add_argument('--list-regions', action='store_true',
+                       help='List all available regions')
     
     args = parser.parse_args()
+    
+    # Handle --list-regions
+    if args.list_regions:
+        print("\n📋 AVAILABLE REGIONS:")
+        print("="*70)
+        print("\n🇺🇸 US STATES:")
+        for state_id in sorted(US_STATE_NAMES.keys()):
+            print(f"  - {state_id:20s} → {US_STATE_NAMES[state_id]}")
+        print(f"\n🌍 INTERNATIONAL REGIONS:")
+        for region_id in sorted(INTERNATIONAL_REGIONS.keys()):
+            info = INTERNATIONAL_REGIONS[region_id]
+            print(f"  - {region_id:20s} → {info['name']}")
+        print(f"\n{'='*70}")
+        print(f"Total: {len(US_STATE_NAMES)} US states + {len(INTERNATIONAL_REGIONS)} international regions")
+        print(f"\nUsage: python ensure_region.py <region_id>")
+        return 0
+    
     # Normalize region ID: convert spaces to underscores, lowercase
     region_id = args.region_id.lower().replace(' ', '_').replace('-', '_')
     
+    # Detect region type
+    region_type, region_info = get_region_info(region_id)
+    
+    if region_type is None:
+        print("="*70, flush=True)
+        print(f"❌ UNKNOWN REGION: {region_id}", flush=True)
+        print("="*70, flush=True)
+        print(f"\nRegion '{region_id}' is not recognized.")
+        print(f"\nAvailable options:")
+        print(f"  • {len(US_STATE_NAMES)} US states (ohio, california, etc.)")
+        print(f"  • {len(INTERNATIONAL_REGIONS)} international regions (iceland, japan, etc.)")
+        print(f"\nRun with --list-regions to see all available regions")
+        return 1
+    
     print("="*70, flush=True)
-    print(f"🎯 ENSURE REGION: {region_id.upper()}", flush=True)
+    print(f"🎯 ENSURE REGION: {region_info['display_name'].upper()}", flush=True)
+    print(f"   Type: {region_type.replace('_', ' ').title()}", flush=True)
     print("="*70, flush=True)
     print("\n📋 VALIDATING PIPELINE STAGES...", flush=True)
     print("   Checking each stage for valid, complete files", flush=True)
@@ -399,40 +587,36 @@ This script will:
             print("   Use without --check-only to download", flush=True)
             return 1
         
-        # Try to download (US states only)
-        if region_id in STATE_NAMES:
-            print(f"\n   📥 Starting download...", flush=True)
-            if not download_state(region_id):
-                print(f"\n❌ Download failed!", flush=True)
-                return 1
-            
-            # Re-validate the downloaded file
-            print(f"\n   🔍 Validating download...", flush=True)
-            raw_path, source = find_raw_file(region_id)
-            if not raw_path:
-                print(f"\n❌ Download reported success but validation failed!", flush=True)
-                print(f"   File may be corrupted or incomplete", flush=True)
-                print(f"   Expected locations:", flush=True)
-                print(f"     - data/raw/srtm_30m/{region_id}_bbox_30m.tif", flush=True)
-                print(f"     - data/regions/{region_id}.tif", flush=True)
-                return 1
-            print(f"   ✅ Download validated successfully", flush=True)
-        else:
-            print(f"\n❌ Cannot auto-download '{region_id}'")
-            print(f"   This script only supports US states")
-            print(f"   Available states: {', '.join(sorted(STATE_NAMES.keys()))}")
+        # Try to download (route based on region type)
+        print(f"\n   📥 Starting download...", flush=True)
+        if not download_region(region_id, region_type, region_info):
+            print(f"\n❌ Download failed!", flush=True)
             return 1
+        
+        # Re-validate the downloaded file
+        print(f"\n   🔍 Validating download...", flush=True)
+        raw_path, source = find_raw_file(region_id)
+        if not raw_path:
+            print(f"\n❌ Download reported success but validation failed!", flush=True)
+            print(f"   File may be corrupted or incomplete", flush=True)
+            print(f"   Expected locations:", flush=True)
+            print(f"     - data/raw/srtm_30m/{region_id}_bbox_30m.tif", flush=True)
+            print(f"     - data/regions/{region_id}.tif", flush=True)
+            print(f"     - data/raw/usa_3dep/{region_id}_3dep_10m.tif", flush=True)
+            return 1
+        print(f"   ✅ Download validated successfully", flush=True)
     
     if args.check_only:
         print("\n   Use without --check-only to process")
         return 0
     
     # Step 3: Process the region
-    success = process_region(region_id, raw_path, source, args.target_pixels, args.force_reprocess)
+    success = process_region(region_id, raw_path, source, args.target_pixels, 
+                            args.force_reprocess, region_type, region_info)
     
     if success:
         print("\n" + "="*70)
-        print(f"✅ SUCCESS: {region_id} is ready to view!")
+        print(f"✅ SUCCESS: {region_info['display_name']} is ready to view!")
         print("="*70)
         print(f"\nNext steps:")
         print(f"  1. python serve_viewer.py")
@@ -441,7 +625,7 @@ This script will:
         return 0
     else:
         print("\n" + "="*70)
-        print(f"❌ FAILED: Could not process {region_id}")
+        print(f"❌ FAILED: Could not process {region_info['display_name']}")
         print("="*70)
         return 1
 

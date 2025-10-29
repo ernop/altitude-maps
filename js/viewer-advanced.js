@@ -95,15 +95,28 @@ const EXPECTED_FORMAT_VERSION = 2;
 
 async function loadElevationData(url) {
     const response = await fetch(url);
+    
+    // Log response details for debugging
+    console.log(`Loading: ${url}`);
+    console.log(`HTTP Status: ${response.status} ${response.statusText}`);
+    console.log(`Content-Type: ${response.headers.get('content-type')}`);
+    console.log(`Content-Encoding: ${response.headers.get('content-encoding')}`);
+    console.log(`Content-Length: ${response.headers.get('content-length')}`);
+    console.log(`Transfer-Encoding: ${response.headers.get('transfer-encoding')}`);
+    
     if (!response.ok) {
-        throw new Error(`Failed to load elevation data. HTTP ${response.status}`);
+        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${url}`);
     }
     
     // Get the content length - required for progress tracking
     const contentLength = response.headers.get('content-length');
     if (!contentLength) {
-        console.error('Server did not provide Content-Length header - cannot show progress');
-        throw new Error('Server configuration error: missing Content-Length header');
+        console.error(`Server did not provide Content-Length header - cannot show progress. URL: ${url}`);
+        console.error(`This usually means:`);
+        console.error(`  1. Pre-compressed .gz files don't exist on server (run: find generated -name "*.json" -exec gzip -k -9 {} \\;)`);
+        console.error(`  2. .htaccess mod_rewrite is not working`);
+        console.error(`  3. Server is using on-the-fly compression (chunked encoding)`);
+        throw new Error(`Server configuration error: missing Content-Length header for ${url}`);
     }
     
     const total = parseInt(contentLength, 10);

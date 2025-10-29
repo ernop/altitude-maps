@@ -363,11 +363,14 @@ Priority order for any country:
 python serve_viewer.py  # Visit http://localhost:8001
 
 # ONE COMMAND: Ensure a region is ready (download + process + check)
-python ensure_region.py ohio                    # Download if needed, process if needed
+# Works for BOTH US states and international regions
+python ensure_region.py ohio                    # US state: Download if needed, process if needed
+python ensure_region.py iceland                 # International: Auto-downloads via OpenTopography
 python ensure_region.py new_hampshire           # Multi-word: use underscores
 python ensure_region.py "new hampshire"         # Multi-word: or use quotes
 python ensure_region.py tennessee --force-reprocess  # Force full rebuild
 python ensure_region.py california --target-pixels 4096  # High resolution
+python ensure_region.py --list-regions          # List all available regions (50 states + 70+ countries)
 
 # Check region data through entire pipeline
 python check_region.py ohio                     # Check all stages (raw → JSON)

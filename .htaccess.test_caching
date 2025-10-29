@@ -1,0 +1,13 @@
+# Test adding browser caching to the minimal .htaccess
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Test if mod_expires is available
+# 6 months cache for elevation data (doesn't change often)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType application/json "access plus 6 months"
+</IfModule>
+

@@ -114,14 +114,15 @@ RSYNC_ARGS=(
     -avz                        # archive, verbose, compress
     --progress                  # show progress
     --delete                    # delete remote files not in source
+    --filter='P *.gz'           # protect .gz files from deletion (server-side compressed)
     --include="interactive_viewer_advanced.html"
     --include="viewer.html"
     --include="js/"
-    --include="js/***"
+    --include="js/**"
     --include="css/"
-    --include="css/***"
+    --include="css/**"
     --include="generated/"
-    --include="generated/***"
+    --include="generated/**"
     --include="README.md"
     --exclude="*"               # exclude everything else
     --exclude=".*"              # exclude hidden files

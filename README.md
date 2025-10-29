@@ -129,11 +129,17 @@ All data is cached locally - download once, use forever.
 # 1. Setup (one time)
 .\setup.ps1
 
-# 2. Start interactive viewer (recommended)
-python -m http.server 8001
-# Then open: http://localhost:8001/interactive_viewer_advanced.html
+# 2. Download a region (US state OR international)
+python ensure_region.py ohio          # US state (10m resolution, USGS)
+python ensure_region.py iceland       # International (30m, SRTM)
+python ensure_region.py --list-regions  # See all 50 states + 70+ countries
 
-# 3. Or generate a static image
+# 3. Start interactive viewer
+python serve_viewer.py
+# Then open: http://localhost:8001/interactive_viewer_advanced.html
+# Select your region from the dropdown!
+
+# 4. Or generate a static image
 python visualize_usa_overhead.py
 ```
 

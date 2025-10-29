@@ -1,0 +1,12 @@
+# Test adding security headers to the minimal .htaccess
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Test if mod_headers is available
+<IfModule mod_headers.c>
+    # Allow loading from CDN (Three.js, jQuery, etc.)
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>
+

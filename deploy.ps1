@@ -83,6 +83,7 @@ $rsyncArgs = @(
     "-avz"                      # archive, verbose, compress
     "--progress"                # show progress
     "--delete"                  # delete files on remote that don't exist locally
+    "--filter=P *.gz"           # protect .gz files from deletion (server-side compressed)
     "--include=interactive_viewer_advanced.html"
     "--include=viewer.html"
     "--include=js/"

@@ -1,0 +1,8 @@
+# MINIMAL .htaccess for gzip compression
+# Safe for Dreamhost servers
+
+# Enable gzip compression for JSON files only
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+

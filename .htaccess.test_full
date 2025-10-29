@@ -1,0 +1,27 @@
+# Test the full configuration incrementally
+
+<IfModule mod_deflate.c>
+    # Compress JSON files
+    AddOutputFilterByType DEFLATE application/json
+    
+    # Also compress other text files
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/javascript
+    
+    # Compression level
+    DeflateCompressionLevel 6
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType application/json "access plus 1 hour"
+    ExpiresByType text/html "access plus 5 minutes"
+    ExpiresByType text/css "access plus 1 day"
+    ExpiresByType application/javascript "access plus 1 day"
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>
+
