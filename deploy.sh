@@ -107,6 +107,13 @@ if [ "$DRY_RUN" = false ]; then
     fi
 fi
 
+echo -e "\n${CYAN}[*] Updating version numbers...${NC}"
+python3 update_version.py
+if [ $? -ne 0 ]; then
+    echo -e "${RED}[X] Version update failed!${NC}"
+    exit 1
+fi
+
 echo -e "\n${GREEN}[*] Starting deployment...${NC}"
 
 # Build rsync arguments

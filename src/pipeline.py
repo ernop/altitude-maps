@@ -158,7 +158,75 @@ def clip_to_boundary(
             
             print(f"      Output dimensions: {out_meta['width']} × {out_meta['height']} pixels")
             
-            # Write clipped data
+            # ASPECT RATIO FIX: Reproject high-latitude regions to preserve real-world proportions
+            # At high latitudes, EPSG:4326 (lat/lon) has distorted aspect ratios
+            # because longitude degrees are compressed by cos(latitude)
+            needs_reprojection = False
+            if src.crs and 'EPSG:4326' in str(src.crs).upper():
+                # Calculate average latitude of the clipped region
+                bounds = src.bounds
+                avg_lat = (bounds.top + bounds.bottom) / 2
+                
+                # High-latitude threshold: > 45° North or < -45° South
+                if abs(avg_lat) > 45:
+                    needs_reprojection = True
+                    import math
+                    # Calculate distortion factor
+                    cos_lat = math.cos(math.radians(avg_lat))
+                    distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
+                    print(f"      ⚠️  High latitude ({avg_lat:.1f}°) detected - aspect ratio distorted {distortion:.2f}x")
+                    print(f"      🔄 Reprojecting to equal-area projection...")
+            
+            if needs_reprojection:
+                # Reproject to Web Mercator or UTM to preserve distances
+                # Web Mercator (EPSG:3857) works well for visualization
+                from rasterio.warp import calculate_default_transform, reproject, Resampling
+                
+                # Choose appropriate projection based on hemisphere and longitude
+                # For simplicity, use Web Mercator for mid-high latitudes (not poles)
+                if abs(avg_lat) < 85:
+                    dst_crs = 'EPSG:3857'  # Web Mercator
+                else:
+                    # For extreme latitudes, use a polar stereographic projection
+                    dst_crs = 'EPSG:3413' if avg_lat > 0 else 'EPSG:3031'
+                
+                # Calculate transform for reprojection
+                transform, width, height = calculate_default_transform(
+                    src.crs, dst_crs,
+                    out_meta['width'], out_meta['height'],
+                    *rasterio.transform.array_bounds(out_meta['height'], out_meta['width'], out_transform)
+                )
+                
+                # Update metadata for reprojected raster
+                out_meta.update({
+                    'crs': dst_crs,
+                    'transform': transform,
+                    'width': width,
+                    'height': height
+                })
+                
+                # Create reprojected array
+                reprojected = np.empty((1, height, width), dtype=out_image.dtype)
+                
+                reproject(
+                    source=out_image,
+                    destination=reprojected,
+                    src_transform=out_transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=dst_crs,
+                    resampling=Resampling.bilinear
+                )
+                
+                out_image = reprojected
+                print(f"      ✅ Reprojected to {dst_crs}: {width} × {height} pixels")
+                
+                # Verify aspect ratio improvement
+                old_aspect = out_meta['width'] / out_meta['height'] if 'width' in out_meta else 0
+                new_aspect = width / height
+                print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
+            
+            # Write clipped (and possibly reprojected) data
             print(f"      Writing clipped raster to disk...")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with rasterio.open(output_path, "w", **out_meta) as dest:
@@ -383,11 +451,14 @@ def export_for_viewer(
                     print(f"      ⚠️  Validation warning: {e}")
                     # Don't fail on validation warnings
             
-            # Filter bad values (nodata, extreme negatives) BEFORE stats calculation
+            # Filter bad values (nodata, extreme values) BEFORE stats calculation
             # Replace bad values with NaN for proper stats
             # Convert to float first (elevation might be int16/int32)
             elevation_clean = elevation.astype(np.float32)
-            elevation_clean[elevation_clean < -500] = np.nan
+            
+            # Filter BOTH extreme negatives AND extreme positives (nodata markers)
+            # Reasonable elevation range: -500m (below sea level) to +9000m (Mt. Everest is 8849m)
+            elevation_clean[(elevation_clean < -500) | (elevation_clean > 9000)] = np.nan
             
             # Check if we have ANY valid data
             valid_count = np.sum(~np.isnan(elevation_clean))

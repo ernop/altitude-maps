@@ -269,6 +269,20 @@ input[type="checkbox"] {
     color: #5588cc;
 }
 
+/* Version Display */
+#version-display {
+    position: absolute;
+    bottom: 50px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    color: #888;
+    opacity: 0.7;
+}
+
 /* Controls Help Window */
 #controls-help-window {
     position: absolute;

@@ -1,4 +1,7 @@
-﻿// Global variables
+﻿// Version tracking
+const VIEWER_VERSION = '1.2.0-http2';
+
+// Global variables
 let scene, camera, renderer, controls;
 let terrainMesh, wireframeMesh, gridHelper;
 let rawElevationData; // Original full-resolution data
@@ -35,6 +38,13 @@ async function init() {
         setupScene();
         setupEventListeners();
         
+        // Display version number
+        const versionDisplay = document.getElementById('version-display');
+        if (versionDisplay) {
+            versionDisplay.textContent = `v${VIEWER_VERSION}`;
+        }
+        console.log(`🗺️ Altitude Maps Viewer v${VIEWER_VERSION}`);
+        
         // Populate region selector (loads manifest and populates dropdown)
         const firstRegionId = await populateRegionSelector();
         
@@ -66,6 +76,11 @@ async function init() {
         
         // Reset camera to appropriate distance for this terrain size
         resetCamera();
+        
+        // Automatically reframe view (equivalent to F key) if camera scheme supports it
+        if (activeScheme && activeScheme.reframeView) {
+            activeScheme.reframeView();
+        }
         
         animate();
     } catch (error) {
@@ -313,6 +328,11 @@ async function loadRegion(regionId) {
         
         // Reset camera for new terrain size
         resetCamera();
+        
+        // Automatically reframe view (equivalent to F key) if camera scheme supports it
+        if (activeScheme && activeScheme.reframeView) {
+            activeScheme.reframeView();
+        }
         
         hideLoading();
         console.log(`âœ… Loaded ${regionId}`);
@@ -1000,15 +1020,22 @@ function adjustBucketSize(delta) {
         return;
     }
     
+    // Calculate new bucket size with clamping to valid range [1, 500]
+    let newSize = params.bucketSize + delta;
+    newSize = Math.max(1, Math.min(500, newSize));
+    
+    // If size didn't actually change (already at limit), don't show loading UI
+    if (newSize === params.bucketSize) {
+        console.log(`⚠️ Already at ${newSize === 1 ? 'minimum' : 'maximum'} resolution (${newSize}×), no change needed`);
+        return;
+    }
+    
     // Show loading overlay
     showResolutionLoading();
     
     // Use setTimeout to allow UI to update before heavy processing
     setTimeout(() => {
         try {
-            // Calculate new bucket size with clamping to valid range [1, 500]
-            let newSize = params.bucketSize + delta;
-            newSize = Math.max(1, Math.min(500, newSize));
             
             // Update params and UI
             params.bucketSize = newSize;
@@ -1035,6 +1062,12 @@ function adjustBucketSize(delta) {
 function setMaxResolution() {
     if (!rawElevationData) {
         console.warn('⚠️ No data loaded, cannot set max resolution');
+        return;
+    }
+    
+    // If already at max resolution, don't show loading UI
+    if (params.bucketSize === 1) {
+        console.log('⚠️ Already at maximum resolution (1×), no change needed');
         return;
     }
     

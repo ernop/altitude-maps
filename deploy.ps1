@@ -76,6 +76,13 @@ if (-not $DryRun) {
     }
 }
 
+Write-Host "`n[*] Updating version numbers..." -ForegroundColor Cyan
+& python update_version.py
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[X] Version update failed!" -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "`n[*] Starting deployment..." -ForegroundColor Green
 
 # Build rsync command

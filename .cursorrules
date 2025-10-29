@@ -243,7 +243,11 @@ python download_regions.py  # If using regions
      - Position: Fixed at (0, 2500, 2.5) looking at origin
      - Height: 2,200 units (close-up view)
      - Orientation: Rotated 180 degrees (North at top of screen, although the code is confused about this; what really shows is North despite fears.)
-     - Applied automatically after every region load
+     - **AUTOMATIC BEHAVIOR**: Reframe is applied automatically whenever:
+       - Initial page load completes (first region loaded)
+       - User switches to a different region via dropdown
+       - This ensures consistent, well-centered view every time data loads
+     - Manual trigger: Press F key anytime to recenter
      - Perfect for getting oriented after exploring
    - Works simultaneously with all mouse controls
    - Speed: 2.0 units per frame
