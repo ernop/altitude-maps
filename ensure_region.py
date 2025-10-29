@@ -130,8 +130,15 @@ def validate_json_export(file_path: Path) -> bool:
     
     try:
         import json
-        with open(file_path) as f:
-            data = json.load(f)
+        import gzip
+        
+        # Try gzip first, then regular JSON
+        if file_path.suffix == '.gz' or '.gz' in file_path.name:
+            with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
         
         # Validate required fields
         required_fields = ['region_id', 'width', 'height', 'elevation', 'bounds']
@@ -159,6 +166,28 @@ def validate_json_export(file_path: Path) -> bool:
         if len(elevation[0]) != data['width']:
             print(f"      ⚠️  Elevation width mismatch: {len(elevation[0])} != {data['width']}")
             return False
+        
+        # Validate elevation range to catch corruption (Minnesota/Connecticut issue)
+        import numpy as np
+        try:
+            elev_array = np.array(elevation, dtype=np.float32)
+            valid_elev = elev_array[~np.isnan(elev_array)]
+            
+            if len(valid_elev) > 0:
+                min_elev = float(np.min(valid_elev))
+                max_elev = float(np.max(valid_elev))
+                elev_range = max_elev - min_elev
+                
+                # Check for suspiciously small elevation range (indicates reprojection corruption)
+                if elev_range < 50.0:
+                    print(f"      ⚠️  Suspicious elevation range: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
+                    print(f"      This suggests reprojection corruption - data should be regenerated")
+                    return False
+                
+                print(f"      ✅ Elevation range OK: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
+        except Exception as e:
+            print(f"      ⚠️  Could not validate elevation range: {e}")
+            # Don't fail on this - might be edge case with edge case data
         
         return True
         

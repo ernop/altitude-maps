@@ -21,6 +21,11 @@ class BoundingBoxError(Exception):
     pass
 
 
+class ElevationCorruptionError(Exception):
+    """Raised when elevation data appears corrupted (unreasonably small range)."""
+    pass
+
+
 def validate_aspect_ratio(
     width: int,
     height: int,
@@ -126,6 +131,72 @@ def validate_non_null_coverage(
             raise BoundingBoxError(msg)
     
     return coverage
+
+
+def validate_elevation_range(
+    elevation: np.ndarray,
+    min_sensible_range: float = 50.0,
+    warn_only: bool = True
+) -> tuple:
+    """
+    Validate that elevation data has a reasonable range.
+    
+    Catches issues like:
+    - Reprojection corruption (elevation collapsed to 0-5m range)
+    - Wrong units (meters vs decimeters vs feet)
+    - Filtering errors removing all variation
+    
+    Args:
+        elevation: 2D elevation array
+        min_sensible_range: Minimum reasonable elevation range in meters
+        warn_only: If True, only warns; if False, raises exception
+        
+    Returns:
+        Tuple of (min_elevation, max_elevation, range, is_valid)
+        
+    Raises:
+        ElevationCorruptionError: If elevation range is unreasonably small
+    """
+    # Filter out invalid values - ensure float array
+    elev_float = elevation.astype(np.float32)
+    valid_elev = elev_float[~np.isnan(elev_ான)]
+    
+    if len(valid_elev) == 0:
+        msg = "No valid elevation data found"
+        if warn_only:
+            warnings.warn(msg, UserWarning)
+            return (0, 0, 0, False)
+        else:
+            raise ElevationCorruptionError(msg)
+    
+    min_elev = float(np.min(valid_elev))
+    max_elev = float(np.max(valid_elev))
+    elev_range = max_elev - min_elev
+    
+    is_valid = elev_range >= min_sensible_range
+    
+    if not is_valid:
+        msg = (
+            f"Suspicious elevation range detected!\n"
+            f"  Min elevation: {min_elev:.1f}m\n"
+            f"  Max elevation: {max_elev:.1f}m\n"
+            f"  Range: {elev_range:.1f}m (minimum: {min_sensible_range:.0f}m)\n"
+            f"  Valid pixels: {len(valid_elev):,}\n"
+            f"\n"
+            f"This usually indicates:\n"
+            f"  - Reprojection corruption (elevation data collapsed to 0-5m)\n"
+            f"  - Units error (data in wrong units: feet, decimeters, etc)\n"
+            f"  - Filtering removed all variation\n"
+            f"\n"
+            f"Action: Regenerate data from source using corrected pipeline."
+        )
+        
+        if warn_only:
+            warnings.warn(msg, UserWarning)
+        else:
+            raise ElevationCorruptionError(msg)
+    
+    return (min_elev, max_elev, elev_range, is_valid)
 
 
 def validate_export_data(

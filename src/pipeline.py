@@ -169,15 +169,15 @@ def clip_to_boundary(
                 bounds = src.bounds
                 avg_lat = (bounds.top + bounds.bottom) / 2
                 
-                # Reproject ALL regions (except near equator where distortion is minimal)
-                if abs(avg_lat) > 5:  # Only skip regions within 5° of equator
-                    needs_reprojection = True
-                    import math
-                    # Calculate distortion factor
-                    cos_lat = math.cos(math.radians(avg_lat))
-                    distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                    print(f"      ⚠️  Latitude {avg_lat:.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
-                    print(f"      🔄 Reprojecting to equal-area projection to preserve real-world proportions...")
+                # Reproject ALL EPSG:4326 regions to fix distortion (no equator exception)
+                needs_reprojection = True
+                import math
+                # Calculate distortion factor (use abs(lat) since cos is symmetric: cos(lat) = cos(-lat))
+                abs_lat = abs(avg_lat)
+                cos_lat = math.cos(math.radians(abs_lat))
+                distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
+                print(f"      ⚠️  Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                print(f"      🔄 Reprojecting to equal-area projection to preserve real-world proportions...")
             
             if needs_reprojection:
                 # Reproject to Web Mercator or UTM to preserve distances
@@ -230,6 +230,15 @@ def clip_to_boundary(
                 old_aspect = out_meta['width'] / out_meta['height'] if 'width' in out_meta else 0
                 new_aspect = width / height
                 print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
+            
+            # VALIDATION: Check elevation range to catch corruption
+            from src.validation import validate_elevation_range
+            min_elev, max_elev, elev_range, is_valid = validate_elevation_range(
+                out_image[0], min_sensible_range=50.0, warn_only=False
+            )
+            if not is_valid:
+                raise ValueError(f"Elevation corruption detected! Range: {elev_range:.1f}m")
+            print(f"      ✅ Elevation range validated: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
             
             # Write clipped (and possibly reprojected) data
             print(f"      Writing clipped raster to disk...")
@@ -322,13 +331,15 @@ def downsample_for_viewer(
             if src.crs and 'EPSG:4326' in str(src.crs).upper():
                 bounds = src.bounds
                 avg_lat = (bounds.top + bounds.bottom) / 2
-                if abs(avg_lat) > 5:  # Only reproject regions away from equator
-                    needs_reprojection = True
-                    import math
-                    cos_lat = math.cos(math.radians(avg_lat))
-                    distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                    print(f"      ⚠️  Latitude {avg_lat:.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
-                    print(f"      🔄 Reprojecting to fix latitude distortion...")
+                # Reproject ALL EPSG:4326 regions to fix distortion (no equator exception)
+                needs_reprojection = True
+                import math
+                # Calculate distortion factor (use abs(lat) since cos is symmetric: cos(lat) = cos(-lat))
+                abs_lat = abs(avg_lat)
+                cos_lat = math.cos(math.radians(abs_lat))
+                distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
+                print(f"      ⚠️  Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                print(f"      🔄 Reprojecting to fix latitude distortion...")
             
             # Reproject if needed (before downsampling)
             if needs_reprojection:

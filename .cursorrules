@@ -13,6 +13,9 @@ Take a moment to review with fresh perspective before moving on. Catch issues ea
 ## Project Context
 This is a landscape visualization project focused on showing altitude of various regions across the globe.
 
+
+- **Project is GLOBAL**: Supports 50 US states + 70+ international regions (countries)
+
 ## Project Organization - Documentation Structure
 
 ### Root Level - Essential Files Only
@@ -105,8 +108,8 @@ Our goal is to accurately represent geographic data with correct proportions. A 
 **Standard Pipeline Flow** (in `src/pipeline.py`):
 1. **Download** raw elevation data (bounding box, EPSG:4326)
 2. **Clip** to boundary using `rasterio_mask()` with `crop=True` and `filled=False`
-3. **Reproject** if needed to fix latitude distortion:
-   - Check if `abs(avg_lat) > 5°` (only skip regions near equator)
+3. **Reproject** ALL EPSG:4326 regions to fix latitude distortion:
+   - Always reproject (no exceptions - fixes distortion at ALL latitudes)
    - Reproject to EPSG:3857 (Web Mercator) to correct longitude compression
    - **CRITICAL**: Initialize output array with nodata, pass `src_nodata` and `dst_nodata` parameters
    - Example: Kansas (38°N) has 1.28x distortion, Iceland (65°N) has 2.37x distortion

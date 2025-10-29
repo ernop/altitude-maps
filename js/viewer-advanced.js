@@ -3,7 +3,7 @@ const VIEWER_VERSION = '1.32';
 
 // Global variables
 let scene, camera, renderer, controls;
-let terrainMesh, wireframeMesh, gridHelper;
+let terrainMesh, gridHelper;
 let rawElevationData; // Original full-resolution data
 let processedData; // Bucketed/aggregated data
 let stats = {};
@@ -17,6 +17,30 @@ let lastTime = performance.now();
 // Implementation: Create once at current exaggeration, don't recreate on exaggeration changes
 let edgeMarkers = [];
 
+// True scale value for current data (calculated after data loads)
+let trueScaleValue = null;
+
+// Helper functions to convert between UI (multiplier) and internal (absolute) values
+function multiplierToInternal(multiplier) {
+    if (trueScaleValue === null) {
+        // Fallback if true scale not calculated yet
+        if (rawElevationData) {
+            const scale = calculateRealWorldScale();
+            trueScaleValue = 1.0 / scale.metersPerPixelX;
+        } else {
+            return 0.03; // Default fallback
+        }
+    }
+    return trueScaleValue * multiplier;
+}
+
+function internalToMultiplier(internalValue) {
+    if (trueScaleValue === null) {
+        return 1; // Default to 1x
+    }
+    return Math.round(internalValue / trueScaleValue);
+}
+
 // Parameters
 let params = {
     bucketSize: 4,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
@@ -25,10 +49,8 @@ let params = {
     renderMode: 'bars',
     verticalExaggeration: 0.03,  // Default: good balance of detail and scale
     colorScheme: 'terrain',
-    wireframeOverlay: false,
     showGrid: false,
     showBorders: false,
-    flatShading: true,
     autoRotate: false
 };
 
@@ -75,6 +97,11 @@ async function init() {
         }
         
         rawElevationData = await loadElevationData(dataUrl);
+        
+        // Calculate true scale for this data
+        const scale = calculateRealWorldScale();
+        trueScaleValue = 1.0 / scale.metersPerPixelX;
+        console.log(`🌍 True scale for this region: ${trueScaleValue.toFixed(6)}x`);
         
         hideLoading();
         
@@ -210,8 +237,8 @@ async function populateRegionSelector() {
     
     if (!regionsManifest || !regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
         // No manifest, use default single region
-        selectElement.innerHTML = '<option value="default">USA (Default)</option>';
-        document.getElementById('currentRegion').textContent = 'USA';
+        selectElement.innerHTML = '<option value="default">Default Region</option>';
+        document.getElementById('currentRegion').textContent = 'Default Region';
         currentRegionId = 'default';
         return 'default';
     }
@@ -311,8 +338,8 @@ function updateRegionInfo(regionId) {
     const regionInfoEl = document.getElementById('regionInfo');
     
     if (regionId === 'default' || !regionsManifest || !regionsManifest.regions[regionId]) {
-        if (currentRegionEl) currentRegionEl.textContent = 'USA';
-        if (regionInfoEl) regionInfoEl.textContent = 'Continental United States';
+        if (currentRegionEl) currentRegionEl.textContent = 'Default Region';
+        if (regionInfoEl) regionInfoEl.textContent = 'No region data available';
         return;
     }
     
@@ -339,6 +366,11 @@ async function loadRegion(regionId) {
         borderData = await loadBorderData(dataUrl);
         currentRegionId = regionId;
         updateRegionInfo(regionId);
+        
+        // Calculate true scale for this data
+        const scale = calculateRealWorldScale();
+        trueScaleValue = 1.0 / scale.metersPerPixelX;
+        console.log(`🌍 True scale for this region: ${trueScaleValue.toFixed(6)}x`);
         
         // Save to localStorage so we remember this region next time
         localStorage.setItem('lastViewedRegion', regionId);
@@ -440,9 +472,10 @@ function syncUIControls() {
     document.getElementById('tileGap').value = params.tileGap;
     document.getElementById('tileGapInput').value = params.tileGap;
     
-    // Vertical exaggeration - sync both slider and input
-    document.getElementById('vertExag').value = params.verticalExaggeration;
-    document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
+    // Vertical exaggeration - sync both slider and input (convert to multiplier for display)
+    const multiplier = internalToMultiplier(params.verticalExaggeration);
+    document.getElementById('vertExag').value = multiplier;
+    document.getElementById('vertExagInput').value = multiplier;
     
     // Render mode
     document.getElementById('renderMode').value = params.renderMode;
@@ -461,16 +494,11 @@ function syncUIControls() {
     }
     
     // Checkboxes
-    document.getElementById('flatShading').checked = params.flatShading;
-    document.getElementById('wireframeOverlay').checked = params.wireframeOverlay;
     document.getElementById('showGrid').checked = params.showGrid;
     document.getElementById('showBorders').checked = params.showBorders;
     document.getElementById('autoRotate').checked = params.autoRotate;
     
     // Apply visual settings to scene objects
-    if (wireframeMesh) {
-        wireframeMesh.visible = params.wireframeOverlay;
-    }
     if (gridHelper) {
         gridHelper.visible = params.showGrid;
     }
@@ -985,8 +1013,9 @@ function setupControls() {
     
     // Sync slider -> input (update immediately)
     document.getElementById('vertExag').addEventListener('input', (e) => {
-        params.verticalExaggeration = parseFloat(e.target.value);
-        document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
+        const multiplier = parseFloat(e.target.value);
+        params.verticalExaggeration = multiplierToInternal(multiplier);
+        document.getElementById('vertExagInput').value = multiplier;
         
         // Update button states
         updateVertExagButtons(params.verticalExaggeration);
@@ -997,15 +1026,15 @@ function setupControls() {
     
     // Sync input -> slider
     document.getElementById('vertExagInput').addEventListener('change', (e) => {
-        let value = parseFloat(e.target.value);
-        // Clamp to valid range
-        value = Math.max(0.00001, Math.min(0.3, value));
-        params.verticalExaggeration = value;
-        document.getElementById('vertExag').value = value;
-        document.getElementById('vertExagInput').value = value.toFixed(5);
+        let multiplier = parseFloat(e.target.value);
+        // Clamp to valid range (1 to 100)
+        multiplier = Math.max(1, Math.min(100, multiplier));
+        params.verticalExaggeration = multiplierToInternal(multiplier);
+        document.getElementById('vertExag').value = multiplier;
+        document.getElementById('vertExagInput').value = multiplier;
         
         // Update button states
-        updateVertExagButtons(value);
+        updateVertExagButtons(params.verticalExaggeration);
         
         updateTerrainHeight();
     });
@@ -1034,11 +1063,6 @@ function setupControls() {
         borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
     });
     
-    // Flat shading toggle
-    document.getElementById('flatShading').addEventListener('change', (e) => {
-        params.flatShading = e.target.checked;
-        recreateTerrain();
-    });
     
     // Auto-rotate
     document.getElementById('autoRotate').addEventListener('change', (e) => {
@@ -1546,8 +1570,7 @@ function createBarsTerrain(width, height, elevation, scale) {
     
     const barCount = barData.length;
     const material = new THREE.MeshLambertMaterial({
-        vertexColors: true,
-        flatShading: params.flatShading  // Toggle via UI - affects depth buffer artifact visibility
+        vertexColors: true
     });
     
     const instancedMesh = new THREE.InstancedMesh(
@@ -1709,7 +1732,7 @@ function createSurfaceTerrain(width, height, elevation, scale) {
     
     const material = new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
         vertexColors: true,
-        flatShading: params.renderMode === 'wireframe' ? true : params.flatShading,
+        flatShading: params.renderMode === 'wireframe',
         wireframe: params.renderMode === 'wireframe',
         side: THREE.DoubleSide
     });
@@ -1781,6 +1804,62 @@ function getColorForElevation(elevation) {
     return scheme[scheme.length - 1].color;
 }
 
+function createWireframeOverlay() {
+    if (!terrainMesh || params.renderMode === 'points') {
+        return;  // Don't create wireframe for points mode
+    }
+    
+    console.log('Creating wireframe overlay...');
+    
+    let geometry = null;
+    
+    if (params.renderMode === 'surface') {
+        // For surface mode, clone the terrain geometry
+        geometry = terrainMesh.geometry.clone();
+    } else if (params.renderMode === 'bars') {
+        // For bars mode, create a wireframe from the instance mesh
+        // This is more complex - we need to extract geometry from instanced mesh
+        const { width, height, elevation } = processedData;
+        const scale = calculateRealWorldScale();
+        const bucketMultiplier = params.bucketSize;
+        
+        // Create a plane geometry that matches the bars layout
+        geometry = new THREE.PlaneGeometry(width * bucketMultiplier, height * bucketMultiplier, width - 1, height - 1);
+        
+        // Match the terrain positioning
+        const positions = geometry.attributes.position;
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                const idx = i * width + j;
+                let z = elevation[i] && elevation[i][j];
+                if (z === null || z === undefined) z = 0;
+                positions.setZ(idx, z * params.verticalExaggeration);
+            }
+        }
+        
+        geometry.computeVertexNormals();
+    }
+    
+    if (geometry) {
+        const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+        const wireframeMaterial = new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.5
+        });
+        
+        wireframeMesh = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+        wireframeMesh.rotation.x = -Math.PI / 2;
+        
+        // Match terrain position
+        wireframeMesh.position.copy(terrainMesh.position);
+        
+        scene.add(wireframeMesh);
+        console.log('✓ Wireframe overlay created');
+    }
+}
+
 function updateTerrainHeight() {
     if (!terrainMesh) return;
     
@@ -1804,6 +1883,29 @@ function updateTerrainHeight() {
         positions.needsUpdate = true;
         terrainMesh.geometry.computeVertexNormals();
         
+        // Update wireframe if it exists
+        if (wireframeMesh && wireframeMesh.geometry) {
+            // Clone the updated terrain geometry for the wireframe
+            const oldWireframe = wireframeMesh;
+            const newGeometry = terrainMesh.geometry.clone();
+            const wireframeGeometry = new THREE.WireframeGeometry(newGeometry);
+            
+            scene.remove(oldWireframe);
+            oldWireframe.geometry.dispose();
+            oldWireframe.material.dispose();
+            
+            wireframeMesh = new THREE.LineSegments(wireframeGeometry, new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                linewidth: 1,
+                transparent: true,
+                opacity: 0.5
+            }));
+            wireframeMesh.rotation.x = -Math.PI / 2;
+            wireframeMesh.position.copy(terrainMesh.position);
+            wireframeMesh.visible = params.wireframeOverlay;
+            scene.add(wireframeMesh);
+        }
+        
         // Update edge markers to match new height
         updateEdgeMarkers();
     }
@@ -1814,7 +1916,7 @@ function updateColors() {
 }
 
 function recreateTerrain() {
-    console.log(`ðŸ”„ recreateTerrain() called, render mode: ${params.renderMode}`);
+    console.log(`ðŸ"„ recreateTerrain() called, render mode: ${params.renderMode}`);
     createTerrain();
 }
 
@@ -2009,8 +2111,11 @@ let activeVertExagButton = null;
 
 function setVertExag(value) {
     params.verticalExaggeration = value;
-    document.getElementById('vertExag').value = value;
-    document.getElementById('vertExagInput').value = value.toFixed(5);
+    
+    // Convert to multiplier for display
+    const multiplier = internalToMultiplier(value);
+    document.getElementById('vertExag').value = multiplier;
+    document.getElementById('vertExagInput').value = multiplier;
     
     // Update button active state
     updateVertExagButtons(value);
@@ -2021,34 +2126,39 @@ function setVertExag(value) {
 }
 
 function setTrueScale() {
-    if (!rawElevationData) {
+    if (trueScaleValue === null) {
         console.warn('⚠️ No data loaded, cannot set true scale');
         return;
     }
     
-    // Calculate true scale based on actual data
-    const scale = calculateRealWorldScale();
-    
-    // TRUE SCALE: In the pure 2D grid approach, 1 Three.js unit horizontal = 1 grid cell
-    // To have correct Earth proportions, elevation (meters) should also convert to Three.js units
-    // where 1 Three.js unit vertical represents the same real-world distance as 1 Three.js unit horizontal
-    // Since each pixel represents metersPerPixelX meters horizontally, we need:
-    // verticalExaggeration such that: 1 meter * exaggeration = 1 Three.js unit
-    // which gives us: exaggeration = 1 / metersPerPixelX
-    const trueScale = 1.0 / scale.metersPerPixelX;
-    
     console.log(`🌍 Setting TRUE SCALE (1:1 Earth proportions):`);
-    console.log(`   Resolution: ${scale.metersPerPixelX.toFixed(2)} m/pixel`);
-    console.log(`   True scale exaggeration: ${trueScale.toFixed(6)}x`);
+    console.log(`   True scale exaggeration: ${trueScaleValue.toFixed(6)}x`);
     console.log(`   Terrain slopes now have real-world steepness`);
     
     // Clamp to valid range
-    const clampedValue = Math.max(0.00001, Math.min(0.3, trueScale));
-    if (clampedValue !== trueScale) {
-        console.warn(`⚠️ True scale ${trueScale.toFixed(6)}x clamped to ${clampedValue.toFixed(6)}x (outside valid range)`);
+    const clampedValue = Math.max(0.00001, Math.min(0.3, trueScaleValue));
+    if (clampedValue !== trueScaleValue) {
+        console.warn(`⚠️ True scale ${trueScaleValue.toFixed(6)}x clamped to ${clampedValue.toFixed(6)}x (outside valid range)`);
     }
     
     setVertExag(clampedValue);
+}
+
+function setVertExagMultiplier(multiplier) {
+    if (trueScaleValue === null) {
+        console.warn('⚠️ True scale not calculated yet, using fallback');
+        // Fallback: calculate on the fly
+        if (rawElevationData) {
+            const scale = calculateRealWorldScale();
+            trueScaleValue = 1.0 / scale.metersPerPixelX;
+        } else {
+            return;
+        }
+    }
+    
+    const value = trueScaleValue * multiplier;
+    console.log(`🌍 Setting ${multiplier}x exaggeration (${value.toFixed(6)}x)`);
+    setVertExag(value);
 }
 
 function updateVertExagButtons(activeValue) {
@@ -2061,12 +2171,29 @@ function updateVertExagButtons(activeValue) {
     
     // Find and highlight the button matching the current value
     activeValue = parseFloat(activeValue);
+    
+    // Special handling for true scale button
+    const trueScaleBtn = document.getElementById('vertExagBtnTrue');
+    if (trueScaleBtn && trueScaleValue !== null) {
+        const tolerance = 0.000001;
+        if (Math.abs(activeValue - trueScaleValue) < tolerance) {
+            trueScaleBtn.classList.add('active');
+            trueScaleBtn.style.outline = '2px solid #ffaa00';
+            activeVertExagButton = trueScaleBtn;
+        }
+    }
+    
+    // Check multiplier buttons
     buttons.forEach(btn => {
-        const btnValue = parseFloat(btn.dataset.value);
-        if (btnValue === activeValue) {
-            btn.classList.add('active');
-            btn.style.outline = '2px solid #ffaa00';
-            activeVertExagButton = btn;
+        const multiplier = btn.dataset.multiplier;
+        if (multiplier && trueScaleValue !== null) {
+            const btnValue = trueScaleValue * parseFloat(multiplier);
+            const tolerance = Math.max(0.0001, btnValue * 0.01); // 1% tolerance
+            if (Math.abs(activeValue - btnValue) < tolerance) {
+                btn.classList.add('active');
+                btn.style.outline = '2px solid #ffaa00';
+                activeVertExagButton = btn;
+            }
         }
     });
 }
