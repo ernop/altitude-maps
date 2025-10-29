@@ -985,15 +985,30 @@ function setupControls() {
     
     // Sync slider -> input (update immediately)
     document.getElementById('vertExag').addEventListener('input', (e) => {
- Кирилл Кири CONCLUSION
-
-Implementing vertical exaggeration UI:
-- Highlight active button
-- Show loading feedback
-
-Reviewing code after changes:
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-read_lints
+        params.verticalExaggeration = parseFloat(e.target.value);
+        document.getElementById('vertExagInput').value = params.verticalExaggeration.toFixed(5);
+        
+        // Update button states
+        updateVertExagButtons(params.verticalExaggeration);
+        
+        // Update terrain immediately for responsive feedback
+        updateTerrainHeight();
+    });
+    
+    // Sync input -> slider
+    document.getElementById('vertExagInput').addEventListener('change', (e) => {
+        let value = parseFloat(e.target.value);
+        // Clamp to valid range
+        value = Math.max(0.00001, Math.min(0.3, value));
+        params.verticalExaggeration = value;
+        document.getElementById('vertExag').value = value;
+        document.getElementById('vertExagInput').value = value.toFixed(5);
+        
+        // Update button states
+        updateVertExagButtons(value);
+        
+        updateTerrainHeight();
+    });
     
     // Color scheme
     $('#colorScheme').on('change', function(e) {
@@ -2003,6 +2018,37 @@ function setVertExag(value) {
     // Show loading indicator and update terrain
     showVertExagLoading();
     updateTerrainHeight();
+}
+
+function setTrueScale() {
+    if (!rawElevationData) {
+        console.warn('⚠️ No data loaded, cannot set true scale');
+        return;
+    }
+    
+    // Calculate true scale based on actual data
+    const scale = calculateRealWorldScale();
+    
+    // TRUE SCALE: In the pure 2D grid approach, 1 Three.js unit horizontal = 1 grid cell
+    // To have correct Earth proportions, elevation (meters) should also convert to Three.js units
+    // where 1 Three.js unit vertical represents the same real-world distance as 1 Three.js unit horizontal
+    // Since each pixel represents metersPerPixelX meters horizontally, we need:
+    // verticalExaggeration such that: 1 meter * exaggeration = 1 Three.js unit
+    // which gives us: exaggeration = 1 / metersPerPixelX
+    const trueScale = 1.0 / scale.metersPerPixelX;
+    
+    console.log(`🌍 Setting TRUE SCALE (1:1 Earth proportions):`);
+    console.log(`   Resolution: ${scale.metersPerPixelX.toFixed(2)} m/pixel`);
+    console.log(`   True scale exaggeration: ${trueScale.toFixed(6)}x`);
+    console.log(`   Terrain slopes now have real-world steepness`);
+    
+    // Clamp to valid range
+    const clampedValue = Math.max(0.00001, Math.min(0.3, trueScale));
+    if (clampedValue !== trueScale) {
+        console.warn(`⚠️ True scale ${trueScale.toFixed(6)}x clamped to ${clampedValue.toFixed(6)}x (outside valid range)`);
+    }
+    
+    setVertExag(clampedValue);
 }
 
 function updateVertExagButtons(activeValue) {
