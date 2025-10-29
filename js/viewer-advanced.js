@@ -90,6 +90,7 @@ let lastBarsExaggerationInternal = null; // Internal value used when bars were l
 let lastPointsExaggerationInternal = null; // Internal value used when points were last (re)built
 let lastBarsTileSize = 1.0; // Tile size used when bars were last (re)built
 let pendingTileGapRaf = null; // Coalesce tile gap updates to latest frame
+let pendingBucketTimeout = null; // Debounce for bucket size rebuilds
 
 // Parameters
 let params = {
@@ -1150,20 +1151,18 @@ function setupControls() {
         }
     }
     
-    // Bucket size - immediate updates
+    // Bucket size - coalesce during drag; rebuild once per debounce window
     
     // Sync slider -> input
     document.getElementById('bucketSize').addEventListener('input', (e) => {
         params.bucketSize = parseInt(e.target.value);
         document.getElementById('bucketSizeInput').value = params.bucketSize;
         
-        // Show loading overlay
+        if (pendingBucketTimeout !== null) clearTimeout(pendingBucketTimeout);
         showResolutionLoading();
-        
-        // Use setTimeout to allow UI to update before heavy processing
-        setTimeout(() => {
+        pendingBucketTimeout = setTimeout(() => {
+            pendingBucketTimeout = null;
             try {
-                // Update immediately for responsive feedback
                 // Clear edge markers so they get recreated at new positions
                 edgeMarkers.forEach(marker => scene.remove(marker));
                 edgeMarkers = [];
@@ -1172,7 +1171,7 @@ function setupControls() {
             } finally {
                 hideResolutionLoading();
             }
-        }, 50);
+        }, 120);
     });
     
     // Sync input -> slider
@@ -1187,10 +1186,10 @@ function setupControls() {
         // Show loading overlay
         showResolutionLoading();
         
-        // Use setTimeout to allow UI to update before heavy processing
+        if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
+        // Immediate rebuild on commit
         setTimeout(() => {
             try {
-                // Clear edge markers so they get recreated at new positions
                 edgeMarkers.forEach(marker => scene.remove(marker));
                 edgeMarkers = [];
                 rebucketData();
@@ -1198,7 +1197,7 @@ function setupControls() {
             } finally {
                 hideResolutionLoading();
             }
-        }, 50);
+        }, 0);
     });
     
     // Tile gap - instant via shader uniform in bars mode; recreate only if not bars
@@ -1390,7 +1389,8 @@ function adjustBucketSize(delta) {
     // Show loading overlay
     showResolutionLoading();
     
-    // Use setTimeout to allow UI to update before heavy processing
+    // Cancel any pending drag debounce and rebuild immediately
+    if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
     setTimeout(() => {
         try {
             
