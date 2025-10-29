@@ -516,6 +516,18 @@ def export_for_viewer(
             with open(output_path, 'w') as f:
                 json.dump(export_data, f, separators=(',', ':'))
             
+            # Create gzip compressed version for production
+            print(f"      Compressing with gzip...")
+            import gzip
+            gzip_path = output_path.with_suffix('.json.gz')
+            with open(output_path, 'rb') as f_in:
+                with gzip.open(gzip_path, 'wb', compresslevel=9) as f_out:
+                    f_out.writelines(f_in)
+            
+            gzip_size_mb = gzip_path.stat().st_size / (1024 * 1024)
+            compression_ratio = (1 - gzip_path.stat().st_size / output_path.stat().st_size) * 100
+            print(f"      ✅ Compressed: {gzip_path.name} ({gzip_size_mb:.1f} MB, {compression_ratio:.1f}% smaller)")
+            
             # Create metadata
             resolution_m = int(export_data['stats'].get('resolution_meters', 30))  # Default to 30m
             metadata = create_export_metadata(

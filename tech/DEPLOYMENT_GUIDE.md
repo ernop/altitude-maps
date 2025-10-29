@@ -215,6 +215,67 @@ To add new regions or update existing ones:
 
 Consider adding:
 - HTTPS via Let's Encrypt
-- Gzip compression for faster loads
+- Gzip compression for faster loads (see below)
 - Cache headers for static assets
+
+## Optional: Pre-compression
+
+For even faster loads, you can **pre-compress JSON files** before deployment. This creates `.json.gz` files that can be served directly by the web server (avoiding runtime compression overhead).
+
+### Method 1: Python Script (with skip existing)
+
+```bash
+python precompress_json.py
+```
+
+This compresses all JSON files in `generated/regions/` and **skips** files that already have a `.gz` version (won't overwrite).
+
+### Method 2: Linux Command (production server)
+
+If you want to compress files directly on the production server:
+
+```bash
+# Skip files that already have .gz versions (won't prompt to overwrite)
+find generated -name "*.json" -type f -exec sh -c '[ ! -e "$1.gz" ] && gzip -k -9 "$1"' sh {} \;
+```
+
+Or with a more readable while loop:
+
+```bash
+find generated -name "*.json" -type f | while read f; do 
+    [ ! -e "$f.gz" ] && gzip -k -9 "$f"
+done
+```
+
+Both commands:
+- Find all `.json` files recursively in `generated/`
+- Check if a `.gz` version already exists
+- Only compress files that don't have a `.gz` version
+- Skip without prompting for files that are already compressed
+
+### Web Server Configuration
+
+After pre-compressing, configure your web server to serve `.json.gz` files when the client accepts gzip encoding.
+
+**Nginx:**
+```nginx
+gzip_static on;  # Serve pre-compressed .gz files
+```
+
+**Apache (.htaccess):**
+```apache
+<IfModule mod_rewrite.c>
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}\.gz -f
+    RewriteRule ^(.*)$ $1.gz [L]
+</IfModule>
+```
+
+### Benefits
+- 85-95% smaller transfer size (8 MB → 0.5-1 MB typical)
+- No runtime compression overhead on server
+- Faster for servers without mod_deflate
+- Works with any static file host (S3, CDN, etc.)
+
+See also: `tech/PRODUCTION_COMPRESSION_SETUP.md` for runtime compression with `.htaccess`
 

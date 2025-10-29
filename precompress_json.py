@@ -1,6 +1,14 @@
 """
 Pre-compress JSON files to .json.gz format.
 This ensures maximum compression and eliminates runtime overhead.
+
+Alternative Linux command (skips existing .gz files):
+    find generated -name "*.json" -type f -exec sh -c '[ ! -e "$1.gz" ] && gzip -k -9 "$1"' sh {} \;
+
+Or with a while loop:
+    find generated -name "*.json" -type f | while read f; do 
+        [ ! -e "$f.gz" ] && gzip -k -9 "$f"
+    done
 """
 import gzip
 import json
@@ -36,6 +44,11 @@ def precompress_json_files(directory: str = "generated/regions"):
             continue
             
         gz_file = json_file.with_suffix('.json.gz')
+        
+        # Skip if .gz version already exists (don't overwrite)
+        if gz_file.exists():
+            print(f"[SKIP] {json_file.name} (already compressed)")
+            continue
         
         try:
             # Read original

@@ -34,19 +34,19 @@ def update_html_cache_busters(version):
     
     if updated_content != content:
         html_file.write_text(updated_content, encoding='utf-8')
-        print(f"✓ Updated cache busters in {html_file} to v{version}")
+        print(f"Updated cache busters in {html_file} to v{version}")
         return True
     else:
-        print(f"✓ Cache busters in {html_file} already up to date (v{version})")
+        print(f"Cache busters in {html_file} already up to date (v{version})")
         return False
 
 def main():
-    print("🔄 Updating version numbers...")
+    print("Updating version numbers...")
     print()
     
     # Extract version from JS
     version = extract_version_from_js()
-    print(f"📌 Current version: v{version}")
+    print(f"Current version: v{version}")
     print()
     
     # Update HTML cache busters
@@ -54,10 +54,10 @@ def main():
     
     print()
     if updated:
-        print("✅ Version update complete!")
+        print("Version update complete!")
         print(f"   All cache busters now reference: v{version}")
     else:
-        print("✅ All files already up to date!")
+        print("All files already up to date!")
     print()
     print("To change version:")
     print("  1. Edit VIEWER_VERSION in js/viewer-advanced.js")

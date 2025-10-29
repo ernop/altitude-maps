@@ -47,35 +47,29 @@
                     </div>
                 </div>
                 
-                <div style="display: flex; gap: 10px;">
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
-                        <div style="font-size: 11px; text-align: center; margin-bottom: 2px;">Higher Detail</div>
-                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(-10)" style="font-size: 14px; padding: 8px 12px;">-10</button>
-                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(-5)" style="font-size: 14px; padding: 8px 12px;">-5</button>
-                    </div>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
-                        <div style="font-size: 11px; text-align: center; margin-bottom: 2px;">Lower Detail</div>
-                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(5)" style="font-size: 14px; padding: 8px 12px;">+5</button>
-                        <button class="bucket-adjust-btn" onclick="adjustBucketSize(10)" style="font-size: 14px; padding: 8px 12px;">+10</button>
-                    </div>
+                <!-- Explanatory labels -->
+                <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+                    <div style="flex: 1; font-size: 11px; color: #ccc; text-align: center;">More Detail</div>
+                    <div style="flex: 1; font-size: 11px; color: #ccc; text-align: center;">Less Detail</div>
                 </div>
-                <div style="display: flex; justify-content: center; gap: 4px; margin-top: 8px;">
+                
+                <!-- Quick adjustment buttons -->
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(-5)" style="flex: 1; font-size: 13px; padding: 8px 12px;">+Resolution</button>
+                    <button class="bucket-adjust-btn" onclick="adjustBucketSize(5)" style="flex: 1; font-size: 13px; padding: 8px 12px;">-Resolution</button>
+                </div>
+                
+                <!-- Main control row: Max, -1, current, +1 -->
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
                     <button id="maxResolutionBtn" onclick="setMaxResolution()" 
-                            style="padding: 3px 10px; font-size: 11px; font-weight: bold; background: #2a5a2a; border: 1px solid #44ff44; color: #44ff44; border-radius: 3px; cursor: pointer;"
+                            style="padding: 6px 12px; font-size: 12px; font-weight: normal; border-radius: 3px; cursor: pointer;"
                             title="Maximum resolution (bucket size = 1)">
-                        MAX
+                        Max
                     </button>
-                    <button id="defaultResolutionBtn" onclick="setDefaultResolution()" 
-                            style="padding: 3px 10px; font-size: 11px; font-weight: bold; background: #2a5a8a; border: 1px solid #4488ff; color: #4488ff; border-radius: 3px; cursor: pointer;"
-                            title="Reset to optimal default resolution">
-                        DEFAULT
-                    </button>
-                </div>
-                <div style="display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 8px;">
-                    <button onclick="adjustBucketSize(-1)" style="padding: 4px 8px; font-size: 12px; border-radius: 3px; cursor: pointer;">-1</button>
+                    <button onclick="adjustBucketSize(-1)" style="padding: 6px 10px; font-size: 12px; border-radius: 3px; cursor: pointer;">-1</button>
                     <input type="number" id="bucketSizeInput" min="1" max="500" step="1" value="4" 
-                           style="width: 70px; padding: 4px 6px; text-align: center; font-size: 12px;">
-                    <button onclick="adjustBucketSize(1)" style="padding: 4px 8px; font-size: 12px; border-radius: 3px; cursor: pointer;">+1</button>
+                           style="flex: 1; padding: 6px; text-align: center; font-size: 12px;">
+                    <button onclick="adjustBucketSize(1)" style="padding: 6px 10px; font-size: 12px; border-radius: 3px; cursor: pointer;">+1</button>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 40px;">MAX</span>
