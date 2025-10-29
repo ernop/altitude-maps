@@ -159,7 +159,7 @@ def validate_elevation_range(
     """
     # Filter out invalid values - ensure float array
     elev_float = elevation.astype(np.float32)
-    valid_elev = elev_float[~np.isnan(elev_ான)]
+    valid_elev = elev_float[~np.isnan(elev_float)]
     
     if len(valid_elev) == 0:
         msg = "No valid elevation data found"

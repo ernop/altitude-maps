@@ -35,9 +35,10 @@ REGIONS = {
         "description": "Japanese archipelago"
     },
     "shikoku": {
-        "bounds": (132.5, 33.0, 134.8, 34.5),
+        "bounds": (132.155, 32.775, 134.8, 34.5),
         "name": "Shikoku Island",
-        "description": "Shikoku - smallest of Japan's main islands"
+        "description": "Shikoku - smallest of Japan's main islands",
+        "clip_boundary": False
     },
     "china": {
         "bounds": (73.0, 18.0, 135.0, 54.0),

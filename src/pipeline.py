@@ -45,7 +45,7 @@ def clip_to_boundary(
     output_path: Path,
     source: str = "srtm_30m",
     boundary_type: str = "country",
-    border_resolution: str = "110m"
+    border_resolution: str = "10m"
 ) -> bool:
     """
     Clip raw elevation data to administrative boundary.
@@ -108,7 +108,9 @@ def clip_to_boundary(
     
     # Get boundary geometry based on type
     if boundary_type == "country":
-        geometry = get_country_geometry(boundary_name, resolution=border_resolution)
+        # Use GeoDataFrame so we can reproject reliably
+        border_manager = get_border_manager()
+        geometry_gdf = border_manager.get_country(boundary_name, resolution=border_resolution)
     elif boundary_type == "state":
         # Parse "Country/State" format
         if "/" not in boundary_name:
@@ -118,21 +120,17 @@ def clip_to_boundary(
         
         country, state = boundary_name.split("/", 1)
         border_manager = get_border_manager()
-        state_gdf = border_manager.get_state(country, state, resolution=border_resolution)
+        geometry_gdf = border_manager.get_state(country, state, resolution=border_resolution)
         
-        if state_gdf is None or state_gdf.empty:
+        if geometry_gdf is None or geometry_gdf.empty:
             print(f"      ⚠️  Warning: State '{state}' not found in '{country}'")
             print(f"      Skipping clipping step...")
             return False
-        
-        # Get geometry from GeoDataFrame
-        from shapely.ops import unary_union
-        geometry = unary_union(state_gdf.geometry)
     else:
         print(f"      ⚠️  Error: Invalid boundary_type '{boundary_type}' (must be 'country' or 'state')")
         return False
     
-    if geometry is None:
+    if geometry_gdf is None or geometry_gdf.empty:
         print(f"      ⚠️  Warning: Could not find boundary '{boundary_name}'")
         print(f"      Skipping clipping step...")
         return False
@@ -144,9 +142,24 @@ def clip_to_boundary(
             print(f"      Input dimensions: {src.width} × {src.height} pixels")
             print(f"      Input size: {raw_tif_path.stat().st_size / (1024*1024):.1f} MB")
             
+            # Prepare boundary geometry in raster CRS and GeoJSON mapping
+            from shapely.ops import unary_union
+            from shapely.geometry import mapping as shapely_mapping
+            try:
+                geometry_reproj = geometry_gdf.to_crs(src.crs)
+            except Exception:
+                geometry_reproj = geometry_gdf
+            union_geom = unary_union(geometry_reproj.geometry)
+            geoms = [shapely_mapping(union_geom)]
+
             # Clip the raster to the boundary
             print(f"      Applying geometric mask...")
-            out_image, out_transform = rasterio_mask(src, [geometry], crop=True, filled=False)
+            out_image, out_transform = rasterio_mask(
+                src,
+                geoms,
+                crop=True,
+                filled=False
+            )
             out_meta = src.meta.copy()
             
             # Update metadata
@@ -158,6 +171,21 @@ def clip_to_boundary(
             })
             
             print(f"      Output dimensions: {out_meta['width']} × {out_meta['height']} pixels")
+
+            # Ensure nodata is set and masked pixels are written as nodata
+            import numpy as _np
+            if _np.ma.isMaskedArray(out_image):
+                # Choose an appropriate nodata value based on dtype
+                if src.nodata is not None:
+                    nodata_value = src.nodata
+                else:
+                    if _np.issubdtype(src.dtypes[0], _np.floating):
+                        nodata_value = _np.nan
+                    else:
+                        # For integer rasters, use minimum value for the dtype
+                        nodata_value = _np.iinfo(_np.dtype(src.dtypes[0])).min
+                out_meta['nodata'] = nodata_value
+                out_image = out_image.filled(nodata_value)
             
             # ASPECT RATIO FIX: Reproject ALL EPSG:4326 regions to preserve real-world proportions
             # EPSG:4326 (lat/lon) has distorted aspect ratios at ALL latitudes (except equator)
