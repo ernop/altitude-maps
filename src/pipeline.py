@@ -330,18 +330,24 @@ def downsample_for_viewer(
         print(f"      ❌ Input file not found: {clipped_tif_path}")
         return False
     
-    # Check if output exists and is valid
+    # Check if output exists and is valid AND already reprojected to a metric CRS
     if output_path.exists():
         try:
-            # Validate the existing processed file
             with rasterio.open(output_path) as src:
+                # Basic pixel validity
                 if src.width > 0 and src.height > 0:
-                    # Try reading a small sample to ensure it's not corrupted
                     _ = src.read(1, window=((0, min(10, src.height)), (0, min(10, src.width))))
-                    print(f"      ✅ Already processed (validated): {output_path.name}")
-                    return True
+                # CRS validation: processed file MUST NOT be EPSG:4326 (degrees)
+                crs_str = str(src.crs) if src.crs is not None else ""
+                is_latlon = ('EPSG:4326' in crs_str.upper()) or ('WGS84' in crs_str.upper())
+                if is_latlon:
+                    print(f"      ⚠️  Processed file uses geographic CRS ({crs_str}); reprojection required. Regenerating...")
+                    raise RuntimeError("processed_file_crs_is_latlon")
+                # Looks good; keep existing
+                print(f"      ✅ Already processed (validated & reprojected): {output_path.name}")
+                return True
         except Exception as e:
-            print(f"      ⚠️  Existing file corrupted: {e}")
+            print(f"      ⚠️  Existing processed file invalid or needs reprojection: {e}")
             print(f"      🗑️  Deleting and regenerating...")
             try:
                 output_path.unlink()

@@ -282,9 +282,10 @@ Examples:
   python check_region.py "new hampshire"        # Multi-word with quotes
   python check_region.py kentucky --verbose     # Detailed output
   python check_region.py tennessee --raw-only   # Only check raw file
+  python check_region.py all --verbose          # Check ALL regions and summarize failures
         """
     )
-    parser.add_argument('region_id', help='Region ID (e.g., ohio, kentucky)')
+    parser.add_argument('region_id', help='Region ID (e.g., ohio, kentucky) or "all"')
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Show detailed information')
     parser.add_argument('--raw-only', action='store_true',
@@ -296,12 +297,62 @@ Examples:
     # Normalize region ID: convert spaces to underscores, lowercase
     region_id = args.region_id.lower().replace(' ', '_').replace('-', '_')
     
+    # Support "all" regions: iterate through known states and international regions
+    if region_id == 'all':
+        try:
+            from ensure_region import US_STATE_NAMES, INTERNATIONAL_REGIONS
+        except Exception:
+            print("❌ Could not load region registry from ensure_region.py")
+            return 1
+        all_ids = sorted(list(US_STATE_NAMES.keys())) + sorted(list(INTERNATIONAL_REGIONS.keys()))
+        failures = []
+        print("="*70)
+        print(f"🔍 REGION DATA CHECK: ALL ({len(all_ids)} regions)")
+        print("="*70)
+        for rid in all_ids:
+            # Build a lightweight args-like object for subchecks
+            print("\n" + "-"*70)
+            print(f"▶ Checking {rid}...")
+            raw_ok = check_raw_file(rid, args.verbose)
+            if args.raw_only:
+                ok = raw_ok
+            else:
+                clipped_ok = check_clipped_file(rid, args.verbose)
+                processed_ok = check_processed_file(rid, args.verbose)
+                json_ok = check_generated_json(rid, args.verbose)
+                ok = raw_ok and clipped_ok and processed_ok and json_ok
+            if not ok:
+                failures.append(rid)
+        print("\n" + "="*70)
+        print("📋 ALL-REGIONS SUMMARY")
+        print("="*70)
+        if failures:
+            print(f"❌ Failures ({len(failures)}):")
+            for rid in failures:
+                print(f"  - {rid}")
+            return 1
+        else:
+            print("✅ All regions passed checks")
+            return 0
+    
     print("="*70)
     print(f"🔍 REGION DATA CHECK: {region_id.upper()}")
     print("="*70)
     
     # Check each stage
     raw_ok = check_raw_file(region_id, args.verbose)
+
+    # Fast bail-out if nothing downloaded yet
+    if not raw_ok:
+        print("\n" + "="*70)
+        print("📋 SUMMARY")
+        print("="*70)
+        print("Raw file: ❌ NOT DOWNLOADED")
+        print("Clipped file: ⏭️  SKIPPED (raw missing)")
+        print("Processed file: ⏭️  SKIPPED (raw missing)")
+        print("JSON export: ⏭️  SKIPPED (raw missing)")
+        print("\n💡 Run: python ensure_region.py", region_id)
+        return 1
     
     if args.raw_only:
         return 0 if raw_ok else 1

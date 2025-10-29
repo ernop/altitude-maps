@@ -108,34 +108,25 @@
                     <input type="range" id="vertExag" min="1" max="100" step="1" value="1" style="flex: 1;">
                     <span style="font-size: 11px; opacity: 0.6; min-width: 40px; text-align: right;">100x</span>
                 </div>
-                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button id="vertExagBtn2x" data-multiplier="2" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(2)">2x</button>
-                    <button id="vertExagBtn3x" data-multiplier="3" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(3)">3x</button>
-                    <button id="vertExagBtn4x" data-multiplier="4" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(4)">4x</button>
-                    <button id="vertExagBtn6x" data-multiplier="6" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(6)">6x</button>
-                    <button id="vertExagBtn10x" data-multiplier="10" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(10)">10x</button>
-                    <button id="vertExagBtn25x" data-multiplier="25" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(25)">25x</button>
-                    <button id="vertExagBtn50x" data-multiplier="50" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(50)">50x</button>
-                    <button id="vertExagBtn100x" data-multiplier="100" style="font-size: 10px; padding: 4px 8px;" onclick="setVertExagMultiplier(100)">100x</button>
-                    <button id="vertExagBtnTrue" data-value="true" style="font-size: 10px; padding: 4px 8px;" onclick="setTrueScale()">True Scale</button>
+                <div class="vert-ex-buttons" style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+                    <button id="vertExagBtn2x" data-multiplier="2" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(2)">2x</button>
+                    <button id="vertExagBtn3x" data-multiplier="3" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(3)">3x</button>
+                    <button id="vertExagBtn4x" data-multiplier="4" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(4)">4x</button>
+                    <button id="vertExagBtn6x" data-multiplier="6" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(6)">6x</button>
+                    <button id="vertExagBtn10x" data-multiplier="10" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(10)">10x</button>
+                    <button id="vertExagBtn25x" data-multiplier="25" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(25)">25x</button>
+                    <button id="vertExagBtn50x" data-multiplier="50" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(50)">50x</button>
+                    <button id="vertExagBtn100x" data-multiplier="100" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setVertExagMultiplier(100)">100x</button>
+                    <button id="vertExagBtnTrue" data-value="true" style="font-size: 10px; padding: 3px 6px; margin: 0;" onclick="setTrueScale()">1:1</button>
                 </div>
             </div>
             
-            <div class="control-group">
-                <label>Aggregation Method</label>
-                <select id="aggregation">
-                    <option value="max" selected>MAX (Highest point in bucket)</option>
-                    <option value="average">AVERAGE (Mean elevation)</option>
-                    <option value="min">MIN (Lowest point)</option>
-                    <option value="median">MEDIAN (Middle value)</option>
-                </select>
-            </div>
+            
             
             <div class="control-group">
                 <select id="renderMode">
                     <option value="bars" selected>3D Rectangular Prisms</option>
                     <option value="surface">Smooth Surface</option>
-                    <option value="wireframe">Wireframe</option>
                     <option value="points">Point Cloud</option>
                 </select>
             </div>
@@ -167,9 +158,6 @@
                     <option value="blender">Blender</option>
                     <option value="unity">Unity Editor</option>
                 </select>
-                <div class="info-box" id="schemeDescription">
-                    Left drag = pan, Scroll = zoom to cursor, Right drag = rotate
-                </div>
             </div>
             
             <h2>Camera Views</h2>

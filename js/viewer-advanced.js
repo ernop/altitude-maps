@@ -86,6 +86,10 @@ let barsBarData = null; // array of { i, j, x, z }
 let barsTileSize = 0;
 const barsDummy = new THREE.Object3D();
 let pendingVertExagRaf = null; // Coalesce rapid exaggeration updates to the latest frame
+let lastBarsExaggerationInternal = null; // Internal value used when bars were last (re)built
+let lastPointsExaggerationInternal = null; // Internal value used when points were last (re)built
+let lastBarsTileSize = 1.0; // Tile size used when bars were last (re)built
+let pendingTileGapRaf = null; // Coalesce tile gap updates to latest frame
 
 // Parameters
 let params = {
@@ -132,13 +136,13 @@ async function init() {
             console.log(`✅ Region input synced to shown region: ${firstRegionId}`);
         }
         
-        // Set default vertical exaggeration to 3x after initial data load
+        // Set default vertical exaggeration to 6x after initial data load
         try {
             if (typeof setVertExagMultiplier === 'function') {
-                setVertExagMultiplier(3);
+                setVertExagMultiplier(6);
             }
         } catch (e) {
-            console.warn('Could not set default vertical exaggeration to 3x:', e);
+            console.warn('Could not set default vertical exaggeration to 6x:', e);
         }
     // Ensure dropdown is filled for initial interaction
     const dropdown = document.getElementById('regionDropdown');
@@ -609,8 +613,11 @@ function syncUIControls() {
     // Render mode
     document.getElementById('renderMode').value = params.renderMode;
     
-    // Aggregation method
-    document.getElementById('aggregation').value = params.aggregation;
+    // Aggregation method (element may not be present)
+    const aggregationEl = document.getElementById('aggregation');
+    if (aggregationEl) {
+        aggregationEl.value = params.aggregation;
+    }
     
     // Color scheme (using jQuery/Select2)
     // Note: terrain is already created with correct colors before this function is called
@@ -1215,22 +1222,31 @@ function setupControls() {
         recreateTerrain();
     });
     
-    // Aggregation method
-    document.getElementById('aggregation').addEventListener('change', (e) => {
-        console.log(`ðŸ”„ Aggregation changed from ${params.aggregation} to ${e.target.value}`);
-        params.aggregation = e.target.value;
-        // Clear edge markers so they get recreated at new positions
-        edgeMarkers.forEach(marker => scene.remove(marker));
-        edgeMarkers = [];
-        rebucketData();
-        recreateTerrain();
-        // Remove focus from dropdown so keyboard navigation works
-        e.target.blur();
-    });
+    // Aggregation method (only if UI exists)
+    const aggregationSelect = document.getElementById('aggregation');
+    if (aggregationSelect) {
+        aggregationSelect.addEventListener('change', (e) => {
+            console.log(`🔄 Aggregation changed from ${params.aggregation} to ${e.target.value}`);
+            params.aggregation = e.target.value;
+            // Clear edge markers so they get recreated at new positions
+            edgeMarkers.forEach(marker => scene.remove(marker));
+            edgeMarkers = [];
+            rebucketData();
+            recreateTerrain();
+            // Remove focus from dropdown so keyboard navigation works
+            e.target.blur();
+        });
+    }
     
     // Render mode
     document.getElementById('renderMode').addEventListener('change', (e) => {
-        params.renderMode = e.target.value;
+        let nextMode = e.target.value;
+        if (nextMode === 'wireframe') {
+            // Wireframe disabled: fallback to surface
+            nextMode = 'surface';
+            e.target.value = 'surface';
+        }
+        params.renderMode = nextMode;
         // Clear edge markers so they get recreated at new positions for new render mode
         edgeMarkers.forEach(marker => scene.remove(marker));
         edgeMarkers = [];
@@ -1759,9 +1775,9 @@ function createTerrain() {
             const halfDepth = (height - 1) / 2;
             controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         } else {
-            // Surface mode - geometry uses scale
-            const halfWidth = scale.width / 2;
-            const halfDepth = scale.depth / 2;
+            // Surface mode - use geometry grid extents (uniform grid)
+            const halfWidth = width / 2;
+            const halfDepth = height / 2;
             controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         }
     }
@@ -1884,7 +1900,9 @@ function createBarsTerrain(width, height, elevation, scale) {
     // Enable custom vertex colors and add uExaggeration uniform for instant height scaling
     instancedMesh.material.onBeforeCompile = (shader) => {
         // Inject attributes/uniforms
-        shader.uniforms.uExaggeration = { value: params.verticalExaggeration };
+        // IMPORTANT: Bars are created using current params.verticalExaggeration baked into instance scale.
+        // The shader uniform represents the RATIO relative to that baked value.
+        shader.uniforms.uExaggeration = { value: 1.0 };
         instancedMesh.material.userData = instancedMesh.material.userData || {};
         instancedMesh.material.userData.uExaggerationUniform = shader.uniforms.uExaggeration;
 
@@ -1899,16 +1917,23 @@ function createBarsTerrain(width, height, elevation, scale) {
             `#include <color_vertex>\n#ifdef USE_INSTANCING\n    vColor = instanceColor;\n#endif`
         );
 
-        // Apply vertical exaggeration by scaling local-space Y before instancing transform
+        // Apply vertical exaggeration in local space BEFORE instancing transform.
+        // Keep bar bottoms anchored at ground by adding (uExaggeration-1)/2 offset in local space,
+        // which becomes (uExaggeration-1)*instanceHeight/2 after instance scaling.
         shader.vertexShader = shader.vertexShader.replace(
             '#include <begin_vertex>',
-            `#include <begin_vertex>\ntransformed.y *= uExaggeration;`
+            `#include <begin_vertex>\ntransformed.y = transformed.y * uExaggeration + (uExaggeration - 1.0) * 0.5;`
         );
     };
     
     terrainMesh = instancedMesh;
     scene.add(terrainMesh);
     stats.bars = barCount;
+    // Record the internal exaggeration used when building bars and reset uniform to 1.0
+    lastBarsExaggerationInternal = params.verticalExaggeration;
+    if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uExaggerationUniform) {
+        terrainMesh.material.userData.uExaggerationUniform.value = 1.0;
+    }
     console.log(`âœ… Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
     console.log(`ðŸ“Š Scene now has ${scene.children.length} total objects`);
     
@@ -1967,9 +1992,31 @@ function createPointCloudTerrain(width, height, elevation, scale) {
         vertexColors: true,
         sizeAttenuation: true
     });
+
+    // Create points mesh
+    const points = new THREE.Points(geometry, material);
     
-    terrainMesh = new THREE.Points(geometry, material);
+    // Add uExaggeration uniform to scale Y on the GPU (ratio relative to build exaggeration)
+    points.material.onBeforeCompile = (shader) => {
+        shader.uniforms.uExaggeration = { value: 1.0 };
+        points.material.userData = points.material.userData || {};
+        points.material.userData.uExaggerationUniform = shader.uniforms.uExaggeration;
+        shader.vertexShader = shader.vertexShader.replace(
+            'void main() {',
+            'uniform float uExaggeration;\nvoid main() {'
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>\ntransformed.y *= uExaggeration;`
+        );
+    };
+    
+    terrainMesh = points;
     scene.add(terrainMesh);
+    lastPointsExaggerationInternal = params.verticalExaggeration;
+    if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uExaggerationUniform) {
+        terrainMesh.material.userData.uExaggerationUniform.value = 1.0;
+    }
 }
 
 function createSurfaceTerrain(width, height, elevation, scale) {
@@ -1979,7 +2026,8 @@ function createSurfaceTerrain(width, height, elevation, scale) {
         width, height, width - 1, height - 1
     );
     
-    const colors = [];
+    const isWireframe = (params.renderMode === 'wireframe');
+    const colors = isWireframe ? null : [];
     const positions = geometry.attributes.position;
     
     // GeoTIFF: elevation[row][col] where row=Northâ†'South, col=Westâ†'East
@@ -1991,20 +2039,34 @@ function createSurfaceTerrain(width, height, elevation, scale) {
             
             positions.setZ(idx, z * params.verticalExaggeration);
             
-            const color = getColorForElevation(z);
-            colors.push(color.r, color.g, color.b);
+            if (!isWireframe) {
+                const color = getColorForElevation(z);
+                colors.push(color.r, color.g, color.b);
+            }
         }
     }
     
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geometry.computeVertexNormals();
+    if (!isWireframe) {
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+    }
     
-    const material = new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
-        vertexColors: true,
-        flatShading: params.renderMode === 'wireframe',
-        wireframe: params.renderMode === 'wireframe',
-        side: THREE.DoubleSide
-    });
+    let material;
+    if (isWireframe) {
+        // Wireframe ignores vertexColors; use a bright, unlit material for visibility
+        material = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            side: THREE.DoubleSide
+        });
+    } else {
+        material = new THREE.MeshLambertMaterial({  // Faster than MeshStandardMaterial
+            vertexColors: true,
+            flatShading: false,
+            wireframe: false,
+            side: THREE.DoubleSide
+        });
+    }
     
     terrainMesh = new THREE.Mesh(geometry, material);
     terrainMesh.rotation.x = -Math.PI / 2;
@@ -2078,24 +2140,20 @@ function updateTerrainHeight() {
     
     if (params.renderMode === 'bars') {
         if (!barsInstancedMesh) { recreateTerrain(); return; }
-        // Instant update: just tweak the shader uniform; no per-instance CPU loops
+        // Instant update: update shader uniform to ratio of new/internal used value
         const u = barsInstancedMesh.material && barsInstancedMesh.material.userData && barsInstancedMesh.material.userData.uExaggerationUniform;
         if (u) {
-            u.value = params.verticalExaggeration;
+            const base = (lastBarsExaggerationInternal && lastBarsExaggerationInternal > 0) ? lastBarsExaggerationInternal : params.verticalExaggeration;
+            u.value = params.verticalExaggeration / base;
         }
         // Note: tile gap/bucket changes are handled by their own controls via recreateTerrain()
     } else if (params.renderMode === 'points') {
-        const positions = terrainMesh.geometry.attributes.position;
-        const { width, height, elevation } = processedData;
-        let idx = 0;
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const z = elevation[i] && elevation[i][j] ? elevation[i][j] : 0;
-                positions.setY(idx, z * params.verticalExaggeration);
-                idx++;
-            }
+        // Instant update for points via uniform ratio (no CPU loops)
+        const u = terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uExaggerationUniform;
+        if (u) {
+            const base = (lastPointsExaggerationInternal && lastPointsExaggerationInternal > 0) ? lastPointsExaggerationInternal : params.verticalExaggeration;
+            u.value = params.verticalExaggeration / base;
         }
-        positions.needsUpdate = true;
     } else {
         const positions = terrainMesh.geometry.attributes.position;
         const { width, height, elevation } = processedData;
@@ -2270,23 +2328,24 @@ function setView(preset) {
         return;
     }
     
-    // Calculate distances based on actual coordinate extent
+    // Calculate distances based on UNIFORM GRID extents (no geographic scaling)
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
-    const scale = calculateRealWorldScale();
     
-    // Calculate actual coordinate extent (varies by render mode)
+    // Use pixel-grid extents for all modes to preserve proportions established by the pipeline
     let xExtent, zExtent;
     if (params.renderMode === 'bars') {
-        // Bars use integer grid with aspect ratio scaling
         const bucketMultiplier = params.bucketSize;
-        const aspectRatio = scale.metersPerPixelY / scale.metersPerPixelX;
         xExtent = (gridWidth - 1) * bucketMultiplier;
-        zExtent = (gridHeight - 1) * bucketMultiplier * aspectRatio;
+        zExtent = (gridHeight - 1) * bucketMultiplier;
+    } else if (params.renderMode === 'points') {
+        const bucketSize = 1;
+        xExtent = (gridWidth - 1) * bucketSize;
+        zExtent = (gridHeight - 1) * bucketSize;
     } else {
-        // Other modes use meter-based coordinates
-        xExtent = scale.widthMeters;
-        zExtent = scale.heightMeters;
+        // Surface: PlaneGeometry is centered; treat width/height directly
+        xExtent = gridWidth;
+        zExtent = gridHeight;
     }
     
     const maxDim = Math.max(xExtent, zExtent);
