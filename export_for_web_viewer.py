@@ -5,7 +5,7 @@ FORMAT VERSION HISTORY:
 - v2 (2025-10-22): Natural GeoTIFF orientation, no transformations
 - v1 (legacy): Had fliplr() + rot90() transformations (DEPRECATED)
 
-⚠️ When changing export format, increment DATA_FORMAT_VERSION and re-export ALL data!
+ When changing export format, increment DATA_FORMAT_VERSION and re-export ALL data!
 """
 import sys
 import json

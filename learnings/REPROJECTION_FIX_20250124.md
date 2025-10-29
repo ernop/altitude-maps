@@ -1,7 +1,7 @@
 # Reprojection Fix for Latitude Distortion Correction
 
 **Date:** January 24, 2025  
-**Status:** ✅ RESOLVED  
+**Status:**  RESOLVED  
 **Related:** Aspect ratio preservation, EPSG:4326 distortion correction
 
 ## The Problem
@@ -18,7 +18,7 @@ Example: California had 773M pixels with zero or less elevation (62% of data cor
 The bug was in the reprojection code in `src/pipeline.py::clip_to_boundary()`:
 
 ```python
-# ❌ BUGGY CODE
+#  BUGGY CODE
 reprojected = np.empty((1, height, width), dtype=out_image.dtype)
 reproject(
     source=out_image,
@@ -44,7 +44,7 @@ When `rasterio_mask()` masks pixels outside boundaries with `filled=False`, thos
 ## The Fix
 
 ```python
-# ✅ FIXED CODE
+#  FIXED CODE
 reprojected = np.empty((1, height, width), dtype=out_image.dtype)
 reprojected.fill(out_meta.get('nodata', np.nan))  # Initialize with nodata
 
@@ -102,21 +102,21 @@ Without reprojection:
 ### 1. Always Initialize Arrays Before Reprojection
 
 ```python
-# ✅ DO: Fill with nodata
+#  DO: Fill with nodata
 reprojected = np.empty(shape, dtype=dtype)
 reprojected.fill(nodata_value)
 
-# ❌ DON'T: Leave uninitialized
+#  DON'T: Leave uninitialized
 reprojected = np.empty(shape, dtype=dtype)  # Contains garbage!
 ```
 
 ### 2. Always Specify Nodata Parameters
 
 ```python
-# ✅ DO: Explicit nodata handling
+#  DO: Explicit nodata handling
 reproject(..., src_nodata=src_nodata, dst_nodata=dst_nodata)
 
-# ❌ DON'T: Omit nodata parameters
+#  DON'T: Omit nodata parameters
 reproject(...)  # No nodata info = data corruption
 ```
 

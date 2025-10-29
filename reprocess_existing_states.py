@@ -84,7 +84,7 @@ def main():
                     state_files.append((state_id, tif_file, 'srtm_30m'))
     
     if not state_files:
-        print("❌ No state TIF files found!")
+        print(" No state TIF files found!")
         print("Expected locations:")
         print("  - data/raw/srtm_30m/*_bbox_30m.tif")
         print("  - data/regions/*.tif")
@@ -96,17 +96,17 @@ def main():
         requested = set(s.lower().replace(' ', '_').replace('-', '_') for s in args.states)
         state_files = [(sid, path, src) for sid, path, src in state_files if sid in requested]
         if not state_files:
-            print(f"❌ None of the requested states found: {args.states}")
+            print(f" None of the requested states found: {args.states}")
             return 1
     
-    print(f"\n🗺️  Found {len(state_files)} state(s) to process")
+    print(f"\n🗺  Found {len(state_files)} state(s) to process")
     print(f"Target resolution: {args.target_pixels}px")
     print("=" * 70)
     
     # Clean intermediate files with proper dependency handling
     # --force: Delete everything (clipped, processed, generated)
     # No --force: Delete only generated files (keep clipped/processed if valid)
-    print("\n🗑️  Cleaning old intermediate files...")
+    print("\n🗑  Cleaning old intermediate files...")
     clipped_dir = Path('data/clipped/srtm_30m')
     processed_dir = Path('data/processed/srtm_30m')
     generated_dir = Path('generated/regions')
@@ -167,14 +167,14 @@ def main():
             )
             
             if success:
-                print(f"   ✅ {state_name} processed successfully!")
+                print(f"    {state_name} processed successfully!")
                 succeeded.append(state_id)
             else:
-                print(f"   ❌ {state_name} failed!")
+                print(f"    {state_name} failed!")
                 failed.append(state_id)
                 
         except Exception as e:
-            print(f"   ❌ Error: {e}")
+            print(f"    Error: {e}")
             failed.append(state_id)
     
     # Summary
@@ -186,9 +186,9 @@ def main():
     print(f"Failed:    {len(failed)}")
     
     if succeeded:
-        print(f"\n✅ Processed: {', '.join(succeeded)}")
+        print(f"\n Processed: {', '.join(succeeded)}")
     if failed:
-        print(f"\n❌ Failed: {', '.join(failed)}")
+        print(f"\n Failed: {', '.join(failed)}")
     
     print(f"\n{'='*70}")
     print("Next steps:")

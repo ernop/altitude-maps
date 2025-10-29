@@ -14,7 +14,7 @@ Notes:
 
 This file is internal (maintained by developers) and not meant for user edits.
 
-⚠️ IMPORTANT: This is a library module, NOT an entry point.
+ IMPORTANT: This is a library module, NOT an entry point.
    Do NOT wrap sys.stdout/stderr here - let the calling script handle it.
 """
 

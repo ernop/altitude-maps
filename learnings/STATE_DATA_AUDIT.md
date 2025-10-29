@@ -71,9 +71,9 @@ if abs(export_aspect - source_aspect) > 0.01:
 
 | State | Before | After | Status |
 |-------|--------|-------|--------|
-| Nebraska | 807×831 (0.971) | 807×277 (2.913) | ✅ Fixed |
-| Nevada | 827×813 (1.017) | 694×813 (0.854) | ✅ Fixed |
-| Delaware | 888×834 (1.065) | 444×834 (0.532) | ✅ Fixed |
+| Nebraska | 807×831 (0.971) | 807×277 (2.913) |  Fixed |
+| Nevada | 827×813 (1.017) | 694×813 (0.854) |  Fixed |
+| Delaware | 888×834 (1.065) | 444×834 (0.532) |  Fixed |
 
 ## How to Use Fix Utility
 

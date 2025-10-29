@@ -126,7 +126,7 @@ def download_opentopography_region(region_id: str, bounds: Tuple[float, float, f
         True if successful
     """
     if output_file.exists():
-        print(f"   ✅ Already exists: {output_file}")
+        print(f"    Already exists: {output_file}")
         return True
     
     west, south, east, north = bounds
@@ -175,7 +175,7 @@ def download_opentopography_region(region_id: str, bounds: Tuple[float, float, f
                         pbar.update(len(chunk))
         
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        print(f"   ✅ Downloaded: {output_file}")
+        print(f"    Downloaded: {output_file}")
         print(f"      Size: {file_size_mb:.1f} MB")
         
         # Verify it's a valid file
@@ -185,25 +185,25 @@ def download_opentopography_region(region_id: str, bounds: Tuple[float, float, f
                 print(f"      Dimensions: {src.width} × {src.height}")
                 print(f"      Resolution: ~30m")
         except Exception as e:
-            print(f"   ⚠️  Warning: Could not verify file: {e}")
+            print(f"     Warning: Could not verify file: {e}")
         
         return True
         
     except requests.exceptions.Timeout:
-        print(f"   ❌ Download timeout (region may be too large)")
+        print(f"    Download timeout (region may be too large)")
         print(f"      Try smaller regions or download manually from:")
         print(f"      https://portal.opentopography.org/raster?opentopoID=OTSRTM.082015.4326.1")
         return False
         
     except requests.exceptions.HTTPError as e:
-        print(f"   ❌ HTTP Error: {e}")
+        print(f"    HTTP Error: {e}")
         if e.response.status_code == 413:
             print(f"      Region too large for API. Try manual download:")
             print(f"      https://portal.opentopography.org/raster?opentopoID=OTSRTM.082015.4326.1")
         return False
         
     except Exception as e:
-        print(f"   ❌ Download failed: {e}")
+        print(f"    Download failed: {e}")
         return False
 
 
@@ -279,7 +279,7 @@ Examples:
             api_key = get_api_key()
             print(f"   🔑 Using API key from settings.json")
         except SystemExit:
-            print("\n💡 Tip: Add your API key to settings.json for automatic authentication")
+            print("\n Tip: Add your API key to settings.json for automatic authentication")
             return 1
     
     if args.list:
@@ -293,7 +293,7 @@ Examples:
         return 0
     
     if not args.states:
-        print("❌ No states specified!")
+        print(" No states specified!")
         print("Usage: python download_us_states.py <state1> <state2> ...")
         print("Or: python download_us_states.py --list")
         return 1
@@ -301,7 +301,7 @@ Examples:
     data_dir = Path(args.data_dir)
     output_dir = Path(args.output_dir)
     
-    print(f"\n🗺️  US State Elevation Downloader")
+    print(f"\n🗺  US State Elevation Downloader")
     print(f"="*70)
     print(f"States: {len(args.states)}")
     print(f"Data source: OpenTopography SRTM GL1 (30m)")
@@ -313,7 +313,7 @@ Examples:
     
     for i, state_id in enumerate(args.states, 1):
         if state_id not in US_STATES:
-            print(f"\n❌ Unknown state: {state_id}")
+            print(f"\n Unknown state: {state_id}")
             print(f"   Run with --list to see available states")
             failed.append(state_id)
             continue
@@ -390,12 +390,12 @@ Examples:
     print(f"{'='*70}")
     
     if downloaded:
-        print(f"✅ Downloaded: {len(downloaded)} states")
+        print(f" Downloaded: {len(downloaded)} states")
         for state_id in downloaded:
             print(f"   - {US_STATES[state_id]['name']}")
     
     if failed:
-        print(f"\n❌ Failed: {len(failed)} states")
+        print(f"\n Failed: {len(failed)} states")
         for state_id in failed:
             if state_id in US_STATES:
                 print(f"   - {US_STATES[state_id]['name']}")
@@ -403,7 +403,7 @@ Examples:
                 print(f"   - {state_id} (unknown)")
     
     if args.process and processed:
-        print(f"\n✅ Processed: {len(processed)} states")
+        print(f"\n Processed: {len(processed)} states")
         print(f"\n{'='*70}")
         print("🎉 Ready! Open interactive_viewer_advanced.html")
         print("   Select states from the Region Selector dropdown")

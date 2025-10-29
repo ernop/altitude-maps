@@ -65,7 +65,7 @@ class GroundPlaneCamera extends CameraScheme {
         this.renderer.domElement.addEventListener('touchend', this.touchEndHandler, { passive: false });
         this.renderer.domElement.addEventListener('touchcancel', this.touchEndHandler, { passive: false });
         
-        console.log(`📍 Ground plane camera initialized. Focus point: (${this.focusPoint.x.toFixed(1)}, ${this.focusPoint.y.toFixed(1)}, ${this.focusPoint.z.toFixed(1)})`);
+        // Initialized
     }
     
     deactivate() {
@@ -106,27 +106,27 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.tiltStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
-            console.log('🔽 Tilt started (Shift+Left)');
+            
         } else if (event.button === 0 && event.altKey) { // Alt+Left = Tumble/Rotate (Maya style)
             this.state.rotating = true;
             this.state.rotatingWithAlt = true; // Track that Alt was used
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
-            console.log('🔄 Tumble started (Alt+Left, Maya style)');
+            
         } else if (event.button === 0) { // Left = Pan along plane
             this.state.panning = true;
             this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
-            console.log('🖱️ Pan started on plane');
+            
         } else if (event.button === 2) { // Right = Rotate around focus point
             this.state.rotating = true;
             this.state.rotatingWithAlt = false; // Right button, not Alt
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
-            console.log('🔄 Rotation started around focus point');
+            
         }
     }
     
@@ -172,7 +172,7 @@ class GroundPlaneCamera extends CameraScheme {
         if (this.state.tilting) {
             // If Shift key is released mid-drag, cancel tilt operation smoothly
             if (!event.shiftKey) {
-                console.log('🔽 Tilt cancelled (Shift released)');
+                
                 this.state.tilting = false;
                 return;
             }
@@ -205,7 +205,7 @@ class GroundPlaneCamera extends CameraScheme {
         if (this.state.rotating) {
             // If Alt was used to start rotation and Alt is released, cancel smoothly
             if (this.state.rotatingWithAlt && !event.altKey) {
-                console.log('🔄 Rotation cancelled (Alt released)');
+                
                 this.state.rotating = false;
                 this.state.rotatingWithAlt = false;
                 return;
@@ -244,14 +244,14 @@ class GroundPlaneCamera extends CameraScheme {
     onMouseUp(event) {
         if (event.button === 0) {
             if (this.state.tilting) {
-                console.log('🔽 Tilt ended');
+                
                 this.state.tilting = false;
             }
             if (this.state.panning) {
-                console.log(`📍 Pan ended. Focus point: (${this.focusPoint.x.toFixed(1)}, ${this.focusPoint.y.toFixed(1)}, ${this.focusPoint.z.toFixed(1)})`);
+                
             }
             if (this.state.rotating) {
-                console.log('🔄 Rotation ended');
+                
                 this.state.rotating = false;
                 this.state.rotatingWithAlt = false;
             }
@@ -356,7 +356,6 @@ class GroundPlaneCamera extends CameraScheme {
         this.camera.up.set(0, 1, 0);
         this.camera.lookAt(this.focusPoint);
 		
-		console.log(`📐 Reframed view: fixed height ${fixedHeight}, tilt ${tiltDeg}°, position (0, ${fixedHeight}, ${zOffset.toFixed(1)})`);
     }
     
     // Set terrain bounds (called externally by viewer)
@@ -405,7 +404,6 @@ class GroundPlaneCamera extends CameraScheme {
                 focus: this.focusPoint.clone()
             };
             
-            console.log('👆 Two-finger gesture started');
         }
     }
     

@@ -105,7 +105,7 @@ class DataManager:
                     ))
                 except (VersionMismatchError, json.JSONDecodeError) as e:
                     # Skip incompatible or corrupt files
-                    print(f"⚠️  Skipping {tif_file.name}: {e}")
+                    print(f"  Skipping {tif_file.name}: {e}")
                     continue
         
         # Sort by resolution (higher resolution first)
@@ -151,7 +151,7 @@ class DataManager:
                     break
             
             if not selected_source:
-                print(f"⚠️  Preferred source '{prefer_source}' not found, using best available")
+                print(f"  Preferred source '{prefer_source}' not found, using best available")
         
         # If no preference or preference not found, use highest resolution
         if not selected_source:

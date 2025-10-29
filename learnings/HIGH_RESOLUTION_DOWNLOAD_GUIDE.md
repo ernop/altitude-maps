@@ -7,7 +7,7 @@ This guide explains how to download high-resolution elevation data for Californi
 ### Option 1: Automated Download via OpenTopography (30m)
 
 **For California:**
-> ⚠️ Note: Full California is too large for the API. Use sub-regions instead:
+>  Note: Full California is too large for the API. Use sub-regions instead:
 
 ```powershell
 # Download Central California (Sierra Nevada, Yosemite) - RECOMMENDED

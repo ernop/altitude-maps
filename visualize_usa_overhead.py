@@ -168,7 +168,7 @@ def main():
     # --- Step 1: Data Processing ---
     tif_file_path = Path(args.tif_file)
     if not tif_file_path.exists():
-        print(f"\n❌ Error: File not found: {tif_file_path}")
+        print(f"\n Error: File not found: {tif_file_path}")
         print("   Download with: python download_continental_usa.py --region nationwide_usa --yes")
         return 1
     
@@ -268,7 +268,7 @@ def main():
             )
         
         print("\n" + "=" * 70)
-        print("  ✅ ALL 9 VIEWPOINTS COMPLETE!")
+        print("   ALL 9 VIEWPOINTS COMPLETE!")
         print("=" * 70)
     else:
         # Single render with specified camera settings

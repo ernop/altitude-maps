@@ -15,7 +15,7 @@ try:
     import rasterio
     import numpy as np
 except ImportError:
-    print("❌ Missing dependencies. Activate venv first:")
+    print(" Missing dependencies. Activate venv first:")
     print("   .\\venv\\Scripts\\Activate.ps1")
     sys.exit(1)
 
@@ -49,13 +49,13 @@ def check_raw_file(region_id, verbose=False):
             break
     
     if not raw_path:
-        print("❌ Raw file not found!")
+        print(" Raw file not found!")
         print("   Looked in:")
         for path in possible_locations:
             print(f"     - {path}")
         return False
     
-    print(f"✅ Found: {raw_path}")
+    print(f" Found: {raw_path}")
     
     try:
         with rasterio.open(raw_path) as ds:
@@ -74,7 +74,7 @@ def check_raw_file(region_id, verbose=False):
                 smin = float(np.nanmin(sample_f)) if np.any(valid) else float('nan')
                 smax = float(np.nanmax(sample_f)) if np.any(valid) else float('nan')
             except Exception as e:
-                print(f"   ❌ Sample read failed: {e}")
+                print(f"    Sample read failed: {e}")
                 return False
             
             print(f"   Dimensions: {ds.width} × {ds.height} pixels")
@@ -85,10 +85,10 @@ def check_raw_file(region_id, verbose=False):
             print(f"   Sample valid: {valid_pct:.1f}% | range: {smin:.1f}..{smax:.1f} m")
             
             if valid_pct == 0:
-                print(f"   ❌ No valid data in sample window")
+                print(f"    No valid data in sample window")
                 return False
     except Exception as e:
-        print(f"   ❌ Could not open raw file: {e}")
+        print(f"    Could not open raw file: {e}")
         return False
     
     return True
@@ -97,7 +97,7 @@ def check_raw_file(region_id, verbose=False):
 def check_clipped_file(region_id, verbose=False):
     """Check clipped file."""
     print("\n" + "="*70)
-    print("✂️  CLIPPED FILE CHECK")
+    print("✂  CLIPPED FILE CHECK")
     print("="*70)
     
     # Find clipped file
@@ -113,11 +113,11 @@ def check_clipped_file(region_id, verbose=False):
             break
     
     if not clipped_path:
-        print("⚠️  Clipped file not found - needs processing")
+        print("  Clipped file not found - needs processing")
         print("   Run: python reprocess_existing_states.py --states", region_id)
         return False
     
-    print(f"✅ Found: {clipped_path}")
+    print(f" Found: {clipped_path}")
     
     try:
         with rasterio.open(clipped_path) as ds:
@@ -162,11 +162,11 @@ def check_clipped_file(region_id, verbose=False):
             total_empty_edges = all_empty_rows_top + all_empty_rows_bottom + all_empty_cols_left + all_empty_cols_right
             
             if total_empty_edges > 0:
-                print(f"   ❌ crop=True FAILED: {total_empty_edges} all-empty rows/cols remain")
+                print(f"    crop=True FAILED: {total_empty_edges} all-empty rows/cols remain")
                 print(f"      Top: {all_empty_rows_top}, Bottom: {all_empty_rows_bottom}")
                 print(f"      Left: {all_empty_cols_left}, Right: {all_empty_cols_right}")
             else:
-                print(f"   ✅ Cropping effective - no all-empty edges")
+                print(f"    Cropping effective - no all-empty edges")
             
             # Check edge sparseness
             if total_empty_edges == 0:
@@ -179,12 +179,12 @@ def check_clipped_file(region_id, verbose=False):
                       f"L:{left_edge_valid:.0f}% R:{right_edge_valid:.0f}%")
                 
                 if min(top_edge_valid, bottom_edge_valid, left_edge_valid, right_edge_valid) < 10:
-                    print(f"   ℹ️  Sparse edges normal for irregular boundaries")
+                    print(f"   ℹ  Sparse edges normal for irregular boundaries")
             
             if verbose:
                 print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
     except Exception as e:
-        print(f"   ❌ Could not open clipped file: {e}")
+        print(f"    Could not open clipped file: {e}")
         return False
     
     return True
@@ -201,13 +201,13 @@ def check_processed_file(region_id, verbose=False):
     processed_files = list(processed_dir.rglob(f"{region_id}_*.tif"))
     
     if not processed_files:
-        print("⚠️  No processed files found - needs processing")
+        print("  No processed files found - needs processing")
         print("   Run: python reprocess_existing_states.py --states", region_id)
         return False
     
     ok = True
     for proc_path in processed_files:
-        print(f"\n✅ Found: {proc_path}")
+        print(f"\n Found: {proc_path}")
         try:
             with rasterio.open(proc_path) as ds:
                 data = ds.read(1)
@@ -223,7 +223,7 @@ def check_processed_file(region_id, verbose=False):
                     print(f"   Elevation range: {np.nanmin(data):.1f}m to {np.nanmax(data):.1f}m")
                     print(f"   Total pixels: {data.size:,}")
         except Exception as e:
-            print(f"   ❌ Could not open processed file: {e}")
+            print(f"    Could not open processed file: {e}")
             ok = False
     
     return ok
@@ -242,12 +242,12 @@ def check_generated_json(region_id, verbose=False):
     json_files = [f for f in json_files if '_borders' not in f.stem and '_meta' not in f.stem]
     
     if not json_files:
-        print("⚠️  No JSON exports found - needs export")
+        print("  No JSON exports found - needs export")
         print("   Run: python reprocess_existing_states.py --states", region_id)
         return False
     
     for json_path in json_files:
-        print(f"\n✅ Found: {json_path}")
+        print(f"\n Found: {json_path}")
         print(f"   File size: {format_size(json_path.stat().st_size)}")
         
         with open(json_path) as f:
@@ -314,7 +314,7 @@ Examples:
         try:
             from ensure_region import US_STATE_NAMES, INTERNATIONAL_REGIONS
         except Exception:
-            print("❌ Could not load region registry from ensure_region.py")
+            print(" Could not load region registry from ensure_region.py")
             return 1
         all_ids = sorted(list(US_STATE_NAMES.keys())) + sorted(list(INTERNATIONAL_REGIONS.keys()))
         failures = []
@@ -339,12 +339,12 @@ Examples:
         print("📋 ALL-REGIONS SUMMARY")
         print("="*70)
         if failures:
-            print(f"❌ Failures ({len(failures)}):")
+            print(f" Failures ({len(failures)}):")
             for rid in failures:
                 print(f"  - {rid}")
             return 1
         else:
-            print("✅ All regions passed checks")
+            print(" All regions passed checks")
             return 0
     
     print("="*70)
@@ -359,11 +359,11 @@ Examples:
         print("\n" + "="*70)
         print("📋 SUMMARY")
         print("="*70)
-        print("Raw file: ❌ NOT DOWNLOADED")
-        print("Clipped file: ⏭️  SKIPPED (raw missing)")
-        print("Processed file: ⏭️  SKIPPED (raw missing)")
-        print("JSON export: ⏭️  SKIPPED (raw missing)")
-        print("\n💡 Run: python ensure_region.py", region_id)
+        print("Raw file:  NOT DOWNLOADED")
+        print("Clipped file:   SKIPPED (raw missing)")
+        print("Processed file:   SKIPPED (raw missing)")
+        print("JSON export:   SKIPPED (raw missing)")
+        print("\n Run: python ensure_region.py", region_id)
         return 1
     
     if args.raw_only:
@@ -386,19 +386,19 @@ Examples:
     ]
     
     for stage_name, stage_ok in stages:
-        status = "✅" if stage_ok else "❌"
+        status = "" if stage_ok else ""
         print(f"  {status} {stage_name}")
     
     all_ok = all(ok for _, ok in stages)
     
     if all_ok:
-        print("\n✅ All pipeline stages present and valid!")
+        print("\n All pipeline stages present and valid!")
         print("\nNext steps:")
         print("  1. Start viewer: python serve_viewer.py")
         print(f"  2. Visit: http://localhost:8001/interactive_viewer_advanced.html")
         print(f"  3. Select '{region_id}' from dropdown")
     else:
-        print("\n⚠️  Some stages missing or need regeneration")
+        print("\n  Some stages missing or need regeneration")
         print("\nTo fix:")
         print(f"  python reprocess_existing_states.py --target-pixels 2048 --states {region_id}")
     

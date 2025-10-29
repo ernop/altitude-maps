@@ -191,7 +191,7 @@ def download_state_tiles(region_id: str,
             is_valid = False
             
             if file_size_mb < 0.1:
-                print(f"⚠️  Tile {tile_num} is suspiciously small ({file_size_mb:.1f} MB)", flush=True)
+                print(f"  Tile {tile_num} is suspiciously small ({file_size_mb:.1f} MB)", flush=True)
                 print(f"    This tile may be outside data coverage area", flush=True)
                 print(f"    Keeping it anyway (will handle in merge)", flush=True)
                 is_valid = True  # Keep small tiles, they might be valid but sparse
@@ -210,9 +210,9 @@ def download_state_tiles(region_id: str,
                 tile_time = time.time() - tile_start
                 print(f"✓ Tile {tile_num} complete in {tile_time:.1f}s", flush=True)
             else:
-                print(f"⚠️  Tile {tile_num} validation failed, skipping", flush=True)
+                print(f"  Tile {tile_num} validation failed, skipping", flush=True)
         else:
-            print(f"⚠️  Tile {tile_num} has no data (likely water/outside coverage), skipping", flush=True)
+            print(f"  Tile {tile_num} has no data (likely water/outside coverage), skipping", flush=True)
     
     total_time = time.time() - start_time
     
@@ -228,12 +228,12 @@ def download_state_tiles(region_id: str,
     print(f"{'='*70}\n", flush=True)
     
     if not tile_paths:
-        print(f"❌ ERROR: No valid tiles obtained!", flush=True)
+        print(f" ERROR: No valid tiles obtained!", flush=True)
         print(f"   All tiles either failed or have no data coverage", flush=True)
         return []
     
     if len(tile_paths) < len(tiles) / 2:
-        print(f"⚠️  WARNING: Only {len(tile_paths)}/{len(tiles)} tiles have data", flush=True)
+        print(f"  WARNING: Only {len(tile_paths)}/{len(tiles)} tiles have data", flush=True)
         print(f"   This is expected for coastal states (water areas have no elevation data)", flush=True)
     
     return tile_paths
@@ -391,7 +391,7 @@ def download_large_state(region_id: str, api_key: str = None, target_pixels: int
     )
     
     if not tile_paths:
-        print(f"❌ Failed to download tiles")
+        print(f" Failed to download tiles")
         return 1
     
     # Merge tiles

@@ -1,6 +1,6 @@
-# 🗺️ Altitude Maps - Usage Summary
+# 🗺 Altitude Maps - Usage Summary
 
-## ✅ What We've Accomplished
+##  What We've Accomplished
 
 ### 1. **Full Continental USA Elevation Data** ✓
 - **File**: `data/usa_elevation/continental_usa_elevation.tif`
@@ -64,11 +64,11 @@ python download_usa_region.py yellowstone
 ## 🎯 Current Status
 
 **YOU NOW HAVE:**
-✅ Full continental USA elevation data  
-✅ One-command overhead visualization  
-✅ Proper geographic labeling (lat/lon bounds)  
-✅ Realistic terrain coloring  
-✅ High-quality PNG output (300 DPI)
+ Full continental USA elevation data  
+ One-command overhead visualization  
+ Proper geographic labeling (lat/lon bounds)  
+ Realistic terrain coloring  
+ High-quality PNG output (300 DPI)
 
 **READY TO USE:**
 - Change viewing angles

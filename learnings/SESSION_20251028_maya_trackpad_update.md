@@ -68,10 +68,10 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 | Simultaneous pan+zoom | Supported | Both platforms |
 
 **Google Maps Comparison:**
-- ✅ Two-finger drag for pan (trackpad) - we have this
-- ✅ Pinch for zoom - we have this
-- ✅ Works on mobile touch - we have this
-- ✅ Prevents page scrolling - we have this
+-  Two-finger drag for pan (trackpad) - we have this
+-  Pinch for zoom - we have this
+-  Works on mobile touch - we have this
+-  Prevents page scrolling - we have this
 
 **Our Implementation vs Google Maps:**
 - **Same:** Two-finger drag pans on trackpad
@@ -128,16 +128,16 @@ If you release Alt mid-drag, rotation stops smoothly without jumping or continui
 ## Compatibility with Professional Tools
 
 ### Maya
-- ✅ Alt+Left = Tumble (rotate) - **NOW MATCHES**
-- ❌ Alt+Middle = Track (pan) - we use plain Left drag
-- ❌ Alt+Right = Dolly (zoom) - we use scroll wheel
+-  Alt+Left = Tumble (rotate) - **NOW MATCHES**
+-  Alt+Middle = Track (pan) - we use plain Left drag
+-  Alt+Right = Dolly (zoom) - we use scroll wheel
 
 ### 3ds Max
-- ✅ Alt+Left-ish = Rotate - **NOW MATCHES**
-- ✅ Middle drag = Pan - we use Left drag (different button but same concept)
+-  Alt+Left-ish = Rotate - **NOW MATCHES**
+-  Middle drag = Pan - we use Left drag (different button but same concept)
 
 ### Cinema 4D
-- ✅ Alt+Left = Rotate - **NOW MATCHES**
+-  Alt+Left = Rotate - **NOW MATCHES**
 
 ### Altitude Maps Advantage
 - **Simpler:** Don't need Alt for every operation (just rotate)
@@ -237,12 +237,12 @@ if (!event.shiftKey) {
 
 | Software | Control | Altitude Maps Equivalent |
 |----------|---------|--------------------------|
-| Maya | Alt+Left = Tumble | Alt+Left = Rotate ✅ |
-| 3ds Max | Alt+MMB = Orbit | Alt+Left = Rotate ✅ |
-| Cinema 4D | Alt+Left = Rotate | Alt+Left = Rotate ✅ |
-| Google Maps | Two-finger drag = Pan | Two-finger drag = Pan ✅ |
-| Google Maps | Pinch = Zoom | Pinch = Zoom ✅ |
-| Unity | WASD = Move | WASD = Move ✅ |
+| Maya | Alt+Left = Tumble | Alt+Left = Rotate  |
+| 3ds Max | Alt+MMB = Orbit | Alt+Left = Rotate  |
+| Cinema 4D | Alt+Left = Rotate | Alt+Left = Rotate  |
+| Google Maps | Two-finger drag = Pan | Two-finger drag = Pan  |
+| Google Maps | Pinch = Zoom | Pinch = Zoom  |
+| Unity | WASD = Move | WASD = Move  |
 
 ### Unique Features
 
@@ -276,5 +276,5 @@ if (!event.shiftKey) {
 
 Successfully updated controls to match professional 3D software (Maya) while maintaining Google Maps-style trackpad support. All changes are additive or remappings - no existing functionality was removed. Users familiar with Maya, Google Maps, or Unity will find familiar controls.
 
-**Status:** ✅ Complete and ready for testing
+**Status:**  Complete and ready for testing
 

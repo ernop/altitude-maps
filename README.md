@@ -1,4 +1,4 @@
-# 🗺️ Altitude Maps
+# Altitude Maps
 
 **3D visualization toolkit for elevation data from anywhere on Earth.**
 
@@ -15,7 +15,7 @@ Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Wh
 
 ## Recent Updates (October 2025)
 
-### 🎮 Camera Control Enhancements (October 28, 2025)
+### Camera Control Enhancements (October 28, 2025)
 Major updates to interactive viewer controls:
 - **WASD/QE flythrough** - Unity/Unreal-style first-person camera movement
 - **F key reframe** - Instantly center view on terrain bounds (like Maya/Blender)
@@ -24,23 +24,23 @@ Major updates to interactive viewer controls:
 - **Smart typing detection** - Keyboard shortcuts disabled while typing in inputs
 - All controls work simultaneously with no conflicts
 
-### 🎯 Multi-Region Support
+### Multi-Region Support
 The interactive viewer now supports **45+ pre-configured regions worldwide** with a dropdown selector! Switch between USA, Japan, Switzerland, and more without refreshing. Just download data for your regions and they appear automatically.
 
-### 🎨 Bar Rendering Improvements
+### Bar Rendering Improvements
 - **Fixed bar overlapping and gaps** - Bars now use rectangular geometry matching actual grid spacing
 - **Infinite zoom** - Removed artificial zoom-out limits
 - **Smart defaults** - USA loads by default when available
 - **Perfect tiling** - No more black gaps between bars at any angle
 
-### 📏 Real-World Scale (Vertical Exaggeration Fix)
+### Real-World Scale (Vertical Exaggeration Fix)
 Vertical exaggeration now uses **intuitive meter-based scale**:
 - **1.0x** = True Earth proportions (1000m horizontal = 1000m vertical)
 - **4.0x** = New default (moderately dramatic)
 - **10.0x** = Very dramatic terrain
 - Both X/Z and Y axes now use real meters from lat/lon bounds
 
-### 🗺️ Enhanced Border Features
+### Enhanced Border Features
 - **177 countries available** from Natural Earth (10m/50m/110m resolution)
 - **Interactive viewer borders** - Toggle country boundaries in 3D
 - **Country masking** - Clip data to specific nations
@@ -117,11 +117,11 @@ All data is cached locally - download once, use forever.
 
 ## Who Is This For?
 
-✅ **Researchers** - Visualize terrain for papers and presentations  
-✅ **Educators** - Teach geography and geology with interactive 3D  
-✅ **GIS professionals** - Quick visualization prototyping  
-✅ **Hobbyists** - Explore Earth's terrain beautifully  
-✅ **Developers** - Foundation for mapping/terrain projects
+ **Researchers** - Visualize terrain for papers and presentations  
+ **Educators** - Teach geography and geology with interactive 3D  
+ **GIS professionals** - Quick visualization prototyping  
+ **Hobbyists** - Explore Earth's terrain beautifully  
+ **Developers** - Foundation for mapping/terrain projects
 
 ## Quick Start
 
@@ -211,7 +211,7 @@ altitude-maps/
 
 ## What's Included
 
-### 🖼️ Static Visualization Tools
+### 🖼 Static Visualization Tools
 - `visualize_usa_overhead.py` - Main renderer with full customization
 - `visualize_real_data.py` - Multiple views at once
 - `visualize.py` - Demo with synthetic data

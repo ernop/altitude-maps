@@ -44,7 +44,7 @@ class GroundPlaneGoogleEarth extends CameraScheme {
         // Make sure controls.target is on the plane
         this.controls.target.copy(this.focusPoint);
         
-        console.log(`🌍 Google Earth ground plane camera initialized`);
+        
     }
 
     cleanup() {
@@ -86,7 +86,7 @@ class GroundPlaneGoogleEarth extends CameraScheme {
                 this.state.cameraStart = this.camera.position.clone();
                 // DON'T modify focus yet - just store current focus
                 this.state.focusStart = this.focusPoint.clone();
-                console.log('🖱️ Pan started');
+                
             }
             
         } else if (event.button === 0) {
@@ -99,7 +99,7 @@ class GroundPlaneGoogleEarth extends CameraScheme {
                 this.state.cameraStart = this.camera.position.clone();
                 // DON'T modify focus yet - just store current focus
                 this.state.focusStart = this.focusPoint.clone();
-                console.log(`🔄 Orbiting around point on plane`);
+                
             }
             
         } else if (event.button === 1) {
@@ -113,7 +113,6 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             // Store the initial focus point - we'll keep it stable during look-around
             this.state.focusStart = this.focusPoint.clone();
             
-            console.log('👀 Look around started (camera position fixed, local-axis rotation)');
             
         } else if (event.button === 2) {
             // Right = Adjust height (altitude) only
@@ -122,7 +121,7 @@ class GroundPlaneGoogleEarth extends CameraScheme {
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
             this.state.initialHeight = this.camera.position.y;
-            console.log('⬆️ Height adjustment started');
+            
         }
     }
     
@@ -238,25 +237,16 @@ class GroundPlaneGoogleEarth extends CameraScheme {
     
     onMouseUp(event) {
         if (event.button === 0) {
-            if (this.state.panning) {
-                console.log('📍 Pan ended');
-            }
-            if (this.state.orbiting) {
-                console.log('🔄 Orbit ended');
-            }
+            
             this.state.panning = false;
             this.state.orbiting = false;
             
         } else if (event.button === 1) {
-            if (this.state.lookingAround) {
-                console.log('👀 Look around ended');
-            }
+            
             this.state.lookingAround = false;
             
         } else if (event.button === 2) {
-            if (this.state.adjustingHeight) {
-                console.log(`⬆️ Height adjustment ended. New height: ${this.camera.position.y.toFixed(1)}`);
-            }
+            
             this.state.adjustingHeight = false;
         }
     }

@@ -65,7 +65,7 @@ def clip_to_boundary(
     """
     # Validate input file first
     if not raw_tif_path.exists():
-        print(f"      ❌ Input file not found: {raw_tif_path}")
+        print(f"       Input file not found: {raw_tif_path}")
         return False
     
     # Check if output exists and is valid
@@ -76,15 +76,15 @@ def clip_to_boundary(
                 if src.width > 0 and src.height > 0:
                     # Try reading a small sample to ensure it's not corrupted
                     _ = src.read(1, window=((0, min(10, src.height)), (0, min(10, src.width))))
-                    print(f"      ✅ Already clipped (validated): {output_path.name}")
+                    print(f"       Already clipped (validated): {output_path.name}")
                     return True
         except Exception as e:
-            print(f"      ⚠️  Existing file corrupted: {e}")
-            print(f"      🗑️  Deleting and regenerating...")
+            print(f"        Existing file corrupted: {e}")
+            print(f"      🗑  Deleting and regenerating...")
             try:
                 output_path.unlink()
             except Exception as del_e:
-                print(f"      ⚠️  Could not delete: {del_e}")
+                print(f"        Could not delete: {del_e}")
     
     # If we're regenerating the clipped file, delete dependent processed and generated files
     # This ensures the entire pipeline uses consistent data
@@ -102,7 +102,7 @@ def clip_to_boundary(
             deleted_deps.append(f"generated/{f.name}")
     
     if deleted_deps:
-        print(f"      🗑️  Deleted {len(deleted_deps)} dependent file(s) (will be regenerated)")
+        print(f"      🗑  Deleted {len(deleted_deps)} dependent file(s) (will be regenerated)")
     
     print(f"      🔍 Loading {boundary_type} boundary geometry for {boundary_name}...")
     
@@ -114,7 +114,7 @@ def clip_to_boundary(
     elif boundary_type == "state":
         # Parse "Country/State" format
         if "/" not in boundary_name:
-            print(f"      ⚠️  Error: State boundary requires 'Country/State' format")
+            print(f"        Error: State boundary requires 'Country/State' format")
             print(f"      Got: {boundary_name}")
             return False
         
@@ -123,19 +123,19 @@ def clip_to_boundary(
         geometry_gdf = border_manager.get_state(country, state, resolution=border_resolution)
         
         if geometry_gdf is None or geometry_gdf.empty:
-            print(f"      ⚠️  Warning: State '{state}' not found in '{country}'")
+            print(f"        Warning: State '{state}' not found in '{country}'")
             print(f"      Skipping clipping step...")
             return False
     else:
-        print(f"      ⚠️  Error: Invalid boundary_type '{boundary_type}' (must be 'country' or 'state')")
+        print(f"        Error: Invalid boundary_type '{boundary_type}' (must be 'country' or 'state')")
         return False
     
     if geometry_gdf is None or geometry_gdf.empty:
-        print(f"      ⚠️  Warning: Could not find boundary '{boundary_name}'")
+        print(f"        Warning: Could not find boundary '{boundary_name}'")
         print(f"      Skipping clipping step...")
         return False
     
-    print(f"      ✂️  Clipping to {boundary_type} boundary...")
+    print(f"      ✂  Clipping to {boundary_type} boundary...")
     
     try:
         with rasterio.open(raw_tif_path) as src:
@@ -209,7 +209,7 @@ def clip_to_boundary(
                 abs_lat = abs(avg_lat)
                 cos_lat = math.cos(math.radians(abs_lat))
                 distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                print(f"      ⚠️  Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                print(f"        Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
                 print(f"      🔄 Reprojecting to equal-area projection to preserve real-world proportions...")
             
             if needs_reprojection:
@@ -263,7 +263,7 @@ def clip_to_boundary(
                 )
                 
                 out_image = reprojected
-                print(f"      ✅ Reprojected to {dst_crs}: {width} × {height} pixels")
+                print(f"       Reprojected to {dst_crs}: {width} × {height} pixels")
                 
                 # Verify aspect ratio improvement
                 old_aspect = out_meta['width'] / out_meta['height'] if 'width' in out_meta else 0
@@ -277,7 +277,7 @@ def clip_to_boundary(
             )
             if not is_valid:
                 raise ValueError(f"Elevation corruption detected! Range: {elev_range:.1f}m")
-            print(f"      ✅ Elevation range validated: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
+            print(f"       Elevation range validated: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
             
             # Write clipped (and possibly reprojected) data
             print(f"      Writing clipped raster to disk...")
@@ -297,11 +297,11 @@ def clip_to_boundary(
         save_metadata(metadata, get_metadata_path(output_path))
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"      ✅ Clipped: {output_path.name} ({file_size_mb:.1f} MB)")
+        print(f"       Clipped: {output_path.name} ({file_size_mb:.1f} MB)")
         return True
         
     except Exception as e:
-        print(f"      ❌ Clipping failed: {e}")
+        print(f"       Clipping failed: {e}")
         if output_path.exists():
             output_path.unlink()
         return False
@@ -327,7 +327,7 @@ def downsample_for_viewer(
     """
     # Validate input file first
     if not clipped_tif_path.exists():
-        print(f"      ❌ Input file not found: {clipped_tif_path}")
+        print(f"       Input file not found: {clipped_tif_path}")
         return False
     
     # Check if output exists and is valid AND already reprojected to a metric CRS
@@ -341,18 +341,18 @@ def downsample_for_viewer(
                 crs_str = str(src.crs) if src.crs is not None else ""
                 is_latlon = ('EPSG:4326' in crs_str.upper()) or ('WGS84' in crs_str.upper())
                 if is_latlon:
-                    print(f"      ⚠️  Processed file uses geographic CRS ({crs_str}); reprojection required. Regenerating...")
+                    print(f"        Processed file uses geographic CRS ({crs_str}); reprojection required. Regenerating...")
                     raise RuntimeError("processed_file_crs_is_latlon")
                 # Looks good; keep existing
-                print(f"      ✅ Already processed (validated & reprojected): {output_path.name}")
+                print(f"       Already processed (validated & reprojected): {output_path.name}")
                 return True
         except Exception as e:
-            print(f"      ⚠️  Existing processed file invalid or needs reprojection: {e}")
-            print(f"      🗑️  Deleting and regenerating...")
+            print(f"        Existing processed file invalid or needs reprojection: {e}")
+            print(f"      🗑  Deleting and regenerating...")
             try:
                 output_path.unlink()
             except Exception as del_e:
-                print(f"      ⚠️  Could not delete: {del_e}")
+                print(f"        Could not delete: {del_e}")
     
     # If we're regenerating the processed file, delete dependent generated files
     generated_dir = Path('generated/regions')
@@ -362,7 +362,7 @@ def downsample_for_viewer(
             f.unlink()
             deleted_count += 1
         if deleted_count > 0:
-            print(f"      🗑️  Deleted {deleted_count} generated file(s) (will be regenerated)")
+            print(f"      🗑  Deleted {deleted_count} generated file(s) (will be regenerated)")
     
     print(f"      🔄 Downsampling to {target_pixels}×{target_pixels}...")
     
@@ -396,7 +396,7 @@ def downsample_for_viewer(
                 smax = float(np.nanmax(sample_f))
                 print(f"      Sample window valid: {valid_pct*100:.1f}% | range: {smin:.1f}..{smax:.1f} m")
             except Exception as v_err:
-                print(f"      ❌ Input validation failed: {v_err}")
+                print(f"       Input validation failed: {v_err}")
                 return False
             
             # Check if reprojection is needed for latitude distortion fix
@@ -412,7 +412,7 @@ def downsample_for_viewer(
                 abs_lat = abs(avg_lat)
                 cos_lat = math.cos(math.radians(abs_lat))
                 distortion = 1.0 / cos_lat if cos_lat > 0.01 else 1.0
-                print(f"      ⚠️  Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
+                print(f"        Latitude {avg_lat:+.1f}° - aspect ratio distorted {distortion:.2f}x by EPSG:4326")
                 print(f"      🔄 Reprojecting to fix latitude distortion...")
             
             # Reproject if needed (before downsampling)
@@ -485,7 +485,7 @@ def downsample_for_viewer(
                 })
                 src_transform = dst_transform
                 
-                print(f"      ✅ Reprojected to {dst_crs}: {dst_width} × {dst_height} pixels")
+                print(f"       Reprojected to {dst_crs}: {dst_width} × {dst_height} pixels")
                 old_aspect = src.width / src.height
                 new_aspect = dst_width / dst_height if dst_height != 0 else old_aspect
                 print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
@@ -541,11 +541,11 @@ def downsample_for_viewer(
         save_metadata(metadata, get_metadata_path(output_path))
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"      ✅ Processed: {output_path.name} ({file_size_mb:.1f} MB)")
+        print(f"       Processed: {output_path.name} ({file_size_mb:.1f} MB)")
         return True
         
     except Exception as e:
-        print(f"      ❌ Processing failed: {e}")
+        print(f"       Processing failed: {e}")
         if output_path.exists():
             output_path.unlink()
         return False
@@ -573,7 +573,7 @@ def export_for_viewer(
     """
     # Validate input file first
     if not processed_tif_path.exists():
-        print(f"      ❌ Input file not found: {processed_tif_path}")
+        print(f"       Input file not found: {processed_tif_path}")
         return False
     
     # Check if output exists and is valid
@@ -586,20 +586,20 @@ def export_for_viewer(
             required_fields = ['region_id', 'width', 'height', 'elevation', 'bounds']
             if all(field in data for field in required_fields):
                 if data['width'] > 0 and data['height'] > 0 and len(data['elevation']) > 0:
-                    print(f"      ✅ Already exported (validated): {output_path.name}")
+                    print(f"       Already exported (validated): {output_path.name}")
                     return True
             
-            print(f"      ⚠️  Existing JSON incomplete or invalid")
-            print(f"      🗑️  Deleting and regenerating...")
+            print(f"        Existing JSON incomplete or invalid")
+            print(f"      🗑  Deleting and regenerating...")
             output_path.unlink()
             
         except (json.JSONDecodeError, Exception) as e:
-            print(f"      ⚠️  Existing JSON corrupted: {e}")
-            print(f"      🗑️  Deleting and regenerating...")
+            print(f"        Existing JSON corrupted: {e}")
+            print(f"      🗑  Deleting and regenerating...")
             try:
                 output_path.unlink()
             except Exception as del_e:
-                print(f"      ⚠️  Could not delete: {del_e}")
+                print(f"        Could not delete: {del_e}")
     
     print(f"      📤 Exporting to JSON...")
     
@@ -630,9 +630,9 @@ def export_for_viewer(
                     # Only validate data coverage, not aspect ratio
                     # We treat input as uniform 2D grid (square pixels in CRS units)
                     coverage = validate_non_null_coverage(elevation, min_coverage=0.2, warn_only=True)
-                    print(f"      ✅ Validation passed: coverage={coverage*100:.1f}%")
+                    print(f"       Validation passed: coverage={coverage*100:.1f}%")
                 except Exception as e:
-                    print(f"      ⚠️  Validation warning: {e}")
+                    print(f"        Validation warning: {e}")
                     # Don't fail on validation warnings
             
             # Filter bad values (nodata, extreme values) BEFORE stats calculation
@@ -647,7 +647,7 @@ def export_for_viewer(
             # Check if we have ANY valid data
             valid_count = np.sum(~np.isnan(elevation_clean))
             if valid_count == 0:
-                print(f"      ❌ Error: No valid elevation data after filtering nodata values", flush=True)
+                print(f"       Error: No valid elevation data after filtering nodata values", flush=True)
                 return False
             
             print(f"      Valid pixels: {valid_count:,} / {elevation_clean.size:,} ({100*valid_count/elevation_clean.size:.1f}%)", flush=True)
@@ -668,7 +668,7 @@ def export_for_viewer(
             export_aspect = src.width / src.height
             actual_export_aspect = len(elevation_list[0]) / len(elevation_list) if elevation_list else 0
             if abs(actual_export_aspect - export_aspect) > 0.01:
-                print(f"      ⚠️  WARNING: Aspect ratio mismatch!", flush=True)
+                print(f"        WARNING: Aspect ratio mismatch!", flush=True)
                 print(f"      Expected: {export_aspect:.3f}, Got: {actual_export_aspect:.3f}", flush=True)
                 raise ValueError(f"Aspect ratio not preserved for {region_id}")
             
@@ -710,7 +710,7 @@ def export_for_viewer(
             
             gzip_size_mb = gzip_path.stat().st_size / (1024 * 1024)
             compression_ratio = (1 - gzip_path.stat().st_size / output_path.stat().st_size) * 100
-            print(f"      ✅ Compressed: {gzip_path.name} ({gzip_size_mb:.1f} MB, {compression_ratio:.1f}% smaller)")
+            print(f"       Compressed: {gzip_path.name} ({gzip_size_mb:.1f} MB, {compression_ratio:.1f}% smaller)")
             
             # Create metadata
             resolution_m = int(export_data['stats'].get('resolution_meters', 30))  # Default to 30m
@@ -724,13 +724,13 @@ def export_for_viewer(
             save_metadata(metadata, get_metadata_path(output_path))
             
             file_size_mb = output_path.stat().st_size / (1024 * 1024)
-            print(f"      ✅ Exported: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+            print(f"       Exported: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
             print(f"      Aspect ratio: {export_aspect:.3f} (validated)", flush=True)
             return True
             
     except Exception as e:
         import traceback
-        print(f"      ❌ Export failed: {e}", flush=True)
+        print(f"       Export failed: {e}", flush=True)
         traceback.print_exc()
         if output_path.exists():
             output_path.unlink()
@@ -786,7 +786,7 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                     "stats": data.get("stats", {})
                 }
             except Exception as e:
-                print(f"      ⚠️  Skipping {json_file.name}: {e}")
+                print(f"        Skipping {json_file.name}: {e}")
                 continue
         
         # Write manifest
@@ -794,11 +794,11 @@ def update_regions_manifest(generated_dir: Path) -> bool:
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f, indent=2)
         
-        print(f"      ✅ Manifest updated ({len(manifest['regions'])} regions)")
+        print(f"       Manifest updated ({len(manifest['regions'])} regions)")
         return True
         
     except Exception as e:
-        print(f"      ⚠️  Warning: Could not update manifest: {e}")
+        print(f"        Warning: Could not update manifest: {e}")
         return False
 
 
@@ -850,17 +850,17 @@ def run_pipeline(
     generated_dir = Path("generated/regions")
     
     # Step 1: Download (already done, just confirm)
-    print(f"[1/4] ✅ Raw data: {raw_tif_path.name}")
+    print(f"[1/4]  Raw data: {raw_tif_path.name}")
     
     # Step 2: Clip to boundary
     if skip_clip or not boundary_name:
-        print(f"[2/4] ⏭️  Skipping clipping (using raw data)")
+        print(f"[2/4]   Skipping clipping (using raw data)")
         clipped_path = raw_tif_path
     else:
-        print(f"[2/4] ✂️  Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
+        print(f"[2/4] ✂  Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
         clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
         if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution):
-            print(f"\n⚠️  Clipping failed, using raw data instead")
+            print(f"\n  Clipping failed, using raw data instead")
             clipped_path = raw_tif_path
     
     result_paths["clipped"] = clipped_path
@@ -887,7 +887,7 @@ def run_pipeline(
     
     # Success!
     print(f"\n{'='*70}")
-    print(f"✅ PIPELINE COMPLETE!")
+    print(f" PIPELINE COMPLETE!")
     print(f"{'='*70}")
     print(f"Region '{region_id}' is ready to view!")
     print(f"\nFiles created:")

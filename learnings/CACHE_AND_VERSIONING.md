@@ -110,7 +110,7 @@ DATA ORIENTATION:
 Added a dedicated section on cache invalidation:
 
 ```
-⚠️ **CRITICAL**: When changing data processing/export format:
+ **CRITICAL**: When changing data processing/export format:
 1. Update the format version number in export scripts
 2. Add version validation on data load (fail if version mismatch)
 3. Document the change in code comments
@@ -208,11 +208,11 @@ Added a dedicated section on cache invalidation:
 ### Testing
 
 After any format change:
-1. ✅ Export at least 2 different regions
-2. ✅ Load both in viewer
-3. ✅ Verify compass orientation matches expected N/S/E/W
-4. ✅ Check that recognizable geographic features are in correct positions
-5. ✅ Verify version numbers in browser console
+1.  Export at least 2 different regions
+2.  Load both in viewer
+3.  Verify compass orientation matches expected N/S/E/W
+4.  Check that recognizable geographic features are in correct positions
+5.  Verify version numbers in browser console
 
 ---
 

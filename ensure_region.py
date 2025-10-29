@@ -37,7 +37,7 @@ def check_venv():
     
     if not in_venv:
         print("\n" + "="*70)
-        print("❌ ERROR: Not running in virtual environment!")
+        print(" ERROR: Not running in virtual environment!")
         print("="*70)
         print("\nYou must activate the virtual environment first:")
         if sys.platform == 'win32':
@@ -69,7 +69,7 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
     # Check file size - must be > 1KB (corrupted downloads are often 0 bytes)
     file_size = file_path.stat().st_size
     if file_size < 1024:
-        print(f"      ⚠️  File too small ({file_size} bytes), likely corrupted", flush=True)
+        print(f"        File too small ({file_size} bytes), likely corrupted", flush=True)
         return False
     
     try:
@@ -77,12 +77,12 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
         with rasterio.open(file_path) as src:
             # Basic checks
             if src.width == 0 or src.height == 0:
-                print(f"      ⚠️  Invalid dimensions: {src.width}×{src.height}", flush=True)
+                print(f"        Invalid dimensions: {src.width}×{src.height}", flush=True)
                 return False
             
             # Check that CRS and transform exist
             if src.crs is None or src.transform is None:
-                print(f"      ⚠️  Missing CRS or transform", flush=True)
+                print(f"        Missing CRS or transform", flush=True)
                 return False
             
             if check_data:
@@ -98,17 +98,17 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
                     import numpy as np
                     valid_count = np.sum(~np.isnan(data.astype(float)) & (data > -500))
                     if valid_count == 0:
-                        print(f"      ⚠️  No valid elevation data in sample", flush=True)
+                        print(f"        No valid elevation data in sample", flush=True)
                         return False
                 except Exception as e:
                     # Data read failed; treat as invalid so we can auto-clean and re-download
-                    print(f"      ❌ Data read failed during validation: {e}", flush=True)
+                    print(f"       Data read failed during validation: {e}", flush=True)
                     return False
             
             return True
             
     except Exception as e:
-        print(f"      ⚠️  Not a valid GeoTIFF: {e}", flush=True)
+        print(f"        Not a valid GeoTIFF: {e}", flush=True)
         return False
 
 
@@ -128,7 +128,7 @@ def validate_json_export(file_path: Path) -> bool:
     # Check file size
     file_size = file_path.stat().st_size
     if file_size < 1024:
-        print(f"      ⚠️  JSON too small ({file_size} bytes), likely incomplete")
+        print(f"        JSON too small ({file_size} bytes), likely incomplete")
         return False
     
     try:
@@ -147,27 +147,27 @@ def validate_json_export(file_path: Path) -> bool:
         required_fields = ['region_id', 'width', 'height', 'elevation', 'bounds']
         for field in required_fields:
             if field not in data:
-                print(f"      ⚠️  Missing required field: {field}")
+                print(f"        Missing required field: {field}")
                 return False
         
         # Validate dimensions
         if data['width'] <= 0 or data['height'] <= 0:
-            print(f"      ⚠️  Invalid dimensions: {data['width']}×{data['height']}")
+            print(f"        Invalid dimensions: {data['width']}×{data['height']}")
             return False
         
         # Validate elevation data structure
         elevation = data['elevation']
         if not isinstance(elevation, list) or len(elevation) == 0:
-            print(f"      ⚠️  Invalid elevation data structure")
+            print(f"        Invalid elevation data structure")
             return False
         
         # Check that elevation matches dimensions
         if len(elevation) != data['height']:
-            print(f"      ⚠️  Elevation height mismatch: {len(elevation)} != {data['height']}")
+            print(f"        Elevation height mismatch: {len(elevation)} != {data['height']}")
             return False
         
         if len(elevation[0]) != data['width']:
-            print(f"      ⚠️  Elevation width mismatch: {len(elevation[0])} != {data['width']}")
+            print(f"        Elevation width mismatch: {len(elevation[0])} != {data['width']}")
             return False
         
         # Validate elevation range to catch corruption (Minnesota/Connecticut issue)
@@ -183,22 +183,22 @@ def validate_json_export(file_path: Path) -> bool:
                 
                 # Check for suspiciously small elevation range (indicates reprojection corruption)
                 if elev_range < 50.0:
-                    print(f"      ⚠️  Suspicious elevation range: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
+                    print(f"        Suspicious elevation range: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
                     print(f"      This suggests reprojection corruption - data should be regenerated")
                     return False
                 
-                print(f"      ✅ Elevation range OK: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
+                print(f"       Elevation range OK: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
         except Exception as e:
-            print(f"      ⚠️  Could not validate elevation range: {e}")
+            print(f"        Could not validate elevation range: {e}")
             # Don't fail on this - might be edge case with edge case data
         
         return True
         
     except json.JSONDecodeError as e:
-        print(f"      ⚠️  Invalid JSON: {e}")
+        print(f"        Invalid JSON: {e}")
         return False
     except Exception as e:
-        print(f"      ⚠️  Validation error: {e}")
+        print(f"        Validation error: {e}")
         return False
 
 
@@ -273,15 +273,15 @@ def find_raw_file(region_id):
         if path.exists():
             print(f"   🔍 Checking {path.name}...", flush=True)
             if validate_geotiff(path, check_data=True):
-                print(f"      ✅ Valid GeoTIFF (structure)", flush=True)
+                print(f"       Valid GeoTIFF (structure)", flush=True)
                 return path, get_source_from_path(path)
             else:
-                print(f"      ❌ Invalid or corrupted, cleaning up...", flush=True)
+                print(f"       Invalid or corrupted, cleaning up...", flush=True)
                 try:
                     path.unlink()
-                    print(f"      🗑️  Deleted corrupted file", flush=True)
+                    print(f"      🗑  Deleted corrupted file", flush=True)
                 except Exception as e:
-                    print(f"      ⚠️  Could not delete: {e}", flush=True)
+                    print(f"        Could not delete: {e}", flush=True)
     
     return None, None
 
@@ -315,15 +315,15 @@ def check_pipeline_complete(region_id):
     for json_file in json_files:
         print(f"   🔍 Checking {json_file.name}...", flush=True)
         if validate_json_export(json_file):
-            print(f"      ✅ Valid export found", flush=True)
+            print(f"       Valid export found", flush=True)
             return True
         else:
-            print(f"      ❌ Invalid or incomplete, cleaning up...", flush=True)
+            print(f"       Invalid or incomplete, cleaning up...", flush=True)
             try:
                 json_file.unlink()
-                print(f"      🗑️  Deleted corrupted file", flush=True)
+                print(f"      🗑  Deleted corrupted file", flush=True)
             except Exception as e:
-                print(f"      ⚠️  Could not delete: {e}", flush=True)
+                print(f"        Could not delete: {e}", flush=True)
     
     return False
 
@@ -375,7 +375,7 @@ def download_international_region(region_id, region_info):
         # Reuse existing tiling utilities for large areas
         from downloaders.tile_large_states import calculate_tiles, merge_tiles
     except ImportError as e:
-        print(f"❌ Missing required package: {e}")
+        print(f" Missing required package: {e}")
         return False
     
     # Get API key
@@ -383,7 +383,7 @@ def download_international_region(region_id, region_info):
         api_key = get_api_key()
         print(f"   🔑 Using API key from settings.json")
     except SystemExit:
-        print(f"❌ No OpenTopography API key found in settings.json")
+        print(f" No OpenTopography API key found in settings.json")
         print(f"   Get a free key at: https://portal.opentopography.org/")
         print(f"   Add it to settings.json under 'opentopography.api_key'")
         return False
@@ -407,8 +407,8 @@ def download_international_region(region_id, region_info):
                 def _differs(a, b):
                     return any(abs(x - y) > 1e-4 for x, y in zip(a, b))
                 if _differs(old_bounds, new_bounds):
-                    print(f"   ♻️  Bounds changed for {region_id}: old={old_bounds}, new={new_bounds}")
-                    print(f"   🗑️  Deleting existing raw file to regenerate with new bounds...")
+                    print(f"   ♻  Bounds changed for {region_id}: old={old_bounds}, new={new_bounds}")
+                    print(f"   🗑  Deleting existing raw file to regenerate with new bounds...")
                     try:
                         output_file.unlink()
                     except Exception:
@@ -419,16 +419,16 @@ def download_international_region(region_id, region_info):
                     except Exception:
                         pass
                 else:
-                    print(f"   ✅ Already exists with matching bounds: {output_file.name}")
+                    print(f"    Already exists with matching bounds: {output_file.name}")
                     return True
             else:
                 # No metadata; be conservative and assume mismatch only if clearly different can't be known.
                 # Keep existing file to avoid unnecessary re-download.
-                print(f"   ✅ Already exists (no metadata found): {output_file.name}")
+                print(f"    Already exists (no metadata found): {output_file.name}")
                 return True
         except Exception:
             # If metadata system unavailable, fall back to existing file
-            print(f"   ✅ Already exists: {output_file.name}")
+            print(f"    Already exists: {output_file.name}")
             return True
     
     # Helper to download a single bounding box to a specific file
@@ -491,27 +491,27 @@ def download_international_region(region_id, region_info):
             print(f"\n      🧩 Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
             tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
             if tile_path.exists() and validate_geotiff(tile_path, check_data=False):
-                print(f"      ✅ Cached tile present: {tile_path.name}", flush=True)
+                print(f"       Cached tile present: {tile_path.name}", flush=True)
                 tile_paths.append(tile_path)
                 continue
-            print(f"      ⬇️  Downloading tile...", flush=True)
+            print(f"      ⬇  Downloading tile...", flush=True)
             if not _download_bbox(tile_path, tb):
-                print(f"      ⚠️  Tile download failed, skipping", flush=True)
+                print(f"        Tile download failed, skipping", flush=True)
                 continue
             if validate_geotiff(tile_path, check_data=False):
                 tile_paths.append(tile_path)
             else:
-                print(f"      ⚠️  Invalid tile file, removing", flush=True)
+                print(f"        Invalid tile file, removing", flush=True)
                 try:
                     tile_path.unlink()
                 except Exception:
                     pass
         if not tile_paths:
-            print(f"   ❌ No valid tiles downloaded", flush=True)
+            print(f"    No valid tiles downloaded", flush=True)
             return False
         print(f"\n   🔗 Merging {len(tile_paths)} tiles...", flush=True)
         if not merge_tiles(tile_paths, output_file):
-            print(f"   ❌ Tile merge failed", flush=True)
+            print(f"    Tile merge failed", flush=True)
             return False
         # Save metadata for merged file
         try:
@@ -525,8 +525,8 @@ def download_international_region(region_id, region_info):
             )
             save_metadata(raw_meta, get_metadata_path(output_file))
         except Exception as e:
-            print(f"   ⚠️  Could not save raw metadata: {e}")
-        print(f"   ✅ Tiled download and merge complete", flush=True)
+            print(f"     Could not save raw metadata: {e}")
+        print(f"    Tiled download and merge complete", flush=True)
         return True
 
     # Download using OpenTopography API (single request)
@@ -551,7 +551,7 @@ def download_international_region(region_id, region_info):
             # If area too large, transparently fall back to tiling
             resp_text = response.text or ""
             if (dataset == 'SRTMGL1') and ("maximum area" in resp_text.lower() or response.status_code == 400):
-                print(f"   ℹ️  Server rejected single request due to size. Switching to tiled download...", flush=True)
+                print(f"   ℹ  Server rejected single request due to size. Switching to tiled download...", flush=True)
                 # Trigger tiled path
                 # Recursively call this function but force tiling by adjusting threshold
                 # Easiest: emulate should_tile path above
@@ -565,27 +565,27 @@ def download_international_region(region_id, region_info):
                     print(f"\n      🧩 Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
                     tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
                     if tile_path.exists() and validate_geotiff(tile_path, check_data=False):
-                        print(f"      ✅ Cached tile present: {tile_path.name}", flush=True)
+                        print(f"       Cached tile present: {tile_path.name}", flush=True)
                         tile_paths.append(tile_path)
                         continue
-                    print(f"      ⬇️  Downloading tile...", flush=True)
+                    print(f"      ⬇  Downloading tile...", flush=True)
                     if not _download_bbox(tile_path, tb):
-                        print(f"      ⚠️  Tile download failed, skipping", flush=True)
+                        print(f"        Tile download failed, skipping", flush=True)
                         continue
                     if validate_geotiff(tile_path, check_data=False):
                         tile_paths.append(tile_path)
                     else:
-                        print(f"      ⚠️  Invalid tile file, removing", flush=True)
+                        print(f"        Invalid tile file, removing", flush=True)
                         try:
                             tile_path.unlink()
                         except Exception:
                             pass
                 if not tile_paths:
-                    print(f"   ❌ No valid tiles downloaded", flush=True)
+                    print(f"    No valid tiles downloaded", flush=True)
                     return False
                 print(f"\n   🔗 Merging {len(tile_paths)} tiles...", flush=True)
                 if not merge_tiles(tile_paths, output_file):
-                    print(f"   ❌ Tile merge failed", flush=True)
+                    print(f"    Tile merge failed", flush=True)
                     return False
                 try:
                     from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
@@ -598,10 +598,10 @@ def download_international_region(region_id, region_info):
                     )
                     save_metadata(raw_meta, get_metadata_path(output_file))
                 except Exception as e:
-                    print(f"   ⚠️  Could not save raw metadata: {e}")
-                print(f"   ✅ Tiled download and merge complete", flush=True)
+                    print(f"     Could not save raw metadata: {e}")
+                print(f"    Tiled download and merge complete", flush=True)
                 return True
-            print(f"   ❌ API Error: {response.status_code}")
+            print(f"    API Error: {response.status_code}")
             print(f"      Response: {response.text[:200]}")
             return False
         
@@ -620,7 +620,7 @@ def download_international_region(region_id, region_info):
         
         print()  # New line after progress
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        print(f"   ✅ Downloaded successfully ({file_size_mb:.1f} MB)")
+        print(f"    Downloaded successfully ({file_size_mb:.1f} MB)")
         # Write raw metadata including bounds so future bound changes can auto-invalidate
         try:
             from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
@@ -633,11 +633,11 @@ def download_international_region(region_id, region_info):
             )
             save_metadata(raw_meta, get_metadata_path(output_file))
         except Exception as e:
-            print(f"   ⚠️  Could not save raw metadata: {e}")
+            print(f"     Could not save raw metadata: {e}")
         return True
         
     except Exception as e:
-        print(f"   ❌ Download failed: {e}")
+        print(f"    Download failed: {e}")
         if output_file.exists():
             output_file.unlink()  # Clean up partial download
         return False
@@ -650,7 +650,7 @@ def download_region(region_id, region_type, region_info):
     elif region_type == 'international':
         return download_international_region(region_id, region_info)
     else:
-        print(f"❌ Unknown region type: {region_type}")
+        print(f" Unknown region type: {region_type}")
         return False
 
 
@@ -661,7 +661,7 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
     try:
         from src.pipeline import run_pipeline
     except ImportError as e:
-        print(f"❌ Error importing pipeline: {e}")
+        print(f" Error importing pipeline: {e}")
         return False
     
     # Determine boundary based on region type
@@ -688,7 +688,7 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
     
     # Delete existing files if force
     if force:
-        print("   🗑️  Force mode: deleting existing processed files...", flush=True)
+        print("   🗑  Force mode: deleting existing processed files...", flush=True)
         for pattern in [
             f"data/clipped/*/{region_id}_*",
             f"data/processed/*/{region_id}_*",
@@ -713,7 +713,7 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
         return success, result_paths
         
     except Exception as e:
-        print(f"❌ Pipeline error: {e}")
+        print(f" Pipeline error: {e}")
         import traceback
         traceback.print_exc()
         return False, {}
@@ -762,7 +762,7 @@ def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_
         return True
 
     # Auto-fix: force reprocess with 10m borders and clean outputs
-    print("\n   ♻️  Detected invalid or compressed altitude output. Auto-fixing by force reprocess...", flush=True)
+    print("\n   ♻  Detected invalid or compressed altitude output. Auto-fixing by force reprocess...", flush=True)
     # Clean existing artifacts
     for pattern in [
         f"data/clipped/*/{region_id}_*",
@@ -780,7 +780,7 @@ def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_
     # Locate raw again and re-run
     raw_path, _ = find_raw_file(region_id)
     if not raw_path:
-        print("   ❌ Raw file missing during auto-fix")
+        print("    Raw file missing during auto-fix")
         return False
 
     success2, result_paths2 = process_region(
@@ -869,7 +869,7 @@ This script will:
     
     if region_type is None:
         print("="*70, flush=True)
-        print(f"❌ UNKNOWN REGION: {region_id}", flush=True)
+        print(f" UNKNOWN REGION: {region_id}", flush=True)
         print("="*70, flush=True)
         print(f"\nRegion '{region_id}' is not recognized.")
         print(f"\nAvailable options:")
@@ -889,7 +889,7 @@ This script will:
     # Step 1: Check if pipeline is already complete
     print("[STAGE 4/4] Checking final export (JSON)...", flush=True)
     if not args.force_reprocess and check_pipeline_complete(region_id):
-        print(f"\n✅ {region_id} is already processed and ready!")
+        print(f"\n {region_id} is already processed and ready!")
         print(f"\nTo view:")
         print(f"  1. python serve_viewer.py")
         print(f"  2. Visit http://localhost:8001/interactive_viewer_advanced.html")
@@ -902,7 +902,7 @@ This script will:
     raw_path, source = find_raw_file(region_id)
     
     if not raw_path:
-        print(f"   ❌ No valid raw data found for {region_id}", flush=True)
+        print(f"    No valid raw data found for {region_id}", flush=True)
         
         if args.check_only:
             print("   Use without --check-only to download", flush=True)
@@ -911,21 +911,21 @@ This script will:
         # Try to download (route based on region type)
         print(f"\n   📥 Starting download...", flush=True)
         if not download_region(region_id, region_type, region_info):
-            print(f"\n❌ Download failed!", flush=True)
+            print(f"\n Download failed!", flush=True)
             return 1
         
         # Re-validate the downloaded file
         print(f"\n   🔍 Validating download...", flush=True)
         raw_path, source = find_raw_file(region_id)
         if not raw_path:
-            print(f"\n❌ Download reported success but validation failed!", flush=True)
+            print(f"\n Download reported success but validation failed!", flush=True)
             print(f"   File may be corrupted or incomplete", flush=True)
             print(f"   Expected locations:", flush=True)
             print(f"     - data/raw/srtm_30m/{region_id}_bbox_30m.tif", flush=True)
             print(f"     - data/regions/{region_id}.tif", flush=True)
             print(f"     - data/raw/usa_3dep/{region_id}_3dep_10m.tif", flush=True)
             return 1
-        print(f"   ✅ Download validated successfully", flush=True)
+        print(f"    Download validated successfully", flush=True)
     
     if args.check_only:
         print("\n   Use without --check-only to process")
@@ -941,11 +941,11 @@ This script will:
                                       region_type, region_info, args.border_resolution)
         if not ensured:
             print("\n" + "="*70)
-            print(f"❌ FAILED: Auto-fix could not repair {region_info['display_name']}")
+            print(f" FAILED: Auto-fix could not repair {region_info['display_name']}")
             print("="*70)
             return 1
         print("\n" + "="*70)
-        print(f"✅ SUCCESS: {region_info['display_name']} is ready to view!")
+        print(f" SUCCESS: {region_info['display_name']} is ready to view!")
         print("="*70)
         print(f"\nNext steps:")
         print(f"  1. python serve_viewer.py")
@@ -954,7 +954,7 @@ This script will:
         return 0
     else:
         print("\n" + "="*70)
-        print(f"❌ FAILED: Could not process {region_info['display_name']}")
+        print(f" FAILED: Could not process {region_info['display_name']}")
         print("="*70)
         return 1
 

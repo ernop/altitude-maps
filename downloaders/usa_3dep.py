@@ -117,7 +117,7 @@ def download_opentopography_srtm(
         True if successful, False otherwise
     """
     if output_path.exists():
-        print(f"   ✅ Already exists: {output_path.name}", flush=True)
+        print(f"    Already exists: {output_path.name}", flush=True)
         return True
     
     # Get API key from settings if not provided
@@ -126,7 +126,7 @@ def download_opentopography_srtm(
             api_key = get_opentopography_api_key()
             print(f"   🔑 Using API key from settings.json", flush=True)
         except SystemExit:
-            print("   ❌ OpenTopography requires an API key", flush=True)
+            print("    OpenTopography requires an API key", flush=True)
             print("   Add your API key to settings.json or pass --api-key", flush=True)
             print("   Get a free key at: https://portal.opentopography.org/", flush=True)
             return False
@@ -138,7 +138,7 @@ def download_opentopography_srtm(
     height = abs(north - south)
     
     if width > 4.0 or height > 4.0:
-        print(f"   ⚠️  WARNING: Region is very large ({width:.1f}° × {height:.1f}°)", flush=True)
+        print(f"     WARNING: Region is very large ({width:.1f}° × {height:.1f}°)", flush=True)
         print(f"   OpenTopography may reject requests > 4° in any direction", flush=True)
         print(f"   ", flush=True)
         print(f"   ⚡ RECOMMENDED: Use tiling for large states", flush=True)
@@ -184,7 +184,7 @@ def download_opentopography_srtm(
         
         # Handle HTTP 204 (No Content) - region has no data
         if response.status_code == 204:
-            print(f"   ⚠️  No data available for this region", flush=True)
+            print(f"     No data available for this region", flush=True)
             print(f"      This area may be outside SRTM coverage or entirely water", flush=True)
             return False
         
@@ -195,9 +195,9 @@ def download_opentopography_srtm(
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         if total_size > 0:
-            print(f"   ⬇️  Downloading {total_size / (1024*1024):.1f} MB...", flush=True)
+            print(f"   ⬇  Downloading {total_size / (1024*1024):.1f} MB...", flush=True)
         else:
-            print(f"   ⬇️  Downloading (size unknown)...", flush=True)
+            print(f"   ⬇  Downloading (size unknown)...", flush=True)
         
         with open(output_path, 'wb') as f:
             if total_size == 0:
@@ -235,7 +235,7 @@ def download_opentopography_srtm(
                             last_print_time = current_time
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"   ✅ Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+        print(f"    Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
         print(f"      Saved to: {output_path}", flush=True)
         
         # Create metadata
@@ -250,18 +250,18 @@ def download_opentopography_srtm(
             download_params=params
         )
         save_metadata(metadata, get_metadata_path(output_path))
-        print(f"   ✅ Metadata saved", flush=True)
+        print(f"    Metadata saved", flush=True)
         
         return True
         
     except requests.exceptions.Timeout:
-        print(f"   ❌ Download timeout - region may be too large or server busy", flush=True)
+        print(f"    Download timeout - region may be too large or server busy", flush=True)
         print(f"      Try again later or download a smaller region", flush=True)
         if output_path.exists():
             output_path.unlink()
         return False
     except requests.exceptions.HTTPError as e:
-        print(f"   ❌ HTTP Error: {e}", flush=True)
+        print(f"    HTTP Error: {e}", flush=True)
         if e.response.status_code == 400:
             print(f"      Likely cause: Region too large (>{width:.1f}° × {height:.1f}°)", flush=True)
             print(f"      OpenTopography limit is ~4° in each direction", flush=True)
@@ -272,7 +272,7 @@ def download_opentopography_srtm(
             output_path.unlink()
         return False
     except Exception as e:
-        print(f"   ❌ Download failed: {e}", flush=True)
+        print(f"    Download failed: {e}", flush=True)
         if output_path.exists():
             output_path.unlink()  # Clean up partial download
         return False
@@ -374,7 +374,7 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
         return 0
     
     if not args.region:
-        print("❌ No region specified!")
+        print(" No region specified!")
         print("Usage: python downloaders/usa_3dep.py <region> [--auto|--manual]")
         print("Or: python downloaders/usa_3dep.py --list")
         return 1
@@ -387,14 +387,14 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
     elif region_id in US_STATES:
         region_info = US_STATES[region_id]
     else:
-        print(f"❌ Unknown region: {args.region}")
+        print(f" Unknown region: {args.region}")
         print("Run with --list to see available regions")
         return 1
     
     bounds = region_info['bounds']
     name = region_info['name']
     
-    print(f"\n🗺️  USA Elevation Downloader", flush=True)
+    print(f"\n🗺  USA Elevation Downloader", flush=True)
     print(f"=" * 70, flush=True)
     print(f"Region: {name} ({region_id})", flush=True)
     print(f"Bounds: {bounds}", flush=True)
@@ -435,12 +435,12 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
                     )
                     
                     if not tile_paths:
-                        print(f"\n❌ Tiled download failed", flush=True)
+                        print(f"\n Tiled download failed", flush=True)
                         return 1
                     
                     # Merge tiles
                     if not merge_tiles(tile_paths, output_path):
-                        print(f"\n❌ Merge failed", flush=True)
+                        print(f"\n Merge failed", flush=True)
                         return 1
                     
                     download_success = True
@@ -456,10 +456,10 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
             download_success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
         
         if not download_success:
-            print(f"\n❌ Download failed.", flush=True)
+            print(f"\n Download failed.", flush=True)
             return 1
         
-        print(f"\n✅ Download complete!", flush=True)
+        print(f"\n Download complete!", flush=True)
         
         # Step 2: Auto-process (unless --no-process specified)
         if not args.no_process:
@@ -485,15 +485,15 @@ Note: --auto uses OpenTopography (30m SRTM, good quality, automated)
             )
             
             if not pipeline_success:
-                print(f"\n⚠️  Pipeline had issues, but raw data was downloaded successfully", flush=True)
+                print(f"\n  Pipeline had issues, but raw data was downloaded successfully", flush=True)
                 print(f"   You can process manually later with:", flush=True)
                 print(f"   python -c \"from src.pipeline import run_pipeline; from pathlib import Path; run_pipeline(Path('{output_path}'), '{region_id}', 'srtm_30m')\"", flush=True)
         else:
-            print(f"\n⏭️  Skipped processing (--no-process specified)", flush=True)
+            print(f"\n  Skipped processing (--no-process specified)", flush=True)
             print(f"   To process later, run:", flush=True)
             print(f"   python -c \"from src.pipeline import run_pipeline; from pathlib import Path; run_pipeline(Path('{output_path}'), '{region_id}', 'srtm_30m')\"", flush=True)
         
-        print(f"\n💡 Note: This is 30m SRTM data. For highest quality (1-10m), run:", flush=True)
+        print(f"\n Note: This is 30m SRTM data. For highest quality (1-10m), run:", flush=True)
         print(f"   python downloaders/usa_3dep.py {region_id} --manual", flush=True)
         
         return 0

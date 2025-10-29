@@ -75,12 +75,12 @@ def download_srtm_tile(lat: int, lon: int, cache_dir: Path) -> Path:
                         for chunk in response.iter_content(chunk_size=8192):
                             f.write(chunk)
                 
-                print(" ✅")
+                print(" ")
                 return cache_file
         except:
             continue
     
-    print(" ❌ (not available)")
+    print("  (not available)")
     return None
 
 
@@ -90,15 +90,15 @@ def create_state_from_usa():
     Alternative: Extract California and NJ from existing USA data.
     This is much faster!
     """
-    print("\n💡 Alternative Approach: Extract from existing USA data")
+    print("\n Alternative Approach: Extract from existing USA data")
     print("="*70)
     
     usa_file = Path("data/usa_elevation/nationwide_usa_elevation.tif")
     if not usa_file.exists():
-        print("❌ USA data not found at data/usa_elevation/nationwide_usa_elevation.tif")
+        print(" USA data not found at data/usa_elevation/nationwide_usa_elevation.tif")
         return False
     
-    print(f"✅ Found USA data: {usa_file}")
+    print(f" Found USA data: {usa_file}")
     
     try:
         import rasterio
@@ -133,7 +133,7 @@ def create_state_from_usa():
             ) as dst:
                 dst.write(ca_data, 1)
             
-            print(f"   ✅ Saved: {ca_file}")
+            print(f"    Saved: {ca_file}")
             print(f"   Size: {ca_data.shape[1]} × {ca_data.shape[0]}")
             
             # New Jersey bounds
@@ -161,14 +161,14 @@ def create_state_from_usa():
             ) as dst:
                 dst.write(nj_data, 1)
             
-            print(f"   ✅ Saved: {nj_file}")
+            print(f"    Saved: {nj_file}")
             print(f"   Size: {nj_data.shape[1]} × {nj_data.shape[0]}")
             
-            print(f"\n✅ Success! Extracted both states from USA data")
+            print(f"\n Success! Extracted both states from USA data")
             return True
             
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -223,7 +223,7 @@ def main():
             create_regions_manifest(output_dir, all_regions)
             
             print(f"\n{'='*70}")
-            print(f"✅ SUCCESS!")
+            print(f" SUCCESS!")
             print(f"{'='*70}")
             print(f"Processed: {', '.join(processed)}")
             print(f"\n🎉 Ready to use!")
@@ -232,7 +232,7 @@ def main():
             print(f"   3. Explore high-resolution terrain!")
             print(f"{'='*70}\n")
     else:
-        print("\n❌ Could not extract states from USA data")
+        print("\n Could not extract states from USA data")
         print("Please follow manual download instructions in DOWNLOAD_US_STATES_GUIDE.md")
         return 1
     

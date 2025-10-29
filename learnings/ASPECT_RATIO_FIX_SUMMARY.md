@@ -1,14 +1,14 @@
 # Aspect Ratio Validation Fix - Summary
 
 **Date:** October 28, 2025  
-**Status:** ✅ RESOLVED
+**Status:**  RESOLVED
 
 ## The Problem
 
 When running `reprocess_existing_states.py`, the pipeline was failing with errors like:
 
 ```
-❌ VALIDATION FAILED: Aspect ratio mismatch detected!
+ VALIDATION FAILED: Aspect ratio mismatch detected!
   Raster:     1935 × 1605 = 1.206
   Geographic: 365.6km × 396.8km = 0.921
   Difference: 30.8% (tolerance: 30.0%)
@@ -33,7 +33,7 @@ When running `reprocess_existing_states.py`, the pipeline was failing with error
 The validation code in `src/validation.py::validate_export_data()` was checking if the raster aspect ratio matched the "real world" geographic aspect ratio in meters. This is **fundamentally incorrect** for our use case.
 
 **Per project principles (DATA_PRINCIPLES.md):**
-> ⚠️ **Principle 2: Treat Input Data as Uniform 2D Grid**
+>  **Principle 2: Treat Input Data as Uniform 2D Grid**
 > 
 > Elevation data from GeoTIFFs is a simple 2D array of height values at evenly-spaced grid points. **Do not reinterpret or transform this data** based on latitude/longitude when rendering.
 
@@ -92,13 +92,13 @@ The script `fix_all_regions_aspect_ratio.py` still uses the OLD (incorrect) vali
 ## Validation That Matters
 
 What we SHOULD validate:
-1. ✅ **Data coverage** - Percentage of non-null pixels (should be reasonable for the region)
-2. ✅ **All-empty edges removed** - crop=True successfully removes all-empty rows/columns
-3. ✅ **Downsampling preserves aspect ratio** - Same step size for both dimensions
-4. ✅ **File format consistency** - Proper metadata and versioning
+1.  **Data coverage** - Percentage of non-null pixels (should be reasonable for the region)
+2.  **All-empty edges removed** - crop=True successfully removes all-empty rows/columns
+3.  **Downsampling preserves aspect ratio** - Same step size for both dimensions
+4.  **File format consistency** - Proper metadata and versioning
 
 What we should NOT validate:
-- ❌ Raster aspect ratio vs geographic meter-based aspect ratio (meaningless for degree-gridded data)
+-  Raster aspect ratio vs geographic meter-based aspect ratio (meaningless for degree-gridded data)
 
 ## Files Modified
 

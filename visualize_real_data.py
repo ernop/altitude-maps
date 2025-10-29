@@ -312,7 +312,7 @@ def main():
     
     # Check if file exists
     if not Path(args.tif_file).exists():
-        print(f"\n❌ Error: File not found: {args.tif_file}")
+        print(f"\n Error: File not found: {args.tif_file}")
         print("\nAvailable data files:")
         data_dir = Path("data/usa_elevation")
         if data_dir.exists():
@@ -345,7 +345,7 @@ def main():
     visualizer.create_height_bars(elevation, metadata, bar_spacing=25)
     
     print("\n" + "=" * 70)
-    print(f"  ✅ Complete! All visualizations saved to: {visualizer.output_dir}/")
+    print(f"   Complete! All visualizations saved to: {visualizer.output_dir}/")
     print("=" * 70)
 
 

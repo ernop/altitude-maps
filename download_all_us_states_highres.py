@@ -38,7 +38,7 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
     """
     if output_file.exists():
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        print(f"   ✅ Already exists ({file_size_mb:.1f} MB)")
+        print(f"    Already exists ({file_size_mb:.1f} MB)")
         return True
     
     west, south, east, north = state_info["bounds"]
@@ -48,7 +48,7 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
     approx_mb = area_sq_deg * 20  # Rough estimate
     
     if approx_mb > 200:
-        print(f"   ⚠️  Warning: Large download (~{approx_mb:.0f} MB)")
+        print(f"     Warning: Large download (~{approx_mb:.0f} MB)")
     
     # OpenTopography API endpoint
     url = "https://portal.opentopography.org/API/globaldem"
@@ -77,7 +77,7 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
         with open(output_file, 'wb') as f:
             if total_size == 0:
                 f.write(response.content)
-                print(f"   ✅ Downloaded")
+                print(f"    Downloaded")
             else:
                 # Track progress for periodic updates
                 start_time = time.time()
@@ -106,24 +106,24 @@ def download_state_srtm(state_id: str, state_info: Dict, output_file: Path, api_
         try:
             with rasterio.open(output_file) as src:
                 file_size_mb = output_file.stat().st_size / (1024 * 1024)
-                print(f"   ✅ Success: {src.width}×{src.height} pixels ({file_size_mb:.1f} MB)")
+                print(f"    Success: {src.width}×{src.height} pixels ({file_size_mb:.1f} MB)")
                 return True
         except Exception as e:
-            print(f"   ❌ File verification failed: {e}")
+            print(f"    File verification failed: {e}")
             output_file.unlink()
             return False
             
     except requests.exceptions.Timeout:
-        print(f"   ❌ Download timeout")
+        print(f"    Download timeout")
         return False
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 413:
-            print(f"   ❌ Region too large for API")
+            print(f"    Region too large for API")
         else:
-            print(f"   ❌ HTTP Error: {e}")
+            print(f"    HTTP Error: {e}")
         return False
     except Exception as e:
-        print(f"   ❌ Download failed: {e}")
+        print(f"    Download failed: {e}")
         return False
 
 
@@ -206,7 +206,7 @@ def process_state_to_json(state_id: str, state_info: Dict, tif_file: Path,
             return True
             
     except Exception as e:
-        print(f"   ❌ Error processing: {e}")
+        print(f"    Error processing: {e}")
         return False
 
 
@@ -258,7 +258,7 @@ def main():
         api_key = get_api_key()
         print(f"🔑 Using API key from settings.json")
     except SystemExit:
-        print("\n❌ API key required!")
+        print("\n API key required!")
         print("Add your OpenTopography API key to settings.json")
         return 1
     
@@ -271,7 +271,7 @@ def main():
     else:
         states_to_process = CONTIGUOUS_STATES
     
-    print(f"\n🗺️  HIGH RESOLUTION US States Downloader")
+    print(f"\n🗺  HIGH RESOLUTION US States Downloader")
     print(f"="*70)
     print(f"States: {len(states_to_process)}")
     print(f"Resolution: SRTM 30m (high quality)")
@@ -289,19 +289,19 @@ def main():
         print(f"\n{'='*70}")
         print("STEP 1: DOWNLOADING HIGH-RES SRTM DATA")
         print(f"{'='*70}")
-        print("⏱️  This will take a while - OpenTopography requires 2-3 sec delay between requests")
+        print("⏱  This will take a while - OpenTopography requires 2-3 sec delay between requests")
         print("    Estimated time: ~3-5 minutes for all 48 states")
         print()
         
         for i, state_id in enumerate(states_to_process, 1):
             if state_id not in US_STATES:
-                print(f"\n❌ [{i}/{len(states_to_process)}] Unknown state: {state_id}")
+                print(f"\n [{i}/{len(states_to_process)}] Unknown state: {state_id}")
                 failed.append(state_id)
                 continue
             
             if state_id in ['alaska', 'hawaii']:
                 print(f"\n[{i}/{len(states_to_process)}] {US_STATES[state_id]['name']}")
-                print(f"   ℹ️  Separate download recommended (different coverage)")
+                print(f"   ℹ  Separate download recommended (different coverage)")
                 continue
             
             state_info = US_STATES[state_id]
@@ -384,7 +384,7 @@ def main():
         with open(manifest_file, 'w') as f:
             json.dump(manifest, f, indent=2)
         
-        print(f"✅ Updated manifest: {manifest_file}")
+        print(f" Updated manifest: {manifest_file}")
         print(f"   Total regions: {len(all_regions)}")
     
     # Summary
@@ -393,16 +393,16 @@ def main():
     print(f"{'='*70}")
     
     if downloaded:
-        print(f"✅ Downloaded/Found: {len(downloaded)} states")
+        print(f" Downloaded/Found: {len(downloaded)} states")
     
     if processed:
-        print(f"✅ Processed to JSON: {len(processed)} states")
+        print(f" Processed to JSON: {len(processed)} states")
         print(f"\n   States with HIGH RESOLUTION data:")
         for state_id in processed:
             print(f"   - {US_STATES[state_id]['name']}")
     
     if failed:
-        print(f"\n❌ Failed: {len(failed)} states")
+        print(f"\n Failed: {len(failed)} states")
         for state_id in failed:
             if state_id in US_STATES:
                 print(f"   - {US_STATES[state_id]['name']}")

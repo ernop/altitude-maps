@@ -129,7 +129,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
         return 0
     
     if not args.region:
-        print("❌ No region specified!")
+        print(" No region specified!")
         print("Usage: python downloaders/switzerland_swisstopo.py <region> [--auto|--manual]")
         print("Or: python downloaders/switzerland_swisstopo.py --list")
         return 1
@@ -137,7 +137,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
     region_id = args.region.lower().replace(' ', '_').replace('-', '_')
     
     if region_id not in SWITZERLAND_REGIONS:
-        print(f"❌ Unknown region: {args.region}")
+        print(f" Unknown region: {args.region}")
         print("Run with --list to see available regions")
         return 1
     
@@ -159,12 +159,12 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
         success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
         
         if success:
-            print(f"\n✅ Success! Data saved to: {output_path}")
-            print(f"\n⚠️  Note: This is 30m SRTM data, not highest-res SwissTopo.")
+            print(f"\n Success! Data saved to: {output_path}")
+            print(f"\n  Note: This is 30m SRTM data, not highest-res SwissTopo.")
             print(f"   For 0.5-2m resolution, run:")
             print(f"   python downloaders/switzerland_swisstopo.py {region_id} --manual")
         else:
-            print(f"\n❌ Download failed.")
+            print(f"\n Download failed.")
         
         return 0 if success else 1
     else:

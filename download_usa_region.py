@@ -51,14 +51,14 @@ def main():
     # Get region bounds
     bbox = USARegionBounds.get_region(args.region)
     if not bbox:
-        print(f"❌ Error: Region '{args.region}' not found.")
+        print(f" Error: Region '{args.region}' not found.")
         print("\nRun with --list to see available regions.")
         return 1
     
     # Download data
     downloader = USGSElevationDownloader(args.output_dir)
     
-    print(f"\n🗺️  Downloading: {args.region.replace('_', ' ').title()}")
+    print(f"\n🗺  Downloading: {args.region.replace('_', ' ').title()}")
     print(f"   Bounds: {bbox}")
     print(f"   Source: USGS 3DEP (~10m resolution)")
     
@@ -66,12 +66,12 @@ def main():
     result = downloader.download_via_national_map_api(bbox, output_file)
     
     if result:
-        print(f"\n✅ Success!")
+        print(f"\n Success!")
         print(f"   File: {result}")
         print(f"\n   Next step: Visualize with:")
         print(f"   python visualize_real_data.py {result}")
     else:
-        print(f"\n❌ Download failed.")
+        print(f"\n Download failed.")
         print(f"\n   Try manual download from:")
         print(f"   https://apps.nationalmap.gov/downloader/")
         return 1

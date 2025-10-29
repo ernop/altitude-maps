@@ -163,7 +163,7 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
         True if successful
     """
     if output_file.exists():
-        print(f"   ✅ Already exists: {output_file.name}")
+        print(f"    Already exists: {output_file.name}")
         return True
     
     west, south, east, north = bounds
@@ -181,7 +181,7 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
     
     # Check size limits (warn but allow)
     if approx_area_sq_km > 500000:
-        print(f"   ⚠️  WARNING: Very large region ({approx_area_sq_km:,.0f} km²)")
+        print(f"     WARNING: Very large region ({approx_area_sq_km:,.0f} km²)")
         print(f"      This may take several minutes or exceed API limits...")
         print(f"      Attempting download anyway...")
     
@@ -235,7 +235,7 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
                             last_print_time = current_time
         
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        print(f"   ✅ Downloaded: {output_file.name}")
+        print(f"    Downloaded: {output_file.name}")
         print(f"      Size: {file_size_mb:.1f} MB")
         
         # Verify
@@ -250,16 +250,16 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
                 res_m = pixel_width * 111000  # Approximate meters
                 print(f"      Resolution: ~{res_m:.0f}m")
         except Exception as e:
-            print(f"   ⚠️  Could not verify file: {e}")
+            print(f"     Could not verify file: {e}")
         
         return True
         
     except requests.exceptions.Timeout:
-        print(f"   ❌ Download timeout (region may be too large)")
+        print(f"    Download timeout (region may be too large)")
         return False
         
     except requests.exceptions.HTTPError as e:
-        print(f"   ❌ HTTP Error {e.response.status_code}: {e}")
+        print(f"    HTTP Error {e.response.status_code}: {e}")
         if e.response.status_code == 413:
             print(f"      Region too large for API")
         elif e.response.status_code == 400:
@@ -267,7 +267,7 @@ def download_from_opentopography(region_id: str, bounds: Tuple[float, float, flo
         return False
         
     except Exception as e:
-        print(f"   ❌ Download failed: {e}")
+        print(f"    Download failed: {e}")
         return False
 
 
@@ -409,7 +409,7 @@ Notes:
             print(f"  Coverage: {info['coverage']}")
             print(f"  {info['description']}")
         print(f"\n{'='*70}")
-        print("\n💡 Recommendations:")
+        print("\n Recommendations:")
         print("  - For Japan/Asia: AW3D30 (ALOS)")
         print("  - For mountains: AW3D30 (ALOS)")
         print("  - For polar regions: COP30 or COP90")
@@ -419,7 +419,7 @@ Notes:
     
     # List regions
     if args.list_regions:
-        print("\n🗺️  High-Resolution Regions:")
+        print("\n🗺  High-Resolution Regions:")
         print("="*70)
         
         # Group by category
@@ -450,7 +450,7 @@ Notes:
         
         print(f"\n{'='*70}")
         print(f"Total: {len(HIGH_RES_REGIONS)} specialized regions")
-        print("\n💡 You can also use any region from download_regions.py")
+        print("\n You can also use any region from download_regions.py")
         print("   Or define custom bounds with --bounds\n")
         return 0
     
@@ -461,7 +461,7 @@ Notes:
         try:
             api_key = get_api_key()
         except SystemExit:
-            print("\n❌ OpenTopography API key required!")
+            print("\n OpenTopography API key required!")
             print("\nGet a free API key:")
             print("  1. Go to: https://portal.opentopography.org/")
             print("  2. Create account (free)")
@@ -472,7 +472,7 @@ Notes:
     # USGS instructions only
     if args.usgs_instructions:
         if not args.regions:
-            print("❌ Specify region(s) for USGS instructions")
+            print(" Specify region(s) for USGS instructions")
             return 1
         
         for region_id in args.regions:
@@ -483,12 +483,12 @@ Notes:
                 info = REGIONS[region_id]
                 print_usgs_3dep_instructions(info['name'], info['bounds'])
             else:
-                print(f"❌ Unknown region: {region_id}")
+                print(f" Unknown region: {region_id}")
         return 0
     
     # Validate regions
     if not args.regions and not args.bounds:
-        print("❌ No regions specified!")
+        print(" No regions specified!")
         print("Usage: python download_high_resolution.py <region1> <region2> ...")
         print("Or: python download_high_resolution.py --list-regions")
         print("Or: python download_high_resolution.py --bounds -120 35 -119 36")
@@ -536,7 +536,7 @@ Notes:
                     'description': info['description']
                 })
             else:
-                print(f"❌ Unknown region: {region_id}")
+                print(f" Unknown region: {region_id}")
                 print("   Use --list-regions to see available regions")
                 return 1
     
@@ -618,26 +618,26 @@ Notes:
     print(f"{'='*70}")
     
     if downloaded:
-        print(f"✅ Downloaded: {len(downloaded)} region(s)")
+        print(f" Downloaded: {len(downloaded)} region(s)")
         for region_id in downloaded:
             file_path = data_dir / f"{region_id}.tif"
             size_mb = file_path.stat().st_size / (1024 * 1024)
             print(f"   - {region_id} ({size_mb:.1f} MB)")
     
     if failed:
-        print(f"\n❌ Failed: {len(failed)} region(s)")
+        print(f"\n Failed: {len(failed)} region(s)")
         for region_id in failed:
             print(f"   - {region_id}")
     
     if args.process and processed:
-        print(f"\n✅ Processed: {len(processed)} region(s) to JSON")
+        print(f"\n Processed: {len(processed)} region(s) to JSON")
         print(f"\n🎉 Ready! Open interactive_viewer_advanced.html")
     elif downloaded:
-        print(f"\n💡 To process to JSON, run:")
+        print(f"\n To process to JSON, run:")
         print(f"   python download_high_resolution.py {' '.join(downloaded)} --process")
     
     if any('california' in r for r in args.regions or []):
-        print(f"\n💡 For 10m USGS 3DEP data (better than 30m):")
+        print(f"\n For 10m USGS 3DEP data (better than 30m):")
         print(f"   python download_high_resolution.py california --usgs-instructions")
     
     print(f"\n{'='*70}\n")

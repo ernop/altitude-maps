@@ -13,13 +13,13 @@ This release includes major camera control enhancements:
 - 📱 **Touch/trackpad gestures** - Pinch zoom, pan (mobile & laptop support)
 - 🎮 **Alt+Left rotate** - Maya/3ds Max style tumble
 - 🎯 **F key reframe** - Quick reset to optimal view
-- 🗺️ **Google Earth style** - Right-drag rotation
+- 🗺 **Google Earth style** - Right-drag rotation
 
 ---
 
 ## Critical Fixes Before This Test
 
-### ✅ Fixed: Keyboard Handler Conflicts
+###  Fixed: Keyboard Handler Conflicts
 - **Issue:** F key was handled by both viewer and camera scheme (duplicate actions)
 - **Issue:** No typing detection in main viewer (hotkeys active while typing)
 - **Fix:** Added typing detection to `viewer-advanced.js` onKeyDown
@@ -46,7 +46,7 @@ This release includes major camera control enhancements:
   - [ ] Angle limits prevent camera flip
   - [ ] Releasing Shift mid-drag cancels smoothly (no jank)
 
-- [ ] **Alt+Left drag** = Rotate (Maya style) ⚠️ NEW
+- [ ] **Alt+Left drag** = Rotate (Maya style)  NEW
   - [ ] Horizontal drag → turn left/right
   - [ ] Vertical drag → tilt up/down
   - [ ] Same behavior as Right drag
@@ -73,7 +73,7 @@ This release includes major camera control enhancements:
 
 ---
 
-### 2. Keyboard Controls ⚠️ (New Feature)
+### 2. Keyboard Controls  (New Feature)
 
 **WASD/QE Movement:**
 - [ ] **W** = Move forward (in view direction)
@@ -89,7 +89,7 @@ This release includes major camera control enhancements:
 - [ ] All 6 keys can be combined smoothly
 - [ ] Can use mouse to look around while holding WASD
 
-**F Key Reframe:** ⚠️ NEW - CRITICAL TEST
+**F Key Reframe:**  NEW - CRITICAL TEST
 - [ ] Press **F** → Camera reframes to show full terrain
 - [ ] View centers on terrain bounds
 - [ ] Entire terrain visible with margins
@@ -109,7 +109,7 @@ This release includes major camera control enhancements:
 - [ ] Auto-rotate checkbox updates
 - [ ] Works correctly
 
-**Typing Detection:** ⚠️ CRITICAL - NEW FIX
+**Typing Detection:**  CRITICAL - NEW FIX
 - [ ] Type in region search box → WASD/F/R keys don't affect camera
 - [ ] Type in bucket size input → Keys don't affect camera
 - [ ] Type in exaggeration input → Keys don't affect camera
@@ -119,7 +119,7 @@ This release includes major camera control enhancements:
 
 ---
 
-### 3. Touch/Trackpad Gestures ⚠️ (New - Cannot fully test without device)
+### 3. Touch/Trackpad Gestures  (New - Cannot fully test without device)
 
 **Mobile Touch (Phone/Tablet):**
 - [ ] Single finger drag = Pan
@@ -176,9 +176,9 @@ This release includes major camera control enhancements:
 
 **Region Switching:**
 - [ ] Load default region (USA if available)
-- [ ] F key reframes correctly on initial load ⚠️ NEW
+- [ ] F key reframes correctly on initial load  NEW
 - [ ] Switch to different region
-- [ ] F key reframes to new region bounds ⚠️ NEW
+- [ ] F key reframes to new region bounds  NEW
 - [ ] Terrain bounds update correctly
 
 **Bucket Size Changes:**
@@ -249,9 +249,9 @@ This release includes major camera control enhancements:
 ### 8. Known Issues & Limitations
 
 **Touch Gestures:**
-- ⚠️ NOT TESTED on actual touch devices (user has no touch device)
-- ⚠️ Should be tested on mobile/tablet before production
-- ⚠️ Trackpad testing needs laptop with gesture support
+-  NOT TESTED on actual touch devices (user has no touch device)
+-  Should be tested on mobile/tablet before production
+-  Trackpad testing needs laptop with gesture support
 
 **Potential Issues to Watch For:**
 - [ ] F key terrain bounds might be incorrect in some render modes

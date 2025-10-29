@@ -516,7 +516,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     final_is_clip, final_extent, fx_min, fx_max, fy_min, fy_max = test_camera_distance(best_dist)
     
     if final_is_clip:
-        print(f"      ⚠️  WARNING: Final distance CLIPS! Moving 5% further...")
+        print(f"        WARNING: Final distance CLIPS! Moving 5% further...")
         best_dist = best_dist * 1.05
         final_is_clip, final_extent, fx_min, fx_max, fy_min, fy_max = test_camera_distance(best_dist)
     
@@ -526,7 +526,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     print(f"   ✓ Map extent: {final_extent:.4f} (target: {PROJECTION_ZOOM:.4f})")
     print(f"   ✓ Viewport usage: {viewport_usage:.1f}%")
     print(f"   ✓ Bounds: X=[{fx_min:.3f}, {fx_max:.3f}], Y=[{fy_min:.3f}, {fy_max:.3f}]")
-    print(f"   ✓ Status: {'⚠️ WILL CLIP' if final_is_clip else '✓ SAFE TO RENDER'}")
+    print(f"   ✓ Status: {' WILL CLIP' if final_is_clip else '✓ SAFE TO RENDER'}")
     
     # Apply the final distance
     ax.dist = best_dist
@@ -537,7 +537,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     # --- 3. Add Text Overlays ---
     if show_overlays:
         step_start = time.time()
-        print("\n✍️  Adding text overlays...")
+        print("\n✍  Adding text overlays...")
         
         # Title at the very top
         title_str = f'USA Elevation Map | {bounds.left:.1f}°W to {bounds.right:.1f}°W, {bounds.bottom:.1f}°N to {bounds.top:.1f}°N | USGS 3DEP | Vertical Exag: {VERTICAL_EXAGGERATION}x'
@@ -554,7 +554,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
         ax.text2D(0.015, 0.02, legend_text, transform=ax.transAxes, fontsize=11, color='white', ha='left', va='bottom', family='monospace', bbox=dict(boxstyle='round,pad=0.4', facecolor='#000000', edgecolor='#44ff88', linewidth=1.5, alpha=0.85))
 
         # Configuration settings box at bottom right
-        config_lines = ['⚙️ CONFIG\n' + '─' * 15]
+        config_lines = ['⚙ CONFIG\n' + '─' * 15]
         
         # Bucketing info
         bucket_miles = data.get("bucket_size_miles")
@@ -591,7 +591,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
         plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
         print(f"   Time: {time.time() - step_start:.2f}s")
     else:
-        print("\n✍️  Skipping text overlays (--no-overlays)")
+        print("\n✍  Skipping text overlays (--no-overlays)")
         # Even without overlays, adjust margins for better framing
         plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
     
@@ -617,7 +617,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
     
     # Auto-crop black borders (1% border = very tight framing)
     if autocrop:
-        print(f"\n✂️  Auto-cropping black borders...")
+        print(f"\n✂  Auto-cropping black borders...")
         orig_size, cropped_size, border_px = auto_crop_black_borders(output_path, border_percent=1.0)
         space_saved = (1 - (cropped_size[0] * cropped_size[1]) / (orig_size[0] * orig_size[1])) * 100
         print(f"   - Original: {orig_size[0]} × {orig_size[1]} pixels")
@@ -625,7 +625,7 @@ def render_visualization(data: dict, output_dir: str = "generated",
         print(f"   - Border added: {border_px[0]}px (width), {border_px[1]}px (height)")
         print(f"   - Space saved: {space_saved:.1f}%")
     else:
-        print(f"\n✂️  Skipping auto-crop (--no-autocrop)")
+        print(f"\n✂  Skipping auto-crop (--no-autocrop)")
 
     html_path = output_dir / f"{base_filename}.html"
     html_content = f"""<!DOCTYPE html>

@@ -95,7 +95,7 @@ python fix_all_regions_aspect_ratio.py --check-only
 
 You should see:
 ```
-✅ All regions have correct aspect ratios!
+ All regions have correct aspect ratios!
 ```
 
 Or at most a few with **< 30% difference** (within tolerance).
@@ -185,10 +185,10 @@ After regeneration:
 
 | State | Old Aspect | New Aspect | Geographic | Status |
 |-------|------------|------------|------------|--------|
-| Tennessee | 0.932 | 5.044 | 5.1 | ✅ FIXED |
-| Connecticut | 1.732 | ~1.30 | 1.297 | ✅ Will fix |
-| Nebraska | 2.913 | ~2.18 | 2.179 | ✅ Will fix |
-| New Jersey | 0.679 | ~0.52 | 0.519 | ✅ Will fix |
+| Tennessee | 0.932 | 5.044 | 5.1 |  FIXED |
+| Connecticut | 1.732 | ~1.30 | 1.297 |  Will fix |
+| Nebraska | 2.913 | ~2.18 | 2.179 |  Will fix |
+| New Jersey | 0.679 | ~0.52 | 0.519 |  Will fix |
 
 All states should be within **30%** of their geographic aspect ratio.
 
@@ -238,5 +238,5 @@ python fix_all_regions_aspect_ratio.py --check-only
 ```
 
 **Total time**: 2-4 hours (mostly automated)
-**Result**: All states with correct proportions and validated! ✅
+**Result**: All states with correct proportions and validated! 
 

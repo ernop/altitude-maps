@@ -5,11 +5,11 @@
 
 ---
 
-## ✅ What's Been Implemented
+##  What's Been Implemented
 
 ### Core Infrastructure
 
-**1. New Folder Structure** ✅
+**1. New Folder Structure** 
 ```
 data/
   ├── raw/              # Raw downloads (immutable, by source)
@@ -29,19 +29,19 @@ data/
   └── borders/          # Natural Earth boundaries (existing)
 ```
 
-**2. Version Management** ✅
+**2. Version Management** 
 - `src/versioning.py` - Version tracking and compatibility checking
 - Automatic version validation on data load
 - Clear error messages when cache is incompatible
 - Version bump helpers for development
 
-**3. Metadata System** ✅
+**3. Metadata System** 
 - `src/metadata.py` - Metadata generation for all pipeline stages
 - Automatic file hashing for validation
 - Source provenance tracking
 - Companion JSON files for every data file
 
-**4. Data Manager** ✅
+**4. Data Manager** 
 - `src/data_manager.py` - Unified data loading API
 - Automatic source selection (prefers high-res, falls back intelligently)
 - Version checking on all loads
@@ -49,21 +49,21 @@ data/
 
 ### Download Scripts
 
-**5. USA Downloader** ✅
+**5. USA Downloader** 
 - `downloaders/usa_3dep.py`
 - **Automated**: 30m SRTM via OpenTopography (works immediately)
 - **Manual**: Instructions for 1-10m USGS 3DEP (highest quality)
 - All 50 states + 2 full USA options defined
 - Generates proper metadata automatically
 
-**6. Japan Downloader** ✅
+**6. Japan Downloader** 
 - `downloaders/japan_gsi.py`
 - **Automated**: 30m SRTM via OpenTopography
 - **Manual**: Instructions for 5-10m GSI data (highest quality)
 - 6 regions defined (full Japan, islands, Kochi prefecture)
 - Supports both DEM5A (5m) and DEM10B (10m) GSI formats
 
-**7. Switzerland Downloader** ✅
+**7. Switzerland Downloader** 
 - `downloaders/switzerland_swisstopo.py`
 - **Automated**: 30m SRTM via OpenTopography
 - **Manual**: Instructions for 0.5-2m SwissTopo data (highest quality)
@@ -75,11 +75,11 @@ data/
 
 ### Immediate Priority:
 
-1. **✅ Full USA** - Ready to download
-2. **✅ All 50 US States** - Ready to download
-3. **✅ Japan** - Ready to download
-4. **✅ Shikoku Island / Kochi** - Ready to download
-5. **✅ Switzerland** - Ready to download
+1. ** Full USA** - Ready to download
+2. ** All 50 US States** - Ready to download
+3. ** Japan** - Ready to download
+4. ** Shikoku Island / Kochi** - Ready to download
+5. ** Switzerland** - Ready to download
 
 ### Two-Path Download Strategy:
 
@@ -217,14 +217,14 @@ For now, these steps aren't automated yet, but the infrastructure is in place to
 
 ---
 
-## 🛠️ Testing Status
+## 🛠 Testing Status
 
 **Tested:**
-- ✅ Folder structure created
-- ✅ USA downloader lists regions correctly
-- ✅ Versioning module works
-- ✅ Metadata module works
-- ✅ Data manager works
+-  Folder structure created
+-  USA downloader lists regions correctly
+-  Versioning module works
+-  Metadata module works
+-  Data manager works
 
 **Not Yet Tested:**
 - ⏳ Actual downloads (need user to test first download)

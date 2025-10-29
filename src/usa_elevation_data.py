@@ -156,7 +156,7 @@ class USGSElevationDownloader:
             return output_path
             
         except requests.exceptions.RequestException as e:
-            print(f"❌ Error downloading data: {e}")
+            print(f" Error downloading data: {e}")
             print("\nNote: For large downloads, consider using:")
             print("  1. USGS Earth Explorer: https://earthexplorer.usgs.gov/")
             print("  2. USGS National Map Downloader: https://apps.nationalmap.gov/downloader/")
@@ -241,7 +241,7 @@ def main():
             print(f"\n✓ Success! Elevation data saved to: {result}")
             print("\nYou can now use this data with rasterio or GDAL to create visualizations.")
         else:
-            print("\n⚠ Download failed. Please try manual download from:")
+            print("\n Download failed. Please try manual download from:")
             print("   https://apps.nationalmap.gov/downloader/")
 
 

@@ -251,7 +251,7 @@ The formula ensures the entire terrain fits in view with comfortable margins.
 
 The camera controls now explicitly follow Google Earth's interaction model for rotation, making them immediately familiar to millions of users. The F key provides a professional-standard reframe function for quick navigation resets.
 
-**Status:** ✅ Complete and ready for testing  
+**Status:**  Complete and ready for testing  
 **Breaking Changes:** None - all existing controls unchanged  
 **New Features:** F key reframe functionality
 

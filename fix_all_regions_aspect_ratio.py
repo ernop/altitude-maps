@@ -189,14 +189,14 @@ def fix_region(region_id: str, source_tif: Path, source_type: str, target_pixels
         )
         
         if success:
-            print(f"\n✅ {region_id} fixed successfully!")
+            print(f"\n {region_id} fixed successfully!")
             return True
         else:
-            print(f"\n❌ {region_id} failed!")
+            print(f"\n {region_id} failed!")
             return False
             
     except Exception as e:
-        print(f"\n❌ Error fixing {region_id}: {e}")
+        print(f"\n Error fixing {region_id}: {e}")
         return False
 
 
@@ -223,7 +223,7 @@ def main():
     generated_dir = Path(args.generated_dir)
     
     if not generated_dir.exists():
-        print(f"❌ Generated directory not found: {generated_dir}")
+        print(f" Generated directory not found: {generated_dir}")
         return 1
     
     # Check which regions need fixing
@@ -231,11 +231,11 @@ def main():
     bad_regions = find_regions_needing_fix(generated_dir)
     
     if not bad_regions:
-        print("\n✅ All regions have correct aspect ratios!")
+        print("\n All regions have correct aspect ratios!")
         return 0
     
     # Report findings
-    print(f"\n❌ Found {len(bad_regions)} region(s) with aspect ratio issues:\n")
+    print(f"\n Found {len(bad_regions)} region(s) with aspect ratio issues:\n")
     print(f"{'Region':<20} {'Dimensions':<15} {'Raster':<10} {'Geographic':<10} {'Diff'}")
     print("-" * 70)
     for region in sorted(bad_regions, key=lambda x: x['difference_pct'], reverse=True):
@@ -254,7 +254,7 @@ def main():
         source_tif, source_type = find_source_tif_for_region(region_id)
         
         if not source_tif:
-            print(f"\n❌ Cannot find source TIF for: {region_id}")
+            print(f"\n Cannot find source TIF for: {region_id}")
             print("Expected locations:")
             print(f"  - data/raw/srtm_30m/{region_id}_bbox_30m.tif")
             print(f"  - data/regions/{region_id}.tif")
@@ -274,7 +274,7 @@ def main():
             source_tif, source_type = find_source_tif_for_region(region_id)
             
             if not source_tif:
-                print(f"\n⏭️  Skipping {region_id} (source TIF not found)")
+                print(f"\n  Skipping {region_id} (source TIF not found)")
                 skipped.append(region_id)
                 continue
             
@@ -293,11 +293,11 @@ def main():
         print(f"Skipped: {len(skipped)} (source TIF not found)")
         
         if fixed:
-            print(f"\n✅ Fixed regions: {', '.join(fixed)}")
+            print(f"\n Fixed regions: {', '.join(fixed)}")
         if failed:
-            print(f"\n❌ Failed regions: {', '.join(failed)}")
+            print(f"\n Failed regions: {', '.join(failed)}")
         if skipped:
-            print(f"\n⏭️  Skipped regions: {', '.join(skipped)}")
+            print(f"\n  Skipped regions: {', '.join(skipped)}")
         
         return 0 if not failed else 1
     

@@ -36,7 +36,7 @@ for val in row:
 
 ### Current Mitigations
 
-#### ✅ 1. GZIP Compression (NEW - October 2025)
+####  1. GZIP Compression (NEW - October 2025)
 
 **Development Server (`serve_viewer.py`):**
 - Automatically gzips JSON files during transfer
@@ -52,7 +52,7 @@ for val in row:
   gzip_comp_level 6;
   ```
 
-#### ✅ 2. Downsampling During Export
+####  2. Downsampling During Export
 
 Target pixels set to reasonable defaults:
 - States: 2048×2048 max (or auto-calculated based on size)

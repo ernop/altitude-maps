@@ -163,7 +163,7 @@ def main():
     tif_path = sys.argv[1]
     
     if not Path(tif_path).exists():
-        print(f"\n❌ Error: File not found: {tif_path}")
+        print(f"\n Error: File not found: {tif_path}")
         return 1
     
     try:

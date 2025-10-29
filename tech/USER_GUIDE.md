@@ -297,21 +297,21 @@ python download_unified.py texas --process --target-pixels 400
 
 For regions with multiple words (New Hampshire, North Dakota, etc.), you have **three options**:
 
-### ✅ Option 1: Underscores (Recommended)
+###  Option 1: Underscores (Recommended)
 ```powershell
 python ensure_region.py new_hampshire
 python check_region.py north_dakota
 python reprocess_existing_states.py --states new_hampshire north_dakota
 ```
 
-### ✅ Option 2: Quotes
+###  Option 2: Quotes
 ```powershell
 python ensure_region.py "new hampshire"
 python check_region.py "north dakota"
 python reprocess_existing_states.py --states "new hampshire" "north dakota"
 ```
 
-### ✅ Option 3: Hyphens (converted to underscores)
+###  Option 3: Hyphens (converted to underscores)
 ```powershell
 python ensure_region.py new-hampshire
 python check_region.py north-dakota

@@ -120,7 +120,7 @@ async function init() {
         
         // Ensure activity log is visible by adding an initial entry
         appendActivityLog('Viewer initialized');
-
+        
         // Display version number
         const versionDisplay = document.getElementById('version-display');
         if (versionDisplay) {
@@ -1528,7 +1528,7 @@ function autoAdjustBucketSize() {
     totalBuckets = bucketedWidth * bucketedHeight;
     
     console.log(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
-    console.log(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '✅' : '❌'} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
+    console.log(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '' : ''} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
     
     // Update params and UI
     params.bucketSize = optimalSize;
@@ -1738,91 +1738,80 @@ function calculateRealWorldScale() {
 }
 
 function createTerrain() {
-    const t0 = performance.now();
-    console.log(`Creating terrain in ${params.renderMode} mode...`);
-    
-    // Remove old terrain and DISPOSE geometry/materials
-    if (terrainMesh) {
-        console.log(`Removing old terrainMesh...`);
-        scene.remove(terrainMesh);
-        if (terrainMesh.geometry) terrainMesh.geometry.dispose();
-        if (terrainMesh.material) {
-            if (Array.isArray(terrainMesh.material)) {
-                terrainMesh.material.forEach(m => m.dispose());
-            } else {
-                terrainMesh.material.dispose();
-            }
-        }
-        terrainMesh = null;
-    }
-    
-    const { width, height, elevation } = processedData;
-    
-    // Calculate real-world scale
-    const scale = calculateRealWorldScale();
-    
-    if (params.renderMode === 'bars') {
-        createBarsTerrain(width, height, elevation, scale);
-    } else if (params.renderMode === 'points') {
-        createPointCloudTerrain(width, height, elevation, scale);
-    } else {
-        createSurfaceTerrain(width, height, elevation, scale);
-    }
-    
-    // Center terrain - different centering for different modes
-    if (terrainMesh) {
-        if (params.renderMode === 'bars') {
-            // Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
-            const bucketMultiplier = params.bucketSize;
-            terrainMesh.position.x = -(width - 1) * bucketMultiplier / 2;
-            terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2;  // NO aspect ratio scaling!
-            console.log(`Bars centered: uniform grid ${width}x${height}, tile size ${bucketMultiplier}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
-        } else if (params.renderMode === 'points') {
-            // Points use uniform grid positioning
-            const bucketSize = 1;
-            terrainMesh.position.x = -(width - 1) * bucketSize / 2;
-            terrainMesh.position.z = -(height - 1) * bucketSize / 2;
-            console.log(`Points centered: uniform grid ${width}x${height}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
-        } else {
-            // Surface mode: PlaneGeometry is already centered, but position it at origin
-            terrainMesh.position.set(0, 0, 0);
-            console.log(`Surface centered: geometry naturally centered`);
-        }
-    }
-    
-    const t1 = performance.now();
-    console.log(`Terrain created in ${(t1-t0).toFixed(1)}ms`);
-    
-    stats.vertices = width * height;
-    stats.bucketedVertices = width * height;
-    
-    // Update camera scheme with terrain bounds for F key reframing
-    if (controls && controls.activeScheme && controls.activeScheme.setTerrainBounds) {
-        // Calculate bounds based on render mode
-        if (params.renderMode === 'bars') {
-            const bucketMultiplier = params.bucketSize;
-            const halfWidth = (width - 1) * bucketMultiplier / 2;
-            const halfDepth = (height - 1) * bucketMultiplier / 2;
-            controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
-        } else if (params.renderMode === 'points') {
-            const halfWidth = (width - 1) / 2;
-            const halfDepth = (height - 1) / 2;
-            controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
-        } else {
-            // Surface mode - use geometry grid extents (uniform grid)
-            const halfWidth = width / 2;
-            const halfDepth = height / 2;
-            controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
-        }
-    }
-    
-    // PRODUCT REQUIREMENT: Edge markers must stay fixed when vertical exaggeration changes
-    // Only create edge markers if they don't exist yet (prevents movement on exaggeration change)
-    if (edgeMarkers.length === 0) {
-        createEdgeMarkers();
-    }
-    
-    updateStats();
+	const t0 = performance.now();
+	
+	// Remove old terrain and DISPOSE geometry/materials
+	if (terrainMesh) {
+		scene.remove(terrainMesh);
+	}
+	
+	const { width, height, elevation } = processedData;
+	
+	// Calculate real-world scale
+	const scale = calculateRealWorldScale();
+	
+	if (params.renderMode === 'bars') {
+		createBarsTerrain(width, height, elevation, scale);
+	} else if (params.renderMode === 'points') {
+		createPointCloudTerrain(width, height, elevation, scale);
+	} else {
+		createSurfaceTerrain(width, height, elevation, scale);
+	}
+	
+	// Center terrain - different centering for different modes
+	if (terrainMesh) {
+		if (params.renderMode === 'bars') {
+			// Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
+			const bucketMultiplier = params.bucketSize;
+			terrainMesh.position.x = -(width - 1) * bucketMultiplier / 2;
+			terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2;  // NO aspect ratio scaling!
+			console.log(`Bars centered: uniform grid ${width}x${height}, tile size ${bucketMultiplier}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
+		} else if (params.renderMode === 'points') {
+			// Points use uniform grid positioning
+			const bucketSize = 1;
+			terrainMesh.position.x = -(width - 1) * bucketSize / 2;
+			terrainMesh.position.z = -(height - 1) * bucketSize / 2;
+			console.log(`Points centered: uniform grid ${width}x${height}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
+		} else {
+			// Surface mode: PlaneGeometry is already centered, but position it at origin
+			terrainMesh.position.set(0, 0, 0);
+			console.log(`Surface centered: geometry naturally centered`);
+		}
+	}
+	
+	const t1 = performance.now();
+	console.log(`Terrain created in ${(t1-t0).toFixed(1)}ms`);
+	
+	stats.vertices = width * height;
+	stats.bucketedVertices = width * height;
+	
+	// Update camera scheme with terrain bounds for F key reframing
+	if (controls && controls.activeScheme && controls.activeScheme.setTerrainBounds) {
+		// Calculate bounds based on render mode
+		if (params.renderMode === 'bars') {
+			const bucketMultiplier = params.bucketSize;
+			const halfWidth = (width - 1) * bucketMultiplier / 2;
+			const halfDepth = (height - 1) * bucketMultiplier / 2;
+			controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
+		} else if (params.renderMode === 'points') {
+			const halfWidth = (width - 1) / 2;
+			const halfDepth = (height - 1) / 2;
+			controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
+		} else {
+			// Surface mode - use geometry grid extents (uniform grid)
+			const halfWidth = width / 2;
+			const halfDepth = height / 2;
+			controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
+		}
+	}
+	
+	// PRODUCT REQUIREMENT: Edge markers must stay fixed when vertical exaggeration changes
+	// Only create edge markers if they don't exist yet (prevents movement on exaggeration change)
+	if (edgeMarkers.length === 0) {
+		createEdgeMarkers();
+	}
+	
+	updateStats();
 }
 
 function createBarsTerrain(width, height, elevation, scale) {
@@ -1985,7 +1974,6 @@ function createBarsTerrain(width, height, elevation, scale) {
         if (obj instanceof THREE.Mesh) meshCount++;
         if (obj instanceof THREE.InstancedMesh) {
             instancedMeshCount++;
-            console.log(`   InstancedMesh found with ${obj.count} instances`);
         }
     });
     console.log(`Total meshes: ${meshCount}, InstancedMeshes: ${instancedMeshCount}`);
@@ -2161,6 +2149,22 @@ function getColorForElevation(elevation) {
             { stop: 0.5, color: new THREE.Color(0x00ff66) },
             { stop: 0.75, color: new THREE.Color(0xffff00) },
             { stop: 1.0, color: new THREE.Color(0xff0000) }
+        ],
+        test: [
+            // Intense, high-contrast scheme to emphasize altitude changes
+            // Dense stops around mid-high elevations to highlight relief
+            { stop: 0.00, color: new THREE.Color(0x001b3a) }, // deep navy
+            { stop: 0.08, color: new THREE.Color(0x004e98) }, // strong blue
+            { stop: 0.16, color: new THREE.Color(0x00b4d8) }, // cyan
+            { stop: 0.28, color: new THREE.Color(0x28a745) }, // green
+            { stop: 0.38, color: new THREE.Color(0xfff275) }, // warm yellow
+            { stop: 0.46, color: new THREE.Color(0xffb703) }, // orange
+            { stop: 0.54, color: new THREE.Color(0xfb8500) }, // deep orange
+            { stop: 0.64, color: new THREE.Color(0xe85d04) }, // orange-red
+            { stop: 0.74, color: new THREE.Color(0xd00000) }, // red
+            { stop: 0.86, color: new THREE.Color(0x9d0208) }, // dark red
+            { stop: 0.94, color: new THREE.Color(0xf5f5f5) }, // near white
+            { stop: 1.00, color: new THREE.Color(0xffffff) }  // white peaks
         ]
     };
     
@@ -2219,7 +2223,6 @@ function updateColors() {
 }
 
 function recreateTerrain() {
-    console.log(`recreateTerrain() called, render mode: ${params.renderMode}`);
     createTerrain();
 }
 

@@ -11,7 +11,6 @@
  */
 function rebucketData(rawElevationData, params) {
     const startTime = performance.now();
-    console.log(`🔲 Bucketing with multiplier ${params.bucketSize}×, method: ${params.aggregation}`);
     
     const { width, height, elevation, bounds } = rawElevationData;
     
@@ -111,7 +110,6 @@ function rebucketData(rawElevationData, params) {
     
     const duration = (performance.now() - startTime).toFixed(2);
     const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
-    console.log(`✅ Bucketed to ${bucketedWidth}×${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
     
     return processedData;
 }

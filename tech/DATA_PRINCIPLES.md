@@ -23,7 +23,7 @@ Incorrect proportions make states unrecognizable and misleading.
 
 When exporting data for regions (states, countries):
 
-**✅ DO**: Crop to actual geographic boundaries
+** DO**: Crop to actual geographic boundaries
 ```python
 # Removes empty space, preserves proportions
 out_image, out_transform = rasterio_mask(
@@ -34,7 +34,7 @@ out_image, out_transform = rasterio_mask(
 )
 ```
 
-**❌ DON'T**: Keep rectangular bounding boxes
+** DON'T**: Keep rectangular bounding boxes
 ```python
 # Keeps empty space, distorts proportions
 out_image, out_transform = rasterio_mask(
@@ -74,7 +74,7 @@ elevation[row][col] = height in meters
 
 ### Implementation: Viewer/Rendering
 
-**✅ DO**: Render as simple uniform grid
+** DO**: Render as simple uniform grid
 ```javascript
 // Each pixel = one unit of space
 const geometry = new THREE.PlaneGeometry(
@@ -85,7 +85,7 @@ const geometry = new THREE.PlaneGeometry(
 );
 ```
 
-**❌ DON'T**: Apply geographic transformations
+** DON'T**: Apply geographic transformations
 ```javascript
 // DON'T calculate meters per degree
 const metersPerDegLon = 111_320 * Math.cos(lat);  // NO!

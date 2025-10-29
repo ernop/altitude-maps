@@ -17,11 +17,11 @@ The viewer is a **pure client-side web application** that only needs:
 - Select2 (dropdown UI)
 
 ### NOT Needed (stays local)
-- ❌ `data/` - Raw GeoTIFF files (10+ GB!)
-- ❌ `src/` - Python processing code
-- ❌ `*.py` - Python scripts
-- ❌ `venv/` - Virtual environment
-- ❌ Documentation files
+-  `data/` - Raw GeoTIFF files (10+ GB!)
+-  `src/` - Python processing code
+-  `*.py` - Python scripts
+-  `venv/` - Virtual environment
+-  Documentation files
 
 ## Deployment
 
@@ -208,10 +208,10 @@ To add new regions or update existing ones:
 
 ## Security Notes
 
-- ✅ No server-side code (static files only)
-- ✅ No database or user data
-- ✅ All data is public (elevation maps)
-- ✅ CDN dependencies use integrity hashes (recommended)
+-  No server-side code (static files only)
+-  No database or user data
+-  All data is public (elevation maps)
+-  CDN dependencies use integrity hashes (recommended)
 
 Consider adding:
 - HTTPS via Let's Encrypt

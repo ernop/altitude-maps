@@ -45,7 +45,7 @@ def main():
     # Get region bounds
     bbox = USARegionBounds.get_region(args.region)
     if not bbox:
-        print(f"❌ Error: Region '{args.region}' not found.")
+        print(f" Error: Region '{args.region}' not found.")
         return 1
     
     west, south, east, north = bbox
@@ -56,7 +56,7 @@ def main():
     print(f"   Area: {area_deg_sq:.1f} square degrees")
     
     if args.region in ['nationwide_usa', 'continental_usa']:
-        print("\n⚠️  NOTE: Full continental USA is VERY LARGE!")
+        print("\n  NOTE: Full continental USA is VERY LARGE!")
         print("   Recommended approach:")
         print("   1. Download in sections (usa_west, usa_east)")
         print("   2. Or use lower resolution for overview")
@@ -79,7 +79,7 @@ def main():
     # Download data
     downloader = USGSElevationDownloader(args.output_dir)
     
-    print(f"\n🗺️  Downloading...")
+    print(f"\n🗺  Downloading...")
     print(f"   Source: USGS 3DEP")
     print(f"   Starting download (this may take several minutes)...")
     
@@ -87,12 +87,12 @@ def main():
     result = downloader.download_via_national_map_api(bbox, output_file)
     
     if result:
-        print(f"\n✅ Success!")
+        print(f"\n Success!")
         print(f"   File: {result}")
         print(f"\n   Visualize with:")
         print(f"   python visualize_real_data.py {result}")
     else:
-        print(f"\n❌ Download failed or timed out.")
+        print(f"\n Download failed or timed out.")
         print(f"\n   For very large areas, try manual download:")
         print(f"   1. Go to: https://apps.nationalmap.gov/downloader/")
         print(f"   2. Select 'Elevation Products (3DEP)'")

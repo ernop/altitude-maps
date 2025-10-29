@@ -64,6 +64,13 @@ body.ui-collapsed #controls {
     box-shadow: 0 8px 32px rgba(85, 136, 204, 0.15);
 }
 
+/* Keep the activity log visible at the bottom of the controls */
+#activityLog {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+}
+
 #info {
     position: absolute;
     top: 20px;

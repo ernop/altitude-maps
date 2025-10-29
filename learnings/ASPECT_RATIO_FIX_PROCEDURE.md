@@ -129,9 +129,9 @@ python serve_viewer.py
 ### Automatic Validation
 
 Every data export now automatically validates:
-- ✅ Aspect ratio matches geographic reality (±30% tolerance)
-- ✅ Sufficient non-null data coverage (>20%)
-- ✅ Clear error messages if validation fails
+-  Aspect ratio matches geographic reality (±30% tolerance)
+-  Sufficient non-null data coverage (>20%)
+-  Clear error messages if validation fails
 
 ### Principles Enforced
 

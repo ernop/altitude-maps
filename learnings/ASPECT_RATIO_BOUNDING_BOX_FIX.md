@@ -31,7 +31,7 @@ Changed masking functions in `src/borders.py` to crop to actual boundaries, remo
 out_image, out_transform = rasterio_mask(
     raster_src, 
     geoms, 
-    crop=False,  # ❌ Keeps full bounding box with empty space
+    crop=False,  #  Keeps full bounding box with empty space
     nodata=np.nan,
     invert=False
 )
@@ -40,7 +40,7 @@ out_image, out_transform = rasterio_mask(
 out_image, out_transform = rasterio_mask(
     raster_src, 
     geoms, 
-    crop=True,  # ✅ Crops to minimum bounding box of actual geometry
+    crop=True,  #  Crops to minimum bounding box of actual geometry
     nodata=np.nan,
     invert=False
 )
@@ -158,9 +158,9 @@ Always ask: **"Will this preserve the geographic proportions as they exist in re
 ### 2. Data is a 2D Grid, Not Geodata (in the viewer)
 
 Input elevation arrays are simple 2D grids of height values. **Render them as-is**:
-- ✅ Treat each pixel as one unit of space (uniform grid)
-- ❌ Don't apply geographic projections or latitude corrections
-- ❌ Don't reinterpret coordinate systems
+-  Treat each pixel as one unit of space (uniform grid)
+-  Don't apply geographic projections or latitude corrections
+-  Don't reinterpret coordinate systems
 
 The data already has correct proportions from the export process.
 
@@ -169,7 +169,7 @@ The data already has correct proportions from the export process.
 When masking/clipping geographic data for export:
 
 ```python
-# ✅ CORRECT PATTERN:
+#  CORRECT PATTERN:
 out_image, out_transform = rasterio_mask(
     raster_src, 
     geometries, 
@@ -177,7 +177,7 @@ out_image, out_transform = rasterio_mask(
     nodata=np.nan
 )
 
-# ❌ WRONG PATTERN:
+#  WRONG PATTERN:
 out_image, out_transform = rasterio_mask(
     raster_src, 
     geometries, 

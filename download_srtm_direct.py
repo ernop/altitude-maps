@@ -70,11 +70,11 @@ def download_srtm_tile(tile_name: str, cache_dir: Path) -> Path:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
         
-        print(" ✅")
+        print(" ")
         return cache_file
         
     except Exception as e:
-        print(f" ❌ ({e})")
+        print(f"  ({e})")
         return None
 
 
@@ -93,7 +93,7 @@ def download_region_srtm(region_id: str, bounds: Tuple[float, float, float, floa
         True if successful
     """
     if output_file.exists():
-        print(f"   ✅ Already exists: {output_file}")
+        print(f"    Already exists: {output_file}")
         return True
     
     left, bottom, right, top = bounds
@@ -108,7 +108,7 @@ def download_region_srtm(region_id: str, bounds: Tuple[float, float, float, floa
     print(f"   📥 Need {len(tiles_needed)} SRTM tiles")
     
     if len(tiles_needed) > 50:
-        print(f"   ⚠️  Warning: Large region requires {len(tiles_needed)} tiles")
+        print(f"     Warning: Large region requires {len(tiles_needed)} tiles")
         print(f"   This may take a while...")
     
     # Download tiles
@@ -119,10 +119,10 @@ def download_region_srtm(region_id: str, bounds: Tuple[float, float, float, floa
             downloaded_tiles.append(tile_file)
     
     if not downloaded_tiles:
-        print(f"   ❌ No tiles downloaded successfully")
+        print(f"    No tiles downloaded successfully")
         return False
     
-    print(f"   ✅ Downloaded {len(downloaded_tiles)}/{len(tiles_needed)} tiles")
+    print(f"    Downloaded {len(downloaded_tiles)}/{len(tiles_needed)} tiles")
     
     # Convert .hgt files to GeoTIFF and merge
     print(f"   🔄 Processing and merging tiles...")
@@ -187,13 +187,13 @@ def download_region_srtm(region_id: str, bounds: Tuple[float, float, float, floa
         for src in src_files:
             src.close()
         
-        print(f"   ✅ Saved: {output_file}")
+        print(f"    Saved: {output_file}")
         print(f"      Size: {mosaic.shape[2]} × {mosaic.shape[1]}")
         
         return True
         
     except Exception as e:
-        print(f"   ❌ Error processing tiles: {e}")
+        print(f"    Error processing tiles: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -269,7 +269,7 @@ Examples:
         return 0
     
     if not args.regions:
-        print("❌ No regions specified!")
+        print(" No regions specified!")
         print("Usage: python download_srtm_direct.py <region1> <region2> ...")
         print("Or: python download_srtm_direct.py --list")
         return 1
@@ -290,7 +290,7 @@ Examples:
     
     for i, region_id in enumerate(args.regions, 1):
         if region_id not in REGIONS:
-            print(f"\n❌ Unknown region: {region_id}")
+            print(f"\n Unknown region: {region_id}")
             failed.append(region_id)
             continue
         
@@ -336,13 +336,13 @@ Examples:
     print(f"\n{'='*70}")
     print(f"SUMMARY")
     print(f"{'='*70}")
-    print(f"✅ Downloaded: {len(downloaded)}")
+    print(f" Downloaded: {len(downloaded)}")
     if downloaded:
         for rid in downloaded:
             print(f"   - {REGIONS[rid]['name']}")
     
     if failed:
-        print(f"\n❌ Failed: {len(failed)}")
+        print(f"\n Failed: {len(failed)}")
         for rid in failed:
             if rid in REGIONS:
                 print(f"   - {REGIONS[rid]['name']}")
@@ -351,7 +351,7 @@ Examples:
     
     print(f"\n{'='*70}")
     if args.process and processed:
-        print("✅ Ready! Open interactive_viewer_advanced.html")
+        print(" Ready! Open interactive_viewer_advanced.html")
     else:
         print("To process to JSON, run with --process flag")
     print(f"{'='*70}\n")

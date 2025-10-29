@@ -136,7 +136,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
         return 0
     
     if not args.region:
-        print("❌ No region specified!")
+        print(" No region specified!")
         print("Usage: python downloaders/japan_gsi.py <region> [--auto|--manual]")
         print("Or: python downloaders/japan_gsi.py --list")
         return 1
@@ -144,7 +144,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
     region_id = args.region.lower().replace(' ', '_').replace('-', '_')
     
     if region_id not in JAPAN_REGIONS:
-        print(f"❌ Unknown region: {args.region}")
+        print(f" Unknown region: {args.region}")
         print("Run with --list to see available regions")
         return 1
     
@@ -166,8 +166,8 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
         success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
         
         if success:
-            print(f"\n✅ Download complete!")
-            print(f"\n⚠️  Note: This is 30m SRTM data, not highest-res GSI.")
+            print(f"\n Download complete!")
+            print(f"\n  Note: This is 30m SRTM data, not highest-res GSI.")
             print(f"   For 5-10m resolution, run:")
             print(f"   python downloaders/japan_gsi.py {region_id} --manual")
             
@@ -181,11 +181,11 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
                     skip_clip=True
                 )
             except Exception as e:
-                print(f"\n⚠️  Pipeline error: {e}")
+                print(f"\n  Pipeline error: {e}")
                 print("Raw data was downloaded successfully, but post-processing failed.")
                 return 1
         else:
-            print(f"\n❌ Download failed.")
+            print(f"\n Download failed.")
         
         return 0 if success else 1
     else:

@@ -38,12 +38,12 @@ generated/
 ```
 
 **Problems**:
-1. ❌ Can't tell data source from filename
-2. ❌ Can't tell resolution or quality
-3. ❌ Mixing raw downloads with processed data
-4. ❌ No version tracking for cache compatibility
-5. ❌ No distinction between bounding-box and clipped data
-6. ❌ If we re-download from better source, old cached data may be incompatible
+1.  Can't tell data source from filename
+2.  Can't tell resolution or quality
+3.  Mixing raw downloads with processed data
+4.  No version tracking for cache compatibility
+5.  No distinction between bounding-box and clipped data
+6.  If we re-download from better source, old cached data may be incompatible
 
 ---
 
@@ -198,10 +198,10 @@ generated/                          # Stage 4: Exported for viewer
 - `germany_copernicus_30m_v2.json`
 
 **Benefits**:
-- ✅ Clear what source data came from
-- ✅ Resolution visible at a glance
-- ✅ Version tracking for compatibility
-- ✅ Can have multiple versions/sources for same region
+-  Clear what source data came from
+-  Resolution visible at a glance
+-  Version tracking for compatibility
+-  Can have multiple versions/sources for same region
 
 ---
 
@@ -305,9 +305,9 @@ EXPORT_VERSION = "v2"
 
 When code detects version bump:
 ```
-❌ Found processed data at v1, but code requires v2
-🗑️  Moving old data to: data/processed/archive/v1/
-✅ Cache cleared. Re-run processing.
+ Found processed data at v1, but code requires v2
+🗑  Moving old data to: data/processed/archive/v1/
+ Cache cleared. Re-run processing.
 ```
 
 **2. Source File Changed**:
@@ -491,13 +491,13 @@ sources = dm.list_sources("california")
 
 ## Decisions Confirmed (Oct 23, 2025)
 
-✅ **Source Names**: `usa_3dep` (not `usgs_3dep`)
-✅ **Folder Structure**: 4-stage pipeline approved
-✅ **Version Strategy**: Compatibility checking approved
-✅ **Migration**: Get new high-res data (existing is 30m SRTM, upgrade to 10m)
-✅ **Hash Algorithm**: MD5 for cache validation
-✅ **Resolution Format**: `10m` (concise)
-✅ **Archive Strategy**: Keep one previous version
+ **Source Names**: `usa_3dep` (not `usgs_3dep`)
+ **Folder Structure**: 4-stage pipeline approved
+ **Version Strategy**: Compatibility checking approved
+ **Migration**: Get new high-res data (existing is 30m SRTM, upgrade to 10m)
+ **Hash Algorithm**: MD5 for cache validation
+ **Resolution Format**: `10m` (concise)
+ **Archive Strategy**: Keep one previous version
 
 ### Download Priority Order:
 1. **Full USA** (USGS 3DEP)
@@ -541,7 +541,7 @@ sources = dm.list_sources("california")
 ## Next Steps
 
 **Immediate:**
-1. ✅ Document design (this file)
+1.  Document design (this file)
 2. ⏳ Get user feedback on naming/structure
 3. ⏳ Check if USGS 3DEP needs authentication
 

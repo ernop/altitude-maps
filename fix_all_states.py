@@ -83,7 +83,7 @@ def export_state_borders(tif_path: Path, state_name: str, output_path: Path, res
         state_gdf = border_manager.get_state("United States of America", state_name, resolution)
         
         if state_gdf is None or state_gdf.empty:
-            print(f"      ❌ State '{state_name}' not found in border database")
+            print(f"       State '{state_name}' not found in border database")
             return False
         
         # Extract border coordinates
@@ -141,7 +141,7 @@ def export_state_borders(tif_path: Path, state_name: str, output_path: Path, res
         return True
         
     except Exception as e:
-        print(f"      ❌ Error exporting borders: {e}")
+        print(f"       Error exporting borders: {e}")
         return False
 
 
@@ -300,10 +300,10 @@ def fix_state(state_id: str, state_info: Dict, audit_info: Dict, force: bool = F
         )
         
         if not success:
-            print(f"❌ Failed to re-export elevation")
+            print(f" Failed to re-export elevation")
             return False
         
-        print(f"✅ Elevation re-exported")
+        print(f" Elevation re-exported")
     else:
         print(f"\n[1/2] Elevation aspect ratio correct, skipping")
     
@@ -315,14 +315,14 @@ def fix_state(state_id: str, state_info: Dict, audit_info: Dict, force: bool = F
         success = export_state_borders(source_tif, state_name, borders_path)
         
         if not success:
-            print(f"❌ Failed to export borders")
+            print(f" Failed to export borders")
             return False
         
-        print(f"✅ State borders exported")
+        print(f" State borders exported")
     else:
         print(f"\n[2/2] State borders correct, skipping")
     
-    print(f"\n✅ {state_name} fixed!")
+    print(f"\n {state_name} fixed!")
     return True
 
 
@@ -358,16 +358,16 @@ def main():
             state_id = state_id.lower().replace(' ', '_').replace('-', '_')
             
             if state_id not in US_STATES:
-                print(f"\n❌ Unknown state: {state_id}")
+                print(f"\n Unknown state: {state_id}")
                 continue
             
             if state_id not in audit_results:
-                print(f"\n❌ No audit info for: {state_id}")
+                print(f"\n No audit info for: {state_id}")
                 continue
             
             audit_info = audit_results[state_id]
             if audit_info['status'] != 'exported':
-                print(f"\n⚠️  {state_id}: {audit_info['status']}")
+                print(f"\n  {state_id}: {audit_info['status']}")
                 continue
             
             fix_state(state_id, US_STATES[state_id], audit_info, args.force)
@@ -380,7 +380,7 @@ def main():
         ]
         
         if not states_to_fix:
-            print("\n✅ No states need fixing!")
+            print("\n No states need fixing!")
             return 0
         
         print(f"\n{'='*70}")

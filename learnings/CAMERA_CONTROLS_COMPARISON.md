@@ -1000,16 +1000,16 @@ Every design decision documented:
 ### Altitude Maps vs Industry Standards
 
 #### Where Altitude Maps Matches Standards
-✅ **Scroll wheel zoom** - Universal standard  
-✅ **Right-drag rotate** - Standard for most software  
-✅ **Left-drag pan** - Standard for GIS/mapping tools  
-✅ **Ground plane model** - Standard for geographic tools  
+ **Scroll wheel zoom** - Universal standard  
+ **Right-drag rotate** - Standard for most software  
+ **Left-drag pan** - Standard for GIS/mapping tools  
+ **Ground plane model** - Standard for geographic tools  
 
 #### Where Altitude Maps Differs
-⚠️ **Shift+drag tilt** - Unique to Altitude Maps (most combine with rotate)  
-⚠️ **No middle-mouse** - Most 3D tools use middle-mouse heavily  
-⚠️ **No WASD** - Game engines universally support this  
-⚠️ **No Alt modifier** - 3D modeling tools use Alt extensively  
+ **Shift+drag tilt** - Unique to Altitude Maps (most combine with rotate)  
+ **No middle-mouse** - Most 3D tools use middle-mouse heavily  
+ **No WASD** - Game engines universally support this  
+ **No Alt modifier** - 3D modeling tools use Alt extensively  
 
 #### Assessment
 Altitude Maps follows GIS/mapping conventions closely, which is appropriate for its terrain visualization use case. It differs from 3D modeling and game engine conventions, but this is intentional - it's not trying to be a general-purpose 3D tool.
@@ -1133,19 +1133,19 @@ Altitude Maps follows GIS/mapping conventions closely, which is appropriate for 
 
 ### Best Practices to Maintain
 
-✅ **Keep single `lookAt()` per frame** - This prevents jitter  
-✅ **Maintain ground plane architecture** - Clear mental model  
-✅ **Document all changes** - Continue learnings folder approach  
-✅ **Geometric solutions over speed tuning** - Precision over heuristics  
-✅ **Focus on terrain use case** - Don't try to be everything  
+ **Keep single `lookAt()` per frame** - This prevents jitter  
+ **Maintain ground plane architecture** - Clear mental model  
+ **Document all changes** - Continue learnings folder approach  
+ **Geometric solutions over speed tuning** - Precision over heuristics  
+ **Focus on terrain use case** - Don't try to be everything  
 
 ### Anti-Patterns to Avoid
 
-❌ **Don't call `lookAt()` in mouse handlers** - Causes jitter  
-❌ **Don't add features "just because"** - Stay focused on terrain  
-❌ **Don't break existing controls** - Users have learned the system  
-❌ **Don't copy Blender's complexity** - Accessibility is a strength  
-❌ **Don't ignore trackpad users** - Large user segment  
+ **Don't call `lookAt()` in mouse handlers** - Causes jitter  
+ **Don't add features "just because"** - Stay focused on terrain  
+ **Don't break existing controls** - Users have learned the system  
+ **Don't copy Blender's complexity** - Accessibility is a strength  
+ **Don't ignore trackpad users** - Large user segment  
 
 ---
 

@@ -309,7 +309,7 @@ def extract_state_from_usa(state_id: str, state_info: Dict, usa_file: Path, outp
             # Check if bounds overlap with source data
             if (west > src.bounds.right or east < src.bounds.left or
                 south > src.bounds.top or north < src.bounds.bottom):
-                print(f"   ⚠️  State bounds don't overlap with USA data")
+                print(f"     State bounds don't overlap with USA data")
                 return False
             
             # Get window for this state
@@ -336,13 +336,13 @@ def extract_state_from_usa(state_id: str, state_info: Dict, usa_file: Path, outp
                 dst.write(data, 1)
             
             file_size_mb = output_file.stat().st_size / (1024 * 1024)
-            print(f"   ✅ Saved: {output_file.name}")
+            print(f"    Saved: {output_file.name}")
             print(f"      Size: {data.shape[1]} × {data.shape[0]} ({file_size_mb:.1f} MB)")
             
             return True
             
     except Exception as e:
-        print(f"   ❌ Error extracting {state_id}: {e}")
+        print(f"    Error extracting {state_id}: {e}")
         return False
 
 
@@ -418,7 +418,7 @@ def process_state_to_json(state_id: str, state_info: Dict, tif_file: Path,
             return True
             
     except Exception as e:
-        print(f"   ❌ Error processing {state_id}: {e}")
+        print(f"    Error processing {state_id}: {e}")
         return False
 
 
@@ -438,7 +438,7 @@ def create_regions_manifest(output_dir: Path, regions_data: Dict):
     with open(manifest_file, 'w') as f:
         json.dump(manifest, f, indent=2)
     
-    print(f"\n✅ Updated manifest: {manifest_file}")
+    print(f"\n Updated manifest: {manifest_file}")
     print(f"   Total regions: {len(regions_data)}")
 
 
@@ -491,7 +491,7 @@ def main():
     data_dir = Path(args.data_dir)
     output_dir = Path(args.output_dir)
     
-    print(f"\n🗺️  US States Elevation Processor")
+    print(f"\n🗺  US States Elevation Processor")
     print(f"="*70)
     print(f"USA data: {usa_file}")
     print(f"Output TIFs: {data_dir}")
@@ -510,10 +510,10 @@ def main():
     # Check USA file exists if we're extracting
     if not args.skip_extract:
         if not usa_file.exists():
-            print(f"\n❌ USA elevation file not found: {usa_file}")
+            print(f"\n USA elevation file not found: {usa_file}")
             print("Expected location: data/usa_elevation/nationwide_usa_elevation.tif")
             return 1
-        print(f"✅ Found USA elevation data: {usa_file}")
+        print(f" Found USA elevation data: {usa_file}")
     
     extracted = []
     processed = []
@@ -527,13 +527,13 @@ def main():
         
         for i, state_id in enumerate(states_to_process, 1):
             if state_id not in US_STATES:
-                print(f"\n❌ Unknown state: {state_id}")
+                print(f"\n Unknown state: {state_id}")
                 failed.append(state_id)
                 continue
             
             if state_id in ['alaska', 'hawaii']:
                 print(f"\n[{i}/{len(states_to_process)}] {US_STATES[state_id]['name']}")
-                print(f"   ⚠️  Skipping - not in contiguous USA dataset")
+                print(f"     Skipping - not in contiguous USA dataset")
                 print(f"   Download separately using download_us_states.py")
                 continue
             
@@ -543,7 +543,7 @@ def main():
             # Skip if already exists
             if output_file.exists():
                 print(f"\n[{i}/{len(states_to_process)}] {state_info['name']}")
-                print(f"   ✅ Already exists, skipping extraction")
+                print(f"    Already exists, skipping extraction")
                 extracted.append(state_id)
                 continue
             
@@ -573,7 +573,7 @@ def main():
         
         if not tif_file.exists():
             print(f"\n[{i}/{len(extracted)}] {state_info['name']}")
-            print(f"   ❌ TIF file not found: {tif_file}")
+            print(f"    TIF file not found: {tif_file}")
             continue
         
         print(f"\n[{i}/{len(extracted)}] {state_info['name']}")
@@ -622,15 +622,15 @@ def main():
     print(f"{'='*70}")
     
     if extracted:
-        print(f"✅ Extracted/Found: {len(extracted)} states")
+        print(f" Extracted/Found: {len(extracted)} states")
     
     if processed:
-        print(f"✅ Processed to JSON: {len(processed)} states")
+        print(f" Processed to JSON: {len(processed)} states")
         for state_id in processed:
             print(f"   - {US_STATES[state_id]['name']}")
     
     if failed:
-        print(f"\n❌ Failed: {len(failed)} states")
+        print(f"\n Failed: {len(failed)} states")
         for state_id in failed:
             if state_id in US_STATES:
                 print(f"   - {US_STATES[state_id]['name']}")

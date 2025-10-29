@@ -14,7 +14,7 @@ User provided a reference image showing a 3D elevation map with distinctive char
 
 ## Key Accomplishments
 
-### 1. ✅ Downloaded Full Continental USA Data
+### 1.  Downloaded Full Continental USA Data
 Successfully obtained elevation data for the entire continental USA:
 - **Bounds**: 125°W to 66°W, 24°N to 49°N
 - **Area**: 1,475 square degrees
@@ -25,7 +25,7 @@ Successfully obtained elevation data for the entire continental USA:
 
 **Key Learning**: The API handles large areas efficiently by automatically adjusting resolution
 
-### 2. ✅ Proper Geographic Labeling
+### 2.  Proper Geographic Labeling
 Fixed visualization to include:
 - Exact latitude/longitude bounds in title
 - Data source attribution (USGS 3DEP)
@@ -35,7 +35,7 @@ Fixed visualization to include:
 
 **Requirement Met**: "Any image must indicate WHAT it is showing and include grounded lat/long box"
 
-### 3. ✅ Single Overhead View
+### 3.  Single Overhead View
 Created streamlined visualization:
 - ONE image output (not 3 separate views)
 - Overhead perspective matching reference style
@@ -88,10 +88,10 @@ Original data: 1024×1024 pixels
 
 ### API vs Manual Download
 **API Approach** (what we used):
-- ✅ Automated, scriptable
-- ✅ Works well for areas up to ~2000 square degrees
-- ✅ Instant results
-- ⚠️ Limited to 1024×1024 or similar
+-  Automated, scriptable
+-  Works well for areas up to ~2000 square degrees
+-  Instant results
+-  Limited to 1024×1024 or similar
 
 **Manual Approach** (for highest resolution):
 - Earth Explorer: https://earthexplorer.usgs.gov/
@@ -150,7 +150,7 @@ In the generated visualization, you can clearly see:
 **Learning**: Always validate geographic data visually
 
 ### Challenge 2: Windows Console Encoding
-**Issue**: UTF-8 characters (✓, °, ❌) causing crashes
+**Issue**: UTF-8 characters (✓, °, ) causing crashes
 **Solution**: Wrap stdout/stderr in UTF-8 TextIOWrapper at script start
 **Pattern**: Add to ALL scripts for consistency
 
@@ -216,35 +216,35 @@ Benefits:
 - Location context
 
 **Our Implementation**:
-- ✅ Smooth 3D surface with hillshade
-- ✅ Overhead perspective (35° elevation)
-- ✅ Similar color scheme (blue→green→brown→white)
-- ✅ Geographic coordinates labeled
-- ✅ Elevation statistics included
-- ⚠️ Could add more "blocky" style with discrete height bars
+-  Smooth 3D surface with hillshade
+-  Overhead perspective (35° elevation)
+-  Similar color scheme (blue→green→brown→white)
+-  Geographic coordinates labeled
+-  Elevation statistics included
+-  Could add more "blocky" style with discrete height bars
 
 **Potential Enhancement**: 
 Create alternate version with actual bar3d elements for more discrete/blocky appearance
 
 ## User Requirements Met
 
-✅ **1. Generate images with timestamps in `generated/` folder**
+ **1. Generate images with timestamps in `generated/` folder**
    - All outputs: `generated/YYYYMMDD_HHMMSS_*.png`
 
-✅ **2. Images must indicate WHAT they show**
+ **2. Images must indicate WHAT they show**
    - Title: "Continental United States - Elevation View from Space"
    - Data source clearly labeled
 
-✅ **3. Include lat/long bounds**
+ **3. Include lat/long bounds**
    - Explicit coordinates in title
    - Example: "-125.0°W to -66.0°W, 24.0°N to 49.0°N"
 
-✅ **4. Simple overhead map of entire continental USA**
+ **4. Simple overhead map of entire continental USA**
    - One command: `python visualize_usa_overhead.py`
    - One image output
    - Full continental coverage
 
-✅ **5. Similar to reference image style**
+ **5. Similar to reference image style**
    - Overhead perspective ✓
    - 3D elevation representation ✓
    - Terrain coloring ✓

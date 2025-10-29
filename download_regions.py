@@ -451,7 +451,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             break
     
     if not input_file:
-        print(f"❌ No elevation data found for {region_id}")
+        print(f" No elevation data found for {region_id}")
         print(f"   Expected one of:")
         for f in possible_files:
             print(f"   - {f}")
@@ -460,7 +460,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
         print(f"   2. Save as: {possible_files[0]}")
         return False
     
-    print(f"✅ Found: {input_file}")
+    print(f" Found: {input_file}")
     
     try:
         # Open and process
@@ -497,7 +497,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             # VALIDATION: Check aspect ratio before export
             export_aspect = width / height
             if abs(export_aspect - (src.width / src.height)) > 0.01:
-                print(f"   ⚠️  WARNING: Aspect ratio mismatch detected!")
+                print(f"     WARNING: Aspect ratio mismatch detected!")
                 print(f"      Source: {src.width / src.height:.3f}, Export: {export_aspect:.3f}")
                 raise ValueError(f"Aspect ratio not preserved for {region_id}")
             
@@ -541,7 +541,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
                 json.dump(export_data, f, separators=(',', ':'))
             
             file_size_mb = output_file.stat().st_size / (1024 * 1024)
-            print(f"✅ Exported to: {output_file}")
+            print(f" Exported to: {output_file}")
             print(f"   File size: {file_size_mb:.2f} MB")
             print(f"   Data points: {width * height:,}")
             print(f"   Aspect ratio: {export_aspect:.3f} (validated)")
@@ -549,7 +549,7 @@ def process_region(region_id: str, region_info: Dict, data_dir: Path, output_dir
             return True
             
     except Exception as e:
-        print(f"❌ Error processing {region_id}: {e}")
+        print(f" Error processing {region_id}: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -578,7 +578,7 @@ def create_regions_manifest(output_dir: Path, processed_regions: List[str]):
     with open(manifest_file, 'w') as f:
         json.dump(manifest, f, indent=2)
     
-    print(f"\n✅ Created manifest: {manifest_file}")
+    print(f"\n Created manifest: {manifest_file}")
     print(f"   Total regions: {len(processed_regions)}")
     
     return manifest
@@ -634,7 +634,7 @@ def main():
     data_dir = Path(args.data_dir)
     output_dir = Path(args.output_dir)
     
-    print(f"\n🗺️  Multi-Region Elevation Data Processor")
+    print(f"\n🗺  Multi-Region Elevation Data Processor")
     print(f"{'='*60}")
     print(f"Data directory: {data_dir}")
     print(f"Output directory: {output_dir}")
@@ -657,7 +657,7 @@ def main():
                 regions_to_process.append(region_id)
     
     if not regions_to_process:
-        print("❌ No regions found to process!")
+        print(" No regions found to process!")
         print("\nTo get started:")
         print("1. Run with --list to see all region definitions")
         print("2. Download elevation data for desired regions")
@@ -676,7 +676,7 @@ def main():
     
     for region_id in regions_to_process:
         if region_id not in REGIONS:
-            print(f"⚠️  Unknown region ID: {region_id}")
+            print(f"  Unknown region ID: {region_id}")
             continue
         
         success = process_region(
@@ -700,13 +700,13 @@ def main():
     print(f"\n{'='*60}")
     print(f"SUMMARY")
     print(f"{'='*60}")
-    print(f"✅ Successfully processed: {len(processed)} regions")
+    print(f" Successfully processed: {len(processed)} regions")
     if processed:
         for rid in processed:
             print(f"   - {REGIONS[rid]['name']}")
     
     if failed:
-        print(f"\n❌ Failed to process: {len(failed)} regions")
+        print(f"\n Failed to process: {len(failed)} regions")
         for rid in failed:
             print(f"   - {rid}")
     

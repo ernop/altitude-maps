@@ -96,11 +96,11 @@ For bucket size = 12:
 
 ## Verification
 
-✅ Bars tile perfectly (no gaps)  
-✅ No overlapping  
-✅ Infinite zoom out  
-✅ USA loads by default  
-✅ Caches regenerated with correct format
+ Bars tile perfectly (no gaps)  
+ No overlapping  
+ Infinite zoom out  
+ USA loads by default  
+ Caches regenerated with correct format
 
 ## Files Modified
 

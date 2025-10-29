@@ -19,10 +19,10 @@ if sys.platform == 'win32':
 try:
     import elevation
 except ImportError:
-    print("❌ 'elevation' package not installed")
+    print(" 'elevation' package not installed")
     print("\nInstalling required packages...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "elevation"])
-    print("✅ Installation complete. Please run the script again.")
+    print(" Installation complete. Please run the script again.")
     sys.exit(0)
 
 # Import after potential installation
@@ -49,7 +49,7 @@ def download_srtm_for_region(region_id: str, bounds: tuple, output_dir: Path) ->
     
     # Skip if already exists
     if output_file.exists():
-        print(f"   ✅ Already exists: {output_file}")
+        print(f"    Already exists: {output_file}")
         return output_file
     
     print(f"   📥 Downloading SRTM data for {region_id}...")
@@ -65,18 +65,18 @@ def download_srtm_for_region(region_id: str, bounds: tuple, output_dir: Path) ->
         )
         
         if output_file.exists():
-            print(f"   ✅ Downloaded: {output_file}")
+            print(f"    Downloaded: {output_file}")
             # Check file
             with rasterio.open(output_file) as src:
                 print(f"      Size: {src.width} × {src.height}")
                 print(f"      Resolution: ~{90}m")
             return output_file
         else:
-            print(f"   ❌ Download failed - file not created")
+            print(f"    Download failed - file not created")
             return None
             
     except Exception as e:
-        print(f"   ❌ Download failed: {e}")
+        print(f"    Download failed: {e}")
         return None
 
 
@@ -195,7 +195,7 @@ Notes:
     # Determine regions to download
     if args.all:
         regions_to_download = list(REGIONS.keys())
-        print(f"\n⚠️  WARNING: Downloading ALL {len(regions_to_download)} regions!")
+        print(f"\n  WARNING: Downloading ALL {len(regions_to_download)} regions!")
         print("This will download several GB of data and may take hours.")
         response = input("Continue? (yes/no): ")
         if response.lower() not in ['yes', 'y']:
@@ -206,11 +206,11 @@ Notes:
         # Validate
         invalid = [r for r in regions_to_download if r not in REGIONS]
         if invalid:
-            print(f"❌ Unknown regions: {', '.join(invalid)}")
+            print(f" Unknown regions: {', '.join(invalid)}")
             print("Run with --list to see available regions")
             return 1
     else:
-        print("❌ No regions specified!")
+        print(" No regions specified!")
         print("Usage: python download_elevation_batch.py <region1> <region2> ...")
         print("Or: python download_elevation_batch.py --all")
         print("Or: python download_elevation_batch.py --list")
@@ -243,7 +243,7 @@ Notes:
             existing_file = data_dir / f"{region_id}.tif"
             if existing_file.exists():
                 existing_file.unlink()
-                print(f"   🗑️  Deleted existing file (--force)")
+                print(f"   🗑  Deleted existing file (--force)")
         
         result = download_srtm_for_region(
             region_id,
@@ -291,20 +291,20 @@ Notes:
     print(f"{'='*70}")
     
     if downloaded_files:
-        print(f"✅ Successfully downloaded: {len(downloaded_files)} regions")
+        print(f" Successfully downloaded: {len(downloaded_files)} regions")
         for rid in downloaded_files.keys():
             print(f"   - {REGIONS[rid]['name']}")
     
     if failed_downloads:
-        print(f"\n❌ Failed downloads: {len(failed_downloads)} regions")
+        print(f"\n Failed downloads: {len(failed_downloads)} regions")
         for rid in failed_downloads:
             print(f"   - {rid} ({REGIONS[rid]['name']})")
     
     if not args.no_process:
         if processed:
-            print(f"\n✅ Successfully processed: {len(processed)} regions")
+            print(f"\n Successfully processed: {len(processed)} regions")
         if failed_processing:
-            print(f"\n❌ Failed processing: {len(failed_processing)} regions")
+            print(f"\n Failed processing: {len(failed_processing)} regions")
     
     print(f"\n{'='*70}")
     print(f"Next steps:")

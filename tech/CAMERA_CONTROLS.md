@@ -144,14 +144,14 @@ update() {
 
 ### What NOT To Do
 
-❌ Don't call camera.lookAt() in mouse handlers (causes jitter)  
-❌ Don't use continuous raycasting for pan (too slow/jerky)  
-❌ Don't make focus shift unidirectional (breaks zoom out feel)  
-❌ Don't forget to cancel operations if modifier keys released mid-drag
+ Don't call camera.lookAt() in mouse handlers (causes jitter)  
+ Don't use continuous raycasting for pan (too slow/jerky)  
+ Don't make focus shift unidirectional (breaks zoom out feel)  
+ Don't forget to cancel operations if modifier keys released mid-drag
 
 ## Camera Near/Far Planes - CRITICAL
 
-⚠️ **DO NOT MODIFY** without understanding depth buffer implications
+ **DO NOT MODIFY** without understanding depth buffer implications
 
 ### Current Safe Settings
 ```javascript
@@ -159,7 +159,7 @@ camera = new THREE.PerspectiveCamera(60, aspect, 1, 100000);
 //                                              ^  ^^^^^^
 //                                           near   far
 //                                           1m    100km
-//                                         Ratio: 100,000:1 ✅
+//                                         Ratio: 100,000:1 
 ```
 
 ### The Problem
@@ -171,22 +171,22 @@ Extreme near/far ratios cause depth buffer precision loss:
 
 ### Rules to Follow
 
-✅ **GOOD PRACTICES**:
+ **GOOD PRACTICES**:
 - Near plane: 1-10 meters for terrain visualization
 - Far plane: 10,000-100,000 meters for terrain
 - Ratio: Keep under 1,000,000:1
-- Current values: near=1, far=100000 (ratio 100,000:1) ✅
+- Current values: near=1, far=100000 (ratio 100,000:1) 
 
-❌ **NEVER DO THIS**:
+ **NEVER DO THIS**:
 ```javascript
-// ❌ Extreme ratios cause artifacts
+//  Extreme ratios cause artifacts
 camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 50000000);
-// Ratio: 50,000,000,000:1 ❌ GUARANTEED ARTIFACTS
+// Ratio: 50,000,000,000:1  GUARANTEED ARTIFACTS
 
-// ❌ "I want to see everything"
+//  "I want to see everything"
 camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 10000000);
 
-// ❌ "Infinite far plane to be safe"
+//  "Infinite far plane to be safe"
 camera = new THREE.PerspectiveCamera(60, aspect, 1, Number.MAX_VALUE);
 ```
 

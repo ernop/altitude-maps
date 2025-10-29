@@ -5,7 +5,7 @@ The interactive 3D elevation viewer underwent a partial refactoring to break the
 
 ## Current State
 
-### ✅ Completed Modules (Functional)
+###  Completed Modules (Functional)
 
 1. **`css/viewer.css`** - 383 lines, fully extracted
    - All styling separated from HTML
@@ -97,11 +97,11 @@ The following modules need to be extracted from the embedded JavaScript:
 ## Benefits Achieved
 
 Even with partial refactoring:
-- ✅ CSS is maintainable and separate from logic
-- ✅ Core utilities are reusable across projects
-- ✅ Bucketing logic is isolated and testable
-- ✅ Clear path forward for completion
-- ✅ Better code organization
+-  CSS is maintainable and separate from logic
+-  Core utilities are reusable across projects
+-  Bucketing logic is isolated and testable
+-  Clear path forward for completion
+-  Better code organization
 
 ## Next Steps (If Continuing)
 

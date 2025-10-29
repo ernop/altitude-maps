@@ -57,14 +57,14 @@ def download_via_opentopography(
     try:
         from download_high_resolution import download_from_opentopography
     except Exception as e:
-        print(f"❌ Cannot import downloader: {e}")
+        print(f" Cannot import downloader: {e}")
         return False
 
     if api_key is None:
         try:
             api_key = get_opentopo_api_key()
         except SystemExit:
-            print("❌ OpenTopography API key required (settings.json or --api-key)")
+            print(" OpenTopography API key required (settings.json or --api-key)")
             return False
 
     return download_from_opentopography(region_id, bounds, output_path, api_key, dataset)
@@ -159,7 +159,7 @@ Notes:
 
     # Require region if not just listing
     if not args.region:
-        print("❌ Error: region argument is required (unless using --list)", flush=True)
+        print(" Error: region argument is required (unless using --list)", flush=True)
         print("Usage: python download_unified.py <region> [options]", flush=True)
         print("Or: python download_unified.py --list", flush=True)
         return 1
@@ -176,7 +176,7 @@ Notes:
     entry = get_region(region_id)
 
     if entry is None and not args.bounds:
-        print(f"❌ Unknown region: {args.region}")
+        print(f" Unknown region: {args.region}")
         print("   Tip: --list to see built-in regions, or provide --bounds for custom.")
         return 1
 
@@ -202,12 +202,12 @@ Notes:
     # Auto-switch to COP30 for regions outside SRTM coverage (~60°N to 56°S)
     west, south, east, north = entry.bounds
     if (north > 60.0 or south < -56.0) and dataset in {"SRTMGL1", "SRTMGL3", "NASADEM"}:
-        print("\n💡 High-latitude region detected. Switching dataset to COP30 for coverage.")
+        print("\n High-latitude region detected. Switching dataset to COP30 for coverage.")
         dataset = "COP30"
 
     source_name = dataset_to_source_name(dataset)
 
-    print(f"\n🗺️  Unified Downloader", flush=True)
+    print(f"\n🗺  Unified Downloader", flush=True)
     print(f"="*70, flush=True)
     print(f"Region:   {entry.name} ({entry.id})", flush=True)
     print(f"Bounds:   {entry.bounds}", flush=True)
@@ -230,14 +230,14 @@ Notes:
     if auto_mode:
         ok = download_via_opentopography(entry.id, entry.bounds, raw_path, dataset, args.api_key)
         if not ok:
-            print("❌ Auto download failed")
+            print(" Auto download failed")
             return 1
-        print(f"\n✅ Download complete: {raw_path}")
+        print(f"\n Download complete: {raw_path}")
     else:
-        print("⏭️  Auto disabled. Expecting existing TIF at:")
+        print("  Auto disabled. Expecting existing TIF at:")
         print(f"    {raw_path}")
         if not raw_path.exists():
-            print("❌ File not found. Provide the TIF or enable --auto.")
+            print(" File not found. Provide the TIF or enable --auto.")
             return 1
 
     # Suggest higher target pixels for very small regions if user didn't override
@@ -254,7 +254,7 @@ Notes:
 
     if args.target_pixels == DEFAULT_TARGET_PIXELS and area_km2 <= 400:
         suggested_pixels = 4096
-        print(f"\n💡 Small region detected (~{area_km2:,.0f} km²). Suggesting higher target-pixels: {suggested_pixels}.")
+        print(f"\n Small region detected (~{area_km2:,.0f} km²). Suggesting higher target-pixels: {suggested_pixels}.")
         args.target_pixels = suggested_pixels
 
     # Validate raw file before processing (ensure proper GeoTIFF)
@@ -266,7 +266,7 @@ Notes:
     if validate_geotiff is not None:
         is_valid = validate_geotiff(raw_path, check_data=True)
         if not is_valid:
-            print("\n❌ Raw file is not a valid GeoTIFF or cannot be read:")
+            print("\n Raw file is not a valid GeoTIFF or cannot be read:")
             print(f"   {raw_path}")
             print("\nFix suggestions:")
             print("  - If this is a ZIP or folder download, extract the actual .tif first")
@@ -292,17 +292,17 @@ Notes:
                 skip_clip=skip_clip,
             )
         except Exception as e:
-            print(f"❌ Pipeline error: {e}")
+            print(f" Pipeline error: {e}")
             return 1
 
         if not success:
-            print("❌ Processing failed")
+            print(" Processing failed")
             return 1
 
         print("\n🎉 Ready. Launch viewer and select the region from the dropdown.")
         print("   python serve_viewer.py")
     else:
-        print("\n💡 Skipped processing. Use --no-process to skip; default is to process.")
+        print("\n Skipped processing. Use --no-process to skip; default is to process.")
 
     return 0
 

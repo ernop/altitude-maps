@@ -1,6 +1,6 @@
 # CRITICAL: Depth Buffer Precision and Camera Near/Far Planes
 
-**⚠️ DO NOT IGNORE THIS DOCUMENT ⚠️**
+** DO NOT IGNORE THIS DOCUMENT **
 
 This issue has caused significant debugging time in the past. Read this before modifying camera settings.
 
@@ -48,7 +48,7 @@ camera = new THREE.PerspectiveCamera(60, aspect, 1, 100000);
 //                                              ^  ^^^^^^
 //                                           near   far
 //                                           1m    100km
-//                                         Ratio: 100,000:1 ✅
+//                                         Ratio: 100,000:1 
 ```
 
 ### DO NOT USE (Previous Broken Settings)
@@ -56,12 +56,12 @@ camera = new THREE.PerspectiveCamera(60, aspect, 1, 100000);
 camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 50000000);
 //                                              ^^^^^  ^^^^^^^^
 //                                              BAD     BAD
-//                                         Ratio: 50,000,000,000:1 ❌
+//                                         Ratio: 50,000,000,000:1 
 ```
 
 ## Rules to Follow
 
-### ✅ GOOD PRACTICES
+###  GOOD PRACTICES
 1. **Near plane:** Should be as far as possible without clipping nearby objects
    - Typical range: `1` to `10` meters for terrain visualization
    - NEVER go below `0.1` unless absolutely necessary
@@ -75,15 +75,15 @@ camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 50000000);
    - Acceptable: `1,000,000:1` (maximum)
    - Bad: `50,000,000,000:1` (guaranteed artifacts)
 
-### ❌ NEVER DO THIS
+###  NEVER DO THIS
 ```javascript
-// ❌ "I want to see everything from very close to very far"
+//  "I want to see everything from very close to very far"
 camera = new THREE.PerspectiveCamera(60, aspect, 0.001, 10000000);
 
-// ❌ "Let me just make far plane infinite to be safe"
+//  "Let me just make far plane infinite to be safe"
 camera = new THREE.PerspectiveCamera(60, aspect, 1, Number.MAX_VALUE);
 
-// ❌ "This scene is huge, I need near=0.0001"
+//  "This scene is huge, I need near=0.0001"
 camera = new THREE.PerspectiveCamera(60, aspect, 0.0001, 100000);
 ```
 

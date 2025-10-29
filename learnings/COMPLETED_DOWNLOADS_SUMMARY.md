@@ -4,7 +4,7 @@
 
 Successfully set up high-resolution elevation data downloads for California and Shikoku, Japan!
 
-### ✅ What's Been Done
+###  What's Been Done
 
 1. **Created `download_high_resolution.py`**
    - New script for downloading from OpenTopography with multiple datasets
@@ -14,19 +14,19 @@ Successfully set up high-resolution elevation data downloads for California and 
    - Handles API limitations gracefully
 
 2. **Downloaded Regions**
-   - ✅ **Shikoku, Japan** - 33 MB, 30m resolution (ALOS AW3D30)
-   - ✅ **Central California** - 187 MB, 30m resolution (SRTM GL1)
+   -  **Shikoku, Japan** - 33 MB, 30m resolution (ALOS AW3D30)
+   -  **Central California** - 187 MB, 30m resolution (SRTM GL1)
 
 3. **Processed for Web Viewer**
-   - ✅ Shikoku: 26.6 MB JSON, 2.7M data points at 2048px resolution
-   - ✅ Central California: 28.2 MB JSON, 4.9M data points at 2048px resolution
+   -  Shikoku: 26.6 MB JSON, 2.7M data points at 2048px resolution
+   -  Central California: 28.2 MB JSON, 4.9M data points at 2048px resolution
 
 4. **Documentation**
    - Created comprehensive guide: `HIGH_RESOLUTION_DOWNLOAD_GUIDE.md`
    - Includes USGS 3DEP instructions for 10m California data
    - Examples for various use cases
 
-### 🗺️ Available Regions Now
+### 🗺 Available Regions Now
 
 You can now view these regions in `interactive_viewer_advanced.html`:
 - **Shikoku** - Smallest of Japan's main islands
@@ -137,10 +137,10 @@ python download_high_resolution.py mt_fuji --bounds 138.5 35.0 139.0 35.5 --data
 - Maximum region size: ~500,000 km² (enforced by OpenTopography)
 - Full California (962,000 km²) is too large → split into sub-regions
 - Japan fits within limits:
-  - Shikoku: 35,000 km² ✅
-  - Hokkaido: ~240,000 km² ✅
-  - Honshu: ~500,000 km² ⚠️ (borderline, may need splitting)
-  - Kyushu: ~100,000 km² ✅
+  - Shikoku: 35,000 km² 
+  - Hokkaido: ~240,000 km² 
+  - Honshu: ~500,000 km²  (borderline, may need splitting)
+  - Kyushu: ~100,000 km² 
 
 ## 📁 File Locations
 
@@ -232,7 +232,7 @@ python download_high_resolution.py california_central --usgs-instructions
 
 ---
 
-**Status:** ✅ Fully operational and tested
+**Status:**  Fully operational and tested
 
 **Created:** October 22, 2025
 

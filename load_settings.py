@@ -26,7 +26,7 @@ def load_settings(settings_file: str = "settings.json") -> Dict[str, Any]:
     settings_path = Path(settings_file)
     
     if not settings_path.exists():
-        print(f"❌ Error: {settings_file} not found!")
+        print(f" Error: {settings_file} not found!")
         print(f"\nPlease create {settings_file} with your configuration.")
         print(f"Use settings.example.json as a template:")
         print(f"  copy settings.example.json {settings_file}")
@@ -38,11 +38,11 @@ def load_settings(settings_file: str = "settings.json") -> Dict[str, Any]:
             settings = json.load(f)
         return settings
     except json.JSONDecodeError as e:
-        print(f"❌ Error: Invalid JSON in {settings_file}")
+        print(f" Error: Invalid JSON in {settings_file}")
         print(f"   {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error loading {settings_file}: {e}")
+        print(f" Error loading {settings_file}: {e}")
         sys.exit(1)
 
 
@@ -57,7 +57,7 @@ def get_opentopography_api_key() -> str:
     api_key = settings.get('opentopography', {}).get('api_key')
     
     if not api_key or api_key == "YOUR_API_KEY_HERE":
-        print("❌ Error: No valid OpenTopography API key configured!")
+        print(" Error: No valid OpenTopography API key configured!")
         print("\nPlease edit settings.json and add your API key.")
         print("Get a free key at: https://portal.opentopography.org/")
         sys.exit(1)
@@ -150,5 +150,5 @@ if __name__ == "__main__":
     for key, value in render_settings.items():
         print(f"   {key}: {value}")
     
-    print("\n✅ Settings loaded successfully!")
+    print("\n Settings loaded successfully!")
 
