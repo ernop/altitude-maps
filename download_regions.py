@@ -222,6 +222,18 @@ REGIONS = {
         "name": "New Zealand",
         "description": "New Zealand - mountainous"
     },
+    "tasmania": {
+        "bounds": (144.0, -44.2, 149.0, -39.1),
+        "name": "Tasmania",
+        "description": "Tasmania (Australia) - island south of mainland",
+        "clip_boundary": False
+    },
+    "new_caledonia": {
+        "bounds": (163.5, -23.5, 168.5, -18.5),
+        "name": "New Caledonia",
+        "description": "New Caledonia archipelago",
+        "clip_boundary": False
+    },
     
     # Africa
     "south_africa": {
@@ -263,6 +275,30 @@ REGIONS = {
         "name": "Faroe Islands",
         "description": "Faroe Islands - North Atlantic archipelago",
         "clip_boundary": False  # Not in Natural Earth as separate country (territory of Denmark)
+    },
+    "kamchatka": {
+        "bounds": (156.0, 50.5, 163.0, 62.5),
+        "name": "Kamchatka Peninsula",
+        "description": "Russia - Kamchatka Peninsula",
+        "clip_boundary": False
+    },
+    "yakutsk_area": {
+        "bounds": (124.0, 59.0, 136.0, 65.0),
+        "name": "Yakutsk Area",
+        "description": "Russia - Yakutsk and surrounding region",
+        "clip_boundary": False
+    },
+    "yatusk_area": {  # alias for common misspelling
+        "bounds": (124.0, 59.0, 136.0, 65.0),
+        "name": "Yakutsk Area",
+        "description": "Russia - Yakutsk and surrounding region",
+        "clip_boundary": False
+    },
+    "san_mateo": {
+        "bounds": (-122.6, 37.0, -121.8, 37.9),
+        "name": "San Mateo Peninsula",
+        "description": "SF Peninsula: San Jose to San Francisco",
+        "clip_boundary": False
     },
     "nepal": {
         "bounds": (80.0, 26.3, 88.2, 30.4),

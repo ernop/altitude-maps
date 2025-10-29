@@ -387,9 +387,44 @@ def download_international_region(region_id, region_info):
     output_file = Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif")
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
+    # If an existing raw file is present, validate its bounds against requested bounds.
+    # If bounds differ, delete and re-download so expanded/corrected area is included.
     if output_file.exists():
-        print(f"   ✅ Already exists: {output_file.name}")
-        return True
+        try:
+            from src.metadata import get_metadata_path, load_metadata
+            meta_path = get_metadata_path(output_file)
+            if meta_path.exists():
+                meta = load_metadata(meta_path)
+                mb = meta.get('bounds', {})
+                old_bounds = (float(mb.get('left')), float(mb.get('bottom')), float(mb.get('right')), float(mb.get('top')))
+                new_bounds = (float(west), float(south), float(east), float(north))
+                # Consider any difference > 1e-4 degrees as a mismatch requiring regeneration
+                def _differs(a, b):
+                    return any(abs(x - y) > 1e-4 for x, y in zip(a, b))
+                if _differs(old_bounds, new_bounds):
+                    print(f"   ♻️  Bounds changed for {region_id}: old={old_bounds}, new={new_bounds}")
+                    print(f"   🗑️  Deleting existing raw file to regenerate with new bounds...")
+                    try:
+                        output_file.unlink()
+                    except Exception:
+                        pass
+                    # Also remove stale metadata if present
+                    try:
+                        meta_path.unlink()
+                    except Exception:
+                        pass
+                else:
+                    print(f"   ✅ Already exists with matching bounds: {output_file.name}")
+                    return True
+            else:
+                # No metadata; be conservative and assume mismatch only if clearly different can't be known.
+                # Keep existing file to avoid unnecessary re-download.
+                print(f"   ✅ Already exists (no metadata found): {output_file.name}")
+                return True
+        except Exception:
+            # If metadata system unavailable, fall back to existing file
+            print(f"   ✅ Already exists: {output_file.name}")
+            return True
     
     # Download using OpenTopography API
     url = "https://portal.opentopography.org/API/globaldem"
@@ -430,6 +465,19 @@ def download_international_region(region_id, region_info):
         print()  # New line after progress
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
         print(f"   ✅ Downloaded successfully ({file_size_mb:.1f} MB)")
+        # Write raw metadata including bounds so future bound changes can auto-invalidate
+        try:
+            from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+            raw_meta = create_raw_metadata(
+                tif_path=output_file,
+                region_id=region_id,
+                source='srtm_30m',
+                download_url=url,
+                download_params=params
+            )
+            save_metadata(raw_meta, get_metadata_path(output_file))
+        except Exception as e:
+            print(f"   ⚠️  Could not save raw metadata: {e}")
         return True
         
     except Exception as e:

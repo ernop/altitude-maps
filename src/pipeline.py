@@ -165,11 +165,14 @@ def clip_to_boundary(
             # This affects mid-latitude regions significantly (e.g., Kansas at 38.5°N has 27.6% distortion)
             needs_reprojection = False
             if src.crs and 'EPSG:4326' in str(src.crs).upper():
-                # Calculate average latitude of the CLIPPED region (using out_transform, not src.bounds!)
-                # After masking, out_transform contains the bounds of the clipped region
+                # Calculate average latitude of the CLIPPED region (CRITICAL: use clipped bounds, not raw bounds!)
+                # After masking with crop=True, out_transform represents the clipped region bounds
+                # We must use these clipped bounds to calculate the correct distortion factor
                 from rasterio.transform import array_bounds
                 left, bottom, right, top = array_bounds(out_image.shape[1], out_image.shape[2], out_transform)
                 avg_lat = (top + bottom) / 2
+                print(f"      📍 Clipped region bounds: {left:.2f}°E, {bottom:.2f}°N to {right:.2f}°E, {top:.2f}°N")
+                print(f"      📍 Average latitude: {avg_lat:.2f}°")
                 
                 # Reproject ALL EPSG:4326 regions to fix distortion (no equator exception)
                 needs_reprojection = True

@@ -38,7 +38,7 @@ JAPAN_REGIONS = {
     "honshu": {"bounds": (129.8, 33.7, 141.9, 41.5), "name": "Honshu Island"},
     "hokkaido": {"bounds": (139.3, 41.4, 145.8, 45.5), "name": "Hokkaido Island"},
     "kyushu": {"bounds": (129.5, 31.0, 131.9, 34.0), "name": "Kyushu Island"},
-    "shikoku": {"bounds": (132.5, 33.0, 134.8, 34.5), "name": "Shikoku Island"},
+    "shikoku": {"bounds": (132.155, 32.775, 134.8, 34.5), "name": "Shikoku Island"},
     "kochi": {"bounds": (132.7, 32.7, 134.3, 33.9), "name": "Kochi Prefecture"},
 }
 
