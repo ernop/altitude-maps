@@ -1,4 +1,13 @@
 // Ground Plane Camera System
+// Console sanitizer: strip non-ASCII (e.g., emojis) from log output
+(() => {
+    const sanitize = (v) => typeof v === 'string' ? v.replace(/[^\x00-\x7F]/g, '') : v;
+    const wrap = (fn) => (...args) => fn.apply(console, args.map(sanitize));
+    console.log = wrap(console.log);
+    console.info = wrap(console.info);
+    console.warn = wrap(console.warn);
+    console.error = wrap(console.error);
+})();
 // The fundamental model used by Google Maps, Mapbox, etc.
 // 
 // Core concept:

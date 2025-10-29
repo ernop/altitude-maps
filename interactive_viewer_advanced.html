@@ -19,6 +19,9 @@
                 Loading elevation data...
                 <div class="spinner"></div>
             </div>
+            
+            <h2>Load Log</h2>
+            <div id="activityLog" style="height: 140px; overflow-y: auto; background: #0b0b0b; border: 1px solid #333; border-radius: 6px; padding: 6px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.35; color: #9fb3c8;"></div>
         </div>
         
         
@@ -163,12 +166,12 @@
             <h2>Camera Views</h2>
             
             <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                <button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬇</span> Overhead</button>
-                <button onclick="setView('isometric')" style="padding: 6px; font-size: 11px;">🎯 Isometric</button>
-                <button onclick="setView('north')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬆</span> North</button>
-                <button onclick="setView('south')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬇</span> South</button>
-                <button onclick="setView('east')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">➡</span> East</button>
-                <button onclick="setView('west')" style="padding: 6px; font-size: 11px;"><span style="font-size: 16px;">⬅</span> West</button>
+                <button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;">Overhead</button>
+                <button onclick="setView('isometric')" style="padding: 6px; font-size: 11px;">Isometric</button>
+                <button onclick="setView('north')" style="padding: 6px; font-size: 11px;">North</button>
+                <button onclick="setView('south')" style="padding: 6px; font-size: 11px;">South</button>
+                <button onclick="setView('east')" style="padding: 6px; font-size: 11px;">East</button>
+                <button onclick="setView('west')" style="padding: 6px; font-size: 11px;">West</button>
             </div>
             
             <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
@@ -181,9 +184,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <!-- Camera Control Schemes -->
-    <script src="js/camera-schemes.js?v=1.32"></script>
-    <script src="js/ground-plane-camera.js?v=1.32"></script>
-    <script src="js/ground-plane-google-earth.js?v=1.32"></script>
+    <script src="js/camera-schemes.js?v=1.333"></script>
+    <script src="js/ground-plane-camera.js?v=1.333"></script>
+    <script src="js/ground-plane-google-earth.js?v=1.333"></script>
     
     <!-- jQuery (required by Select2) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -191,7 +194,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     
     <!-- Main viewer application -->
-    <script src="js/viewer-advanced.js?v=1.32"></script>
+    <script src="js/viewer-advanced.js?v=1.333"></script>
 </body>
 </html>
 

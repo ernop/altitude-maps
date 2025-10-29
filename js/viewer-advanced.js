@@ -1,35 +1,7 @@
 ﻿// Version tracking
-const VIEWER_VERSION = '1.32';
+const VIEWER_VERSION = '1.333';
 
-// Console sanitizer: normalize messages to ASCII for Windows terminals
-// Replaces common symbols/emojis and strips remaining non-ASCII
-(() => {
-    const replacements = new Map([
-        ['✅', 'OK'], ['✓', 'OK'], ['❌', 'ERROR'], ['✕', 'X'], ['✖', 'X'],
-        ['⚠️', 'WARN'], ['⚠', 'WARN'], ['ℹ️', 'INFO'], ['ℹ', 'INFO'],
-        ['▶', '>'], ['►', '>'], ['•', '-'], ['·', '-'], ['—', '-'], ['–', '-'],
-        ['→', '->'], ['←', '<-'], ['↔', '<->'], ['×', 'x'], ['÷', '/'],
-        ['°', ' deg'], ['…', '...'], ['©', '(c)'], ['®', '(R)']
-    ]);
-    const sanitizeAscii = (input) => {
-        if (typeof input !== 'string') return input;
-        let out = input;
-        replacements.forEach((v, k) => { out = out.split(k).join(v); });
-        // Remove remaining non-ASCII characters
-        out = out.replace(/[^\x00-\x7F]/g, '');
-        return out;
-    };
-    const wrap = (fn) => function(...args){
-        const sanitized = args.map(a => typeof a === 'string' ? sanitizeAscii(a) : a);
-        return fn.apply(console, sanitized);
-    };
-    if (typeof console !== 'undefined') {
-        console.log = wrap(console.log);
-        console.warn = wrap(console.warn);
-        console.error = wrap(console.error);
-        console.info = wrap(console.info || console.log);
-    }
-})();
+// All console logs use plain ASCII - no sanitizer needed
 
 // Global variables
 let scene, camera, renderer, controls;
@@ -80,6 +52,41 @@ function debounce(func, wait) {
     };
 }
 
+// UI activity log utilities
+function appendActivityLog(message) {
+    const logEl = document.getElementById('activityLog');
+    if (!logEl) return;
+    const time = new Date().toLocaleTimeString();
+    const row = document.createElement('div');
+    row.textContent = `[${time}] ${message}`;
+    logEl.appendChild(row);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
+    let entry = null;
+    try {
+        const entries = performance.getEntriesByName(resourceUrl);
+        if (entries && entries.length) {
+            entry = entries[entries.length - 1];
+        }
+    } catch (e) {
+        // Ignore
+    }
+    const encodedKb = entry && typeof entry.encodedBodySize === 'number' ? (entry.encodedBodySize / 1024) : null;
+    const decodedKb = entry && typeof entry.decodedBodySize === 'number' ? (entry.decodedBodySize / 1024) : null;
+    const transferKb = entry && typeof entry.transferSize === 'number' ? (entry.transferSize / 1024) : null;
+    const compressed = (encodedKb !== null && decodedKb !== null) ? (decodedKb > encodedKb) : null;
+    const parts = [];
+    if (decodedKb !== null) parts.push(`${decodedKb.toFixed(1)} KB decoded`);
+    if (encodedKb !== null) parts.push(`${encodedKb.toFixed(1)} KB encoded`);
+    if (transferKb !== null) parts.push(`${transferKb.toFixed(1)} KB transfer`);
+    if (compressed !== null) parts.push(compressed ? 'compressed' : 'uncompressed');
+    const duration = Math.max(0, Math.round((endTimeMs ?? performance.now()) - (startTimeMs ?? performance.now())));
+    parts.push(`${duration} ms`);
+    appendActivityLog(`${label}: ${resourceUrl} | ${parts.join(' | ')}`);
+}
+
 // Bars/Points fast-update state
 let barsInstancedMesh = null;
 let barsBarData = null; // array of { i, j, x, z }
@@ -94,7 +101,7 @@ let pendingBucketTimeout = null; // Debounce for bucket size rebuilds
 
 // Parameters
 let params = {
-    bucketSize: 4,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
+    bucketSize: 4,  // Integer multiplier of pixel spacing (1x, 2x, 3x, etc.)
     tileGap: 1,     // Gap between tiles as percentage (0-99%, where 1% = 0.99 tile size)
     aggregation: 'max',
     renderMode: 'bars',
@@ -111,12 +118,15 @@ async function init() {
         setupScene();
         setupEventListeners();
         
+        // Ensure activity log is visible by adding an initial entry
+        appendActivityLog('Viewer initialized');
+
         // Display version number
         const versionDisplay = document.getElementById('version-display');
         if (versionDisplay) {
             versionDisplay.textContent = `v${VIEWER_VERSION}`;
         }
-        console.log(`🗺️ Altitude Maps Viewer v${VIEWER_VERSION}`);
+        console.log(`Altitude Maps Viewer v${VIEWER_VERSION}`);
         
         // Populate region selector (loads manifest and populates dropdown)
         const firstRegionId = await populateRegionSelector();
@@ -134,7 +144,7 @@ async function init() {
             suppressRegionChange = true;
             regionInput.value = regionIdToName[firstRegionId] || firstRegionId;
             suppressRegionChange = false;
-            console.log(`✅ Region input synced to shown region: ${firstRegionId}`);
+            console.log(`Region input synced to shown region: ${firstRegionId}`);
         }
         
         // Set default vertical exaggeration to 6x after initial data load
@@ -182,7 +192,7 @@ async function init() {
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
         trueScaleValue = 1.0 / scale.metersPerPixelX;
-        console.log(`🌍 True scale for this region: ${trueScaleValue.toFixed(6)}x`);
+        console.log(`True scale for this region: ${trueScaleValue.toFixed(6)}x`);
         
         hideLoading();
         
@@ -206,7 +216,7 @@ async function init() {
     } catch (error) {
         document.getElementById('loading').innerHTML = `
             <div style="text-align: center;">
-                âŒ Error loading data<br><br>
+                Error loading data<br><br>
                 <div style="font-size: 13px; color: #ff6666; max-width: 400px;">${error.message}</div>
                 <br>
                 <div style="font-size: 12px; color: #888;">
@@ -235,13 +245,14 @@ async function loadElevationData(url) {
     // Add cache-busting query parameter to force fresh fetch
     const cacheBuster = `?_t=${Date.now()}`;
     const urlWithBuster = url.includes('?') ? `${url}&${cacheBuster.slice(2)}` : url + cacheBuster;
+    const tStart = performance.now();
     const response = await fetch(urlWithBuster);
     
     // Extract filename from URL
     const filename = url.split('/').pop();
     
     // Log response details for debugging
-    console.log(`📁 Loading JSON file: ${filename}`);
+    console.log(`Loading JSON file: ${filename}`);
     console.log(`   Full URL: ${url}`);
     console.log(`   HTTP Status: ${response.status} ${response.statusText}`);
     console.log(`   Content-Type: ${response.headers.get('content-type')}`);
@@ -259,7 +270,7 @@ async function loadElevationData(url) {
     const text = await blob.text();
     const data = JSON.parse(text);
     
-    console.log(`✅ Loaded ${filename}: ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
+    console.log(`Loaded ${filename}: ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
     updateLoadingProgress(100, blob.size, blob.size);
     
     // Validate format version
@@ -281,6 +292,7 @@ async function loadElevationData(url) {
         console.log(`[OK] Data format v${data.format_version} (exported: ${data.exported_at || 'unknown'})`);
     }
     
+    try { logResourceTiming(urlWithBuster, 'Loaded JSON', tStart, performance.now()); } catch (e) {}
     return data;
 }
 
@@ -291,18 +303,20 @@ async function loadBorderData(elevationUrl) {
     const cacheBuster = `?_t=${Date.now()}`;
     const urlWithBuster = borderUrl.includes('?') ? `${borderUrl}&${cacheBuster.slice(2)}` : borderUrl + cacheBuster;
     try {
+        const tStart = performance.now();
         const response = await fetch(urlWithBuster);
         if (!response.ok) {
-            console.log(`[INFO] No border data found at ${borderUrl}`);
+            console.warn(`[INFO] No border data found at ${borderUrl}`);
             return null;
         }
         const data = await response.json();
         const borderCount = (data.countries?.length || 0) + (data.states?.length || 0);
         const borderType = data.states ? 'states' : 'countries';
         console.log(`[OK] Loaded border data: ${borderCount} ${borderType}`);
+        try { logResourceTiming(urlWithBuster, 'Loaded borders', tStart, performance.now()); } catch (e) {}
         return data;
     } catch (error) {
-        console.log(`[INFO] Border data not available: ${error.message}`);
+        console.warn(`[INFO] Border data not available: ${error.message}`);
         return null;
     }
 }
@@ -310,12 +324,15 @@ async function loadBorderData(elevationUrl) {
 async function loadRegionsManifest() {
     try {
         const url = `generated/regions/regions_manifest.json?v=${Date.now()}`;
+        const tStart = performance.now();
         const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) {
             console.warn('Regions manifest not found, using default single region');
             return null;
         }
-        return await response.json();
+        const json = await response.json();
+        try { logResourceTiming(url, 'Loaded manifest', tStart, performance.now()); } catch (e) {}
+        return json;
     } catch (error) {
         console.warn('Could not load regions manifest:', error);
         return null;
@@ -463,7 +480,7 @@ function updateRegionInfo(regionId) {
 }
 
 async function loadRegion(regionId) {
-    console.log(`ðŸŒ Loading region: ${regionId}`);
+    console.log(`Loading region: ${regionId}`);
     showLoading(`Loading ${regionsManifest?.regions[regionId]?.name || regionId}...`);
     
     try {
@@ -503,7 +520,7 @@ async function loadRegion(regionId) {
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
         trueScaleValue = 1.0 / scale.metersPerPixelX;
-        console.log(`🌍 True scale for this region: ${trueScaleValue.toFixed(6)}x`);
+        console.log(`True scale for this region: ${trueScaleValue.toFixed(6)}x`);
         
         // Save to localStorage so we remember this region next time
         localStorage.setItem('lastViewedRegion', regionId);
@@ -541,9 +558,9 @@ async function loadRegion(regionId) {
         }
         
         hideLoading();
-        console.log(`âœ… Loaded ${regionId}`);
+        console.log(`Loaded ${regionId}`);
     } catch (error) {
-        console.error(`âŒ Failed to load region ${regionId}:`, error);
+        console.error(`Failed to load region ${regionId}:`, error);
         alert(`Failed to load region: ${error.message}`);
         hideLoading();
         
@@ -647,7 +664,7 @@ function syncUIControls() {
 // CLIENT-SIDE BUCKETING ALGORITHMS
 function rebucketData() {
     const startTime = performance.now();
-    console.log(`ðŸ”² Bucketing with multiplier ${params.bucketSize}Ã—, method: ${params.aggregation}`);
+    console.log(`Bucketing with multiplier ${params.bucketSize}x, method: ${params.aggregation}`);
     
     const { width, height, elevation, bounds } = rawElevationData;
     
@@ -662,13 +679,9 @@ function rebucketData() {
     const bucketedWidth = Math.floor(width / bucketSize);
     const bucketedHeight = Math.floor(height / bucketSize);
     
-    // Bucket physical size = pixel spacing Ã— multiplier
+    // Bucket physical size = pixel spacing x multiplier
     const bucketSizeMetersX = scale.metersPerPixelX * bucketSize;
     const bucketSizeMetersY = scale.metersPerPixelY * bucketSize;
-    
-    console.log(`ðŸ“ Raw data: ${width}Ã—${height} pixels @ ${scale.metersPerPixelX.toFixed(0)}Ã—${scale.metersPerPixelY.toFixed(0)}m/pixel`);
-    console.log(`ðŸ“ Bucket multiplier: ${bucketSize}Ã— â†’ ${bucketedWidth}Ã—${bucketedHeight} buckets`);
-    console.log(`ðŸ“ Bucket size: ${(bucketSizeMetersX/1000).toFixed(2)}km Ã— ${(bucketSizeMetersY/1000).toFixed(2)}km`);
     
     // Pre-allocate array for better performance
     const bucketedElevation = new Array(bucketedHeight);
@@ -691,7 +704,7 @@ function rebucketData() {
             const pixelY0 = by * bucketSize;
             const pixelY1 = (by + 1) * bucketSize;
             
-            // Collect all values in this bucket (bucketSize Ã— bucketSize pixels)
+            // Collect all values in this bucket (bucketSize x bucketSize pixels)
             let count = 0;
             for (let py = pixelY0; py < pixelY1 && py < height; py++) {
                 for (let px = pixelX0; px < pixelX1 && px < width; px++) {
@@ -733,7 +746,7 @@ function rebucketData() {
                             : sortedSlice[mid];
                         break;
                     default:
-                        console.error(`âŒ Unknown aggregation method: ${params.aggregation}`);
+                        console.error(`Unknown aggregation method: ${params.aggregation}`);
                         value = buffer[0]; // Fallback to first value
                         break;
                 }
@@ -755,7 +768,7 @@ function rebucketData() {
     
     const duration = (performance.now() - startTime).toFixed(2);
     const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
-    console.log(`âœ… Bucketed to ${bucketedWidth}Ã—${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
+    console.log(`Bucketed to ${bucketedWidth}x${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
 }
 
 function createEdgeMarkers() {
@@ -813,7 +826,7 @@ function createEdgeMarkers() {
         edgeMarkers.push(sprite);
     });
     
-    console.log(`âœ… Created edge markers (N, E, S, W) at fixed height ${markerHeight}m`);
+    // Removed verbose edge marker creation log
 }
 
 function createTextSprite(text, color) {
@@ -905,14 +918,14 @@ function setupScene() {
     // SAFETY CHECK: Validate near/far ratio to prevent depth buffer artifacts
     const nearFarRatio = camera.far / camera.near;
     if (nearFarRatio > 1000000) {
-        console.error('ðŸš¨ CRITICAL: Camera near/far ratio is TOO EXTREME!');
+        console.error('CRITICAL: Camera near/far ratio is TOO EXTREME!');
         console.error(`   Current ratio: ${nearFarRatio.toLocaleString()}:1`);
         console.error(`   Near: ${camera.near}, Far: ${camera.far}`);
         console.error(`   This WILL cause depth buffer artifacts (geometry bleeding through).`);
         console.error(`   See learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md`);
         console.error(`   Recommended: Keep ratio under 1,000,000:1`);
     } else {
-        console.log(`âœ… Camera near/far ratio: ${nearFarRatio.toLocaleString()}:1 (good)`);
+        // Good near/far ratio; no log needed
     }
     
     // Renderer
@@ -976,7 +989,7 @@ let regionOptions = []; // [{id, name}]
 
 function setupControls() {
     if (controlsInitialized) {
-        console.warn('⚠️ setupControls() called multiple times - skipping to prevent memory leak');
+        console.warn('[WARN] setupControls() called multiple times - skipping to prevent memory leak');
         return;
     }
     
@@ -1141,13 +1154,13 @@ function setupControls() {
         if (value === 1) {
             label.textContent = 'Full resolution (1 pixel = 1 bar)';
         } else if (value <= 5) {
-            label.textContent = `Low reduction (${value}Ã—${value} pixels per bar)`;
+            label.textContent = `Low reduction (${value}x${value} pixels per bar)`;
         } else if (value <= 15) {
-            label.textContent = `Medium reduction (${value}Ã—${value} pixels per bar)`;
+            label.textContent = `Medium reduction (${value}x${value} pixels per bar)`;
         } else if (value <= 30) {
-            label.textContent = `High reduction (${value}Ã—${value} pixels per bar)`;
+            label.textContent = `High reduction (${value}x${value} pixels per bar)`;
         } else {
-            label.textContent = `Very high reduction (${value}Ã—${value} pixels per bar)`;
+            label.textContent = `Very high reduction (${value}x${value} pixels per bar)`;
         }
     }
     
@@ -1250,7 +1263,7 @@ function setupControls() {
     const aggregationSelect = document.getElementById('aggregation');
     if (aggregationSelect) {
         aggregationSelect.addEventListener('change', (e) => {
-            console.log(`🔄 Aggregation changed from ${params.aggregation} to ${e.target.value}`);
+            console.log(`🔄 Aggregation: ${params.aggregation} → ${e.target.value}`);
             params.aggregation = e.target.value;
             // Clear edge markers so they get recreated at new positions
             edgeMarkers.forEach(marker => scene.remove(marker));
@@ -1352,7 +1365,7 @@ function setupControls() {
     
     // Mark controls as initialized to prevent duplicate setup
     controlsInitialized = true;
-    console.log('✅ Controls initialized successfully');
+    console.log('Controls initialized successfully');
 }
 
 // ===== RESOLUTION LOADING OVERLAY =====
@@ -1372,7 +1385,7 @@ function hideResolutionLoading() {
 
 function adjustBucketSize(delta) {
     if (!rawElevationData) {
-        console.warn('⚠️ No data loaded, cannot adjust bucket size');
+        console.warn('[WARN] No data loaded, cannot adjust bucket size');
         return;
     }
     
@@ -1382,7 +1395,7 @@ function adjustBucketSize(delta) {
     
     // If size didn't actually change (already at limit), don't show loading UI
     if (newSize === params.bucketSize) {
-        console.log(`⚠️ Already at ${newSize === 1 ? 'minimum' : 'maximum'} resolution (${newSize}×), no change needed`);
+        console.log(`[INFO] Already at ${newSize === 1 ? 'minimum' : 'maximum'} resolution (${newSize}x), no change needed`);
         return;
     }
     
@@ -1408,7 +1421,7 @@ function adjustBucketSize(delta) {
             recreateTerrain();
             updateStats();
             
-            console.log(`🎯 Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} → ${newSize}×`);
+            console.log(`Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} -> ${newSize}x`);
         } finally {
             // Hide loading overlay
             hideResolutionLoading();
@@ -1418,13 +1431,13 @@ function adjustBucketSize(delta) {
 
 function setMaxResolution() {
     if (!rawElevationData) {
-        console.warn('⚠️ No data loaded, cannot set max resolution');
+        console.warn('[WARN] No data loaded, cannot set max resolution');
         return;
     }
     
     // If already at max resolution, don't show loading UI
     if (params.bucketSize === 1) {
-        console.log('⚠️ Already at maximum resolution (1×), no change needed');
+        console.log('[INFO] Already at maximum resolution (1x), no change needed');
         return;
     }
     
@@ -1448,7 +1461,7 @@ function setMaxResolution() {
             recreateTerrain();
             updateStats();
             
-            console.log('🎯 Resolution set to MAX (bucket size = 1)');
+            console.log('Resolution set to MAX (bucket size = 1)');
         } finally {
             // Hide loading overlay
             hideResolutionLoading();
@@ -1458,7 +1471,7 @@ function setMaxResolution() {
 
 function setDefaultResolution() {
     if (!rawElevationData) {
-        console.warn('⚠️ No data loaded, cannot set default resolution');
+        console.warn('[WARN] No data loaded, cannot set default resolution');
         return;
     }
     
@@ -1471,7 +1484,7 @@ function setDefaultResolution() {
             // Use the auto-adjust algorithm to find optimal default
             autoAdjustBucketSize();
             
-            console.log('🎯 Resolution set to DEFAULT (auto-adjusted)');
+            console.log('Resolution set to DEFAULT (auto-adjusted)');
         } finally {
             // Hide loading overlay
             hideResolutionLoading();
@@ -1481,7 +1494,7 @@ function setDefaultResolution() {
 
 function autoAdjustBucketSize() {
     if (!rawElevationData) {
-        console.warn('⚠️ No data loaded, cannot auto-adjust bucket size');
+        console.warn('[WARN] No data loaded, cannot auto-adjust bucket size');
         return;
     }
     
@@ -1514,9 +1527,8 @@ function autoAdjustBucketSize() {
     bucketedHeight = Math.floor(height / optimalSize);
     totalBuckets = bucketedWidth * bucketedHeight;
     
-    console.log(`🎯 AUTO-ADJUST: Raw data ${width}×${height} pixels (${(width*height).toLocaleString()} total)`);
-    console.log(`🎯 Optimal bucket size: ${optimalSize}× → ${bucketedWidth}×${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
-    console.log(`🎯 Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '✅' : '❌'} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
+    console.log(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
+    console.log(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '✅' : '❌'} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
     
     // Update params and UI
     params.bucketSize = optimalSize;
@@ -1681,7 +1693,7 @@ function createPivotMarker(position) {
     pivotMarker.position.copy(position);
     scene.add(pivotMarker);
     
-    console.log(`ðŸ“ Pivot marker created at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)}) with size ${markerSize.toFixed(0)}m`);
+    console.log(`Pivot marker created at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)}) with size ${markerSize.toFixed(0)}m`);
     
     // Auto-remove after 3 seconds
     setTimeout(() => {
@@ -1715,10 +1727,7 @@ function calculateRealWorldScale() {
     const metersPerPixelX = widthMeters / width;
     const metersPerPixelY = heightMeters / height;
     
-    console.log(`ðŸ“ Real-world scale:`);
-    console.log(`   Size: ${(widthMeters/1000).toFixed(1)} Ã— ${(heightMeters/1000).toFixed(1)} km`);
-    console.log(`   Resolution: ${metersPerPixelX.toFixed(1)} Ã— ${metersPerPixelY.toFixed(1)} m/pixel`);
-    console.log(`   Vertical exaggeration: ${params.verticalExaggeration}x (1.0 = true Earth scale)`);
+    // Removed verbose real-world scale logs
     
     return {
         metersPerPixelX,
@@ -1730,11 +1739,11 @@ function calculateRealWorldScale() {
 
 function createTerrain() {
     const t0 = performance.now();
-    console.log(`ðŸŽ¨ Creating terrain in ${params.renderMode} mode...`);
+    console.log(`Creating terrain in ${params.renderMode} mode...`);
     
     // Remove old terrain and DISPOSE geometry/materials
     if (terrainMesh) {
-        console.log(`ðŸ—‘ï¸ Removing old terrainMesh...`);
+        console.log(`Removing old terrainMesh...`);
         scene.remove(terrainMesh);
         if (terrainMesh.geometry) terrainMesh.geometry.dispose();
         if (terrainMesh.material) {
@@ -1767,22 +1776,22 @@ function createTerrain() {
             const bucketMultiplier = params.bucketSize;
             terrainMesh.position.x = -(width - 1) * bucketMultiplier / 2;
             terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2;  // NO aspect ratio scaling!
-            console.log(`ðŸŽ¯ Bars centered: uniform grid ${width}Ã—${height}, tile size ${bucketMultiplier}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
+            console.log(`Bars centered: uniform grid ${width}x${height}, tile size ${bucketMultiplier}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
         } else if (params.renderMode === 'points') {
             // Points use uniform grid positioning
             const bucketSize = 1;
             terrainMesh.position.x = -(width - 1) * bucketSize / 2;
             terrainMesh.position.z = -(height - 1) * bucketSize / 2;
-            console.log(`ðŸŽ¯ Points centered: uniform grid ${width}Ã—${height}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
+            console.log(`Points centered: uniform grid ${width}x${height}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
         } else {
             // Surface mode: PlaneGeometry is already centered, but position it at origin
             terrainMesh.position.set(0, 0, 0);
-            console.log(`ðŸŽ¯ Surface centered: geometry naturally centered`);
+            console.log(`Surface centered: geometry naturally centered`);
         }
     }
     
     const t1 = performance.now();
-    console.log(`âœ… Terrain created in ${(t1-t0).toFixed(1)}ms`);
+    console.log(`Terrain created in ${(t1-t0).toFixed(1)}ms`);
     
     stats.vertices = width * height;
     stats.bucketedVertices = width * height;
@@ -1833,18 +1842,18 @@ function createBarsTerrain(width, height, elevation, scale) {
     // Gap: 0% = tiles touching (1.0), 1% = 0.99, 50% = 0.5, 99% = 0.01 (tiny tiles)
     const gapMultiplier = 1 - (params.tileGap / 100);
     const tileSize = gapMultiplier * bucketMultiplier;
-    // Base unit cube (1×1×1). We'll scale X/Z per-instance so tile gap can update without rebuilds.
+    // Base unit cube (1x1x1). We'll scale X/Z per-instance so tile gap can update without rebuilds.
     const baseGeometry = new THREE.BoxGeometry(1, 1, 1, 1, 1, 1);
     
-    console.log(`ðŸ"¦ PURE 2D GRID: ${width} Ã— ${height} bars (spacing: ${bucketMultiplier}Ã—, gap: ${params.tileGap}%)`);
-    console.log(`ðŸ"¦ Tile XZ footprint: ${tileSize.toFixed(2)} Ã— ${tileSize.toFixed(2)} (uniform squares, NEVER changes with Y scale)`);
-    console.log(`ðŸ"¦ Grid spacing: X=${bucketMultiplier}, Z=${bucketMultiplier} (uniform, INDEPENDENT of height)`);
-    console.log(`ðŸ"¦ Vertical exaggeration: ${params.verticalExaggeration.toFixed(5)}Ã— (affects ONLY Y-axis)`);
-    console.log(`ðŸ"¦ Grid approach: Each data point [i,j] â†' one square tile, no distortion`);
+    console.log(`PURE 2D GRID: ${width} x ${height} bars (spacing: ${bucketMultiplier}x, gap: ${params.tileGap}%)`);
+    console.log(`Tile XZ footprint: ${tileSize.toFixed(2)} x ${tileSize.toFixed(2)} (uniform squares, NEVER changes with Y scale)`);
+    console.log(`Grid spacing: X=${bucketMultiplier}, Z=${bucketMultiplier} (uniform, INDEPENDENT of height)`);
+    console.log(`Vertical exaggeration: ${params.verticalExaggeration.toFixed(5)}x (affects ONLY Y-axis)`);
+    console.log(`Grid approach: Each data point [i,j] -> one square tile, no distortion`);
     
     // Collect bar data - uniform grid positioning with square tiles
-    // IMPORTANT: width Ã— height are ALREADY BUCKETED dimensions
-    // E.g., if bucket size = 2Ã—2, we've already aggregated 4 pixels into 1 value
+    // IMPORTANT: width x height are ALREADY BUCKETED dimensions
+    // E.g., if bucket size = 2x2, we've already aggregated 4 pixels into 1 value
     // So this loop creates ONE rectangle per bucket, correctly spaced
     const barData = [];
     
@@ -1859,8 +1868,8 @@ function createBarsTerrain(width, height, elevation, scale) {
             const color = getColorForElevation(z);
             
             // Position on UNIFORM grid - same spacing in both X and Z directions
-            const xPos = j * bucketMultiplier;  // Column Ã— tile size
-            const zPos = i * bucketMultiplier;  // Row Ã— tile size (NO aspect ratio!)
+            const xPos = j * bucketMultiplier;  // Column x tile size
+            const zPos = i * bucketMultiplier;  // Row x tile size (NO aspect ratio!)
             const yPos = elev * 0.5;            // Center cube at half height above ground plane
             barData.push({ i, j, x: xPos, y: yPos, z: zPos, height: elev, color });
         }
@@ -1902,7 +1911,7 @@ function createBarsTerrain(width, height, elevation, scale) {
     barsBarData = barData;
     barsTileSize = tileSize;
     if (barCount > 0) {
-        console.log(`ðŸ“¦ Sample bars (verifying XZ footprint is constant):`);
+        console.log(`Sample bars (verifying XZ footprint is constant):`);
         for (let i = 0; i < Math.min(3, barCount); i++) {
             const bar = barData[i];
             const xMin = bar.x - tileSize/2;
@@ -1910,7 +1919,7 @@ function createBarsTerrain(width, height, elevation, scale) {
             const zMin = bar.z - tileSize/2;
             const zMax = bar.z + tileSize/2;
             console.log(`   Bar ${i}: center=(${bar.x.toFixed(1)}, ${bar.y.toFixed(1)}, ${bar.z.toFixed(1)})`);
-            console.log(`          XZ extent: X[${xMin.toFixed(2)} to ${xMax.toFixed(2)}] Z[${zMin.toFixed(2)} to ${zMax.toFixed(2)}] = ${tileSize.toFixed(2)}Ã—${tileSize.toFixed(2)}`);
+    console.log(`          XZ extent: X[${xMin.toFixed(2)} to ${xMax.toFixed(2)}] Z[${zMin.toFixed(2)} to ${zMax.toFixed(2)}] = ${tileSize.toFixed(2)}x${tileSize.toFixed(2)}`);
             console.log(`          Height: ${bar.height.toFixed(2)} (Y scale only, XZ scale = 1.0)`);
         }
     }
@@ -1966,8 +1975,8 @@ function createBarsTerrain(width, height, elevation, scale) {
     if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uTileScaleUniform) {
         terrainMesh.material.userData.uTileScaleUniform.value = 1.0;
     }
-    console.log(`âœ… Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
-    console.log(`ðŸ“Š Scene now has ${scene.children.length} total objects`);
+    console.log(`Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
+    console.log(`Scene now has ${scene.children.length} total objects`);
     
     // DEBUG: List all meshes in scene
     let meshCount = 0;
@@ -1976,19 +1985,19 @@ function createBarsTerrain(width, height, elevation, scale) {
         if (obj instanceof THREE.Mesh) meshCount++;
         if (obj instanceof THREE.InstancedMesh) {
             instancedMeshCount++;
-            console.log(`   ðŸ” InstancedMesh found with ${obj.count} instances`);
+            console.log(`   InstancedMesh found with ${obj.count} instances`);
         }
     });
-    console.log(`ðŸ“Š Total meshes: ${meshCount}, InstancedMeshes: ${instancedMeshCount}`);
+    console.log(`Total meshes: ${meshCount}, InstancedMeshes: ${instancedMeshCount}`);
     
     // Performance warning and suggestion
     if (barCount > 15000) {
-        console.warn(`âš ï¸ Very high bar count (${barCount.toLocaleString()})! Consider:
-  â€¢ Increase bucket multiplier to ${Math.ceil(params.bucketSize * 1.5)}Ã—+
-  â€¢ Switch to 'Surface' render mode for better performance
-  â€¢ Current: ${Math.floor(100 * barCount / (width * height))}% of bucketed grid has data`);
+        console.warn(`Very high bar count (${barCount.toLocaleString()})! Consider:
+  - Increase bucket multiplier to ${Math.ceil(params.bucketSize * 1.5)}x+
+  - Switch to 'Surface' render mode for better performance
+  - Current: ${Math.floor(100 * barCount / (width * height))}% of bucketed grid has data`);
     } else if (barCount > 8000) {
-        console.warn(`âš ï¸ High bar count (${barCount.toLocaleString()}). Increase bucket multiplier if laggy.`);
+        console.warn(`High bar count (${barCount.toLocaleString()}). Increase bucket multiplier if laggy.`);
     }
 }
 
@@ -2000,7 +2009,7 @@ function createPointCloudTerrain(width, height, elevation, scale) {
     // Uniform grid spacing - treat as simple 2D grid
     const bucketSize = 1;  // Uniform spacing
     
-    // GeoTIFF: elevation[row][col] where row=Northâ†'South (i), col=Westâ†'East (j)
+    // GeoTIFF: elevation[row][col] where row=North->South (i), col=West->East (j)
     for (let i = 0; i < height; i++) {  // row (North to South)
         for (let j = 0; j < width; j++) {  // column (West to East)
             let z = elevation[i] && elevation[i][j];
@@ -2210,12 +2219,12 @@ function updateColors() {
 }
 
 function recreateTerrain() {
-    console.log(`ðŸ"„ recreateTerrain() called, render mode: ${params.renderMode}`);
+    console.log(`recreateTerrain() called, render mode: ${params.renderMode}`);
     createTerrain();
 }
 
 function recreateBorders() {
-    console.log('ðŸ—ºï¸ Creating borders...');
+    console.log('Creating borders...');
     
     // Remove old borders
     borderMeshes.forEach(mesh => scene.remove(mesh));
@@ -2312,7 +2321,7 @@ function recreateBorders() {
     
     const entityCount = allBorders.length;
     const entityType = borderData.states ? 'states' : 'countries';
-    console.log(`âœ… Created ${totalSegments} border segments for ${entityCount} ${entityType}`);
+    console.log(`Created ${totalSegments} border segments for ${entityCount} ${entityType}`);
 }
 
 function updateStats() {
@@ -2325,15 +2334,15 @@ function updateStats() {
     statsDiv.innerHTML = `
         <div class="stat-line">
             <span class="stat-label">Raw Data:</span> 
-            <span class="stat-value">${width} Ã— ${height} pixels</span>
+            <span class="stat-value">${width} x ${height} pixels</span>
         </div>
         <div class="stat-line">
             <span class="stat-label">Bucket Multiplier:</span> 
-            <span class="stat-value">${params.bucketSize}Ã—</span>
+            <span class="stat-value">${params.bucketSize}x</span>
         </div>
         <div class="stat-line">
             <span class="stat-label">Bucketed Grid:</span> 
-            <span class="stat-value">${bWidth} Ã— ${bHeight}</span>
+            <span class="stat-value">${bWidth} x ${bHeight}</span>
         </div>
         <div class="stat-line">
             <span class="stat-label">Data Reduction:</span> 
@@ -2422,18 +2431,18 @@ function setVertExag(value) {
 
 function setTrueScale() {
     if (trueScaleValue === null) {
-        console.warn('⚠️ No data loaded, cannot set true scale');
+        console.warn('[WARN] No data loaded, cannot set true scale');
         return;
     }
     
-    console.log(`🌍 Setting TRUE SCALE (1:1 Earth proportions):`);
+    console.log(`Setting TRUE SCALE (1:1 Earth proportions):`);
     console.log(`   True scale exaggeration: ${trueScaleValue.toFixed(6)}x`);
     console.log(`   Terrain slopes now have real-world steepness`);
     
     // Clamp to valid range
     const clampedValue = Math.max(0.00001, Math.min(0.3, trueScaleValue));
     if (clampedValue !== trueScaleValue) {
-        console.warn(`⚠️ True scale ${trueScaleValue.toFixed(6)}x clamped to ${clampedValue.toFixed(6)}x (outside valid range)`);
+        console.warn(`[WARN] True scale ${trueScaleValue.toFixed(6)}x clamped to ${clampedValue.toFixed(6)}x (outside valid range)`);
     }
     
     setVertExag(clampedValue);
@@ -2441,7 +2450,7 @@ function setTrueScale() {
 
 function setVertExagMultiplier(multiplier) {
     if (trueScaleValue === null) {
-        console.warn('⚠️ True scale not calculated yet, using fallback');
+        console.warn('[WARN] True scale not calculated yet, using fallback');
         // Fallback: calculate on the fly
         if (rawElevationData) {
             const scale = calculateRealWorldScale();
@@ -2452,7 +2461,7 @@ function setVertExagMultiplier(multiplier) {
     }
     
     const value = trueScaleValue * multiplier;
-    console.log(`🌍 Setting ${multiplier}x exaggeration (${value.toFixed(6)}x)`);
+    console.log(`Setting ${multiplier}x exaggeration (${value.toFixed(6)}x)`);
     setVertExag(value);
 }
 
@@ -2556,7 +2565,7 @@ function resetCamera() {
     
     controls.update();
     
-    console.log(`📷 Camera reset: fixed position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin`);
+    console.log(`Camera reset: fixed position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin`);
 }
 
 function exportImage() {
@@ -2587,7 +2596,7 @@ const keyboard = {
 };
 
 function switchCameraScheme(schemeName) {
-    console.log(`ðŸŽ® Switching to ${schemeName} camera scheme`);
+    console.log(`Switching to ${schemeName} camera scheme`);
     
     // Deactivate old scheme
     if (activeScheme) {
@@ -2770,7 +2779,7 @@ function raycastToWorld(screenX, screenY) {
     }
     
     // Should never happen, but just in case
-    console.warn('âš ï¸ Raycast failed completely');
+    console.warn('Raycast failed completely');
     return null;
 }
 
@@ -2788,9 +2797,9 @@ function onMouseDown(event) {
         if (panStartWorldPoint) {
             panStartCameraPos = camera.position.clone();
             panStartTargetPos = controls.target.clone();
-            console.log('ðŸ–±ï¸ Pan started');
+            console.log('Pan started');
         } else {
-            console.warn('âš ï¸ Failed to raycast world point');
+            console.warn('Failed to raycast world point');
             isPanning = false;
         }
     }
@@ -2800,7 +2809,7 @@ function onMouseDown(event) {
         rotateStart.set(event.clientX, event.clientY);
         rotateStartCameraPos = camera.position.clone();
         rotateStartTargetPos = controls.target.clone();
-        console.log('ðŸ”„ Rotation started');
+        console.log('Rotation started');
     }
 }
 
@@ -2869,7 +2878,7 @@ function onMouseMove(event) {
 
 function onMouseUp(event) {
     if (isPanning) {
-        console.log('ðŸ–±ï¸ Pan ended');
+        console.log('Pan ended');
         isPanning = false;
         panStartWorldPoint = null;
         panStartCameraPos = null;
@@ -2877,7 +2886,7 @@ function onMouseUp(event) {
     }
     
     if (isRotating) {
-        console.log('ðŸ”„ Rotation ended');
+        console.log('Rotation ended');
         isRotating = false;
         rotateStartCameraPos = null;
         rotateStartTargetPos = null;
@@ -2904,10 +2913,10 @@ function toggleControlsHelp() {
     
     if (window.classList.contains('open')) {
         window.classList.remove('open');
-        button.textContent = 'â“ Controls';
+        button.textContent = 'Close';
     } else {
         window.classList.add('open');
-        button.textContent = 'â“ Close';
+        button.textContent = 'Close';
     }
 }
 
@@ -2916,7 +2925,7 @@ function updateURLParameter(key, value) {
     const url = new URL(window.location);
     url.searchParams.set(key, value);
     window.history.pushState({}, '', url);
-    console.log(`🔗 URL updated: ${url.href}`);
+    console.log(`URL updated: ${url.href}`);
 }
 
 // Copy current view URL to clipboard
@@ -2932,7 +2941,7 @@ function copyShareLink() {
             btn.textContent = originalText;
             btn.style.background = '';
         }, 2000);
-        console.log(`📋 Copied to clipboard: ${url}`);
+        console.log(`Copied to clipboard: ${url}`);
     }).catch(err => {
         console.error('Failed to copy URL:', err);
         alert(`Copy this URL to share:\n${url}`);
