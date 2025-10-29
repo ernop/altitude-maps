@@ -85,6 +85,7 @@ let barsInstancedMesh = null;
 let barsBarData = null; // array of { i, j, x, z }
 let barsTileSize = 0;
 const barsDummy = new THREE.Object3D();
+let pendingVertExagRaf = null; // Coalesce rapid exaggeration updates to the latest frame
 
 // Parameters
 let params = {
@@ -1248,12 +1249,13 @@ function setupControls() {
         }
     }, 80);
 
-    const debouncedExagRecreate = debounce(() => {
-        // Bars/points update via recreate, but debounced to stay responsive
-        if (params.renderMode === 'bars' || params.renderMode === 'points') {
-            recreateTerrain();
-        }
-    }, 80);
+    const scheduleVertExagUpdate = () => {
+        if (pendingVertExagRaf !== null) cancelAnimationFrame(pendingVertExagRaf);
+        pendingVertExagRaf = requestAnimationFrame(() => {
+            pendingVertExagRaf = null;
+            updateTerrainHeight();
+        });
+    };
 
     document.getElementById('vertExag').addEventListener('input', (e) => {
         const multiplier = parseFloat(e.target.value);
@@ -1263,12 +1265,10 @@ function setupControls() {
         // Update button states
         updateVertExagButtons(params.verticalExaggeration);
         
-        // Update terrain immediately for responsive feedback
-        updateTerrainHeight();
+        // Coalesce rapid updates to once-per-frame
+        scheduleVertExagUpdate();
         // Defer expensive normals compute while dragging (surface)
         debouncedNormalsRecompute();
-        // Coalesce recreates in bars/points
-        debouncedExagRecreate();
     });
     // Finalize on slider change (compute normals once promptly)
     document.getElementById('vertExag').addEventListener('change', (e) => {
@@ -1276,7 +1276,7 @@ function setupControls() {
             terrainMesh.geometry.computeVertexNormals();
             updateEdgeMarkers();
         } else if (params.renderMode === 'bars' || params.renderMode === 'points') {
-            recreateTerrain();
+            // No recreate needed for exaggeration changes; shader/point updates already applied
         }
     });
     
@@ -1292,7 +1292,7 @@ function setupControls() {
         // Update button states
         updateVertExagButtons(params.verticalExaggeration);
         
-        updateTerrainHeight();
+        scheduleVertExagUpdate();
         if (terrainMesh && terrainMesh.geometry && params.renderMode === 'surface') {
             terrainMesh.geometry.computeVertexNormals();
             updateEdgeMarkers();
