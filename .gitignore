@@ -10,8 +10,18 @@ __pycache__/
 data/
 *.nc
 *.tif
+*.tiff
 *.hdf
 *.he5
+*.hgt
+*.img
+*.pkl
+*.npz
+*.zip
+*.gz
+*.7z
+*.tar
+*.rar
 
 # Output
 output/
@@ -30,6 +40,12 @@ generated/
 # OS
 .DS_Store
 Thumbs.db
+
+# Cache and temp files
+110m/
+data/.cache/
+debug.log
+*.log
 
 # Environment variables
 .env

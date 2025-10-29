@@ -1045,12 +1045,6 @@ function setupControls() {
         updateColors();
     });
     
-    // Wireframe overlay
-    document.getElementById('wireframeOverlay').addEventListener('change', (e) => {
-        params.wireframeOverlay = e.target.checked;
-        if (wireframeMesh) wireframeMesh.visible = params.wireframeOverlay;
-    });
-    
     // Grid
     document.getElementById('showGrid').addEventListener('change', (e) => {
         params.showGrid = e.target.checked;
@@ -1442,13 +1436,6 @@ function createTerrain() {
         }
         terrainMesh = null;
     }
-    if (wireframeMesh) {
-        console.log(`ðŸ—‘ï¸ Removing old wireframeMesh...`);
-        scene.remove(wireframeMesh);
-        if (wireframeMesh.geometry) wireframeMesh.geometry.dispose();
-        if (wireframeMesh.material) wireframeMesh.material.dispose();
-        wireframeMesh = null;
-    }
     
     const { width, height, elevation } = processedData;
     
@@ -1804,62 +1791,6 @@ function getColorForElevation(elevation) {
     return scheme[scheme.length - 1].color;
 }
 
-function createWireframeOverlay() {
-    if (!terrainMesh || params.renderMode === 'points') {
-        return;  // Don't create wireframe for points mode
-    }
-    
-    console.log('Creating wireframe overlay...');
-    
-    let geometry = null;
-    
-    if (params.renderMode === 'surface') {
-        // For surface mode, clone the terrain geometry
-        geometry = terrainMesh.geometry.clone();
-    } else if (params.renderMode === 'bars') {
-        // For bars mode, create a wireframe from the instance mesh
-        // This is more complex - we need to extract geometry from instanced mesh
-        const { width, height, elevation } = processedData;
-        const scale = calculateRealWorldScale();
-        const bucketMultiplier = params.bucketSize;
-        
-        // Create a plane geometry that matches the bars layout
-        geometry = new THREE.PlaneGeometry(width * bucketMultiplier, height * bucketMultiplier, width - 1, height - 1);
-        
-        // Match the terrain positioning
-        const positions = geometry.attributes.position;
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const idx = i * width + j;
-                let z = elevation[i] && elevation[i][j];
-                if (z === null || z === undefined) z = 0;
-                positions.setZ(idx, z * params.verticalExaggeration);
-            }
-        }
-        
-        geometry.computeVertexNormals();
-    }
-    
-    if (geometry) {
-        const wireframeGeometry = new THREE.WireframeGeometry(geometry);
-        const wireframeMaterial = new THREE.LineBasicMaterial({
-            color: 0xffffff,
-            linewidth: 1,
-            transparent: true,
-            opacity: 0.5
-        });
-        
-        wireframeMesh = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
-        wireframeMesh.rotation.x = -Math.PI / 2;
-        
-        // Match terrain position
-        wireframeMesh.position.copy(terrainMesh.position);
-        
-        scene.add(wireframeMesh);
-        console.log('✓ Wireframe overlay created');
-    }
-}
-
 function updateTerrainHeight() {
     if (!terrainMesh) return;
     
@@ -1882,29 +1813,6 @@ function updateTerrainHeight() {
         
         positions.needsUpdate = true;
         terrainMesh.geometry.computeVertexNormals();
-        
-        // Update wireframe if it exists
-        if (wireframeMesh && wireframeMesh.geometry) {
-            // Clone the updated terrain geometry for the wireframe
-            const oldWireframe = wireframeMesh;
-            const newGeometry = terrainMesh.geometry.clone();
-            const wireframeGeometry = new THREE.WireframeGeometry(newGeometry);
-            
-            scene.remove(oldWireframe);
-            oldWireframe.geometry.dispose();
-            oldWireframe.material.dispose();
-            
-            wireframeMesh = new THREE.LineSegments(wireframeGeometry, new THREE.LineBasicMaterial({
-                color: 0xffffff,
-                linewidth: 1,
-                transparent: true,
-                opacity: 0.5
-            }));
-            wireframeMesh.rotation.x = -Math.PI / 2;
-            wireframeMesh.position.copy(terrainMesh.position);
-            wireframeMesh.visible = params.wireframeOverlay;
-            scene.add(wireframeMesh);
-        }
         
         // Update edge markers to match new height
         updateEdgeMarkers();

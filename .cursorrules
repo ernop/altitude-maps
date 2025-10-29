@@ -508,3 +508,16 @@ See `DEPLOY_README.md` for detailed deployment documentation.
 - Examples: new cache directories, intermediate processing outputs, downloaded tiles
 - Keep an eye on new file types that might grow large over time
 
+#### What Should Be Ignored
+Always ignore these directories and file types to keep git lean:
+- **`data/`** - Raw elevation data (GeoTIFFs, HGTs) - can be 10GB+
+- **`generated/`** - Exported JSON for viewer (rebuilt from data as needed)
+- **`rasters/`** - Intermediate raster processing files
+- **`output/`** - Visualization outputs (PNGs, etc.)
+- **Cache directories**: `data/.cache/`, `110m/` (pickled borders)
+- **Binary formats**: `*.tif`, `*.tiff`, `*.hgt`, `*.img`, `*.pkl`, `*.zip`, `*.gz`
+- **Python artifacts**: `__pycache__/`, `venv/`, `.pytest_cache/`
+- **OS junk**: `.DS_Store`, `Thumbs.db`, `debug.log`
+
+**Rationale**: Raw geospatial data is large (hundreds of MB to GB per file), and should be downloaded/reprocessed from source rather than stored in git. Only code, small manifests, and documentation belong in version control.
+
