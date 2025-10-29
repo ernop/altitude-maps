@@ -69,7 +69,7 @@ Session notes and development threads only:
 - Use meaningful variable names (prefer `elevation_data` over `ed`)
 
 ### Frontend/Web Viewer
-- **jQuery and Select2**: Keep them. jQuery is widely cached and makes code more readable. Select2 provides good UX for dropdowns.
+- **jQuery**: Keep it. jQuery is widely cached and makes code more readable. Avoid Select2; use native or custom dropdowns matching the region selector pattern.
 - **CSS styling**: Avoid inline styles. Use rationally-named CSS classes instead.
 - **File organization**: Separate HTML and JS into different files rather than mixing them.
 - **Code reuse**: Don't duplicate code, but also don't force artificial reuse when use cases actually differ. Balance DRY with clarity.
@@ -319,7 +319,7 @@ python download_regions.py  # If using regions
    - Works simultaneously with all mouse controls
    - Speed: 2.0 units per frame
    - Focus point moves with camera to maintain ground plane model
-   - **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, Select2 boxes, etc.
+- **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, or dropdown inputs.
 
 6. **Touch/Trackpad Gestures** (NEW - Google Maps style)
    - **Single finger drag** = Pan (mobile touch)
@@ -510,7 +510,7 @@ The viewer is a **pure client-side web application** that runs entirely in the b
 - ✅ No server-side code required
 - ✅ Works with any static web server (nginx, apache, etc.)
 - ✅ All paths are relative (no configuration needed)
-- ✅ External dependencies from CDN (Three.js, jQuery, Select2)
+- ✅ External dependencies from CDN (Three.js, jQuery)
 
 ### Production vs Development Files
 
@@ -597,6 +597,16 @@ Always ignore these directories and file types to keep git lean:
 - **Text legibility**: Primary HUD/meta/status (project name, GitHub, FPS/version, logs) should be white on dark backgrounds.
 - **Controls**: Conceptual labels ("Resolution", "Vertical Exaggeration"), not technical jargon. Provide MAX/DEFAULT quick actions.
 - **Responsiveness**: Debounce heavy updates (~50–120 ms). Apply lightweight visual changes immediately; settle once on input end.
+- **Flat lighting**: Simple checkbox "Flat lighting (no shading)" under Color Scheme.
+  - Default off; URL `flat=1` turns it on.
+  - Uses unlit materials and ambient-only lighting when on.
 
 ### Rendering & Performance
 - **GPU-first updates**: Use shader uniforms for continuous changes (exaggeration, tile gap). Rebuild geometry only when baselines change.
+ - Flat lighting reduces shading cost; no shadow maps are used.
+
+### Color Schemes
+- Include `auto-stretch`: computes percentile bounds client-side; honors gamma.
+
+### Removed UI
+- Shading controls (sun/azimuth/altitude/contrast) and water simulation UI are not present.

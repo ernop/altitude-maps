@@ -25,11 +25,11 @@ body {
     background: linear-gradient(135deg, #ffaa66, #ff8844);
     color: #000;
     border: none;
-    padding: 10px 14px;
-    border-radius: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
     cursor: pointer;
-    font-weight: bold;
-    font-size: 12px;
+    font-weight: 600;
+    font-size: 11px;
     box-shadow: 0 4px 15px rgba(255, 136, 68, 0.3);
     z-index: 110;
 }
@@ -64,12 +64,27 @@ body.ui-collapsed #controls {
     max-width: 380px;
 }
 
-/* Activity log is a normal block; no sticky positioning */
-#activityLog { }
+/* Activity log - prevent horizontal scroll, wrap text, clear font */
+#activityLog {
+    height: 140px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #0b0b0b;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #fff;
+    word-wrap: break-word;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
 
 #info {
     position: absolute;
-    top: 20px;
+    top: 64px;
     left: 20px;
     background: rgba(0, 0, 0, 0.92);
     padding: 18px;
@@ -80,6 +95,35 @@ body.ui-collapsed #controls {
     font-size: 12px;
     box-shadow: 0 8px 32px rgba(68, 136, 255, 0.15);
     min-width: 280px;
+}
+
+/* HUD minimize/expand buttons */
+#hud-minimize {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: none;
+    border: 1px solid #4488ff;
+    color: #88bbff;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#hud-expand {
+    position: absolute;
+    top: 64px;
+    left: 12px;
+    background: rgba(0,0,0,0.8);
+    border: 1px solid #4488ff;
+    color: #88bbff;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: none;
+    z-index: 111;
 }
 
 /* Loading Spinner */
@@ -404,7 +448,7 @@ input[type="checkbox"] {
 }
 
 .select2-container--default .select2-selection--single .select2-selection__rendered {
-    color: #5588cc;
+    color: #fff;
     line-height: 36px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     padding-left: 10px;
@@ -454,14 +498,15 @@ input[type="checkbox"] {
 }
 
 .select2-container--default .select2-results__option--highlighted[aria-selected] {
-    background-color: #5588cc;
-    color: #000;
+    background-color: rgba(85, 136, 204, 0.3);
+    color: #fff;
     transition: none; /* Disable transitions for better performance */
 }
 
 .select2-container--default .select2-results__option[aria-selected=true] {
-    background-color: #2a2a2a;
-    color: #5588cc;
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-weight: bold;
 }
 
 .select2-container {

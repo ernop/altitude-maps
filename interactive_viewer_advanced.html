@@ -13,10 +13,12 @@
     <div id="container">
         <div id="canvas-container"></div>
         <div id="info" aria-live="polite">
+            <button id="hud-minimize" title="Hide HUD">–</button>
             <div><b>Elevation:</b> <span id="hud-elev">--</span> m</div>
             <div><b>Slope:</b> <span id="hud-slope">--</span>°</div>
             <div><b>Aspect:</b> <span id="hud-aspect">--</span>°</div>
         </div>
+        <button id="hud-expand" title="Show HUD">HUD</button>
         <button id="mobile-ui-toggle" aria-label="Toggle controls">Hide Controls</button>
         
         <div id="loading">
@@ -26,16 +28,16 @@
             </div>
             
             <h2>Load Log</h2>
-            <div id="activityLog" style="height: 140px; overflow-y: auto; background: #0b0b0b; border: 1px solid #333; border-radius: 6px; padding: 6px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.35; color: #9fb3c8;"></div>
+            <div id="activityLog"></div>
         </div>
         
         
         
         <div id="controls">
             <div id="controls-meta" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
-                <div class="controls-meta-left" style="font-size: 11px; color: #88bbff; font-weight: 600;">altitude-maps</div>
-                <div class="controls-meta-right" style="display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11px; color: #88aadd;">
-                    <a id="github-home-link" href="https://github.com/ernop/altitude-maps" target="_blank" rel="noopener" title="GitHub homepage" style="color: #88bbff; text-decoration: none; border-bottom: 1px dotted rgba(136,187,255,0.5);">GitHub</a>
+                <div class="controls-meta-left" style="font-size: 11px; color: #fff; font-weight: 600;">altitude-maps</div>
+                <div class="controls-meta-right" style="display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11px; color: #fff;">
+                    <a id="github-home-link" href="https://github.com/ernop/altitude-maps" target="_blank" rel="noopener" title="GitHub homepage" style="color: #fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5);">GitHub</a>
                     <span id="version-display">v?.?.?</span>
                     <span id="fps-display">FPS: --</span>
                 </div>
@@ -145,48 +147,22 @@
                 <label>Color Scheme</label>
                 <select id="colorScheme">
                     <option value="terrain">Terrain (Natural)</option>
+                    <option value="test">High-Contrast (Intense)</option>
+                    <option value="auto-stretch">Auto-Stretch (Dynamic)</option>
+                    <option value="slope">Slope (Degrees)</option>
+                    <option value="aspect">Aspect (Compass)</option>
                     <option value="elevation">Elevation (Blue-Red)</option>
                     <option value="grayscale">Grayscale</option>
                     <option value="rainbow">Rainbow</option>
                     <option value="earth">Earth Tones</option>
                     <option value="heatmap">Heatmap</option>
-                    <option value="slope">Slope (Degrees)</option>
-                    <option value="aspect">Aspect (Compass)</option>
-                    <option value="test">Test (Intense)</option>
                 </select>
             </div>
 
-            <h2>Shading</h2>
             <div class="control-group">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <input type="checkbox" id="hillshadeEnabled" />
-                    <label for="hillshadeEnabled" style="margin: 0;">Enable Hillshade (grayscale, sun-lit)</label>
-                </div>
-                <div style="display: grid; grid-template-columns: 80px 1fr 48px; gap: 6px; align-items: center; margin-bottom: 6px;">
-                    <label for="sunAzimuth" style="opacity: 0.8;">Azimuth</label>
-                    <input type="range" id="sunAzimuth" min="0" max="360" step="1" value="315">
-                    <input type="number" id="sunAzimuthInput" min="0" max="360" step="1" value="315" style="width: 100%; padding: 4px; font-size: 12px;" />
-                </div>
-                <div style="display: grid; grid-template-columns: 80px 1fr 48px; gap: 6px; align-items: center;">
-                    <label for="sunAltitude" style="opacity: 0.8;">Altitude</label>
-                    <input type="range" id="sunAltitude" min="0" max="90" step="1" value="45">
-                    <input type="number" id="sunAltitudeInput" min="0" max="90" step="1" value="45" style="width: 100%; padding: 4px; font-size: 12px;" />
-                </div>
-                <div style="margin-top: 10px; display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center;">
-                    <div>
-                        <canvas id="sunPad" width="120" height="120" style="background: #0a0a0a; border: 1px solid #335; border-radius: 6px; cursor: crosshair; display: block; margin: 0 auto;"></canvas>
-                        <div style="text-align: center; font-size: 11px; opacity: 0.7; margin-top: 4px;">Drag to move the sun</div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; align-items: center;">
-                        <button id="sunPresetMorning" style="padding: 6px; font-size: 11px;">Morning</button>
-                        <button id="sunPresetNoon" style="padding: 6px; font-size: 11px;">Noon</button>
-                        <button id="sunPresetEvening" style="padding: 6px; font-size: 11px;">Evening</button>
-                        <div style="grid-column: 1 / span 3; display: grid; grid-template-columns: 80px 1fr 48px; gap: 6px; align-items: center; margin-top: 6px;">
-                            <label for="colorGamma" style="opacity: 0.8;">Contrast</label>
-                            <input type="range" id="colorGamma" min="0.5" max="2.0" step="0.05" value="1.0">
-                            <input type="number" id="colorGammaInput" min="0.5" max="2.0" step="0.05" value="1.0" style="width: 100%; padding: 4px; font-size: 12px;" />
-                        </div>
-                    </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="flatLightingEnabled" />
+                    <label for="flatLightingEnabled" style="margin: 0;">Flat lighting (no shading)</label>
                 </div>
             </div>
             
@@ -195,7 +171,6 @@
             <h2>Camera Controls</h2>
             
             <div class="control-group">
-                <label>Control Scheme</label>
                 <select id="cameraScheme">
                     <option value="google-earth-plane">Google Earth (Ground Plane)</option>
                     <option value="ground-plane" selected>Google Maps (Ground Plane)</option>
@@ -224,7 +199,7 @@
             </div>
             
             <h2>Load Log</h2>
-            <div id="activityLog" style="height: 140px; overflow-y: auto; background: #0b0b0b; border: 1px solid #333; border-radius: 6px; padding: 6px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.35; color: #9fb3c8;"></div>
+            <div id="activityLog"></div>
         </div>
     </div>
     
@@ -235,10 +210,8 @@
     <script src="js/ground-plane-camera.js?v=1.333"></script>
     <script src="js/ground-plane-google-earth.js?v=1.333"></script>
     
-    <!-- jQuery (required by Select2) -->
+    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Select2 for typeahead dropdowns -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     
     <!-- Main viewer application -->
     <script src="js/viewer-advanced.js?v=1.333"></script>
