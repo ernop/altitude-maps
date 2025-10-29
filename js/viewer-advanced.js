@@ -74,29 +74,41 @@ async function init() {
         // This ensures the region selector is completely loaded and interactive
         setupControls();
         
-        // Update Select2 to show the initial region that will be loaded
-        // According to Select2 docs, the correct way is: val() then trigger('change')
-        const $regionSelect = $('#regionSelect');
-        if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            // According to Select2 docs: val() then trigger('change') to update display
-            $regionSelect.val(firstRegionId).trigger('change');
-            console.log(`✅ Select2 display set to: ${firstRegionId}`);
+        // Load the initial region data first so the UI never shows a different name than what's rendered
+        await loadRegion(firstRegionId);
+        
+        // After load completes, update the input to reflect the currently shown region
+        const regionInput = document.getElementById('regionSelect');
+        if (regionInput) {
+            suppressRegionChange = true;
+            regionInput.value = regionIdToName[firstRegionId] || firstRegionId;
+            suppressRegionChange = false;
+            console.log(`✅ Region input synced to shown region: ${firstRegionId}`);
         }
-        
-        // Update URL to reflect the loaded region (for shareable links)
-        updateURLParameter('region', firstRegionId);
-        
-        // NOW load the initial region data (after UI is ready)
-        let dataUrl;
-        if (firstRegionId === 'default') {
-            dataUrl = 'generated/elevation_data.json';
-        } else {
-            // Use the file path from manifest (handles version suffixes like _srtm_30m_v2)
-            const filename = regionsManifest?.regions[firstRegionId]?.file || `${firstRegionId}.json`;
-            dataUrl = `generated/regions/${filename}`;
-        }
-        
-        rawElevationData = await loadElevationData(dataUrl);
+    // Ensure dropdown is filled for initial interaction
+    const dropdown = document.getElementById('regionDropdown');
+    if (dropdown && regionOptions.length) {
+        dropdown.innerHTML = '';
+        regionOptions.forEach((opt) => {
+            const row = document.createElement('div');
+            row.textContent = opt.name;
+            row.setAttribute('data-id', opt.id);
+            row.style.padding = '8px 10px';
+            row.style.cursor = 'pointer';
+            row.style.fontSize = '12px';
+            row.style.borderBottom = '1px solid rgba(85,136,204,0.12)';
+            row.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                if (opt.id && opt.id !== currentRegionId) {
+                    loadRegion(opt.id);
+                }
+                const input = document.getElementById('regionSelect');
+                if (input) input.value = opt.name;
+                dropdown.style.display = 'none';
+            });
+            dropdown.appendChild(row);
+        });
+    }
         
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
@@ -231,14 +243,16 @@ async function loadRegionsManifest() {
 }
 
 async function populateRegionSelector() {
-    const selectElement = document.getElementById('regionSelect');
+    const inputEl = document.getElementById('regionSelect');
+    const listEl = document.getElementById('regionList');
     
     regionsManifest = await loadRegionsManifest();
     
     if (!regionsManifest || !regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
         // No manifest, use default single region
-        selectElement.innerHTML = '<option value="default">Default Region</option>';
-        document.getElementById('currentRegion').textContent = 'Default Region';
+        if (inputEl) {
+            inputEl.value = 'Default Region';
+        }
         currentRegionId = 'default';
         return 'default';
     }
@@ -250,8 +264,10 @@ async function populateRegionSelector() {
     // Check localStorage for last viewed region
     const lastRegion = localStorage.getItem('lastViewedRegion');
     
-    // Populate dropdown with available regions
-    selectElement.innerHTML = '';
+    // Build maps and populate options for custom dropdown
+    regionIdToName = {};
+    regionNameToId = {};
+    regionOptions = [];
     
     // Group regions by continent/category
     const grouped = {};
@@ -287,20 +303,12 @@ async function populateRegionSelector() {
     for (const groupName of groupOrder) {
         if (!grouped[groupName]) continue;
         
-        const optgroup = document.createElement('optgroup');
-        optgroup.label = groupName;
-        
         grouped[groupName].sort((a, b) => a.info.name.localeCompare(b.info.name));
-        
         for (const { id, info } of grouped[groupName]) {
-            const option = document.createElement('option');
-            option.value = id;
-            option.textContent = info.name;
-            option.title = info.description;
-            optgroup.appendChild(option);
+            regionIdToName[id] = info.name;
+            regionNameToId[info.name.toLowerCase()] = id;
+            regionOptions.push({ id, name: info.name });
         }
-        
-        selectElement.appendChild(optgroup);
     }
     
     // Determine which region to load initially
@@ -325,12 +333,27 @@ async function populateRegionSelector() {
         console.log(`📌 Loading first available region: ${firstRegionId}`);
     }
     
-    selectElement.value = firstRegionId;
+    if (inputEl) {
+        inputEl.value = regionIdToName[firstRegionId] || firstRegionId;
+    }
     currentRegionId = firstRegionId;
     updateRegionInfo(firstRegionId);
     
     // NOTE: Select2 initialization happens in setupControls(), not here
     return firstRegionId;
+}
+
+function resolveRegionIdFromInput(inputValue) {
+    if (!inputValue) return null;
+    const trimmed = inputValue.trim();
+    // Exact id match
+    if (regionsManifest && regionsManifest.regions && regionsManifest.regions[trimmed]) {
+        return trimmed;
+    }
+    // Exact name match (case-insensitive)
+    const byName = regionNameToId[trimmed.toLowerCase()];
+    if (byName) return byName;
+    return null;
 }
 
 function updateRegionInfo(regionId) {
@@ -378,11 +401,12 @@ async function loadRegion(regionId) {
         // Update URL parameter so the link is shareable
         updateURLParameter('region', regionId);
         
-        // Update Select2 dropdown to show the loaded region
-        const $regionSelect = $('#regionSelect');
-        if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            // Use val() and trigger('change') to update the UI properly
-            $regionSelect.val(regionId).trigger('change');
+        // Update native input to show the loaded region without triggering load
+        const regionInput = document.getElementById('regionSelect');
+        if (regionInput) {
+            suppressRegionChange = true;
+            regionInput.value = regionIdToName[regionId] || regionId;
+            suppressRegionChange = false;
         }
         
         // Clear edge markers so they get recreated for new region
@@ -413,10 +437,10 @@ async function loadRegion(regionId) {
         alert(`Failed to load region: ${error.message}`);
         hideLoading();
         
-        // On error, revert Select2 dropdown to previous region
-        const $regionSelect = $('#regionSelect');
-        if ($regionSelect.length && $regionSelect.hasClass('select2-hidden-accessible')) {
-            $regionSelect.val(currentRegionId).trigger('change');
+        // On error, revert input to previous region name
+        const regionInput = document.getElementById('regionSelect');
+        if (regionInput) {
+            regionInput.value = regionIdToName[currentRegionId] || currentRegionId || '';
         }
     }
 }
@@ -831,21 +855,14 @@ function setupScene() {
     };
 }
 
-// Optimized rendering for Select2 options
-function formatRegionOption(option) {
-    if (!option.id) return option.text;
-    // Simple text rendering without extra DOM manipulation
-    return $('<span>').text(option.text);
-}
-
-function formatRegionSelection(option) {
-    if (!option.id) return option.text;
-    // Simple text rendering for selected item
-    return option.text;
-}
+// (Removed Select2 formatters; using native datalist)
 
 // Track if controls have been set up to prevent duplicate initialization
 let controlsInitialized = false;
+let suppressRegionChange = false; // Prevent change handler during programmatic updates
+let regionIdToName = {};
+let regionNameToId = {};
+let regionOptions = []; // [{id, name}]
 
 function setupControls() {
     if (controlsInitialized) {
@@ -853,17 +870,132 @@ function setupControls() {
         return;
     }
     
-    // Initialize Select2 for region selector (typeahead with autocomplete)
-    $('#regionSelect').select2({
-        placeholder: 'Select a region...',
-        allowClear: false,
-        width: '100%',
-        dropdownAutoWidth: true,
-        minimumResultsForSearch: 5, // Show search box only when scrolling is needed
-        closeOnSelect: true,
-        templateResult: formatRegionOption,
-        templateSelection: formatRegionSelection
-    });
+    // Custom dropdown for region input
+    const regionInput = document.getElementById('regionSelect');
+    const dropdown = document.getElementById('regionDropdown');
+    let highlightedIndex = -1;
+    let filteredOptions = [];
+    
+    function renderDropdown(items) {
+        if (!dropdown) return;
+        dropdown.innerHTML = '';
+        items.forEach((opt, idx) => {
+            const row = document.createElement('div');
+            row.textContent = opt.name;
+            row.setAttribute('data-id', opt.id);
+            row.style.padding = '8px 10px';
+            row.style.cursor = 'pointer';
+            row.style.fontSize = '12px';
+            row.style.borderBottom = '1px solid rgba(85,136,204,0.12)';
+            row.addEventListener('mouseenter', () => setHighlight(idx));
+            row.addEventListener('mouseleave', () => setHighlight(-1));
+            row.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                commitSelection(opt);
+            });
+            dropdown.appendChild(row);
+        });
+        updateHighlight();
+    }
+    
+    function openDropdown() {
+        if (!dropdown) return;
+        filteredOptions = regionOptions.slice();
+        highlightedIndex = -1;
+        renderDropdown(filteredOptions);
+        dropdown.style.display = 'block';
+    }
+    
+    function closeDropdown() {
+        if (!dropdown) return;
+        dropdown.style.display = 'none';
+        highlightedIndex = -1;
+    }
+    
+    function setHighlight(idx) {
+        highlightedIndex = idx;
+        updateHighlight();
+    }
+    
+    function updateHighlight() {
+        if (!dropdown) return;
+        const children = dropdown.children;
+        for (let i = 0; i < children.length; i++) {
+            const el = children[i];
+            if (i === highlightedIndex) {
+                el.style.background = 'rgba(85,136,204,0.2)';
+                el.style.color = '#88bbff';
+            } else {
+                el.style.background = 'transparent';
+                el.style.color = '#fff';
+            }
+        }
+    }
+    
+    function filterOptions(query) {
+        const q = (query || '').trim().toLowerCase();
+        if (!q) return regionOptions.slice();
+        return regionOptions.filter(o => o.name.toLowerCase().includes(q));
+    }
+    
+    function commitSelection(opt) {
+        if (!regionInput) return;
+        regionInput.value = opt.name;
+        closeDropdown();
+        if (opt.id && opt.id !== currentRegionId) {
+            loadRegion(opt.id);
+        }
+    }
+    
+    if (regionInput && dropdown) {
+        regionInput.addEventListener('focus', () => {
+            openDropdown();
+        });
+        regionInput.addEventListener('click', () => {
+            openDropdown();
+        });
+        regionInput.addEventListener('input', () => {
+            filteredOptions = filterOptions(regionInput.value);
+            highlightedIndex = filteredOptions.length ? 0 : -1;
+            renderDropdown(filteredOptions);
+        });
+        regionInput.addEventListener('keydown', (e) => {
+            if (dropdown.style.display !== 'block') openDropdown();
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (filteredOptions.length) {
+                    highlightedIndex = Math.min(filteredOptions.length - 1, highlightedIndex + 1);
+                    updateHighlight();
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (filteredOptions.length) {
+                    highlightedIndex = Math.max(0, highlightedIndex - 1);
+                    updateHighlight();
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+                    commitSelection(filteredOptions[highlightedIndex]);
+                } else {
+                    const id = resolveRegionIdFromInput(regionInput.value);
+                    if (id) commitSelection({ id, name: regionIdToName[id] || regionInput.value });
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeDropdown();
+                regionInput.blur();
+            }
+        });
+        document.addEventListener('click', (e) => {
+            if (!regionInput.contains(e.target) && !dropdown.contains(e.target)) {
+                closeDropdown();
+                // Snap back to current shown region if text doesn't match a known name
+                const id = resolveRegionIdFromInput(regionInput.value);
+                if (!id) regionInput.value = regionIdToName[currentRegionId] || currentRegionId || '';
+            }
+        });
+    }
     
     // Initialize Select2 for color scheme (typeahead with autocomplete)
     $('#colorScheme').select2({
@@ -875,26 +1007,7 @@ function setupControls() {
         closeOnSelect: true
     });
     
-    // Region selector - use .off() first to prevent duplicate handlers
-    // Use a flag to prevent recursion when programmatically updating the value
-    let isLoadingRegion = false;
-    $('#regionSelect').off('change').on('change', function(e) {
-        // Skip if this is during initial page load setup
-        if (e.originalEvent && e.originalEvent.isInitializing) {
-            console.log('📝 Select2 display updated for initial region (no reload needed)');
-            return;
-        }
-        
-        if (isLoadingRegion) return; // Prevent recursion
-        
-        const regionId = $(this).val();
-        if (regionId && regionId !== currentRegionId) {
-            isLoadingRegion = true;
-            loadRegion(regionId).finally(() => {
-                isLoadingRegion = false;
-            });
-        }
-    });
+    // (Select2 region change handler removed)
     
     // Update bucket size range label
     function updateBucketSizeLabel(value) {

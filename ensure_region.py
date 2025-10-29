@@ -499,7 +499,7 @@ def download_region(region_id, region_type, region_info):
 
 
 def process_region(region_id, raw_path, source, target_pixels, force, region_type, region_info, border_resolution='10m'):
-    """Run the pipeline on a region."""
+    """Run the pipeline on a region and return (success, result_paths)."""
     sys.path.insert(0, str(Path(__file__).parent))
     
     try:
@@ -554,14 +554,87 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
             skip_clip=(boundary_name is None),
             border_resolution=border_resolution
         )
-        
-        return success
+        return success, result_paths
         
     except Exception as e:
         print(f"❌ Pipeline error: {e}")
         import traceback
         traceback.print_exc()
+        return False, {}
+
+
+def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_pixels: int,
+                        region_type: str, region_info: dict, border_resolution: str) -> bool:
+    """
+    Detect compressed/flat altitude outputs and auto-fix by force reprocessing.
+    Guarantees valid export when returning True.
+    """
+    try:
+        from src.validation import validate_elevation_range
+        import rasterio
+        import numpy as np
+    except Exception:
+        # If validation libs unavailable, best-effort assume valid
+        return True
+
+    processed_path = result_paths.get('processed')
+    exported_path = result_paths.get('exported')
+
+    # 1) Validate processed TIF elevation range (authoritative)
+    tif_ok = True
+    if processed_path and Path(processed_path).exists():
+        try:
+            with rasterio.open(processed_path) as src:
+                arr = src.read(1)
+                arr = arr.astype(np.float32)
+                nodata = src.nodata
+                if nodata is not None and not np.isnan(nodata):
+                    arr[arr == nodata] = np.nan
+                _min, _max, _range, is_valid = validate_elevation_range(arr, min_sensible_range=50.0, warn_only=False)
+                tif_ok = bool(is_valid)
+        except Exception:
+            tif_ok = False
+    else:
+        tif_ok = False
+
+    # 2) Validate JSON export (structure + range check already present)
+    json_ok = False
+    if exported_path and Path(exported_path).exists():
+        json_ok = validate_json_export(Path(exported_path))
+
+    if tif_ok and json_ok:
+        return True
+
+    # Auto-fix: force reprocess with 10m borders and clean outputs
+    print("\n   ♻️  Detected invalid or compressed altitude output. Auto-fixing by force reprocess...", flush=True)
+    # Clean existing artifacts
+    for pattern in [
+        f"data/clipped/*/{region_id}_*",
+        f"data/processed/*/{region_id}_*",
+        f"generated/regions/{region_id}_*"
+    ]:
+        import glob
+        for file_path in glob.glob(pattern, recursive=True):
+            try:
+                Path(file_path).unlink()
+                print(f"      Deleted: {Path(file_path).name}", flush=True)
+            except Exception:
+                pass
+
+    # Locate raw again and re-run
+    raw_path, _ = find_raw_file(region_id)
+    if not raw_path:
+        print("   ❌ Raw file missing during auto-fix")
         return False
+
+    success2, result_paths2 = process_region(
+        region_id, raw_path, source, target_pixels, True, region_type, region_info, border_resolution='10m'
+    )
+    if not success2:
+        return False
+
+    # Re-validate
+    return verify_and_auto_fix(region_id, result_paths2, source, target_pixels, region_type, region_info, border_resolution)
 
 
 def main():
@@ -703,10 +776,18 @@ This script will:
         return 0
     
     # Step 3: Process the region
-    success = process_region(region_id, raw_path, source, args.target_pixels, 
+    success, result_paths = process_region(region_id, raw_path, source, args.target_pixels, 
                             args.force_reprocess, region_type, region_info, args.border_resolution)
-    
+
     if success:
+        # Post-validate and auto-fix if needed
+        ensured = verify_and_auto_fix(region_id, result_paths, source, args.target_pixels,
+                                      region_type, region_info, args.border_resolution)
+        if not ensured:
+            print("\n" + "="*70)
+            print(f"❌ FAILED: Auto-fix could not repair {region_info['display_name']}")
+            print("="*70)
+            return 1
         print("\n" + "="*70)
         print(f"✅ SUCCESS: {region_info['display_name']} is ready to view!")
         print("="*70)

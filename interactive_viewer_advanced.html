@@ -24,24 +24,11 @@
         <div id="version-display">v?.?.?</div>
         
         <div id="controls">
-            <h2>Region Selector</h2>
             
-            <div class="control-group">
-                <select id="regionSelect" style="width: 100%; padding: 8px; background: #1a1a1a; color: #5588cc; border: 1px solid #333; border-radius: 4px; font-family: 'Consolas', monospace;">
-                    <option value="">Loading regions...</option>
-                </select>
-                <label style="margin-top: 8px; display: block;">
-                    <span class="value-display" id="currentRegion">Loading...</span>
-                </label>
-                <button id="copyLinkBtn" onclick="copyShareLink()" 
-                        style="width: 100%; margin-top: 8px; padding: 8px; font-size: 12px; background: #2a4a6a; color: #fff; border: 1px solid #3a5a7a; border-radius: 4px; cursor: pointer;"
-                        title="Copy shareable link to this region">
-                    🔗 Copy Share Link
-                </button>
-                <div style="margin-top: 4px; font-size: 10px; color: #888; text-align: center;">
-                    URL updates when you change regions
-                </div>
-                <!-- Info: Select a region to view its elevation data -->
+            <h2>Region</h2>
+            <div class="control-group" style="position: relative;">
+                <input id="regionSelect" placeholder="Type or pick a region" style="width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #555; color: #fff; border-radius: 5px; font-size: 13px;" />
+                <div id="regionDropdown" style="position: absolute; top: 42px; left: 0; right: 0; background: #0a0a0a; border: 1px solid #5588cc; border-radius: 6px; max-height: 260px; overflow-y: auto; z-index: 20; display: none; box-shadow: 0 8px 24px rgba(68,136,255,0.2);"></div>
             </div>
             
             <h2>Resolution</h2>
