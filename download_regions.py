@@ -34,6 +34,61 @@ REGIONS = {
         "name": "Japan",
         "description": "Japanese archipelago"
     },
+    "estonia": {
+        "bounds": (21.8, 57.5, 28.2, 59.7),
+        "name": "Estonia",
+        "description": "Republic of Estonia (Baltic)"
+    },
+    "gotland_island": {
+        "bounds": (17.9, 56.8, 19.5, 58.2),
+        "name": "Gotland Island",
+        "description": "Sweden - Gotland (Baltic Sea)",
+        "clip_boundary": False
+    },
+    "arkhangelsk_area": {
+        "bounds": (36.0, 61.0, 50.0, 66.5),
+        "name": "Arkhangelsk Area",
+        "description": "Russia - Arkhangelsk Oblast and White Sea coast",
+        "clip_boundary": False
+    },
+    "georgia_country": {
+        "bounds": (40.0, 41.0, 46.8, 43.7),
+        "name": "Georgia",
+        "description": "Country of Georgia (Caucasus)"
+    },
+    "turkiye": {
+        "bounds": (25.0, 35.8, 45.0, 42.3),
+        "name": "Türkiye",
+        "description": "Republic of Türkiye"
+    },
+    "kyrgyzstan": {
+        "bounds": (69.2, 39.1, 80.3, 43.3),
+        "name": "Kyrgyzstan",
+        "description": "Kyrgyz Republic (Tian Shan)"
+    },
+    "sakhalin_island": {
+        "bounds": (141.2, 45.6, 146.1, 54.6),
+        "name": "Sakhalin Island",
+        "description": "Russia - Sakhalin",
+        "clip_boundary": False
+    },
+    "mindoro_island": {
+        "bounds": (120.0, 12.0, 121.5, 13.7),
+        "name": "Mindoro Island",
+        "description": "Philippines - Mindoro",
+        "clip_boundary": False
+    },
+    "singapore": {
+        "bounds": (103.6, 1.16, 104.1, 1.48),
+        "name": "Singapore",
+        "description": "Republic of Singapore"
+    },
+    "hong_kong": {
+        "bounds": (113.8, 22.15, 114.4, 22.6),
+        "name": "Hong Kong",
+        "description": "Hong Kong SAR",
+        "clip_boundary": False
+    },
     "shikoku": {
         "bounds": (132.155, 32.775, 134.8, 34.5),
         "name": "Shikoku Island",
@@ -297,8 +352,14 @@ REGIONS = {
     },
     "san_mateo": {
         "bounds": (-122.6, 37.0, -121.8, 37.9),
-        "name": "San Mateo Peninsula",
+        "name": "Peninsula",
         "description": "SF Peninsula: San Jose to San Francisco",
+        "clip_boundary": False
+    },
+    "peninsula": {
+        "bounds": (-122.53, 37.43, -122.24, 37.70),
+        "name": "San Mateo",
+        "description": "Union of Foster City, San Mateo, Burlingame, Half Moon Bay (approx bbox)",
         "clip_boundary": False
     },
     "nepal": {

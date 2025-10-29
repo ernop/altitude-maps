@@ -115,6 +115,15 @@ async function init() {
             suppressRegionChange = false;
             console.log(`✅ Region input synced to shown region: ${firstRegionId}`);
         }
+        
+        // Set default vertical exaggeration to 3x after initial data load
+        try {
+            if (typeof setVertExagMultiplier === 'function') {
+                setVertExagMultiplier(3);
+            }
+        } catch (e) {
+            console.warn('Could not set default vertical exaggeration to 3x:', e);
+        }
     // Ensure dropdown is filled for initial interaction
     const dropdown = document.getElementById('regionDropdown');
     if (dropdown && regionOptions.length) {
@@ -193,7 +202,10 @@ let currentRegionId = null;
 const EXPECTED_FORMAT_VERSION = 2;
 
 async function loadElevationData(url) {
-    const response = await fetch(url);
+    // Add cache-busting query parameter to force fresh fetch
+    const cacheBuster = `?_t=${Date.now()}`;
+    const urlWithBuster = url.includes('?') ? `${url}&${cacheBuster.slice(2)}` : url + cacheBuster;
+    const response = await fetch(urlWithBuster);
     
     // Extract filename from URL
     const filename = url.split('/').pop();
@@ -245,8 +257,11 @@ async function loadElevationData(url) {
 async function loadBorderData(elevationUrl) {
     // Try to load borders from the same location with _borders suffix
     const borderUrl = elevationUrl.replace('.json', '_borders.json');
+    // Add cache-busting query parameter
+    const cacheBuster = `?_t=${Date.now()}`;
+    const urlWithBuster = borderUrl.includes('?') ? `${borderUrl}&${cacheBuster.slice(2)}` : borderUrl + cacheBuster;
     try {
-        const response = await fetch(borderUrl);
+        const response = await fetch(urlWithBuster);
         if (!response.ok) {
             console.log(`[INFO] No border data found at ${borderUrl}`);
             return null;
@@ -264,7 +279,8 @@ async function loadBorderData(elevationUrl) {
 
 async function loadRegionsManifest() {
     try {
-        const response = await fetch('generated/regions/regions_manifest.json');
+        const url = `generated/regions/regions_manifest.json?v=${Date.now()}`;
+        const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) {
             console.warn('Regions manifest not found, using default single region');
             return null;
@@ -332,13 +348,25 @@ async function populateRegionSelector() {
         grouped[group].push({ id: regionId, info: regionInfo });
     }
     
-    // Add grouped options
-    const groupOrder = ['USA', 'North America', 'Europe', 'Asia', 'South America', 'Oceania', 'Africa', 'Middle East', 'Mountain Ranges', 'Other'];
-    for (const groupName of groupOrder) {
+    // Add grouped options with non-US first, then a visual divider, then USA
+    const nonUsOrder = ['Europe', 'Asia', 'Africa', 'Oceania', 'South America', 'Middle East', 'North America', 'Mountain Ranges', 'Other'];
+    for (const groupName of nonUsOrder) {
         if (!grouped[groupName]) continue;
-        
         grouped[groupName].sort((a, b) => a.info.name.localeCompare(b.info.name));
         for (const { id, info } of grouped[groupName]) {
+            regionIdToName[id] = info.name;
+            regionNameToId[info.name.toLowerCase()] = id;
+            regionOptions.push({ id, name: info.name });
+        }
+    }
+    // Insert a non-selectable divider to separate non-US from USA
+    if (grouped['USA'] && regionOptions.length) {
+        regionOptions.push({ id: '__divider__', name: '' });
+    }
+    // Append USA group last
+    if (grouped['USA']) {
+        grouped['USA'].sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of grouped['USA']) {
             regionIdToName[id] = info.name;
             regionNameToId[info.name.toLowerCase()] = id;
             regionOptions.push({ id, name: info.name });
@@ -419,10 +447,29 @@ async function loadRegion(regionId) {
             dataUrl = `generated/regions/${filename}`;
         }
         
+        // Display the full file path in the UI
+        const regionInfoEl = document.getElementById('regionInfo');
+        if (regionInfoEl) {
+            const regionName = regionsManifest?.regions[regionId]?.name || regionId;
+            regionInfoEl.innerHTML = `
+                ${regionName}<br>
+                <span style="font-size: 11px; color: #888; font-family: monospace;">${dataUrl}</span>
+            `;
+        }
+        
         rawElevationData = await loadElevationData(dataUrl);
         borderData = await loadBorderData(dataUrl);
         currentRegionId = regionId;
         updateRegionInfo(regionId);
+        
+        // Display the full file path in the UI (after updateRegionInfo overwrites it)
+        if (regionInfoEl) {
+            const regionName = regionsManifest?.regions[regionId]?.name || regionId;
+            regionInfoEl.innerHTML = `
+                ${regionName}<br>
+                <span style="font-size: 11px; color: #888; font-family: monospace;">${dataUrl}</span>
+            `;
+        }
         
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
@@ -914,6 +961,16 @@ function setupControls() {
         if (!dropdown) return;
         dropdown.innerHTML = '';
         items.forEach((opt, idx) => {
+            // Render a non-selectable divider
+            if (opt.id === '__divider__') {
+                const div = document.createElement('div');
+                div.setAttribute('data-divider', 'true');
+                div.style.margin = '6px 0';
+                div.style.borderTop = '1px solid rgba(85,136,204,0.35)';
+                div.style.opacity = '0.8';
+                dropdown.appendChild(div);
+                return;
+            }
             const row = document.createElement('div');
             row.textContent = opt.name;
             row.setAttribute('data-id', opt.id);
@@ -956,6 +1013,12 @@ function setupControls() {
         const children = dropdown.children;
         for (let i = 0; i < children.length; i++) {
             const el = children[i];
+            // Skip styling dividers
+            if (el.getAttribute('data-divider') === 'true') {
+                el.style.background = 'transparent';
+                el.style.color = '#fff';
+                continue;
+            }
             if (i === highlightedIndex) {
                 el.style.background = 'rgba(85,136,204,0.2)';
                 el.style.color = '#88bbff';
@@ -969,11 +1032,11 @@ function setupControls() {
     function filterOptions(query) {
         const q = (query || '').trim().toLowerCase();
         if (!q) return regionOptions.slice();
-        return regionOptions.filter(o => o.name.toLowerCase().includes(q));
+        return regionOptions.filter(o => o.id !== '__divider__' && o.name.toLowerCase().includes(q));
     }
     
     function commitSelection(opt) {
-        if (!regionInput) return;
+        if (!regionInput || !opt || opt.id === '__divider__') return;
         regionInput.value = opt.name;
         closeDropdown();
         if (opt.id && opt.id !== currentRegionId) {

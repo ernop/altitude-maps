@@ -111,10 +111,40 @@ Notes:
 
     if args.list:
         print("\n📋 Unified Regions:", flush=True)
-        print("="*70, flush=True)
+        print("="*100, flush=True)
+        # Paths to check for existing data
+        from src.config import RAW_DATA_DIRS, GENERATED_DATA_DIR
+        raw_dirs = [Path(p) for p in RAW_DATA_DIRS]
+        gen_dir = Path(GENERATED_DATA_DIR)
+
+        # Header
+        print(f"{'ID':20s}  {'Name':30s}  {'Category':12s}  {'RAW':3s}  {'EXPORTED':8s}  Bounds", flush=True)
+        print("-"*100, flush=True)
+
         for entry in list_regions():
-            print(f"{entry.id:20s} - {entry.name:30s}  [{entry.category}]  {entry.bounds}", flush=True)
-        print("="*70, flush=True)
+            # Check raw presence in any known raw directory
+            has_raw = any((d / f"{entry.id}.tif").exists() for d in raw_dirs)
+
+            # Check exported presence in generated directory
+            has_exported = False
+            if gen_dir.exists():
+                for jf in gen_dir.glob(f"{entry.id}_*.json"):
+                    stem = jf.stem
+                    if stem.endswith('_meta') or stem.endswith('_borders') or 'manifest' in stem:
+                        continue
+                    has_exported = True
+                    break
+
+            raw_mark = '✔' if has_raw else ' '
+            exp_mark = '✔' if has_exported else ' '
+
+            print(
+                f"{entry.id:20s}  {entry.name:30s}  {entry.category:12s}  {raw_mark:3s}  {exp_mark:8s}  {entry.bounds}",
+                flush=True
+            )
+
+        print("="*100, flush=True)
+        print("Legend: RAW = local GeoTIFF present, EXPORTED = viewer JSON present", flush=True)
         return 0
 
     # Require region if not just listing
@@ -173,6 +203,12 @@ Notes:
     data_dir.mkdir(parents=True, exist_ok=True)
     raw_path = data_dir / f"{entry.id}.tif"
 
+    # If a local TIF already exists (e.g., 10m USGS 3DEP), prefer it and skip auto download
+    if raw_path.exists():
+        print(f"\n📦 Found existing raw file: {raw_path}")
+        print("   Using local file and skipping auto download.")
+        auto_mode = False
+
     # Auto download
     if auto_mode:
         ok = download_via_opentopography(entry.id, entry.bounds, raw_path, dataset, args.api_key)
@@ -186,6 +222,24 @@ Notes:
         if not raw_path.exists():
             print("❌ File not found. Provide the TIF or enable --auto.")
             return 1
+
+    # Suggest higher target pixels for very small regions if user didn't override
+    try:
+        from src.config import DEFAULT_TARGET_PIXELS
+    except Exception:
+        DEFAULT_TARGET_PIXELS = 2048  # safe fallback
+
+    west, south, east, north = entry.bounds
+    import math
+    mean_lat = (north + south) / 2.0
+    approx_km_per_deg_lon = 111.0 * abs(math.cos(math.radians(mean_lat)))
+    approx_km_per_deg_lat = 111.0
+    area_km2 = max((east - west), 0) * approx_km_per_deg_lon * max((north - south), 0) * approx_km_per_deg_lat
+
+    if args.target_pixels == DEFAULT_TARGET_PIXELS and area_km2 <= 400:
+        suggested_pixels = 4096
+        print(f"\n💡 Small region detected (~{area_km2:,.0f} km²). Suggesting higher target-pixels: {suggested_pixels}.")
+        args.target_pixels = suggested_pixels
 
     # Optional processing pipeline
     if args.process:

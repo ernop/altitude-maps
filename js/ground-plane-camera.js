@@ -329,12 +329,14 @@ class GroundPlaneCamera extends CameraScheme {
     // Fixed camera position: directly above center, looking straight down
     // This gives a consistent map view every time
     reframeView() {
-        // Standard fixed height
-        const fixedHeight = 2200;
-        
-        // Position: directly above origin at (0, 0)
-        // Small Z offset toward north (+Z) - rotated 180 degrees
-        this.camera.position.set(0, fixedHeight, fixedHeight * 0.001);
+		// Standard fixed height (reduced by ~40% to move closer)
+		const fixedHeight = 1320;
+		
+		// Slight tilt around X axis (east-west) so we see some relief
+		// 15° from straight-down: z offset = y * tan(15°)
+		const tiltDeg = 45;
+		const zOffset = fixedHeight * Math.tan(THREE.MathUtils.degToRad(tiltDeg));
+		this.camera.position.set(0, fixedHeight, zOffset);
         
         // Look at center of terrain
         this.focusPoint.set(0, 0, 0);
@@ -343,8 +345,8 @@ class GroundPlaneCamera extends CameraScheme {
         // Standard up vector for normal camera controls
         this.camera.up.set(0, 1, 0);
         this.camera.lookAt(this.focusPoint);
-        
-        console.log(`📐 Reframed view: fixed position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin`);
+		
+		console.log(`📐 Reframed view: fixed height ${fixedHeight}, tilt ${tiltDeg}°, position (0, ${fixedHeight}, ${zOffset.toFixed(1)})`);
     }
     
     // Set terrain bounds (called externally by viewer)

@@ -369,6 +369,8 @@ def download_international_region(region_id, region_info):
     try:
         import requests
         from load_settings import get_api_key
+        # Reuse existing tiling utilities for large areas
+        from downloaders.tile_large_states import calculate_tiles, merge_tiles
     except ImportError as e:
         print(f"❌ Missing required package: {e}")
         return False
@@ -426,7 +428,105 @@ def download_international_region(region_id, region_info):
             print(f"   ✅ Already exists: {output_file.name}")
             return True
     
-    # Download using OpenTopography API
+    # Helper to download a single bounding box to a specific file
+    def _download_bbox(out_path: Path, bbox: tuple[float, float, float, float]) -> bool:
+        w, s, e, n = bbox
+        url = "https://portal.opentopography.org/API/globaldem"
+        params = {
+            'demtype': dataset,
+            'south': s,
+            'north': n,
+            'west': w,
+            'east': e,
+            'outputFormat': 'GTiff',
+            'API_Key': api_key
+        }
+        try:
+            resp = requests.get(url, params=params, stream=True, timeout=300)
+            if resp.status_code != 200:
+                return False
+            total_size = int(resp.headers.get('content-length', 0))
+            downloaded = 0
+            with open(out_path, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            progress = (downloaded / total_size) * 100
+                            print(f"\r      Progress: {progress:.1f}%", end='', flush=True)
+            print()
+            return True
+        except Exception:
+            if out_path.exists():
+                try:
+                    out_path.unlink()
+                except Exception:
+                    pass
+            return False
+
+    # Estimate area to decide on tiling (avoid user-visible API limit errors)
+    import math
+    width_deg = max(0.0, float(east - west))
+    height_deg = max(0.0, float(north - south))
+    mid_lat = (north + south) / 2.0
+    km_per_deg_lat = 110.574
+    km_per_deg_lon = 111.320 * math.cos(math.radians(mid_lat))
+    approx_area_km2 = (width_deg * km_per_deg_lon) * (height_deg * km_per_deg_lat)
+
+    # OpenTopography SRTMGL1 has a 450,000 km² limit; tile proactively when over ~420k
+    should_tile = (dataset == 'SRTMGL1') and (approx_area_km2 > 420_000 or width_deg > 4.0 or height_deg > 4.0)
+
+    if should_tile:
+        print(f"   📦 Region is large ({approx_area_km2:,.0f} km²). Downloading in tiles...", flush=True)
+        # Use conservative tile size in degrees to keep each tile under area and dimension limits
+        tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
+        tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
+        tiles_dir.mkdir(parents=True, exist_ok=True)
+        tile_paths = []
+        for idx, tb in enumerate(tiles):
+            print(f"\n      🧩 Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
+            tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
+            if tile_path.exists() and validate_geotiff(tile_path, check_data=False):
+                print(f"      ✅ Cached tile present: {tile_path.name}", flush=True)
+                tile_paths.append(tile_path)
+                continue
+            print(f"      ⬇️  Downloading tile...", flush=True)
+            if not _download_bbox(tile_path, tb):
+                print(f"      ⚠️  Tile download failed, skipping", flush=True)
+                continue
+            if validate_geotiff(tile_path, check_data=False):
+                tile_paths.append(tile_path)
+            else:
+                print(f"      ⚠️  Invalid tile file, removing", flush=True)
+                try:
+                    tile_path.unlink()
+                except Exception:
+                    pass
+        if not tile_paths:
+            print(f"   ❌ No valid tiles downloaded", flush=True)
+            return False
+        print(f"\n   🔗 Merging {len(tile_paths)} tiles...", flush=True)
+        if not merge_tiles(tile_paths, output_file):
+            print(f"   ❌ Tile merge failed", flush=True)
+            return False
+        # Save metadata for merged file
+        try:
+            from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+            raw_meta = create_raw_metadata(
+                tif_path=output_file,
+                region_id=region_id,
+                source='srtm_30m',
+                download_url='tiled:OpenTopography',
+                download_params={'tiles': len(tile_paths), 'dataset': dataset, 'bounds': region_info['bounds']}
+            )
+            save_metadata(raw_meta, get_metadata_path(output_file))
+        except Exception as e:
+            print(f"   ⚠️  Could not save raw metadata: {e}")
+        print(f"   ✅ Tiled download and merge complete", flush=True)
+        return True
+
+    # Download using OpenTopography API (single request)
     url = "https://portal.opentopography.org/API/globaldem"
     params = {
         'demtype': dataset,  # COP30 for high latitudes, SRTMGL1 otherwise
@@ -445,6 +545,59 @@ def download_international_region(region_id, region_info):
         response = requests.get(url, params=params, stream=True, timeout=300)
         
         if response.status_code != 200:
+            # If area too large, transparently fall back to tiling
+            resp_text = response.text or ""
+            if (dataset == 'SRTMGL1') and ("maximum area" in resp_text.lower() or response.status_code == 400):
+                print(f"   ℹ️  Server rejected single request due to size. Switching to tiled download...", flush=True)
+                # Trigger tiled path
+                # Recursively call this function but force tiling by adjusting threshold
+                # Easiest: emulate should_tile path above
+                # Re-enter tiling branch by locally setting should_tile-like behavior
+                # Build tiles and merge
+                tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
+                tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
+                tiles_dir.mkdir(parents=True, exist_ok=True)
+                tile_paths = []
+                for idx, tb in enumerate(tiles):
+                    print(f"\n      🧩 Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
+                    tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
+                    if tile_path.exists() and validate_geotiff(tile_path, check_data=False):
+                        print(f"      ✅ Cached tile present: {tile_path.name}", flush=True)
+                        tile_paths.append(tile_path)
+                        continue
+                    print(f"      ⬇️  Downloading tile...", flush=True)
+                    if not _download_bbox(tile_path, tb):
+                        print(f"      ⚠️  Tile download failed, skipping", flush=True)
+                        continue
+                    if validate_geotiff(tile_path, check_data=False):
+                        tile_paths.append(tile_path)
+                    else:
+                        print(f"      ⚠️  Invalid tile file, removing", flush=True)
+                        try:
+                            tile_path.unlink()
+                        except Exception:
+                            pass
+                if not tile_paths:
+                    print(f"   ❌ No valid tiles downloaded", flush=True)
+                    return False
+                print(f"\n   🔗 Merging {len(tile_paths)} tiles...", flush=True)
+                if not merge_tiles(tile_paths, output_file):
+                    print(f"   ❌ Tile merge failed", flush=True)
+                    return False
+                try:
+                    from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+                    raw_meta = create_raw_metadata(
+                        tif_path=output_file,
+                        region_id=region_id,
+                        source='srtm_30m',
+                        download_url='tiled:OpenTopography',
+                        download_params={'tiles': len(tile_paths), 'dataset': dataset, 'bounds': region_info['bounds']}
+                    )
+                    save_metadata(raw_meta, get_metadata_path(output_file))
+                except Exception as e:
+                    print(f"   ⚠️  Could not save raw metadata: {e}")
+                print(f"   ✅ Tiled download and merge complete", flush=True)
+                return True
             print(f"   ❌ API Error: {response.status_code}")
             print(f"      Response: {response.text[:200]}")
             return False
