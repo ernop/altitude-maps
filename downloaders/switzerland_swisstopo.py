@@ -34,7 +34,6 @@ from downloaders.usa_3dep import download_opentopography_srtm  # Reuse SRTM down
 SWITZERLAND_REGIONS = {
     "switzerland": {"bounds": (5.9, 45.8, 10.5, 47.8), "name": "Switzerland (Full)"},
     "alps": {"bounds": (6.5, 46.0, 10.0, 47.0), "name": "Swiss Alps"},
-    "zurich": {"bounds": (8.4, 47.3, 8.6, 47.5), "name": "Zurich Region"},
     "geneva": {"bounds": (6.0, 46.1, 6.3, 46.3), "name": "Geneva Region"},
     "bern": {"bounds": (7.3, 46.9, 7.5, 47.0), "name": "Bern Region"},
 }

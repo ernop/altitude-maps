@@ -571,3 +571,75 @@ input[type="checkbox"] {
     margin: 0 auto;
 }
 
+/* Compact Resolution Scale */
+.resolution-scale {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+}
+
+.resolution-scale-label {
+    font-size: 11px;
+    opacity: 0.8;
+    user-select: none;
+}
+
+.resolution-scale-label.right {
+    min-width: 34px;
+    text-align: right;
+}
+
+.resolution-scale-track {
+    position: relative;
+    height: 10px;
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.resolution-scale-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0%;
+    background: #5588cc;
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.resolution-scale-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: #5588cc;
+    border: 2px solid #0a0a0a;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(85, 136, 204, 0.4);
+    pointer-events: none; /* dragging via track */
+}
+
+.resolution-scale-tag {
+    position: absolute;
+    top: -22px;
+    transform: translateX(-50%);
+    padding: 1px 4px;
+    font-size: 11px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid #444;
+    border-radius: 3px;
+    color: #fff;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.resolution-scale-ticks { position: absolute; left: 0; right: 0; bottom: -16px; height: 16px; pointer-events: none; }
+.resolution-scale-tick { position: absolute; transform: translateX(-50%); bottom: 0; text-align: center; }
+.resolution-scale-tick .line { width: 1px; height: 6px; background: #555; margin: 0 auto 2px auto; }
+.resolution-scale-tick .label { font-size: 9px; color: #aaa; }
+

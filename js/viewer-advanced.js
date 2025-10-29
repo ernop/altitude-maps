@@ -10,6 +10,14 @@ let rawElevationData; // Original full-resolution data
 let processedData; // Bucketed/aggregated data
 let derivedSlopeDeg = null; // 2D array of slope (degrees)
 let derivedAspectDeg = null; // 2D array of aspect (0-360 degrees)
+let raycaster; // Three.js raycaster for HUD and camera interactions
+let groundPlane; // Ground plane at y=0 used for consistent ray intersections
+let currentMouseX, currentMouseY; // Tracked mouse position for HUD updates
+let hudSettings = null; // HUD configuration (units/visibility)
+let borderSegmentsMeters = []; // Flattened list of border line segments in meters space
+let borderSegmentsGeo = []; // [{axLon, axLat, bxLon, bxLat}]
+let borderGeoIndex = null; // Map of cellKey -> array of segment indices
+let borderGeoCellSizeDeg = 0.25; // spatial hash cell size in degrees
 
 // Precompute color schemes once to avoid per-vertex allocations during color updates
 const COLOR_SCHEMES = {
@@ -64,6 +72,42 @@ const COLOR_SCHEMES = {
         { stop: 0.86, color: new THREE.Color(0x9d0208) },
         { stop: 0.94, color: new THREE.Color(0xf5f5f5) },
         { stop: 1.00, color: new THREE.Color(0xffffff) }
+    ]
+    ,
+    'terrain-muted': [
+        { stop: 0.0, color: new THREE.Color(0x274b4a) },
+        { stop: 0.3, color: new THREE.Color(0x4e6e58) },
+        { stop: 0.6, color: new THREE.Color(0x7a8f6a) },
+        { stop: 0.85, color: new THREE.Color(0xa8b59a) },
+        { stop: 1.0, color: new THREE.Color(0xdedfd6) }
+    ],
+    'relief-emphasis': [
+        { stop: 0.0, color: new THREE.Color(0x2b2b2b) },
+        { stop: 0.5, color: new THREE.Color(0x6aa84f) },
+        { stop: 0.75, color: new THREE.Color(0xf1c232) },
+        { stop: 1.0, color: new THREE.Color(0xe06666) }
+    ],
+    'diverging-elevation': [
+        { stop: 0.0, color: new THREE.Color(0x313695) },
+        { stop: 0.5, color: new THREE.Color(0xf7f7f7) },
+        { stop: 1.0, color: new THREE.Color(0xa50026) }
+    ],
+    'hypsometric': [
+        { stop: 0.0, color: new THREE.Color(0x00441b) },
+        { stop: 0.2, color: new THREE.Color(0x1a9850) },
+        { stop: 0.4, color: new THREE.Color(0x66bd63) },
+        { stop: 0.6, color: new THREE.Color(0xfdae61) },
+        { stop: 0.8, color: new THREE.Color(0xf46d43) },
+        { stop: 1.0, color: new THREE.Color(0xa50f15) }
+    ],
+    'hypsometric-natural': [
+        { stop: 0.00, color: new THREE.Color(0x0a4f2c) },  // deep green lowlands
+        { stop: 0.20, color: new THREE.Color(0x2f7d32) },  // green
+        { stop: 0.40, color: new THREE.Color(0x9bbf6b) },  // olive/grass
+        { stop: 0.60, color: new THREE.Color(0xc9b27d) },  // tan foothills
+        { stop: 0.80, color: new THREE.Color(0x8b5e34) },  // brown highlands
+        { stop: 0.92, color: new THREE.Color(0xdedede) },  // light grey
+        { stop: 1.00, color: new THREE.Color(0xffffff) }   // white peaks
     ]
 };
 // Temporary color reused to avoid per-vertex allocations
@@ -785,54 +829,78 @@ function hideLoading() {
 
 // Sync UI controls with current params
 function syncUIControls() {
-    // Bucket size - sync both slider and input
-    document.getElementById('bucketSize').value = params.bucketSize;
-    document.getElementById('bucketSizeInput').value = params.bucketSize;
-    
-    // Tile gap - sync both slider and input
-    document.getElementById('tileGap').value = params.tileGap;
-    document.getElementById('tileGapInput').value = params.tileGap;
-    
-    // Vertical exaggeration - sync both slider and input (convert to multiplier for display)
-    const multiplier = internalToMultiplier(params.verticalExaggeration);
-    document.getElementById('vertExag').value = multiplier;
-    document.getElementById('vertExagInput').value = multiplier;
-    
-    // Render mode
-    document.getElementById('renderMode').value = params.renderMode;
-    
-    // Aggregation method (element may not be present)
-    const aggregationEl = document.getElementById('aggregation');
-    if (aggregationEl) {
-        aggregationEl.value = params.aggregation;
-    }
-    
-    // Color scheme (using jQuery/Select2)
-    // Note: terrain is already created with correct colors before this function is called
-    // We just need to update the UI dropdown to match without triggering recreation
-    const $colorScheme = $('#colorScheme');
-    $colorScheme.val(params.colorScheme);
-    // Update Select2 UI without triggering change handlers
-    if ($colorScheme.hasClass('select2-hidden-accessible')) {
-        $colorScheme.trigger('change.select2');
-    }
-    
-    // Flat lighting toggle (if present)
-    const flatChk = document.getElementById('flatLightingEnabled');
-    if (flatChk) flatChk.checked = !!params.flatLightingEnabled;
-    
-    // Apply visual settings to scene objects
-    if (gridHelper) {
-        gridHelper.visible = params.showGrid;
-    }
-    if (borderMeshes && borderMeshes.length > 0) {
-        borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
-    }
-    if (controls) {
-        controls.autoRotate = params.autoRotate;
-    }
+    // Bucket size - sync compact scale and numeric value (elements may differ)
+    try { updateResolutionScaleUI(params.bucketSize); } catch (_) {}
+    const valEl = document.getElementById('bucketSizeValue');
+    if (valEl) valEl.textContent = `${params.bucketSize}\u00D7`;
+    const legacySlider = document.getElementById('bucketSize');
+    if (legacySlider) legacySlider.value = params.bucketSize;
+    const legacyInput = document.getElementById('bucketSizeInput');
+    if (legacyInput) legacyInput.value = params.bucketSize;
+	
+	// Tile gap - sync both slider and input
+	document.getElementById('tileGap').value = params.tileGap;
+	document.getElementById('tileGapInput').value = params.tileGap;
+	
+	// Vertical exaggeration - sync both slider and input (convert to multiplier for display)
+	const multiplier = internalToMultiplier(params.verticalExaggeration);
+	document.getElementById('vertExag').value = multiplier;
+	document.getElementById('vertExagInput').value = multiplier;
+	
+	// Render mode
+	document.getElementById('renderMode').value = params.renderMode;
+	
+	// Aggregation method (element may not be present)
+	const aggregationEl = document.getElementById('aggregation');
+	if (aggregationEl) {
+		aggregationEl.value = params.aggregation;
+	}
+	
+	// Color scheme (native select with jQuery helper)
+	const $colorScheme = $('#colorScheme');
+	$colorScheme.val(params.colorScheme);
+	
+	// Flat lighting toggle (if present)
+	const flatChk = document.getElementById('flatLightingEnabled');
+	if (flatChk) flatChk.checked = !!params.flatLightingEnabled;
+	
+	// Apply visual settings to scene objects
+	if (gridHelper) {
+		gridHelper.visible = params.showGrid;
+	}
+	if (borderMeshes && borderMeshes.length > 0) {
+		borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
+	}
+	if (controls) {
+		controls.autoRotate = params.autoRotate;
+	}
 
-    // Shading controls removed from UI
+	// Shading controls removed from UI
+}
+
+const COLOR_SCHEME_DESCRIPTIONS = {
+    'terrain': 'Natural earthy palette: lowlands to high peaks (balanced visibility).',
+    'test': 'High-contrast ramp to accentuate small elevation changes.',
+    'auto-stretch': 'Dynamic percentile stretch (2–98%) for maximum contrast on this map.',
+    'slope': 'Colors by slope steepness (degrees): blue=flat, red=steep.',
+    'aspect': 'Hue encodes slope direction (0–360°).',
+    'elevation': 'Classic blue→red by relative elevation.',
+    'grayscale': 'Simple lightness by elevation.',
+    'rainbow': 'Multi-hue (use cautiously).',
+    'earth': 'Earth tones for subdued presentation.',
+    'heatmap': 'Dark to hot colors by elevation.',
+    'terrain-muted': 'Softer natural palette for overlays and labels.',
+    'relief-emphasis': 'Color ramp tuned to emphasize relief with gentle chroma.',
+    'diverging-elevation': 'Diverges around mid-elevation to reveal relative high/low areas.',
+    'hypsometric': 'Perceptual hypsometric tint for terrain form.',
+    'hypsometric-natural': 'Hypsometric with naturalistic greens→tans→browns→snow for peaks.'
+};
+
+function updateColorSchemeDescription() {
+    const el = document.getElementById('colorSchemeDescription');
+    if (!el) return;
+    const key = params.colorScheme || 'terrain';
+    el.textContent = COLOR_SCHEME_DESCRIPTIONS[key] || '';
 }
 
 // Compute percentile-based auto stretch bounds from current bucketed elevation
@@ -1151,10 +1219,12 @@ function setupScene() {
     dirLight1.position.set(100, 200, 100);
     dirLight1.castShadow = false;
     scene.add(dirLight1);
+    window.__dirLight1 = dirLight1;
     
     const dirLight2 = new THREE.DirectionalLight(0x6688ff, 0.4);
     dirLight2.position.set(-100, 100, -100);
     scene.add(dirLight2);
+    window.__dirLight2 = dirLight2;
     
     // Grid helper
     gridHelper = new THREE.GridHelper(200, 40, 0x555555, 0x222222);
@@ -1180,6 +1250,14 @@ function setupScene() {
             }
         }
     };
+
+    // Initialize raycaster and ground plane for cursor picking and HUD
+    // Ground plane is y=0 (map surface) for stable interactions
+    raycaster = new THREE.Raycaster();
+    groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+    // Apply current shading parameters
+    try { updateLightingForShading(); } catch (_) {}
 }
 
 // (Removed Select2 formatters; using native datalist)
@@ -1340,17 +1418,7 @@ function setupControls() {
         });
     }
     
-    // Initialize Select2 for color scheme (typeahead with autocomplete)
-    $('#colorScheme').select2({
-        placeholder: 'Select a color scheme...',
-        allowClear: false,
-        width: '100%',
-        minimumResultsForSearch: Infinity, // Disable search for short lists
-        dropdownAutoWidth: true,
-        closeOnSelect: true
-    });
-    
-    // (Select2 region change handler removed)
+    // Color scheme uses native select; no Select2 initialization
     
     // Update bucket size range label
     function updateBucketSizeLabel(value) {
@@ -1368,56 +1436,8 @@ function setupControls() {
         }
     }
     
-    // Bucket size - coalesce during drag; rebuild once per debounce window
-    
-    // Sync slider -> input
-    document.getElementById('bucketSize').addEventListener('input', (e) => {
-        params.bucketSize = parseInt(e.target.value);
-        document.getElementById('bucketSizeInput').value = params.bucketSize;
-        
-        if (pendingBucketTimeout !== null) clearTimeout(pendingBucketTimeout);
-        showResolutionLoading();
-        pendingBucketTimeout = setTimeout(() => {
-            pendingBucketTimeout = null;
-            try {
-                // Clear edge markers so they get recreated at new positions
-                edgeMarkers.forEach(marker => scene.remove(marker));
-                edgeMarkers = [];
-                rebucketData();
-                recreateTerrain();
-                updateURLParameter('bucketSize', params.bucketSize);
-            } finally {
-                hideResolutionLoading();
-            }
-        }, 120);
-    });
-    
-    // Sync input -> slider
-    document.getElementById('bucketSizeInput').addEventListener('change', (e) => {
-        let value = parseInt(e.target.value);
-        // Clamp to valid range
-        value = Math.max(1, Math.min(500, value));
-        params.bucketSize = value;
-        document.getElementById('bucketSize').value = value;
-        document.getElementById('bucketSizeInput').value = value;
-        
-        // Show loading overlay
-        showResolutionLoading();
-        
-        if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
-        // Immediate rebuild on commit
-        setTimeout(() => {
-            try {
-                edgeMarkers.forEach(marker => scene.remove(marker));
-                edgeMarkers = [];
-                rebucketData();
-                recreateTerrain();
-                updateURLParameter('bucketSize', params.bucketSize);
-            } finally {
-                hideResolutionLoading();
-            }
-        }, 0);
-    });
+    // Initialize compact resolution scale control
+    try { initResolutionScale(); } catch (_) {}
     
     // Tile gap - instant via shader uniform in bars mode; recreate only if not bars
     const updateTileGapUniform = () => {
@@ -1573,7 +1593,30 @@ function setupControls() {
         }
         updateColors();
         updateURLParameter('colorScheme', params.colorScheme);
+        updateColorSchemeDescription();
     });
+
+    // Highlights UI
+    const hlEnabled = document.getElementById('highlightEnabled');
+    const hlMetric = document.getElementById('highlightMetric');
+    const hlMin = document.getElementById('highlightMin');
+    const hlMax = document.getElementById('highlightMax');
+    if (hlEnabled) {
+        hlEnabled.checked = !!params.highlightEnabled;
+        hlEnabled.addEventListener('change', () => { params.highlightEnabled = !!hlEnabled.checked; updateColors(); });
+    }
+    if (hlMetric) {
+        hlMetric.value = params.highlightMetric || 'elevation';
+        hlMetric.addEventListener('change', () => { params.highlightMetric = hlMetric.value; updateColors(); });
+    }
+    if (hlMin) {
+        hlMin.value = params.highlightMin ?? 100;
+        hlMin.addEventListener('change', () => { params.highlightMin = parseFloat(hlMin.value) || 0; updateColors(); });
+    }
+    if (hlMax) {
+        hlMax.value = params.highlightMax ?? 500;
+        hlMax.addEventListener('change', () => { params.highlightMax = parseFloat(hlMax.value) || 0; updateColors(); });
+    }
 
     // Flat lighting
     const flatToggle = document.getElementById('flatLightingEnabled');
@@ -1585,8 +1628,6 @@ function setupControls() {
             updateURLParameter('flat', params.flatLightingEnabled ? '1' : '0');
         });
     }
-    
-    // Grid/Borders/Auto-rotate UI controls removed; behavior controlled via params only
     
     // Initialize vertical exaggeration button states (highlight default active button)
     updateVertExagButtons(params.verticalExaggeration);
@@ -1609,6 +1650,126 @@ function hideResolutionLoading() {
     if (overlay) {
         overlay.classList.remove('active');
     }
+}
+
+// ===== COMPACT RESOLUTION SCALE =====
+function bucketSizeToPercent(size) {
+    const clamped = Math.max(1, Math.min(500, parseInt(size)));
+    return ((clamped - 1) / 499) * 100; // 1..500 -> 0..100%
+}
+
+function percentToBucketSize(percent) {
+    const p = Math.max(0, Math.min(100, percent));
+    const size = Math.round(1 + (p / 100) * 499);
+    return Math.max(1, Math.min(500, size));
+}
+
+function updateResolutionScaleUI(size) {
+    const track = document.querySelector('#resolution-scale .resolution-scale-track');
+    const handle = document.getElementById('resolutionScaleHandle');
+    const fill = document.getElementById('resolutionScaleFill');
+    const tag = document.getElementById('resolutionScaleTag');
+    if (!track || !handle || !fill) return;
+    const pct = bucketSizeToPercent(size);
+    const rect = track.getBoundingClientRect();
+    const x = (pct / 100) * rect.width;
+    handle.style.left = `${x}px`;
+    fill.style.width = `${Math.max(0, Math.min(100, (x / rect.width) * 100))}%`;
+    if (tag) { tag.style.left = `${x}px`; tag.textContent = `${size}\u00D7`; }
+}
+
+function initResolutionScale() {
+    const container = document.getElementById('resolution-scale');
+    const track = container && container.querySelector('.resolution-scale-track');
+    const maxBtn = document.getElementById('resolutionMaxLabel');
+    if (!container || !track) return;
+
+    let isDragging = false;
+    let lastSetSize = params.bucketSize;
+
+    // Build ticks with common meaningful steps
+    const ticks = [1, 2, 5, 10, 20, 50, 100, 200, 500];
+    const ticksEl = document.getElementById('resolutionScaleTicks');
+    if (ticksEl) {
+        ticksEl.innerHTML = '';
+        const trackRect = track.getBoundingClientRect();
+        const width = trackRect.width > 0 ? trackRect.width : 200; // fallback before layout
+        ticks.forEach((t) => {
+            const p = bucketSizeToPercent(t);
+            const tick = document.createElement('div');
+            tick.className = 'resolution-scale-tick';
+            tick.style.left = `${p}%`;
+            tick.innerHTML = `<div class="line"></div><div class="label">${t}\u00D7</div>`;
+            ticksEl.appendChild(tick);
+        });
+    }
+
+    const setFromClientX = (clientX, commit) => {
+        const rect = track.getBoundingClientRect();
+        const clampedX = Math.max(rect.left, Math.min(rect.right, clientX));
+        const pct = ((clampedX - rect.left) / rect.width) * 100;
+        const size = percentToBucketSize(pct);
+        if (size === lastSetSize && !commit) return;
+        lastSetSize = size;
+        params.bucketSize = size;
+        updateResolutionScaleUI(size);
+        // Debounced heavy work during drag
+        if (!commit) {
+            if (pendingBucketTimeout !== null) clearTimeout(pendingBucketTimeout);
+            showResolutionLoading();
+            pendingBucketTimeout = setTimeout(() => {
+                pendingBucketTimeout = null;
+                try {
+                    edgeMarkers.forEach(marker => scene.remove(marker));
+                    edgeMarkers = [];
+                    rebucketData();
+                    recreateTerrain();
+                    updateURLParameter('bucketSize', params.bucketSize);
+                } finally {
+                    hideResolutionLoading();
+                }
+            }, 120);
+        } else {
+            // Commit: immediate rebuild once
+            showResolutionLoading();
+            if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
+            setTimeout(() => {
+                try {
+                    edgeMarkers.forEach(marker => scene.remove(marker));
+                    edgeMarkers = [];
+                    rebucketData();
+                    recreateTerrain();
+                    updateURLParameter('bucketSize', params.bucketSize);
+                } finally {
+                    hideResolutionLoading();
+                }
+            }, 0);
+        }
+    };
+
+    const onPointerDown = (e) => {
+        isDragging = true;
+        setFromClientX(e.clientX, false);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp, { once: true });
+    };
+    const onPointerMove = (e) => {
+        if (!isDragging) return;
+        setFromClientX(e.clientX, false);
+    };
+    const onPointerUp = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        setFromClientX(e.clientX, true);
+        window.removeEventListener('pointermove', onPointerMove);
+    };
+
+    track.addEventListener('pointerdown', onPointerDown);
+
+    // Button uses onclick in HTML; no extra binding required
+
+    // Initial position
+    updateResolutionScaleUI(params.bucketSize);
 }
 
 function adjustBucketSize(delta) {
@@ -1637,8 +1798,8 @@ function adjustBucketSize(delta) {
             
             // Update params and UI
             params.bucketSize = newSize;
-            document.getElementById('bucketSize').value = newSize;
-            document.getElementById('bucketSizeInput').value = newSize;
+            try { updateResolutionScaleUI(newSize); } catch (_) {}
+            // tag UI updated via updateResolutionScaleUI
             
             // Clear edge markers so they get recreated at new positions
             edgeMarkers.forEach(marker => scene.remove(marker));
@@ -1678,8 +1839,8 @@ function setMaxResolution() {
         try {
             // Max resolution = bucket size of 1 (every pixel rendered)
             params.bucketSize = 1;
-            document.getElementById('bucketSize').value = 1;
-            document.getElementById('bucketSizeInput').value = 1;
+            try { updateResolutionScaleUI(1); } catch (_) {}
+            // tag UI updated via updateResolutionScaleUI
             
             // Clear edge markers so they get recreated at new positions
             edgeMarkers.forEach(marker => scene.remove(marker));
@@ -1691,6 +1852,7 @@ function setMaxResolution() {
             updateStats();
             
             console.log('Resolution set to MAX (bucket size = 1)');
+            try { updateURLParameter('bucketSize', 1); } catch (_) {}
         } finally {
             // Hide loading overlay
             hideResolutionLoading();
@@ -1761,8 +1923,8 @@ function autoAdjustBucketSize() {
     
     // Update params and UI
     params.bucketSize = optimalSize;
-    document.getElementById('bucketSize').value = optimalSize;
-    document.getElementById('bucketSizeInput').value = optimalSize;
+    try { updateResolutionScaleUI(optimalSize); } catch (_) {}
+    // tag UI updated via updateResolutionScaleUI
     
     // Clear edge markers so they get recreated at new positions
     edgeMarkers.forEach(marker => scene.remove(marker));
@@ -1772,6 +1934,7 @@ function autoAdjustBucketSize() {
     rebucketData();
     recreateTerrain();
     updateStats();
+    try { updateURLParameter('bucketSize', optimalSize); } catch (_) {}
 }
 
 function setupEventListeners() {
@@ -1842,6 +2005,20 @@ function setupEventListeners() {
             }
         });
     }
+
+	// HUD config toggles
+	const hudConfigBtn = document.getElementById('hud-config');
+	const hudConfigPanel = document.getElementById('hud-config-panel');
+	if (hudConfigBtn && hudConfigPanel) {
+		hudConfigBtn.addEventListener('click', () => {
+			const visible = hudConfigPanel.style.display !== 'none';
+			hudConfigPanel.style.display = visible ? 'none' : 'block';
+		});
+		// Load settings and bind controls
+		loadHudSettings();
+		applyHudSettingsToUI();
+		bindHudSettingsHandlers();
+	}
 }
 
 // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
@@ -2381,7 +2558,21 @@ function getColorForElevation(elevation) {
         }
     }
     
-    return __tmpColor.copy(scheme[scheme.length - 1].color);
+    const baseColor = __tmpColor.copy(scheme[scheme.length - 1].color);
+    // Threshold highlight overlay
+    if (params.highlightEnabled) {
+        let v = 0;
+        if (params.highlightMetric === 'slope' && derivedSlopeDeg) v = deriveCurrentSlope() || 0;
+        else v = elevation || 0;
+        const vMin = params.highlightMin ?? 0;
+        const vMax = params.highlightMax ?? 0;
+        if (v >= Math.min(vMin, vMax) && v <= Math.max(vMin, vMax)) {
+            // Blend toward highlight color
+            const highlight = new THREE.Color(0xffff33);
+            baseColor.lerp(highlight, 0.5);
+        }
+    }
+    return baseColor;
 }
 
 // Helpers for per-cell derived values during colorization
@@ -2537,11 +2728,41 @@ function updateLightingForShading() {
         ambient.intensity = 1.0;
         d1.intensity = 0.0;
         d2.intensity = 0.0;
-    } else {
-        ambient.intensity = 0.5;
-        d1.intensity = 0.7;
-        d2.intensity = 0.4;
+        return;
     }
+
+    // Map shadowStrength (0..100) to an ambient/key/fill balance.
+    // Lower strength -> higher ambient, softer key/fill. Higher -> stronger key, deeper contrast.
+    const s = Math.max(0, Math.min(100, params.shadowStrength)) / 100.0;
+
+    // Base levels
+    const ambientBase = 0.65;   // mid ambient
+    const ambientVar  = 0.45;   // range reduced as s increases
+    const keyBase     = 0.25;   // base key
+    const keyVar      = 1.00;   // how much key grows with strength
+    const fillBase    = 0.20;   // base fill
+    const fillVar     = 0.35;   // how much fill grows with strength
+
+    // Compute intensities
+    const ambientIntensity = Math.max(0.1, ambientBase - ambientVar * s);
+    const keyIntensity = keyBase + keyVar * s;
+    const fillIntensity = fillBase + fillVar * (0.6 * s); // fill grows slower for better contrast
+
+    // Style variations adjust secondary light color
+    if (params.shadingStyle === 'soft-cool') {
+        d1.color.setHex(0xffffff);
+        d2.color.setHex(0x6688ff);
+    } else if (params.shadingStyle === 'soft-warm') {
+        d1.color.setHex(0xffffff);
+        d2.color.setHex(0xffaa66);
+    } else { // standard
+        d1.color.setHex(0xffffff);
+        d2.color.setHex(0xffffff);
+    }
+
+    ambient.intensity = ambientIntensity;
+    d1.intensity = keyIntensity;
+    d2.intensity = fillIntensity;
 }
  
 
@@ -2674,9 +2895,12 @@ function getAspectDegrees(i, j) {
 function recreateBorders() {
     console.log('Creating borders...');
     
-    // Remove old borders
+	// Remove old borders
     borderMeshes.forEach(mesh => scene.remove(mesh));
     borderMeshes = [];
+    borderSegmentsMeters = [];
+    borderSegmentsGeo = [];
+    borderGeoIndex = new Map();
     
     if (!borderData || (!borderData.countries && !borderData.states)) {
         console.log('[INFO] No border data available');
@@ -2706,7 +2930,8 @@ function recreateBorders() {
         ...(borderData.states || [])
     ];
     
-    allBorders.forEach((entity) => {
+	const { mx, mz } = getMetersScalePerWorldUnit();
+	allBorders.forEach((entity) => {
         entity.segments.forEach((segment) => {
             const points = [];
             
@@ -2751,7 +2976,7 @@ function recreateBorders() {
                 points.push(new THREE.Vector3(xCoord, borderHeight, zCoord));
             }
             
-            if (points.length > 1) {
+			if (points.length > 1) {
                 const geometry = new THREE.BufferGeometry().setFromPoints(points);
                 const material = new THREE.LineBasicMaterial({
                     color: 0xFFFF00,  // YELLOW - highly visible!
@@ -2763,6 +2988,41 @@ function recreateBorders() {
                 scene.add(line);
                 borderMeshes.push(line);
                 totalSegments++;
+                // Capture as meter-scaled 2D segments for HUD distance queries
+				for (let p = 0; p < points.length - 1; p++) {
+					const a = points[p];
+					const b = points[p + 1];
+					borderSegmentsMeters.push({
+						ax: a.x * mx,
+						az: a.z * mz,
+						bx: b.x * mx,
+						bz: b.z * mz
+					});
+                    // Also store geographic segment and index it
+                    const aLon = segment.lon[p];
+                    const aLat = segment.lat[p];
+                    const bLon = segment.lon[p + 1];
+                    const bLat = segment.lat[p + 1];
+                    const geoIndex = borderSegmentsGeo.length;
+                    borderSegmentsGeo.push({ axLon: aLon, axLat: aLat, bxLon: bLon, bxLat: bLat });
+                    // Compute covered cells and insert id
+                    const minLon = Math.min(aLon, bLon);
+                    const maxLon = Math.max(aLon, bLon);
+                    const minLat = Math.min(aLat, bLat);
+                    const maxLat = Math.max(aLat, bLat);
+                    const ix0 = Math.floor(minLon / borderGeoCellSizeDeg);
+                    const ix1 = Math.floor(maxLon / borderGeoCellSizeDeg);
+                    const iy0 = Math.floor(minLat / borderGeoCellSizeDeg);
+                    const iy1 = Math.floor(maxLat / borderGeoCellSizeDeg);
+                    for (let ix = ix0; ix <= ix1; ix++) {
+                        for (let iy = iy0; iy <= iy1; iy++) {
+                            const key = `${ix},${iy}`;
+                            let arr = borderGeoIndex.get(key);
+                            if (!arr) { arr = []; borderGeoIndex.set(key, arr); }
+                            arr.push(geoIndex);
+                        }
+                    }
+				}
             }
         });
     });
@@ -3210,7 +3470,7 @@ function updateFPS() {
 
 // Initialize ground plane for raycasting fallback (when cursor misses terrain)
 // Simple horizontal plane at y=0 - provides consistent reference for dragging
-groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+if (!groundPlane) groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 function raycastToWorld(screenX, screenY) {
     // Convert screen coordinates to normalized device coordinates (-1 to +1)
@@ -3233,6 +3493,38 @@ function raycastToWorld(screenX, screenY) {
     // Should never happen, but just in case
     console.warn('Raycast failed completely');
     return null;
+}
+function worldToLonLat(worldX, worldZ) {
+    if (!rawElevationData || !processedData || !borderData) return null;
+    const { bounds: elevBounds } = rawElevationData; // {left, right, top, bottom}
+    const w = processedData.width;
+    const h = processedData.height;
+    let colNorm, rowNorm;
+    if (params.renderMode === 'bars') {
+        const bucket = params.bucketSize;
+        const xMin = -(w - 1) * bucket / 2;
+        const zMin = -(h - 1) * bucket / 2;
+        const xMax = (w - 1) * bucket / 2;
+        const zMax = (h - 1) * bucket / 2;
+        colNorm = (worldX - xMin) / (xMax - xMin);
+        rowNorm = (worldZ - zMin) / (zMax - zMin);
+    } else if (params.renderMode === 'points') {
+        const xMin = -(w - 1) / 2;
+        const zMin = -(h - 1) / 2;
+        const xMax = (w - 1) / 2;
+        const zMax = (h - 1) / 2;
+        colNorm = (worldX - xMin) / (xMax - xMin);
+        rowNorm = (worldZ - zMin) / (zMax - zMin);
+    } else {
+        // surface
+        colNorm = (worldX + w / 2) / (w);
+        rowNorm = (worldZ + h / 2) / (h);
+    }
+    colNorm = Math.max(0, Math.min(1, colNorm));
+    rowNorm = Math.max(0, Math.min(1, rowNorm));
+    const lon = elevBounds.left + colNorm * (elevBounds.right - elevBounds.left);
+    const lat = elevBounds.top - rowNorm * (elevBounds.top - elevBounds.bottom);
+    return { lon, lat };
 }
 
 function worldToGridIndex(worldX, worldZ) {
@@ -3268,20 +3560,242 @@ function worldToGridIndex(worldX, worldZ) {
 }
 
 function updateCursorHUD(clientX, clientY) {
-    const elevEl = document.getElementById('hud-elev');
-    const slopeEl = document.getElementById('hud-slope');
-    const aspectEl = document.getElementById('hud-aspect');
-    if (!elevEl || !processedData) return;
+	const elevEl = document.getElementById('hud-elev');
+	const slopeEl = document.getElementById('hud-slope');
+	const aspectEl = document.getElementById('hud-aspect');
+	const distEl = document.getElementById('hud-dist');
+	if (!elevEl || !processedData) return;
     const world = raycastToWorld(clientX, clientY);
-    if (!world) { elevEl.textContent = '--'; if (slopeEl) slopeEl.textContent = '--'; if (aspectEl) aspectEl.textContent = '--'; return; }
+	if (!world) {
+		elevEl.textContent = '--';
+		if (slopeEl) slopeEl.textContent = '--';
+		if (aspectEl) aspectEl.textContent = '--';
+		if (distEl) distEl.textContent = '--';
+		return;
+	}
     const idx = worldToGridIndex(world.x, world.z);
     if (!idx) return;
-    const z = processedData.elevation[idx.i][idx.j] ?? 0;
+	const zMeters = processedData.elevation[idx.i][idx.j] ?? 0;
     const s = getSlopeDegrees(idx.i, idx.j);
     const a = getAspectDegrees(idx.i, idx.j);
-    elevEl.textContent = Math.round(z).toString();
-    if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? s.toFixed(1) : '--';
-    if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? Math.round(a).toString() : '--';
+	const units = (hudSettings && hudSettings.units) || 'metric';
+	const elevText = formatElevation(zMeters, units);
+	elevEl.textContent = elevText;
+	if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}°` : '--';
+	if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}°` : '--';
+	if (distEl) {
+		const dMeters = computeDistanceToNearestBorderMetersGeo(world.x, world.z);
+		distEl.textContent = (dMeters != null && isFinite(dMeters)) ? formatDistance(dMeters, units) : '--';
+	}
+}
+
+function loadHudSettings() {
+	try {
+		const raw = localStorage.getItem('hudSettings');
+		const parsed = raw ? JSON.parse(raw) : null;
+		hudSettings = parsed || {
+			units: 'metric', // 'metric'|'imperial'|'both'
+			show: { elevation: true, slope: true, aspect: true, distance: false }
+		};
+	} catch (_) {
+		hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, distance: false } };
+	}
+}
+
+function saveHudSettings() {
+	try { localStorage.setItem('hudSettings', JSON.stringify(hudSettings)); } catch (_) {}
+}
+
+function applyHudSettingsToUI() {
+	if (!hudSettings) return;
+	const u = hudSettings.units;
+	const unitsRadios = document.querySelectorAll('input[name="hud-units"]');
+	unitsRadios.forEach(r => { r.checked = (r.value === u); });
+	const rowElev = document.getElementById('hud-row-elev');
+	const rowSlope = document.getElementById('hud-row-slope');
+	const rowAspect = document.getElementById('hud-row-aspect');
+	const rowDist = document.getElementById('hud-row-dist');
+    const rowRelief = document.getElementById('hud-row-relief');
+	if (rowElev) rowElev.style.display = hudSettings.show.elevation ? '' : 'none';
+	if (rowSlope) rowSlope.style.display = hudSettings.show.slope ? '' : 'none';
+	if (rowAspect) rowAspect.style.display = hudSettings.show.aspect ? '' : 'none';
+	if (rowDist) rowDist.style.display = hudSettings.show.distance ? '' : 'none';
+    if (rowRelief) rowRelief.style.display = hudSettings.show.relief ? '' : 'none';
+	const chkElev = document.getElementById('hud-show-elev');
+	const chkSlope = document.getElementById('hud-show-slope');
+	const chkAspect = document.getElementById('hud-show-aspect');
+	const chkDist = document.getElementById('hud-show-dist');
+    const chkRelief = document.getElementById('hud-show-relief');
+	if (chkElev) chkElev.checked = !!hudSettings.show.elevation;
+	if (chkSlope) chkSlope.checked = !!hudSettings.show.slope;
+	if (chkAspect) chkAspect.checked = !!hudSettings.show.aspect;
+	if (chkDist) chkDist.checked = !!hudSettings.show.distance;
+    if (chkRelief) chkRelief.checked = !!hudSettings.show.relief;
+}
+
+function bindHudSettingsHandlers() {
+	// Units
+	document.querySelectorAll('input[name="hud-units"]').forEach(r => {
+		r.addEventListener('change', (e) => {
+			if (e.target.checked) {
+				hudSettings.units = e.target.value;
+				saveHudSettings();
+				// Refresh current HUD display
+				if (typeof currentMouseX === 'number' && typeof currentMouseY === 'number') {
+					updateCursorHUD(currentMouseX, currentMouseY);
+				}
+			}
+		});
+	});
+	// Visibility
+	const vis = [
+		{ id: 'hud-show-elev', key: 'elevation' },
+		{ id: 'hud-show-slope', key: 'slope' },
+		{ id: 'hud-show-aspect', key: 'aspect' },
+		{ id: 'hud-show-dist', key: 'distance' },
+		{ id: 'hud-show-relief', key: 'relief' }
+	];
+	vis.forEach(({ id, key }) => {
+		const el = document.getElementById(id);
+		if (el) {
+			el.addEventListener('change', () => {
+				hudSettings.show[key] = !!el.checked;
+				saveHudSettings();
+				applyHudSettingsToUI();
+			});
+		}
+	});
+}
+
+function formatElevation(meters, units) {
+	const feet = meters * 3.280839895;
+	if (units === 'metric') return `${Math.round(meters)} m`;
+	if (units === 'imperial') return `${Math.round(feet)} ft`;
+	return `${Math.round(meters)} m / ${Math.round(feet)} ft`;
+}
+
+function formatDistance(meters, units) {
+	const miles = meters / 1609.344;
+	const km = meters / 1000;
+	if (units === 'metric') return km < 1 ? `${Math.round(meters)} m` : `${km.toFixed(2)} km`;
+	if (units === 'imperial') return miles < 0.5 ? `${Math.round(meters * 3.280839895)} ft` : `${miles.toFixed(2)} mi`;
+	const left = km < 1 ? `${Math.round(meters)} m` : `${km.toFixed(2)} km`;
+	const right = miles < 0.5 ? `${Math.round(meters * 3.280839895)} ft` : `${miles.toFixed(2)} mi`;
+	return `${left} / ${right}`;
+}
+
+function getMetersScalePerWorldUnit() {
+	if (!processedData) return { mx: 1, mz: 1 };
+	if (params.renderMode === 'bars') {
+		const mx = (processedData.bucketSizeMetersX || 1) / (params.bucketSize || 1);
+		const mz = (processedData.bucketSizeMetersY || 1) / (params.bucketSize || 1);
+		return { mx, mz };
+	} else {
+		const mx = processedData.bucketSizeMetersX || 1;
+		const mz = processedData.bucketSizeMetersY || 1;
+		return { mx, mz };
+	}
+}
+
+function computeDistanceToNearestBorderMetersGeo(worldX, worldZ) {
+    if (!rawElevationData) return null;
+    if (!borderSegmentsGeo || borderSegmentsGeo.length === 0) {
+        return computeDistanceToDataEdgeMeters(worldX, worldZ);
+    }
+    const ll = worldToLonLat(worldX, worldZ);
+    if (!ll) return null;
+    const { lon, lat } = ll;
+    // Query spatial index (cell + neighbors)
+    const ix = Math.floor(lon / borderGeoCellSizeDeg);
+    const iy = Math.floor(lat / borderGeoCellSizeDeg);
+    let candidates = new Set();
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            const key = `${ix + dx},${iy + dy}`;
+            const arr = borderGeoIndex && borderGeoIndex.get(key);
+            if (arr) arr.forEach(id => candidates.add(id));
+        }
+    }
+    if (candidates.size === 0) {
+        // Fallback: widen search radius (two-ring)
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
+                const key = `${ix + dx},${iy + dy}`;
+                const arr = borderGeoIndex && borderGeoIndex.get(key);
+                if (arr) arr.forEach(id => candidates.add(id));
+            }
+        }
+    }
+    if (candidates.size === 0) {
+        // Fallback to data edge distance if no nearby border segments
+        return computeDistanceToDataEdgeMeters(worldX, worldZ);
+    }
+    // Local meters per degree at this latitude (equirectangular approximation)
+    const metersPerDegX = 111320 * Math.cos(lat * Math.PI / 180);
+    const metersPerDegY = 110574; // average meridional
+    const px = 0, py = 0; // we'll translate lon/lat to a local tangent plane centered at (lon, lat)
+    let best = Infinity;
+    for (const id of candidates) {
+        const seg = borderSegmentsGeo[id];
+        // Convert to local meters
+        const ax = (seg.axLon - lon) * metersPerDegX;
+        const ay = (seg.axLat - lat) * metersPerDegY;
+        const bx = (seg.bxLon - lon) * metersPerDegX;
+        const by = (seg.bxLat - lat) * metersPerDegY;
+        const d = distancePointToSegment2D(px, py, ax, ay, bx, by);
+        if (d < best) best = d;
+    }
+    return isFinite(best) ? best : null;
+}
+
+function computeDistanceToDataEdgeMeters(worldX, worldZ) {
+    if (!processedData) return null;
+    const w = processedData.width;
+    const h = processedData.height;
+    let xMin, xMax, zMin, zMax;
+    if (params.renderMode === 'bars') {
+        const bucket = params.bucketSize;
+        xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
+        zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
+    } else if (params.renderMode === 'points') {
+        xMin = -(w - 1) / 2; xMax = (w - 1) / 2;
+        zMin = -(h - 1) / 2; zMax = (h - 1) / 2;
+    } else {
+        xMin = -w / 2; xMax = w / 2;
+        zMin = -h / 2; zMax = h / 2;
+    }
+    const { mx, mz } = getMetersScalePerWorldUnit();
+    const x = worldX, z = worldZ;
+    const insideX = (x >= xMin && x <= xMax);
+    const insideZ = (z >= zMin && z <= zMax);
+    if (insideX && insideZ) {
+        const dxLeft = (x - xMin) * mx;
+        const dxRight = (xMax - x) * mx;
+        const dzBottom = (z - zMin) * mz;
+        const dzTop = (zMax - z) * mz;
+        return Math.min(dxLeft, dxRight, dzBottom, dzTop);
+    }
+    // Outside rectangle: distance to closest point on rect
+    const clampedX = Math.max(xMin, Math.min(xMax, x));
+    const clampedZ = Math.max(zMin, Math.min(zMax, z));
+    const dx = (x - clampedX) * mx;
+    const dz = (z - clampedZ) * mz;
+    return Math.hypot(dx, dz);
+}
+
+function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
+	const vx = bx - ax;
+	const vz = bz - az;
+	const wx = px - ax;
+	const wz = pz - az;
+	const c1 = vx * wx + vz * wz;
+	if (c1 <= 0) return Math.hypot(px - ax, pz - az);
+	const c2 = vx * vx + vz * vz;
+	if (c2 <= c1) return Math.hypot(px - bx, pz - bz);
+	const t = c1 / c2;
+	const projx = ax + t * vx;
+	const projz = az + t * vz;
+	return Math.hypot(px - projx, pz - projz);
 }
 
 function onMouseDown(event) {

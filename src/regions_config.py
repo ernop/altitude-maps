@@ -1,0 +1,546 @@
+"""
+Centralized region definitions.
+
+This is the SINGLE SOURCE OF TRUTH for all region definitions in the project.
+Add or remove regions here to control:
+- Which regions are available for download
+- Which regions appear in the viewer
+- Download bounds, boundary clipping, and metadata
+
+IMPORTANT: This file is for REGION DEFINITIONS only.
+- Having a region here does NOT mean data exists for it
+- Data availability is checked separately (manifest, raw files)
+- Download logic is in src/downloaders/
+- Registry/aggregation logic is in src/regions_registry.py
+"""
+
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple, List
+from pathlib import Path
+
+Bounds = Tuple[float, float, float, float]  # (west, south, east, north)
+
+
+@dataclass
+class RegionConfig:
+    """Configuration for a single region."""
+    id: str  # Unique identifier (lowercase with underscores)
+    name: str  # Display name
+    bounds: Bounds  # (west, south, east, north) in degrees
+    description: Optional[str] = None
+    category: str = "generic"  # 'usa_state', 'usa_full', 'international', 'island', 'mountain_range', etc.
+    country: Optional[str] = None  # Country name if applicable
+    clip_boundary: bool = True  # Whether to clip to administrative boundary
+    recommended_dataset: str = "SRTMGL1"  # Default dataset for downloads
+
+
+# ============================================================================
+# US STATES
+# ============================================================================
+
+US_STATES: Dict[str, RegionConfig] = {
+    
+    "arizona": RegionConfig(
+        id="arizona",
+        name="Arizona",
+        bounds=(-114.82, 31.33, -109.05, 37.00),
+        description="Arizona - Grand Canyon",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "california": RegionConfig(
+        id="california",
+        name="California",
+        bounds=(-124.48, 32.53, -114.13, 42.01),
+        description="California",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "colorado": RegionConfig(
+        id="colorado",
+        name="Colorado",
+        bounds=(-109.06, 36.99, -102.04, 41.00),
+        description="Colorado - Rocky Mountains",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    
+    "kansas": RegionConfig(
+        id="kansas",
+        name="Kansas",
+        bounds=(-102.05, 36.99, -94.59, 40.00),
+        description="Kansas",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "kentucky": RegionConfig(
+        id="kentucky",
+        name="Kentucky",
+        bounds=(-89.57, 36.50, -81.96, 39.15),
+        description="Kentucky",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "maine": RegionConfig(
+        id="maine",
+        name="Maine",
+        bounds=(-71.08, 42.98, -66.95, 47.46),
+        description="Maine",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    
+    "minnesota": RegionConfig(
+        id="minnesota",
+        name="Minnesota",
+        bounds=(-97.24, 43.50, -89.53, 49.38),
+        description="Minnesota",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "nebraska": RegionConfig(
+        id="nebraska",
+        name="Nebraska",
+        bounds=(-104.05, 40.00, -95.31, 43.00),
+        description="Nebraska",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "nevada": RegionConfig(
+        id="nevada",
+        name="Nevada",
+        bounds=(-120.01, 35.00, -114.04, 42.00),
+        description="Nevada",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "new_hampshire": RegionConfig(
+        id="new_hampshire",
+        name="New Hampshire",
+        bounds=(-72.56, 42.70, -70.70, 45.31),
+        description="New Hampshire",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "new_jersey": RegionConfig(
+        id="new_jersey",
+        name="New Jersey",
+        bounds=(-75.56, 38.93, -73.89, 41.36),
+        description="New Jersey",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "new_mexico": RegionConfig(
+        id="new_mexico",
+        name="New Mexico",
+        bounds=(-109.05, 31.33, -103.00, 37.00),
+        description="New Mexico",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "new_york": RegionConfig(
+        id="new_york",
+        name="New York",
+        bounds=(-79.76, 40.50, -71.86, 45.02),
+        description="New York State",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "north_carolina": RegionConfig(
+        id="north_carolina",
+        name="North Carolina",
+        bounds=(-84.32, 33.84, -75.46, 36.59),
+        description="North Carolina",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "north_dakota": RegionConfig(
+        id="north_dakota",
+        name="North Dakota",
+        bounds=(-104.05, 45.94, -96.55, 49.00),
+        description="North Dakota",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "ohio": RegionConfig(
+        id="ohio",
+        name="Ohio",
+        bounds=(-84.82, 38.40, -80.52, 41.98),
+        description="Ohio",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "oklahoma": RegionConfig(
+        id="oklahoma",
+        name="Oklahoma",
+        bounds=(-103.00, 33.62, -94.43, 37.00),
+        description="Oklahoma",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "oregon": RegionConfig(
+        id="oregon",
+        name="Oregon",
+        bounds=(-124.57, 41.99, -116.46, 46.29),
+        description="Oregon",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "pennsylvania": RegionConfig(
+        id="pennsylvania",
+        name="Pennsylvania",
+        bounds=(-80.52, 39.72, -74.69, 42.27),
+        description="Pennsylvania",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "rhode_island": RegionConfig(
+        id="rhode_island",
+        name="Rhode Island",
+        bounds=(-71.91, 41.15, -71.12, 42.02),
+        description="Rhode Island",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "south_dakota": RegionConfig(
+        id="south_dakota",
+        name="South Dakota",
+        bounds=(-104.06, 42.48, -96.44, 45.94),
+        description="South Dakota",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "utah": RegionConfig(
+        id="utah",
+        name="Utah",
+        bounds=(-114.05, 37.00, -109.04, 42.00),
+        description="Utah",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "vermont": RegionConfig(
+        id="vermont",
+        name="Vermont",
+        bounds=(-73.44, 42.73, -71.46, 45.02),
+        description="Vermont",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "washington": RegionConfig(
+        id="washington",
+        name="Washington",
+        bounds=(-124.85, 45.54, -116.92, 49.05),
+        description="Washington State",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "wisconsin": RegionConfig(
+        id="wisconsin",
+        name="Wisconsin",
+        bounds=(-92.89, 42.49, -86.25, 47.31),
+        description="Wisconsin",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "wyoming": RegionConfig(
+        id="wyoming",
+        name="Wyoming",
+        bounds=(-111.06, 40.99, -104.05, 45.01),
+        description="Wyoming",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+}
+
+
+# ============================================================================
+# INTERNATIONAL REGIONS
+# ============================================================================
+
+INTERNATIONAL_REGIONS: Dict[str, RegionConfig] = {
+    # Countries
+    "iceland": RegionConfig(
+        id="iceland",
+        name="Iceland",
+        bounds=(-24.5, 63.4, -13.5, 66.6),
+        description="Iceland - volcanic terrain",
+        category="international",
+        country="Iceland",
+        clip_boundary=True,
+    ),
+    
+    # Islands
+    "gotland_island": RegionConfig(
+        id="gotland_island",
+        name="Gotland Island",
+        bounds=(17.9, 56.8, 19.5, 58.2),
+        description="Sweden - Gotland (Baltic Sea)",
+        category="island",
+        clip_boundary=False,
+    ),
+    "faroe_islands": RegionConfig(
+        id="faroe_islands",
+        name="Faroe Islands",
+        bounds=(-7.7, 61.4, -6.2, 62.4),
+        description="Faroe Islands - North Atlantic archipelago",
+        category="island",
+        clip_boundary=False,
+    ),
+    "tasmania": RegionConfig(
+        id="tasmania",
+        name="Tasmania",
+        bounds=(144.0, -44.2, 149.0, -39.1),
+        description="Tasmania (Australia) - island south of mainland",
+        category="island",
+        clip_boundary=False,
+    ),
+    "anticosti_island": RegionConfig(
+        id="anticosti_island",
+        name="Anticosti Island",
+        bounds=(-64.7, 48.9, -61.6, 50.0),
+        description="Canada - Anticosti Island (Quebec)",
+        category="island",
+        clip_boundary=False,
+    ),
+    "shikoku": RegionConfig(
+        id="shikoku",
+        name="Shikoku Island",
+        bounds=(132.155, 32.775, 134.8, 34.5),
+        description="Shikoku - smallest of Japan's main islands",
+        category="island",
+        clip_boundary=False,
+    ),
+    
+    # Special regions
+    "alps": RegionConfig(
+        id="alps",
+        name="Alps",
+        bounds=(5.0, 43.5, 17.0, 48.0),
+        description="European Alps",
+        category="mountain_range",
+        clip_boundary=False,
+    ),
+    "hong_kong": RegionConfig(
+        id="hong_kong",
+        name="Hong Kong",
+        bounds=(113.8, 22.15, 114.4, 22.6),
+        description="Hong Kong SAR",
+        category="special_administrative_region",
+        clip_boundary=False,
+    ),
+    
+    # Local regions (SF Bay Area)
+    "peninsula": RegionConfig(
+        id="peninsula",
+        name="San Mateo",
+        bounds=(-122.53, 37.43, -122.24, 37.70),
+        description="Union of Foster City, San Mateo, Burlingame, Half Moon Bay (approx bbox)",
+        category="local",
+        clip_boundary=False,
+    ),
+    "san_mateo": RegionConfig(
+        id="san_mateo",
+        name="Peninsula",
+        bounds=(-122.6, 37.0, -121.8, 37.9),
+        description="SF Peninsula: San Jose to San Francisco",
+        category="local",
+        clip_boundary=False,
+    ),
+}
+
+
+# ============================================================================
+# REGISTRY
+# ============================================================================
+
+# Combined registry of all regions
+ALL_REGIONS: Dict[str, RegionConfig] = {**US_STATES, **INTERNATIONAL_REGIONS}
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def get_region(region_id: str) -> Optional[RegionConfig]:
+    """Get region configuration by ID."""
+    region_id = region_id.lower().replace(" ", "_").replace("-", "_")
+    return ALL_REGIONS.get(region_id)
+
+
+def list_regions(category: Optional[str] = None) -> List[RegionConfig]:
+    """List all regions, optionally filtered by category."""
+    regions = list(ALL_REGIONS.values())
+    if category:
+        regions = [r for r in regions if r.category == category]
+    return sorted(regions, key=lambda r: r.name.lower())
+
+
+def get_us_state_names() -> Dict[str, str]:
+    """Get mapping of US state IDs to display names."""
+    return {state_id: config.name for state_id, config in US_STATES.items()}
+
+
+def get_us_state_bounds() -> Dict[str, Bounds]:
+    """Get mapping of US state IDs to bounds."""
+    return {state_id: config.bounds for state_id, config in US_STATES.items()}
+
+
+# ============================================================================
+# DATA AVAILABILITY CHECKING
+# ============================================================================
+
+def check_region_data_available(region_id: str) -> Dict[str, bool]:
+    """
+    Check if data exists for a region at each stage of the pipeline.
+    
+    Returns a dict with status for each stage:
+    - 'configured': Region exists in config (always True if region_id is valid)
+    - 'raw_file': Raw data file exists
+    - 'processed': Processed data exists
+    - 'in_manifest': Region appears in viewer manifest
+    
+    Args:
+        region_id: Region identifier
+        
+    Returns:
+        Dict with stage names as keys and bool values
+    """
+    region_id = region_id.lower().replace(" ", "_").replace("-", "_")
+    
+    # Check if region is configured
+    configured = region_id in ALL_REGIONS
+    
+    if not configured:
+        return {
+            'configured': False,
+            'raw_file': False,
+            'processed': False,
+            'in_manifest': False
+        }
+    
+    config = ALL_REGIONS[region_id]
+    
+    # Check for raw file
+    raw_file_exists = False
+    possible_raw_locations = [
+        Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif"),
+        Path(f"data/regions/{region_id}.tif"),
+        Path(f"data/raw/usa_3dep/{region_id}_3dep_10m.tif"),
+    ]
+    for loc in possible_raw_locations:
+        if loc.exists() and loc.stat().st_size > 1024:  # At least 1KB
+            raw_file_exists = True
+            break
+    
+    # Check for processed data
+    processed_exists = False
+    processed_dir = Path("generated/regions")
+    if processed_dir.exists():
+        json_files = list(processed_dir.glob(f"{region_id}_*.json"))
+        json_files = [f for f in json_files if '_borders' not in f.stem and '_meta' not in f.stem]
+        if len(json_files) > 0:
+            processed_exists = True
+    
+    # Check manifest
+    in_manifest = False
+    manifest_path = Path("generated/regions/regions_manifest.json")
+    if manifest_path.exists():
+        try:
+            import json
+            with open(manifest_path, 'r') as f:
+                manifest = json.load(f)
+                in_manifest = region_id in manifest.get('regions', {})
+        except Exception:
+            pass
+    
+    return {
+        'configured': True,
+        'raw_file': raw_file_exists,
+        'processed': processed_exists,
+        'in_manifest': in_manifest
+    }
+
+
+def list_available_regions() -> Dict[str, List[str]]:
+    """
+    List all regions, categorized by data availability.
+    
+    Returns:
+        Dict with keys:
+        - 'downloaded': Regions with raw data files
+        - 'processed': Regions with processed JSON files
+        - 'in_viewer': Regions appearing in manifest
+        - 'not_started': Configured but no data yet
+    """
+    downloaded = []
+    processed = []
+    in_viewer = []
+    not_started = []
+    
+    for region_id in ALL_REGIONS.keys():
+        status = check_region_data_available(region_id)
+        
+        if status['in_manifest']:
+            in_viewer.append(region_id)
+        elif status['processed']:
+            processed.append(region_id)
+        elif status['raw_file']:
+            downloaded.append(region_id)
+        else:
+            not_started.append(region_id)
+    
+    return {
+        'downloaded': sorted(downloaded),
+        'processed': sorted(processed),
+        'in_viewer': sorted(in_viewer),
+        'not_started': sorted(not_started)
+    }
+
+
+# ============================================================================
+# CONVENIENCE FUNCTIONS
+# ============================================================================
+
+def is_region_configured(region_id: str) -> bool:
+    """Check if a region is configured in the registry."""
+    return region_id.lower().replace(" ", "_").replace("-", "_") in ALL_REGIONS
+
+
+def get_region_bounds(region_id: str) -> Optional[Bounds]:
+    """Get bounds for a region."""
+    config = get_region(region_id)
+    return config.bounds if config else None
+
+
+def should_clip_boundary(region_id: str) -> bool:
+    """Check if a region should be clipped to administrative boundaries."""
+    config = get_region(region_id)
+    return config.clip_boundary if config else True  # Default to True
+
+

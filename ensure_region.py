@@ -25,8 +25,12 @@ if sys.platform == 'win32':
     except (AttributeError, ValueError):
         pass
 
-# Import region definitions
-from download_regions import REGIONS as INTERNATIONAL_REGIONS
+# Import region definitions from centralized config
+from src.regions_config import ALL_REGIONS, get_us_state_names
+
+
+# Create mapping for backward compatibility during transition
+US_STATE_NAMES = get_us_state_names()
 
 
 def check_venv():
@@ -202,28 +206,6 @@ def validate_json_export(file_path: Path) -> bool:
         return False
 
 
-# US State name mapping
-US_STATE_NAMES = {
-    'alabama': 'Alabama', 'arizona': 'Arizona', 'arkansas': 'Arkansas',
-    'california': 'California', 'colorado': 'Colorado', 'connecticut': 'Connecticut',
-    'delaware': 'Delaware', 'florida': 'Florida', 'georgia': 'Georgia',
-    'idaho': 'Idaho', 'illinois': 'Illinois', 'indiana': 'Indiana',
-    'iowa': 'Iowa', 'kansas': 'Kansas', 'kentucky': 'Kentucky',
-    'louisiana': 'Louisiana', 'maine': 'Maine', 'maryland': 'Maryland',
-    'massachusetts': 'Massachusetts', 'michigan': 'Michigan', 'minnesota': 'Minnesota',
-    'mississippi': 'Mississippi', 'missouri': 'Missouri', 'montana': 'Montana',
-    'nebraska': 'Nebraska', 'nevada': 'Nevada', 'new_hampshire': 'New Hampshire',
-    'new_jersey': 'New Jersey', 'new_mexico': 'New Mexico', 'new_york': 'New York',
-    'north_carolina': 'North Carolina', 'north_dakota': 'North Dakota',
-    'ohio': 'Ohio', 'oklahoma': 'Oklahoma', 'oregon': 'Oregon',
-    'pennsylvania': 'Pennsylvania', 'rhode_island': 'Rhode Island',
-    'south_carolina': 'South Carolina', 'south_dakota': 'South Dakota',
-    'tennessee': 'Tennessee', 'texas': 'Texas', 'utah': 'Utah',
-    'vermont': 'Vermont', 'virginia': 'Virginia', 'washington': 'Washington',
-    'west_virginia': 'West Virginia', 'wisconsin': 'Wisconsin', 'wyoming': 'Wyoming'
-}
-
-
 def get_region_info(region_id):
     """
     Get information about a region (US state or international).
@@ -235,25 +217,31 @@ def get_region_info(region_id):
         
         Returns (None, None) if region not found
     """
-    # Check if it's a US state
-    if region_id in US_STATE_NAMES:
-        return 'us_state', {
-            'name': US_STATE_NAMES[region_id],
-            'display_name': US_STATE_NAMES[region_id]
-        }
+    # Normalize region ID
+    region_id = region_id.lower().replace(' ', '_').replace('-', '_')
     
-    # Check if it's an international region
-    if region_id in INTERNATIONAL_REGIONS:
-        region_data = INTERNATIONAL_REGIONS[region_id]
-        return 'international', {
-            'name': region_data['name'],
-            'display_name': region_data['name'],
-            'bounds': region_data['bounds'],
-            'description': region_data['description'],
-            'clip_boundary': region_data.get('clip_boundary', True)  # Default to True for backward compatibility
-        }
+    # Look up region in centralized config
+    region_config = ALL_REGIONS.get(region_id)
     
-    return None, None
+    if region_config is None:
+        return None, None
+    
+    # Determine region type
+    if region_config.category == 'usa_state':
+        region_type = 'us_state'
+    else:
+        region_type = 'international'
+    
+    # Build region data dict
+    region_data = {
+        'name': region_config.name,
+        'display_name': region_config.name,
+        'bounds': region_config.bounds,
+        'description': region_config.description or region_config.name,
+        'clip_boundary': region_config.clip_boundary
+    }
+    
+    return region_type, region_data
 
 
 def find_raw_file(region_id):
@@ -843,17 +831,20 @@ This script will:
     
     # Handle --list-regions
     if args.list_regions:
+        from src.regions_config import US_STATES, INTERNATIONAL_REGIONS
+        
         print("\n📋 AVAILABLE REGIONS:")
         print("="*70)
         print("\n🇺🇸 US STATES:")
-        for state_id in sorted(US_STATE_NAMES.keys()):
-            print(f"  - {state_id:20s} -> {US_STATE_NAMES[state_id]}")
+        for state_id in sorted(US_STATES.keys()):
+            config = US_STATES[state_id]
+            print(f"  - {state_id:20s} -> {config.name}")
         print(f"\n🌍 INTERNATIONAL REGIONS:")
         for region_id in sorted(INTERNATIONAL_REGIONS.keys()):
-            info = INTERNATIONAL_REGIONS[region_id]
-            print(f"  - {region_id:20s} -> {info['name']}")
+            config = INTERNATIONAL_REGIONS[region_id]
+            print(f"  - {region_id:20s} -> {config.name}")
         print(f"\n{'='*70}")
-        print(f"Total: {len(US_STATE_NAMES)} US states + {len(INTERNATIONAL_REGIONS)} international regions")
+        print(f"Total: {len(US_STATES)} US states + {len(INTERNATIONAL_REGIONS)} international regions")
         print(f"\nUsage: python ensure_region.py <region_id>")
         return 0
     
@@ -873,9 +864,7 @@ This script will:
         print("="*70, flush=True)
         print(f"\nRegion '{region_id}' is not recognized.")
         print(f"\nAvailable options:")
-        print(f"  - {len(US_STATE_NAMES)} US states (ohio, california, etc.)")
-        print(f"  - {len(INTERNATIONAL_REGIONS)} international regions (iceland, japan, etc.)")
-        print(f"\nRun with --list-regions to see all available regions")
+        print(f"  - Run with --list-regions to see all available regions")
         return 1
     
     print("="*70, flush=True)

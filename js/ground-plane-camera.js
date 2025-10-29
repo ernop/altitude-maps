@@ -26,8 +26,7 @@
     };
     console.log = wrap(console.log);
     console.info = wrap(console.info);
-    console.warn = wrap(console.warn);
-    console.error = wrap(console.error);
+    // Do not wrap warn/error so critical issues are never suppressed or altered
 })();
 // The fundamental model used by Google Maps, Mapbox, etc.
 // 

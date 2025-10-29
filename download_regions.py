@@ -26,8 +26,22 @@ except ImportError as e:
     print("Install with: pip install rasterio requests tqdm")
     sys.exit(1)
 
-# Region definitions: name, bounds (left, bottom, right, top), description
-REGIONS = {
+# Import region definitions from centralized config
+try:
+    from src.regions_config import ALL_REGIONS, RegionConfig
+    
+    # Convert RegionConfig objects to dict format for backward compatibility
+    REGIONS = {}
+    for region_id, config in ALL_REGIONS.items():
+        REGIONS[region_id] = {
+            "bounds": config.bounds,
+            "name": config.name,
+            "description": config.description or config.name,
+            "clip_boundary": config.clip_boundary
+        }
+except ImportError:
+    # Fallback: Define regions here if import fails (shouldn't happen in normal use)
+    REGIONS = {
     # Asia
     "japan": {
         "bounds": (129.0, 30.0, 146.0, 46.0),
