@@ -11,6 +11,43 @@ body {
 #container { width: 100vw; height: 100vh; position: relative; }
 #canvas-container { width: 100%; height: 100%; }
 
+/* Mobile UI toggle */
+#mobile-ui-toggle {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: linear-gradient(135deg, #ffaa66, #ff8844);
+    color: #000;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 12px;
+    box-shadow: 0 4px 15px rgba(255, 136, 68, 0.3);
+    z-index: 110;
+}
+
+/* Collapsed controls state */
+body.ui-collapsed #controls {
+    display: none;
+}
+
+/* Make toggle especially prominent on small screens */
+@media (max-width: 768px) {
+    #controls {
+        max-width: 86vw;
+        right: 7vw;
+        left: 7vw;
+    }
+    #mobile-ui-toggle {
+        top: 12px;
+        left: 12px;
+        font-size: 13px;
+        padding: 10px 16px;
+    }
+}
+
 /* Controls Panel */
 #controls {
     position: absolute;

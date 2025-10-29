@@ -71,6 +71,21 @@ function internalToMultiplier(internalValue) {
     return Math.round(internalValue / trueScaleValue);
 }
 
+// Simple debounce utility for coalescing rapid UI events
+function debounce(func, wait) {
+    let timeoutId;
+    return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// Bars/Points fast-update state
+let barsInstancedMesh = null;
+let barsBarData = null; // array of { i, j, x, z }
+let barsTileSize = 0;
+const barsDummy = new THREE.Object3D();
+
 // Parameters
 let params = {
     bucketSize: 4,  // Integer multiplier of pixel spacing (1×, 2×, 3×, etc.)
@@ -129,6 +144,15 @@ async function init() {
     if (dropdown && regionOptions.length) {
         dropdown.innerHTML = '';
         regionOptions.forEach((opt) => {
+            if (opt.id === '__divider__') {
+                const div = document.createElement('div');
+                div.setAttribute('data-divider', 'true');
+                div.style.margin = '6px 0';
+                div.style.borderTop = '1px solid rgba(85,136,204,0.35)';
+                div.style.opacity = '0.8';
+                dropdown.appendChild(div);
+                return;
+            }
             const row = document.createElement('div');
             row.textContent = opt.name;
             row.setAttribute('data-id', opt.id);
@@ -319,58 +343,57 @@ async function populateRegionSelector() {
     regionNameToId = {};
     regionOptions = [];
     
-    // Group regions by continent/category
-    const grouped = {};
+    // Build three groups in desired order:
+    // 1) International countries, 2) Non-country regions, 3) US states
+    const usStateIds = new Set(['california','texas','colorado','washington','new_york','florida','arizona','alaska','hawaii','oregon','nevada','utah','idaho','montana','wyoming','new_mexico','north_dakota','south_dakota','nebraska','kansas','oklahoma','minnesota','iowa','missouri','arkansas','louisiana','wisconsin','illinois','michigan','indiana','ohio','mississippi','alabama','tennessee','kentucky','georgia','south_carolina','north_carolina','virginia','west_virginia','maryland','delaware','new_jersey','pennsylvania','connecticut','rhode_island','massachusetts','vermont','new_hampshire','maine']);
+    const knownNonCountryIds = new Set(['hong_kong','shikoku','hokkaido','honshu','kyushu','kochi','tasmania','faroe_islands','gotland_island','peninsula','san_mateo','alps','rockies']);
+    const internationalCountries = [];
+    const nonCountryRegions = [];
+    const unitedStates = [];
+
     for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
-        // Determine group based on region name/id
-        let group = 'Other';
-        if (regionId.includes('usa_') || ['california', 'texas', 'colorado', 'washington', 'new_york', 'florida', 'arizona', 'alaska', 'hawaii', 'oregon', 'nevada', 'utah', 'idaho', 'montana', 'wyoming', 'new_mexico', 'north_dakota', 'south_dakota', 'nebraska', 'kansas', 'oklahoma', 'minnesota', 'iowa', 'missouri', 'arkansas', 'louisiana', 'wisconsin', 'illinois', 'michigan', 'indiana', 'ohio', 'mississippi', 'alabama', 'tennessee', 'kentucky', 'georgia', 'south_carolina', 'north_carolina', 'virginia', 'west_virginia', 'maryland', 'delaware', 'new_jersey', 'pennsylvania', 'connecticut', 'rhode_island', 'massachusetts', 'vermont', 'new_hampshire', 'maine'].includes(regionId)) {
-            group = 'USA';
-        } else if (['canada', 'mexico'].includes(regionId)) {
-            group = 'North America';
-        } else if (['japan', 'china', 'south_korea', 'india', 'thailand', 'vietnam', 'nepal', 'shikoku', 'hokkaido', 'honshu', 'kyushu', 'kochi'].includes(regionId)) {
-            group = 'Asia';
-        } else if (['germany', 'france', 'italy', 'spain', 'uk', 'poland', 'norway', 'sweden', 'switzerland', 'austria', 'greece', 'netherlands', 'iceland'].includes(regionId)) {
-            group = 'Europe';
-        } else if (['brazil', 'argentina', 'chile', 'peru'].includes(regionId)) {
-            group = 'South America';
-        } else if (['australia', 'new_zealand'].includes(regionId)) {
-            group = 'Oceania';
-        } else if (['south_africa', 'egypt', 'kenya'].includes(regionId)) {
-            group = 'Africa';
-        } else if (['israel', 'saudi_arabia'].includes(regionId)) {
-            group = 'Middle East';
-        } else if (['alps', 'rockies'].includes(regionId)) {
-            group = 'Mountain Ranges';
+        const id = regionId;
+        const name = regionInfo?.name || regionId;
+        if (usStateIds.has(id) || id.startsWith('usa_')) {
+            unitedStates.push({ id, info: regionInfo });
+            continue;
         }
-        
-        if (!grouped[group]) grouped[group] = [];
-        grouped[group].push({ id: regionId, info: regionInfo });
-    }
-    
-    // Add grouped options with non-US first, then a visual divider, then USA
-    const nonUsOrder = ['Europe', 'Asia', 'Africa', 'Oceania', 'South America', 'Middle East', 'North America', 'Mountain Ranges', 'Other'];
-    for (const groupName of nonUsOrder) {
-        if (!grouped[groupName]) continue;
-        grouped[groupName].sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of grouped[groupName]) {
-            regionIdToName[id] = info.name;
-            regionNameToId[info.name.toLowerCase()] = id;
-            regionOptions.push({ id, name: info.name });
+        const looksLikeNonCountry = knownNonCountryIds.has(id) || /\b(island|islands|peninsula|range)\b/i.test(name);
+        if (looksLikeNonCountry) {
+            nonCountryRegions.push({ id, info: regionInfo });
+        } else {
+            internationalCountries.push({ id, info: regionInfo });
         }
     }
-    // Insert a non-selectable divider to separate non-US from USA
-    if (grouped['USA'] && regionOptions.length) {
+
+    // 1) International countries (alpha)
+    internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of internationalCountries) {
+        regionIdToName[id] = info.name;
+        regionNameToId[info.name.toLowerCase()] = id;
+        regionOptions.push({ id, name: info.name });
+    }
+    if (internationalCountries.length && (nonCountryRegions.length || unitedStates.length)) {
         regionOptions.push({ id: '__divider__', name: '' });
     }
-    // Append USA group last
-    if (grouped['USA']) {
-        grouped['USA'].sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of grouped['USA']) {
-            regionIdToName[id] = info.name;
-            regionNameToId[info.name.toLowerCase()] = id;
-            regionOptions.push({ id, name: info.name });
-        }
+
+    // 2) Non-country regions (alpha)
+    nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of nonCountryRegions) {
+        regionIdToName[id] = info.name;
+        regionNameToId[info.name.toLowerCase()] = id;
+        regionOptions.push({ id, name: info.name });
+    }
+    if (nonCountryRegions.length && unitedStates.length) {
+        regionOptions.push({ id: '__divider__', name: '' });
+    }
+
+    // 3) US states (alpha)
+    unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of unitedStates) {
+        regionIdToName[id] = info.name;
+        regionNameToId[info.name.toLowerCase()] = id;
+        regionOptions.push({ id, name: info.name });
     }
     
     // Determine which region to load initially
@@ -598,10 +621,7 @@ function syncUIControls() {
         $colorScheme.trigger('change.select2');
     }
     
-    // Checkboxes
-    document.getElementById('showGrid').checked = params.showGrid;
-    document.getElementById('showBorders').checked = params.showBorders;
-    document.getElementById('autoRotate').checked = params.autoRotate;
+    // Checkboxes removed from UI; keep internal params without DOM sync
     
     // Apply visual settings to scene objects
     if (gridHelper) {
@@ -1173,15 +1193,14 @@ function setupControls() {
         }, 50);
     });
     
-    // Tile gap - immediate updates
+    // Tile gap - immediate UX, but debounce heavy rebuilds while dragging
     
     // Sync slider -> input
+    const debouncedRecreateTerrain = debounce(() => { recreateTerrain(); }, 80);
     document.getElementById('tileGap').addEventListener('input', (e) => {
         params.tileGap = parseInt(e.target.value);
         document.getElementById('tileGapInput').value = params.tileGap;
-        
-        // Update immediately for responsive feedback
-        recreateTerrain();  // Only recreate terrain, no need to rebucket
+        debouncedRecreateTerrain();
     });
     
     // Sync input -> slider
@@ -1222,6 +1241,20 @@ function setupControls() {
     // Vertical exaggeration - immediate updates while dragging
     
     // Sync slider -> input (update immediately)
+    const debouncedNormalsRecompute = debounce(() => {
+        if (terrainMesh && terrainMesh.geometry && params.renderMode === 'surface') {
+            terrainMesh.geometry.computeVertexNormals();
+            updateEdgeMarkers();
+        }
+    }, 80);
+
+    const debouncedExagRecreate = debounce(() => {
+        // Bars/points update via recreate, but debounced to stay responsive
+        if (params.renderMode === 'bars' || params.renderMode === 'points') {
+            recreateTerrain();
+        }
+    }, 80);
+
     document.getElementById('vertExag').addEventListener('input', (e) => {
         const multiplier = parseFloat(e.target.value);
         params.verticalExaggeration = multiplierToInternal(multiplier);
@@ -1232,6 +1265,19 @@ function setupControls() {
         
         // Update terrain immediately for responsive feedback
         updateTerrainHeight();
+        // Defer expensive normals compute while dragging (surface)
+        debouncedNormalsRecompute();
+        // Coalesce recreates in bars/points
+        debouncedExagRecreate();
+    });
+    // Finalize on slider change (compute normals once promptly)
+    document.getElementById('vertExag').addEventListener('change', (e) => {
+        if (terrainMesh && terrainMesh.geometry && params.renderMode === 'surface') {
+            terrainMesh.geometry.computeVertexNormals();
+            updateEdgeMarkers();
+        } else if (params.renderMode === 'bars' || params.renderMode === 'points') {
+            recreateTerrain();
+        }
     });
     
     // Sync input -> slider
@@ -1247,6 +1293,10 @@ function setupControls() {
         updateVertExagButtons(params.verticalExaggeration);
         
         updateTerrainHeight();
+        if (terrainMesh && terrainMesh.geometry && params.renderMode === 'surface') {
+            terrainMesh.geometry.computeVertexNormals();
+            updateEdgeMarkers();
+        }
     });
     
     // Color scheme
@@ -1255,24 +1305,7 @@ function setupControls() {
         updateColors();
     });
     
-    // Grid
-    document.getElementById('showGrid').addEventListener('change', (e) => {
-        params.showGrid = e.target.checked;
-        gridHelper.visible = params.showGrid;
-    });
-    
-    // Borders
-    document.getElementById('showBorders').addEventListener('change', (e) => {
-        params.showBorders = e.target.checked;
-        borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
-    });
-    
-    
-    // Auto-rotate
-    document.getElementById('autoRotate').addEventListener('change', (e) => {
-        params.autoRotate = e.target.checked;
-        controls.autoRotate = params.autoRotate;
-    });
+    // Grid/Borders/Auto-rotate UI controls removed; behavior controlled via params only
     
     // Initialize vertical exaggeration button states (highlight default active button)
     updateVertExagButtons(params.verticalExaggeration);
@@ -1495,6 +1528,32 @@ function setupEventListeners() {
     
     // Initialize default scheme (Google Maps Ground Plane)
     switchCameraScheme('ground-plane');
+
+    // Mobile/UI controls toggle
+    const mobileToggleBtn = document.getElementById('mobile-ui-toggle');
+    if (mobileToggleBtn) {
+        const isSmallScreen = window.innerWidth <= 768;
+        if (isSmallScreen) {
+            document.body.classList.add('ui-collapsed');
+            mobileToggleBtn.textContent = 'Show Controls';
+        }
+        const updateLabel = () => {
+            const collapsed = document.body.classList.contains('ui-collapsed');
+            mobileToggleBtn.textContent = collapsed ? 'Show Controls' : 'Hide Controls';
+        };
+        mobileToggleBtn.addEventListener('click', () => {
+            document.body.classList.toggle('ui-collapsed');
+            updateLabel();
+        });
+        // If screen resizes across breakpoint, keep sensible state
+        window.addEventListener('resize', () => {
+            const small = window.innerWidth <= 768;
+            if (small && !document.body.classList.contains('ui-collapsed')) {
+                document.body.classList.add('ui-collapsed');
+                updateLabel();
+            }
+        });
+    }
 }
 
 // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
@@ -1733,8 +1792,8 @@ function createBarsTerrain(width, height, elevation, scale) {
     // Gap: 0% = tiles touching (1.0), 1% = 0.99, 50% = 0.5, 99% = 0.01 (tiny tiles)
     const gapMultiplier = 1 - (params.tileGap / 100);
     const tileSize = gapMultiplier * bucketMultiplier;
-    // Use minimal segments (1,1,1) - Y scaling is applied per-instance, XZ never changes
-    const baseGeometry = new THREE.BoxGeometry(tileSize, 1, tileSize, 1, 1, 1);
+    // Base unit cube (1×1×1). We'll scale X/Z per-instance so tile gap can update without rebuilds.
+    const baseGeometry = new THREE.BoxGeometry(1, 1, 1, 1, 1, 1);
     
     console.log(`ðŸ"¦ PURE 2D GRID: ${width} Ã— ${height} bars (spacing: ${bucketMultiplier}Ã—, gap: ${params.tileGap}%)`);
     console.log(`ðŸ"¦ Tile XZ footprint: ${tileSize.toFixed(2)} Ã— ${tileSize.toFixed(2)} (uniform squares, NEVER changes with Y scale)`);
@@ -1761,7 +1820,7 @@ function createBarsTerrain(width, height, elevation, scale) {
             // Position on UNIFORM grid - same spacing in both X and Z directions
             const xPos = j * bucketMultiplier;  // Column Ã— tile size
             const zPos = i * bucketMultiplier;  // Row Ã— tile size (NO aspect ratio!)
-            barData.push({ x: xPos, y: elev / 2, z: zPos, height: elev, color });
+            barData.push({ i, j, x: xPos, z: zPos, height: elev, color });
         }
     }
     
@@ -1786,7 +1845,7 @@ function createBarsTerrain(width, height, elevation, scale) {
         // This ensures no rotation/skew and that scale is ONLY in Y direction
         dummy.rotation.set(0, 0, 0);
         dummy.position.set(bar.x, bar.y, bar.z);
-        dummy.scale.set(1, bar.height, 1);  // Scale ONLY Y (height), NOT X or Z!
+        dummy.scale.set(tileSize, bar.height, tileSize);  // Scale X/Z by tile size, Y by height
         dummy.updateMatrix();
         instancedMesh.setMatrixAt(i, dummy.matrix);
         
@@ -1796,7 +1855,10 @@ function createBarsTerrain(width, height, elevation, scale) {
         colorArray[i * 3 + 2] = bar.color.b;
     }
     
-    // Log first few bars for debugging - verify XZ footprint is consistent
+    // Persist references for fast, in-place updates (no rebuilds)
+    barsInstancedMesh = instancedMesh;
+    barsBarData = barData;
+    barsTileSize = tileSize;
     if (barCount > 0) {
         console.log(`ðŸ“¦ Sample bars (verifying XZ footprint is constant):`);
         for (let i = 0; i < Math.min(3, barCount); i++) {
@@ -2004,8 +2066,34 @@ function getColorForElevation(elevation) {
 function updateTerrainHeight() {
     if (!terrainMesh) return;
     
-    if (params.renderMode === 'bars' || params.renderMode === 'points') {
-        recreateTerrain();
+    if (params.renderMode === 'bars') {
+        if (!barsInstancedMesh || !barsBarData) { recreateTerrain(); return; }
+        const count = barsBarData.length;
+        const gapMultiplier = 1 - (params.tileGap / 100);
+        const bucketMultiplier = params.bucketSize;
+        const newTileSize = gapMultiplier * bucketMultiplier;
+        for (let i = 0; i < count; i++) {
+            const bar = barsBarData[i];
+            const elev = Math.max((processedData.elevation[bar.i][bar.j] || 0) * params.verticalExaggeration, 0.1);
+            dummy.rotation.set(0, 0, 0);
+            dummy.position.set(bar.x, elev / 2, bar.z);
+            dummy.scale.set(newTileSize, elev, newTileSize);
+            dummy.updateMatrix();
+            barsInstancedMesh.setMatrixAt(i, dummy.matrix);
+        }
+        barsInstancedMesh.instanceMatrix.needsUpdate = true;
+    } else if (params.renderMode === 'points') {
+        const positions = terrainMesh.geometry.attributes.position;
+        const { width, height, elevation } = processedData;
+        let idx = 0;
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                const z = elevation[i] && elevation[i][j] ? elevation[i][j] : 0;
+                positions.setY(idx, z * params.verticalExaggeration);
+                idx++;
+            }
+        }
+        positions.needsUpdate = true;
     } else {
         const positions = terrainMesh.geometry.attributes.position;
         const { width, height, elevation } = processedData;
@@ -2022,10 +2110,6 @@ function updateTerrainHeight() {
         }
         
         positions.needsUpdate = true;
-        terrainMesh.geometry.computeVertexNormals();
-        
-        // Update edge markers to match new height
-        updateEdgeMarkers();
     }
 }
 
@@ -2471,7 +2555,6 @@ function onKeyDown(event) {
         event.preventDefault();
         params.autoRotate = !params.autoRotate;
         controls.autoRotate = params.autoRotate;
-        document.getElementById('autoRotate').checked = params.autoRotate;
     }
 }
 

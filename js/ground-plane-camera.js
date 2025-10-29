@@ -20,6 +20,7 @@ class GroundPlaneCamera extends CameraScheme {
         this.touches = {};
         this.lastPinchDistance = 0;
         this.lastTouchCenter = null;
+        this.lastTouchAngle = null; // For two-finger twist rotation
         this.touchStartPositions = null;
     }
     
@@ -385,6 +386,9 @@ class GroundPlaneCamera extends CameraScheme {
                 x: (touch1.clientX + touch2.clientX) / 2,
                 y: (touch1.clientY + touch2.clientY) / 2
             };
+
+            // Initial angle between touches for twist rotation
+            this.lastTouchAngle = Math.atan2(dy, dx);
             
             // Store starting camera position for gestures
             this.touchStartPositions = {
@@ -447,6 +451,7 @@ class GroundPlaneCamera extends CameraScheme {
             const dx = touch2.clientX - touch1.clientX;
             const dy = touch2.clientY - touch1.clientY;
             const currentDistance = Math.sqrt(dx * dx + dy * dy);
+            const currentAngle = Math.atan2(dy, dx);
             
             // Calculate current center
             const currentCenter = {
@@ -513,10 +518,30 @@ class GroundPlaneCamera extends CameraScheme {
                 
                 this.controls.target.copy(this.focusPoint);
             }
+
+            // Two-finger twist = rotate around vertical axis (like Google Earth)
+            if (this.lastTouchAngle !== null) {
+                const deltaAngle = currentAngle - this.lastTouchAngle;
+                if (Math.abs(deltaAngle) > 0.001) {
+                    // Rotate camera position around focus point by deltaAngle
+                    const offset = new THREE.Vector3();
+                    offset.subVectors(this.camera.position, this.focusPoint);
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(offset);
+                    // Horizontal rotation
+                    spherical.theta -= deltaAngle; // match mouse: left drag increases theta negatively
+                    // Constrain tilt angle a bit to avoid flipping
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi));
+                    offset.setFromSpherical(spherical);
+                    this.camera.position.copy(this.focusPoint).add(offset);
+                    this.controls.target.copy(this.focusPoint);
+                }
+            }
             
             // Update for next frame
             this.lastPinchDistance = currentDistance;
             this.lastTouchCenter = currentCenter;
+            this.lastTouchAngle = currentAngle;
         }
     }
     
@@ -540,6 +565,7 @@ class GroundPlaneCamera extends CameraScheme {
         if (event.touches.length < 2) {
             this.lastPinchDistance = 0;
             this.lastTouchCenter = null;
+            this.lastTouchAngle = null;
             this.touchStartPositions = null;
         }
     }

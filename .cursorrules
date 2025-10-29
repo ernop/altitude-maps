@@ -1,3 +1,4 @@
+
 # Altitude Maps - Cursor Rules
 
 ## ⚠️ CODE REVIEW REMINDER - READ THIS FIRST ⚠️
@@ -150,6 +151,26 @@ step_y = height // target_height  # Different
 step_x = width // target_width    # Different
 downsampled = elevation[::step_y, ::step_x]  # Distorts!
 ```
+
+# Altitude Maps – Cursor Rules (Project-Specific Additions)
+
+## Region Selector Grouping (Viewer)
+- The region dropdown MUST use exactly three groups, in this order:
+  1) Countries (international, alphabetical)
+  2) Regions (non-country areas like islands/peninsulas/ranges, alphabetical)
+  3) US states (alphabetical)
+- Insert a visible divider (HR-style) between each group.
+- Non-selectable divider entries should not be focusable or trigger selection.
+
+## UI Responsiveness: Slider/Drag Debounce
+- Debounce expensive operations during continuous input (dragging sliders, rapid changes):
+  - Recreating terrain meshes, recomputing normals, or other heavy rebuilds should be debounced (≈50–120 ms).
+  - Apply immediate lightweight updates for responsiveness (e.g., height value updates) and coalesce heavy work.
+- On input "change/end" events, perform a single prompt final update to settle state (e.g., compute normals once, or recreate if required by mode).
+
+## Libraries
+- Do not add fallback loaders. If a library load fails, fix the primary load path instead of conditionally swapping to alternates.
+
 
 ### Data Format Versioning & Cache Invalidation
 --- You must clearly and explicitly state what each filetype is andhow  it works. Don't leave it disogranized.

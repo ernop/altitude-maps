@@ -241,8 +241,14 @@ def clip_to_boundary(
                 })
                 
                 # Create reprojected array with nodata initialized
+                # Avoid NaN as nodata for GDAL warp; prefer -9999.0 for float rasters
+                if out_meta.get('nodata') is None:
+                    if np.issubdtype(out_image.dtype, np.floating):
+                        out_meta['nodata'] = -9999.0
+                    else:
+                        out_meta['nodata'] = np.iinfo(out_image.dtype).min
                 reprojected = np.empty((1, height, width), dtype=out_image.dtype)
-                reprojected.fill(out_meta.get('nodata', np.nan))  # Initialize with nodata value
+                reprojected.fill(out_meta['nodata'])  # Initialize with nodata value
                 
                 reproject(
                     source=out_image,
@@ -252,8 +258,8 @@ def clip_to_boundary(
                     dst_transform=transform,
                     dst_crs=dst_crs,
                     resampling=Resampling.bilinear,
-                    src_nodata=out_meta.get('nodata'),
-                    dst_nodata=out_meta.get('nodata')
+                    src_nodata=out_meta['nodata'],
+                    dst_nodata=out_meta['nodata']
                 )
                 
                 out_image = reprojected
@@ -357,6 +363,35 @@ def downsample_for_viewer(
     try:
         with rasterio.open(clipped_tif_path) as src:
             print(f"      Input: {src.width} × {src.height} pixels", flush=True)
+            # RAW INPUT VALIDATION (pre-flight)
+            try:
+                if src.count < 1:
+                    raise ValueError("No bands in source raster")
+                if src.crs is None:
+                    raise ValueError("Missing CRS in source raster")
+                # Basic dtype check
+                if not (np.issubdtype(np.dtype(src.dtypes[0]), np.integer) or np.issubdtype(np.dtype(src.dtypes[0]), np.floating)):
+                    raise ValueError(f"Unsupported dtype: {src.dtypes[0]}")
+                # Sample a central window for quick stats without loading all data
+                win_w = max(1, min(1024, src.width // 4))
+                win_h = max(1, min(1024, src.height // 4))
+                col_off = max(0, (src.width - win_w) // 2)
+                row_off = max(0, (src.height - win_h) // 2)
+                from rasterio.windows import Window
+                sample = src.read(1, window=Window(col_off, row_off, win_w, win_h))
+                sample_f = sample.astype(np.float32)
+                # Treat extreme values as invalid for a quick signal
+                sample_f[(sample_f < -10000) | (sample_f > 10000)] = np.nan
+                valid = ~np.isnan(sample_f)
+                valid_pct = float(np.count_nonzero(valid)) / sample_f.size if sample_f.size else 0.0
+                if valid_pct == 0.0:
+                    raise ValueError("No valid elevation in central sample window")
+                smin = float(np.nanmin(sample_f))
+                smax = float(np.nanmax(sample_f))
+                print(f"      Sample window valid: {valid_pct*100:.1f}% | range: {smin:.1f}..{smax:.1f} m")
+            except Exception as v_err:
+                print(f"      ❌ Input validation failed: {v_err}")
+                return False
             
             # Check if reprojection is needed for latitude distortion fix
             needs_reprojection = False
@@ -377,100 +412,116 @@ def downsample_for_viewer(
             # Reproject if needed (before downsampling)
             if needs_reprojection:
                 from rasterio.warp import calculate_default_transform, reproject, Resampling
+                from rasterio import Affine
                 
                 if abs(avg_lat) < 85:
                     dst_crs = 'EPSG:3857'  # Web Mercator
                 else:
                     dst_crs = 'EPSG:3413' if avg_lat > 0 else 'EPSG:3031'
                 
-                # Calculate transform for reprojection
-                transform, width, height = calculate_default_transform(
+                # Calculate transform for reprojection at native full resolution
+                base_transform, base_width, base_height = calculate_default_transform(
                     src.crs, dst_crs,
                     src.width, src.height,
                     *src.bounds
                 )
                 
-                # Reproject the data
-                reprojected = np.empty((1, height, width), dtype=src.read(1).dtype)
-                reprojected.fill(src.nodata if src.nodata else np.nan)
+                # Compute target size capped to target_pixels while preserving aspect ratio
+                aspect = base_width / base_height if base_height != 0 else 1.0
+                if base_width >= base_height:
+                    dst_width = min(target_pixels, base_width)
+                    dst_height = max(1, int(round(dst_width / aspect)))
+                else:
+                    dst_height = min(target_pixels, base_height)
+                    dst_width = max(1, int(round(dst_height * aspect)))
+                
+                # Scale the transform to match the reduced resolution
+                scale_x = base_width / dst_width
+                scale_y = base_height / dst_height
+                dst_transform = base_transform * Affine.scale(scale_x, scale_y)
+                
+                # Allocate destination array at target size; use streaming read via rasterio.band()
+                dtype_src = np.dtype(src.dtypes[0])
+                # Determine a safe nodata value compatible with GDAL; avoid NaN
+                if src.nodata is not None:
+                    nodata_value = src.nodata
+                else:
+                    if np.issubdtype(dtype_src, np.floating):
+                        nodata_value = -9999.0
+                    else:
+                        nodata_value = np.iinfo(dtype_src).min
+                # Use float32 destination for safe bilinear resampling
+                reprojected = np.empty((1, dst_height, dst_width), dtype=np.float32)
+                reprojected.fill(nodata_value)
                 
                 reproject(
-                    source=src.read(1),
+                    source=rasterio.band(src, 1),  # stream from source without loading entire raster
                     destination=reprojected,
                     src_transform=src.transform,
                     src_crs=src.crs,
-                    dst_transform=transform,
+                    dst_transform=dst_transform,
                     dst_crs=dst_crs,
                     resampling=Resampling.bilinear,
-                    src_nodata=src.nodata,
-                    dst_nodata=src.nodata
+                    src_nodata=src.nodata if src.nodata is not None else nodata_value,
+                    dst_nodata=src.nodata if src.nodata is not None else nodata_value
                 )
                 
-                # Use reprojected data
+                # Use reprojected data (already downsampled to target size)
                 elevation = reprojected[0]
                 src_meta = src.meta.copy()
                 src_meta.update({
                     'crs': dst_crs,
-                    'transform': transform,
-                    'width': width,
-                    'height': height
+                    'transform': dst_transform,
+                    'width': dst_width,
+                    'height': dst_height,
+                    'dtype': 'float32',
+                    'nodata': nodata_value
                 })
-                src_transform = transform
+                src_transform = dst_transform
                 
-                print(f"      ✅ Reprojected to {dst_crs}: {width} × {height} pixels")
+                print(f"      ✅ Reprojected to {dst_crs}: {dst_width} × {dst_height} pixels")
                 old_aspect = src.width / src.height
-                new_aspect = width / height
+                new_aspect = dst_width / dst_height if dst_height != 0 else old_aspect
                 print(f"      Aspect ratio: {old_aspect:.2f}:1 → {new_aspect:.2f}:1")
             else:
-                # No reprojection needed, use original data
-                elevation = src.read(1)
+                # No reprojection needed; read directly at target size using resampling
+                from rasterio.warp import Resampling
+                from rasterio import Affine
+                # Compute target size preserving aspect ratio
+                aspect = src.width / src.height if src.height != 0 else 1.0
+                if src.width >= src.height:
+                    dst_width = min(target_pixels, src.width)
+                    dst_height = max(1, int(round(dst_width / aspect)))
+                else:
+                    dst_height = min(target_pixels, src.height)
+                    dst_width = max(1, int(round(dst_height * aspect)))
+                elevation = src.read(1, out_shape=(dst_height, dst_width), resampling=Resampling.bilinear)
+                # Update metadata
+                scale_x = src.width / dst_width
+                scale_y = src.height / dst_height
                 src_meta = src.meta.copy()
-                src_transform = src.transform
+                src_transform = src.transform * Affine.scale(scale_x, scale_y)
+                src_meta.update({
+                    'width': dst_width,
+                    'height': dst_height,
+                    'transform': src_transform
+                })
             
             # Calculate downsampling factor - PRESERVE ASPECT RATIO
-            max_dim = max(elevation.shape[0], elevation.shape[1])
-            if max_dim <= target_pixels:
-                # No downsampling needed
-                print(f"      ℹ️  Already small enough, copying as-is...")
-                import shutil
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(clipped_tif_path, output_path)
-            else:
-                # Downsample with SAME step size for both dimensions to preserve aspect ratio
-                import math
-                scale_factor = max_dim / target_pixels
-                step_size = max(1, int(math.ceil(scale_factor)))
-                
-                # Use SINGLE step size for both dimensions to preserve aspect ratio
-                # (elevation already loaded above)
-                print(f"      Downsampling (step: {step_size}×{step_size})...")
-                downsampled = elevation[::step_size, ::step_size]
-                
-                # CRITICAL: Use actual array shape after slicing, not dimension // step_size
-                # Array slicing includes endpoints, so shape may be 1 pixel larger than expected
-                # Example: array[::8] with length 12833 gives 1605 values, not 1604
-                new_height = downsampled.shape[0]
-                new_width = downsampled.shape[1]
-                
-                print(f"      Target: {new_width} × {new_height} pixels")
-                print(f"      Scale factor: {1.0/step_size:.3f}x")
-                
-                # Update metadata using src_meta instead of src.meta
-                out_meta = src_meta.copy()
-                out_meta.update({
-                    "height": new_height,
-                    "width": new_width,
-                    "transform": src_transform * src_transform.scale(
-                        elevation.shape[1] / new_width,
-                        elevation.shape[0] / new_height
-                    )
-                })
-                
-                # Write downsampled data
-                print(f"      Writing downsampled raster...")
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                with rasterio.open(output_path, "w", **out_meta) as dest:
-                    dest.write(downsampled, 1)
+            # At this point, elevation and src_meta reflect the desired (possibly reprojected) target size
+            new_height = elevation.shape[0]
+            new_width = elevation.shape[1]
+            print(f"      Target: {new_width} × {new_height} pixels")
+            
+            # Update metadata using src_meta (already updated above)
+            out_meta = src_meta.copy()
+            
+            # Write processed data
+            print(f"      Writing processed raster...")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with rasterio.open(output_path, "w", **out_meta) as dest:
+                # Ensure we write a 2D band array
+                dest.write(elevation, 1)
         
         # Create metadata
         source_hash = compute_file_hash(clipped_tif_path)
@@ -753,7 +804,7 @@ def run_pipeline(
     boundary_type: str = "country",
     target_pixels: int = 800,
     skip_clip: bool = False,
-    border_resolution: str = "110m"
+    border_resolution: str = "10m"
 ) -> Tuple[bool, Dict]:
     """
     Run the complete data processing pipeline.

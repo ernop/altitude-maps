@@ -103,11 +103,21 @@ Notes:
     parser.add_argument('--bounds', type=float, nargs=4, metavar=('WEST','SOUTH','EAST','NORTH'), help='Custom bounds if region not in registry')
     parser.add_argument('--api-key', type=str, help='OpenTopography API key (optional)')
     parser.add_argument('--data-dir', type=str, default='data/regions', help='Directory to save downloaded raw files')
-    parser.add_argument('--process', action='store_true', help='Run processing pipeline after download')
+    parser.add_argument('--process', action='store_true', help='Run processing pipeline after download (default: on)')
+    parser.add_argument('--no-process', action='store_true', help='Disable processing (download only)')
     parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS, 
                        help=f'Target size for viewer export (default: {DEFAULT_TARGET_PIXELS})')
 
     args = parser.parse_args()
+    # Default to processing unless explicitly disabled
+    if not hasattr(args, 'process'):
+        args.process = True
+    if args.no_process:
+        args.process = False
+    else:
+        # Ensure default-on when --process not provided
+        if not args.process:
+            args.process = True
 
     if args.list:
         print("\n📋 Unified Regions:", flush=True)
@@ -188,6 +198,13 @@ Notes:
 
     # Decide dataset
     dataset = (args.dataset or suggest_dataset_for_region(entry)).upper()
+
+    # Auto-switch to COP30 for regions outside SRTM coverage (~60°N to 56°S)
+    west, south, east, north = entry.bounds
+    if (north > 60.0 or south < -56.0) and dataset in {"SRTMGL1", "SRTMGL3", "NASADEM"}:
+        print("\n💡 High-latitude region detected. Switching dataset to COP30 for coverage.")
+        dataset = "COP30"
+
     source_name = dataset_to_source_name(dataset)
 
     print(f"\n🗺️  Unified Downloader", flush=True)
@@ -229,7 +246,6 @@ Notes:
     except Exception:
         DEFAULT_TARGET_PIXELS = 2048  # safe fallback
 
-    west, south, east, north = entry.bounds
     import math
     mean_lat = (north + south) / 2.0
     approx_km_per_deg_lon = 111.0 * abs(math.cos(math.radians(mean_lat)))
@@ -240,6 +256,25 @@ Notes:
         suggested_pixels = 4096
         print(f"\n💡 Small region detected (~{area_km2:,.0f} km²). Suggesting higher target-pixels: {suggested_pixels}.")
         args.target_pixels = suggested_pixels
+
+    # Validate raw file before processing (ensure proper GeoTIFF)
+    try:
+        from ensure_region import validate_geotiff  # reuse existing validator
+    except Exception:
+        validate_geotiff = None
+
+    if validate_geotiff is not None:
+        is_valid = validate_geotiff(raw_path, check_data=True)
+        if not is_valid:
+            print("\n❌ Raw file is not a valid GeoTIFF or cannot be read:")
+            print(f"   {raw_path}")
+            print("\nFix suggestions:")
+            print("  - If this is a ZIP or folder download, extract the actual .tif first")
+            print("  - Convert to GeoTIFF with gdal_translate (keeps georeference):")
+            print("    gdal_translate -of GTiff input.ext data/regions/" + entry.id + ".tif")
+            print("  - Or re-download via auto mode (will fetch 30m):")
+            print("    python download_unified.py " + entry.id)
+            return 1
 
     # Optional processing pipeline
     if args.process:
@@ -267,7 +302,7 @@ Notes:
         print("\n🎉 Ready. Launch viewer and select the region from the dropdown.")
         print("   python serve_viewer.py")
     else:
-        print("\n💡 Skipped processing. Use --process to export for viewer.")
+        print("\n💡 Skipped processing. Use --no-process to skip; default is to process.")
 
     return 0
 

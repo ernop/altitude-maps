@@ -86,11 +86,14 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
                 return False
             
             if check_data:
-                # Try to read a small sample to verify data accessibility
+                # Try to read a small central sample to verify data accessibility
                 try:
-                    sample_height = min(100, src.height)
-                    sample_width = min(100, src.width)
-                    data = src.read(1, window=((0, sample_height), (0, sample_width)))
+                    from rasterio.windows import Window
+                    sample_height = min(256, max(1, src.height // 8))
+                    sample_width = min(256, max(1, src.width // 8))
+                    row_off = max(0, (src.height - sample_height) // 2)
+                    col_off = max(0, (src.width - sample_width) // 2)
+                    data = src.read(1, window=Window(col_off, row_off, sample_width, sample_height))
                     # Check for any non-null data in the sample
                     import numpy as np
                     valid_count = np.sum(~np.isnan(data.astype(float)) & (data > -500))
@@ -98,9 +101,9 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
                         print(f"      ⚠️  No valid elevation data in sample", flush=True)
                         return False
                 except Exception as e:
-                    # Data read failed, but file structure is valid
-                    # Allow it to pass - the pipeline will handle read errors
-                    print(f"      ⚠️  Warning: Could not verify data sample: {e}", flush=True)
+                    # Data read failed; treat as invalid so we can auto-clean and re-download
+                    print(f"      ❌ Data read failed during validation: {e}", flush=True)
+                    return False
             
             return True
             
@@ -269,7 +272,7 @@ def find_raw_file(region_id):
     for path in possible_locations:
         if path.exists():
             print(f"   🔍 Checking {path.name}...", flush=True)
-            if validate_geotiff(path, check_data=False):  # Structure check only, pipeline will validate data
+            if validate_geotiff(path, check_data=True):
                 print(f"      ✅ Valid GeoTIFF (structure)", flush=True)
                 return path, get_source_from_path(path)
             else:
