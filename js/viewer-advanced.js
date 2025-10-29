@@ -35,10 +35,14 @@ async function init() {
         setupScene();
         setupEventListeners();
         
-        // Populate region selector and load first region
+        // Populate region selector (loads manifest and populates dropdown)
         const firstRegionId = await populateRegionSelector();
         
-        // Load the initial region data
+        // Initialize Select2 and all UI controls BEFORE loading any region data
+        // This ensures the region selector is completely loaded and interactive
+        setupControls();
+        
+        // NOW load the initial region data (after UI is ready)
         let dataUrl;
         if (firstRegionId === 'default') {
             dataUrl = 'generated/elevation_data.json';
@@ -51,7 +55,6 @@ async function init() {
         rawElevationData = await loadElevationData(dataUrl);
         
         hideLoading();
-        setupControls();
         
         // Sync UI to match params (ensures no mismatch on initial load)
         syncUIControls();
@@ -102,54 +105,20 @@ async function loadElevationData(url) {
     console.log(`Content-Type: ${response.headers.get('content-type')}`);
     console.log(`Content-Encoding: ${response.headers.get('content-encoding')}`);
     console.log(`Content-Length: ${response.headers.get('content-length')}`);
-    console.log(`Transfer-Encoding: ${response.headers.get('transfer-encoding')}`);
     
     if (!response.ok) {
         throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${url}`);
     }
     
-    // Get the content length - required for progress tracking
-    const contentLength = response.headers.get('content-length');
-    if (!contentLength) {
-        console.error(`Server did not provide Content-Length header - cannot show progress. URL: ${url}`);
-        console.error(`This usually means:`);
-        console.error(`  1. Pre-compressed .gz files don't exist on server (run: find generated -name "*.json" -exec gzip -k -9 {} \\;)`);
-        console.error(`  2. .htaccess mod_rewrite is not working`);
-        console.error(`  3. Server is using on-the-fly compression (chunked encoding)`);
-        throw new Error(`Server configuration error: missing Content-Length header for ${url}`);
-    }
-    
-    const total = parseInt(contentLength, 10);
-    let loaded = 0;
-    const reader = response.body.getReader();
-    const chunks = [];
-    
-    // Read the response body with progress tracking
-    while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-        
-        chunks.push(value);
-        loaded += value.length;
-        
-        // Update progress bar
-        const percentComplete = Math.round((loaded / total) * 100);
-        updateLoadingProgress(percentComplete, loaded, total);
-    }
-    
-    // Combine chunks into single Uint8Array
-    const chunksAll = new Uint8Array(loaded);
-    let position = 0;
-    for (const chunk of chunks) {
-        chunksAll.set(chunk, position);
-        position += chunk.length;
-    }
-    
-    // Convert to string and parse JSON
-    const textDecoder = new TextDecoder('utf-8');
-    const text = textDecoder.decode(chunksAll);
+    // HTTP/2 strips Content-Length after auto-decompression, so we load as blob to get size
+    // This works with compressed data transparently
+    console.log(`Loading data (HTTP/2 compatible mode)...`);
+    const blob = await response.blob();
+    const text = await blob.text();
     const data = JSON.parse(text);
+    
+    console.log(`Loaded ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
+    updateLoadingProgress(100, blob.size, blob.size);
     
     // Validate format version
     if (data.format_version && data.format_version !== EXPECTED_FORMAT_VERSION) {
