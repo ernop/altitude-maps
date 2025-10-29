@@ -831,7 +831,7 @@ This script will:
     
     # Handle --list-regions
     if args.list_regions:
-        from src.regions_config import US_STATES, INTERNATIONAL_REGIONS
+        from src.regions_config import US_STATES, COUNTRIES, REGIONS
         
         print("\n📋 AVAILABLE REGIONS:")
         print("="*70)
@@ -839,12 +839,16 @@ This script will:
         for state_id in sorted(US_STATES.keys()):
             config = US_STATES[state_id]
             print(f"  - {state_id:20s} -> {config.name}")
-        print(f"\n🌍 INTERNATIONAL REGIONS:")
-        for region_id in sorted(INTERNATIONAL_REGIONS.keys()):
-            config = INTERNATIONAL_REGIONS[region_id]
+        print(f"\n🌍 COUNTRIES:")
+        for country_id in sorted(COUNTRIES.keys()):
+            config = COUNTRIES[country_id]
+            print(f"  - {country_id:20s} -> {config.name}")
+        print(f"\n🗺️  REGIONS:")
+        for region_id in sorted(REGIONS.keys()):
+            config = REGIONS[region_id]
             print(f"  - {region_id:20s} -> {config.name}")
         print(f"\n{'='*70}")
-        print(f"Total: {len(US_STATES)} US states + {len(INTERNATIONAL_REGIONS)} international regions")
+        print(f"Total: {len(US_STATES)} US states + {len(COUNTRIES)} countries + {len(REGIONS)} regions = {len(US_STATES) + len(COUNTRIES) + len(REGIONS)} total")
         print(f"\nUsage: python ensure_region.py <region_id>")
         return 0
     

@@ -67,21 +67,21 @@ US_STATES: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=True,
     ),
+    "florida": RegionConfig(
+        id="florida",
+        name="Florida",
+        bounds=(-87.63, 24.52, -80.03, 31.00),
+        description="Florida - mostly flat",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
     
     "kansas": RegionConfig(
         id="kansas",
         name="Kansas",
         bounds=(-102.05, 36.99, -94.59, 40.00),
         description="Kansas",
-        category="usa_state",
-        country="United States of America",
-        clip_boundary=True,
-    ),
-    "kentucky": RegionConfig(
-        id="kentucky",
-        name="Kentucky",
-        bounds=(-89.57, 36.50, -81.96, 39.15),
-        description="Kentucky",
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
@@ -96,15 +96,6 @@ US_STATES: Dict[str, RegionConfig] = {
         clip_boundary=True,
     ),
     
-    "minnesota": RegionConfig(
-        id="minnesota",
-        name="Minnesota",
-        bounds=(-97.24, 43.50, -89.53, 49.38),
-        description="Minnesota",
-        category="usa_state",
-        country="United States of America",
-        clip_boundary=True,
-    ),
     "nebraska": RegionConfig(
         id="nebraska",
         name="Nebraska",
@@ -186,15 +177,6 @@ US_STATES: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=True,
     ),
-    "oklahoma": RegionConfig(
-        id="oklahoma",
-        name="Oklahoma",
-        bounds=(-103.00, 33.62, -94.43, 37.00),
-        description="Oklahoma",
-        category="usa_state",
-        country="United States of America",
-        clip_boundary=True,
-    ),
     "oregon": RegionConfig(
         id="oregon",
         name="Oregon",
@@ -209,24 +191,6 @@ US_STATES: Dict[str, RegionConfig] = {
         name="Pennsylvania",
         bounds=(-80.52, 39.72, -74.69, 42.27),
         description="Pennsylvania",
-        category="usa_state",
-        country="United States of America",
-        clip_boundary=True,
-    ),
-    "rhode_island": RegionConfig(
-        id="rhode_island",
-        name="Rhode Island",
-        bounds=(-71.91, 41.15, -71.12, 42.02),
-        description="Rhode Island",
-        category="usa_state",
-        country="United States of America",
-        clip_boundary=True,
-    ),
-    "south_dakota": RegionConfig(
-        id="south_dakota",
-        name="South Dakota",
-        bounds=(-104.06, 42.48, -96.44, 45.94),
-        description="South Dakota",
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
@@ -249,75 +213,74 @@ US_STATES: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=True,
     ),
-    "washington": RegionConfig(
-        id="washington",
-        name="Washington",
-        bounds=(-124.85, 45.54, -116.92, 49.05),
-        description="Washington State",
-        category="usa_state",
-        country="United States of America",
+}
+
+
+# ============================================================================
+# COUNTRIES
+# ============================================================================
+
+COUNTRIES: Dict[str, RegionConfig] = {
+    
+    "estonia": RegionConfig(
+        id="estonia",
+        name="Estonia",
+        bounds=(21.8, 57.5, 28.2, 59.7),
+        description="Republic of Estonia (Baltic)",
+        category="country",
+        country="Estonia",
         clip_boundary=True,
     ),
-    "wisconsin": RegionConfig(
-        id="wisconsin",
-        name="Wisconsin",
-        bounds=(-92.89, 42.49, -86.25, 47.31),
-        description="Wisconsin",
-        category="usa_state",
-        country="United States of America",
+    "georgia_country": RegionConfig(
+        id="georgia_country",
+        name="Georgia",
+        bounds=(40.0, 41.0, 46.8, 43.7),
+        description="Country of Georgia (Caucasus)",
+        category="country",
+        country="Georgia",
         clip_boundary=True,
     ),
-    "wyoming": RegionConfig(
-        id="wyoming",
-        name="Wyoming",
-        bounds=(-111.06, 40.99, -104.05, 45.01),
-        description="Wyoming",
-        category="usa_state",
-        country="United States of America",
+    "kyrgyzstan": RegionConfig(
+        id="kyrgyzstan",
+        name="Kyrgyzstan",
+        bounds=(69.2, 39.1, 80.3, 43.3),
+        description="Kyrgyz Republic (Tian Shan)",
+        category="country",
+        country="Kyrgyzstan",
+        clip_boundary=True,
+    ),
+    "singapore": RegionConfig(
+        id="singapore",
+        name="Singapore",
+        bounds=(103.6, 1.16, 104.1, 1.48),
+        description="Republic of Singapore",
+        category="country",
+        country="Singapore",
+        clip_boundary=True,
+    ),
+    "turkiye": RegionConfig(
+        id="turkiye",
+        name="Turkiye",
+        bounds=(25.0, 35.8, 45.0, 42.3),
+        description="Republic of Turkiye",
+        category="country",
+        country="Turkiye",
         clip_boundary=True,
     ),
 }
 
 
 # ============================================================================
-# INTERNATIONAL REGIONS
+# REGIONS (Non-country areas: islands, peninsulas, mountain ranges, etc.)
 # ============================================================================
 
-INTERNATIONAL_REGIONS: Dict[str, RegionConfig] = {
-    # Countries
-    "iceland": RegionConfig(
-        id="iceland",
-        name="Iceland",
-        bounds=(-24.5, 63.4, -13.5, 66.6),
-        description="Iceland - volcanic terrain",
-        category="international",
-        country="Iceland",
-        clip_boundary=True,
-    ),
-    
-    # Islands
-    "gotland_island": RegionConfig(
-        id="gotland_island",
-        name="Gotland Island",
-        bounds=(17.9, 56.8, 19.5, 58.2),
-        description="Sweden - Gotland (Baltic Sea)",
-        category="island",
-        clip_boundary=False,
-    ),
-    "faroe_islands": RegionConfig(
-        id="faroe_islands",
-        name="Faroe Islands",
-        bounds=(-7.7, 61.4, -6.2, 62.4),
-        description="Faroe Islands - North Atlantic archipelago",
-        category="island",
-        clip_boundary=False,
-    ),
-    "tasmania": RegionConfig(
-        id="tasmania",
-        name="Tasmania",
-        bounds=(144.0, -44.2, 149.0, -39.1),
-        description="Tasmania (Australia) - island south of mainland",
-        category="island",
+REGIONS: Dict[str, RegionConfig] = {
+    "alps": RegionConfig(
+        id="alps",
+        name="Alps",
+        bounds=(5.0, 43.5, 17.0, 48.0),
+        description="European Alps",
+        category="region",
         clip_boundary=False,
     ),
     "anticosti_island": RegionConfig(
@@ -325,25 +288,31 @@ INTERNATIONAL_REGIONS: Dict[str, RegionConfig] = {
         name="Anticosti Island",
         bounds=(-64.7, 48.9, -61.6, 50.0),
         description="Canada - Anticosti Island (Quebec)",
-        category="island",
+        category="region",
         clip_boundary=False,
     ),
-    "shikoku": RegionConfig(
-        id="shikoku",
-        name="Shikoku Island",
-        bounds=(132.155, 32.775, 134.8, 34.5),
-        description="Shikoku - smallest of Japan's main islands",
-        category="island",
+    "arkhangelsk_area": RegionConfig(
+        id="arkhangelsk_area",
+        name="Arkhangelsk Area",
+        bounds=(36.0, 61.0, 50.0, 66.5),
+        description="Russia - Arkhangelsk Oblast and White Sea coast",
+        category="region",
         clip_boundary=False,
     ),
-    
-    # Special regions
-    "alps": RegionConfig(
-        id="alps",
-        name="Alps",
-        bounds=(5.0, 43.5, 17.0, 48.0),
-        description="European Alps",
-        category="mountain_range",
+    "faroe_islands": RegionConfig(
+        id="faroe_islands",
+        name="Faroe Islands",
+        bounds=(-7.7, 61.4, -6.2, 62.4),
+        description="Faroe Islands - North Atlantic archipelago",
+        category="region",
+        clip_boundary=False,
+    ),
+    "gotland_island": RegionConfig(
+        id="gotland_island",
+        name="Gotland Island",
+        bounds=(17.9, 56.8, 19.5, 58.2),
+        description="Sweden - Gotland (Baltic Sea)",
+        category="region",
         clip_boundary=False,
     ),
     "hong_kong": RegionConfig(
@@ -351,17 +320,55 @@ INTERNATIONAL_REGIONS: Dict[str, RegionConfig] = {
         name="Hong Kong",
         bounds=(113.8, 22.15, 114.4, 22.6),
         description="Hong Kong SAR",
-        category="special_administrative_region",
+        category="region",
         clip_boundary=False,
     ),
-    
-    # Local regions (SF Bay Area)
+    "iceland": RegionConfig(
+        id="iceland",
+        name="Iceland",
+        bounds=(-24.5, 63.4, -13.5, 66.6),
+        description="Iceland - volcanic terrain",
+        category="region",
+        clip_boundary=True,
+    ),
+    "kamchatka": RegionConfig(
+        id="kamchatka",
+        name="Kamchatka Peninsula",
+        bounds=(156.0, 50.5, 163.0, 62.5),
+        description="Russia - Kamchatka Peninsula",
+        category="region",
+        clip_boundary=False,
+    ),
+    "las_malvinas": RegionConfig(
+        id="las_malvinas",
+        name="Las Malvinas (Falkland Islands)",
+        bounds=(-61.5, -53.2, -57.4, -50.9),
+        description="Falkland Islands / Islas Malvinas (UK territory)",
+        category="region",
+        clip_boundary=False,
+    ),
+    "mindoro_island": RegionConfig(
+        id="mindoro_island",
+        name="Mindoro Island",
+        bounds=(120.0, 12.0, 121.5, 13.7),
+        description="Philippines - Mindoro",
+        category="region",
+        clip_boundary=False,
+    ),
     "peninsula": RegionConfig(
         id="peninsula",
         name="San Mateo",
         bounds=(-122.53, 37.43, -122.24, 37.70),
         description="Union of Foster City, San Mateo, Burlingame, Half Moon Bay (approx bbox)",
-        category="local",
+        category="region",
+        clip_boundary=False,
+    ),
+    "sakhalin_island": RegionConfig(
+        id="sakhalin_island",
+        name="Sakhalin Island",
+        bounds=(141.2, 45.6, 146.1, 54.6),
+        description="Russia - Sakhalin",
+        category="region",
         clip_boundary=False,
     ),
     "san_mateo": RegionConfig(
@@ -369,7 +376,39 @@ INTERNATIONAL_REGIONS: Dict[str, RegionConfig] = {
         name="Peninsula",
         bounds=(-122.6, 37.0, -121.8, 37.9),
         description="SF Peninsula: San Jose to San Francisco",
-        category="local",
+        category="region",
+        clip_boundary=False,
+    ),
+    "south_georgia_island": RegionConfig(
+        id="south_georgia_island",
+        name="South Georgia Island",
+        bounds=(-38.5, -55.1, -35.2, -53.5),
+        description="South Georgia (Shackleton rescue at Grytviken)",
+        category="region",
+        clip_boundary=False,
+    ),
+    "tasmania": RegionConfig(
+        id="tasmania",
+        name="Tasmania",
+        bounds=(144.0, -44.2, 149.0, -39.1),
+        description="Tasmania (Australia) - island south of mainland",
+        category="region",
+        clip_boundary=False,
+    ),
+    "vancouver_island": RegionConfig(
+        id="vancouver_island",
+        name="Vancouver Island",
+        bounds=(-129.0, 48.2, -123.0, 50.9),
+        description="Canada - Vancouver Island (British Columbia)",
+        category="region",
+        clip_boundary=False,
+    ),
+    "yakutsk_area": RegionConfig(
+        id="yakutsk_area",
+        name="Yakutsk Area",
+        bounds=(124.0, 59.0, 136.0, 65.0),
+        description="Russia - Yakutsk and surrounding region",
+        category="region",
         clip_boundary=False,
     ),
 }
@@ -379,8 +418,8 @@ INTERNATIONAL_REGIONS: Dict[str, RegionConfig] = {
 # REGISTRY
 # ============================================================================
 
-# Combined registry of all regions
-ALL_REGIONS: Dict[str, RegionConfig] = {**US_STATES, **INTERNATIONAL_REGIONS}
+# Combined registry of all regions (US states, countries, and regions)
+ALL_REGIONS: Dict[str, RegionConfig] = {**US_STATES, **COUNTRIES, **REGIONS}
 
 
 # ============================================================================

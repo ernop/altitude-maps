@@ -425,16 +425,25 @@ Priority order for any country:
 3. Cache both raw (bounding box) and cleaned (clipped) versions
 4. Use two-tier caching to balance flexibility and performance
 
+### Centralized Region Configuration
+- **Single source of truth**: All regions defined in `src/regions_config.py`
+- **Categories**: US_STATES, COUNTRIES, REGIONS (three categories only)
+- **Key principle**: Having a region configured does NOT mean data exists - check manifest/files separately
+- **Utility functions**: `check_region_data_available()`, `list_available_regions()`, `is_region_configured()`
+
 ### Adding New Regions (Viewer and Pipeline)
-- Preferred quick path (viewer-focused):
-  1. Add an entry to `download_regions.py` `REGIONS` with:
-     - `bounds` in order: (west, south, east, north)
-     - `name` (display name)
-     - `description`
-     - Optional: `clip_boundary=False` for islands/areas lacking a distinct country/state boundary
+- **Quick path (viewer-focused):**
+  1. Add RegionConfig entry to appropriate category in `src/regions_config.py`:
+     - `id`: lowercase with underscores (e.g., "japan")
+     - `name`: Display name (e.g., "Japan")
+     - `bounds`: Tuple(west, south, east, north) in degrees
+     - `description`: Optional description
+     - `category`: "usa_state", "country", "region", etc.
+     - `clip_boundary`: True for countries/states, False for islands/custom areas
   2. Place a GeoTIFF at `data/regions/<region_id>.tif` (or `<region_id>_elevation.tif`).
   3. Generate JSON + manifest:
-     - `python download_regions.py --regions <region_id>`
+     - `python ensure_region.py <region_id>` (full pipeline) or
+     - `python download_regions.py --regions <region_id>` (legacy)
      - Outputs to `generated/regions/` and updates `regions_manifest.json`.
   4. Start the viewer: `python serve_viewer.py` and select the region.
 
