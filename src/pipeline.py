@@ -45,7 +45,8 @@ def clip_to_boundary(
  output_path: Path,
  source: str = "srtm_30m",
  boundary_type: str = "country",
- border_resolution: str = "10m"
+    border_resolution: str = "10m",
+    boundary_required: bool = False
 ) -> bool:
  """
  Clip raw elevation data to administrative boundary.
@@ -107,7 +108,7 @@ def clip_to_boundary(
  print(f" Loading {boundary_type} boundary geometry for {boundary_name}...")
 
 # Get boundary geometry based on type
- if boundary_type == "country":
+    if boundary_type == "country":
 # Use GeoDataFrame so we can reproject reliably
  border_manager = get_border_manager()
  geometry_gdf = border_manager.get_country(boundary_name, resolution=border_resolution)
@@ -122,18 +123,22 @@ def clip_to_boundary(
  border_manager = get_border_manager()
  geometry_gdf = border_manager.get_state(country, state, resolution=border_resolution)
 
- if geometry_gdf is None or geometry_gdf.empty:
- print(f" Warning: State '{state}' not found in '{country}'")
- print(f" Skipping clipping step...")
- return False
+    if geometry_gdf is None or geometry_gdf.empty:
+        if boundary_required:
+            print(f" Error: State '{state}' boundary not found in '{country}' and boundary is required.")
+        else:
+            print(f" Warning: State '{state}' not found in '{country}'. Skipping clipping step...")
+        return False
  else:
  print(f" Error: Invalid boundary_type '{boundary_type}' (must be 'country' or 'state')")
  return False
 
- if geometry_gdf is None or geometry_gdf.empty:
- print(f" Warning: Could not find boundary '{boundary_name}'")
- print(f" Skipping clipping step...")
- return False
+    if geometry_gdf is None or geometry_gdf.empty:
+        if boundary_required:
+            print(f" Error: Could not find boundary '{boundary_name}' and boundary is required.")
+        else:
+            print(f" Warning: Could not find boundary '{boundary_name}'. Skipping clipping step...")
+        return False
 
  print(f" Clipping to {boundary_type} boundary...")
 
@@ -311,7 +316,7 @@ def downsample_for_viewer(
  clipped_tif_path: Path,
  region_id: str,
  output_path: Path,
- target_pixels: int = 800
+    target_pixels: int = 2048
 ) -> bool:
  """
  Downsample clipped data to target resolution for web viewer.
@@ -513,7 +518,11 @@ def downsample_for_viewer(
  'transform': src_transform
  })
 
-# Calculate downsampling factor - PRESERVE ASPECT RATIO
+        # Validate elevation range (fail hard on hyperflat)
+        from src.validation import validate_elevation_range as _validate_elev_range
+        _min, _max, _range, _ok = _validate_elev_range(elevation, min_sensible_range=50.0, warn_only=False)
+
+        # Calculate downsampling factor - PRESERVE ASPECT RATIO
 # At this point, elevation and src_meta reflect the desired (possibly reprojected) target size
  new_height = elevation.shape[0]
  new_width = elevation.shape[1]
@@ -606,7 +615,7 @@ def export_for_viewer(
  try:
  with rasterio.open(processed_tif_path) as src:
  print(f" Reading raster: {src.width} x {src.height}", flush=True)
- elevation = src.read(1)
+        elevation = src.read(1)
  bounds = src.bounds
 
 # Transform bounds to EPSG:4326 (lat/lon) for consistent export
@@ -635,7 +644,7 @@ def export_for_viewer(
  print(f" Validation warning: {e}")
 # Don't fail on validation warnings
 
-# Filter bad values (nodata, extreme values) BEFORE stats calculation
+        # Filter bad values (nodata, extreme values) BEFORE stats calculation
 # Replace bad values with NaN for proper stats
 # Convert to float first (elevation might be int16/int32)
  elevation_clean = elevation.astype(np.float32)
@@ -644,11 +653,15 @@ def export_for_viewer(
 # Reasonable elevation range: -500m (below sea level) to +9000m (Mt. Everest is 8849m)
  elevation_clean[(elevation_clean < -500) | (elevation_clean > 9000)] = np.nan
 
-# Check if we have ANY valid data
+        # Check if we have ANY valid data
  valid_count = np.sum(~np.isnan(elevation_clean))
  if valid_count == 0:
  print(f" Error: No valid elevation data after filtering nodata values", flush=True)
  return False
+
+        # Validate elevation range (fail hard on hyperflat)
+        from src.validation import validate_elevation_range as _validate_elev_range
+        _min, _max, _range, _ok = _validate_elev_range(elevation_clean, min_sensible_range=50.0, warn_only=False)
 
  print(f" Valid pixels: {valid_count:,} / {elevation_clean.size:,} ({100*valid_count/elevation_clean.size:.1f}%)", flush=True)
 
@@ -849,40 +862,42 @@ def run_pipeline(
  processed_dir = data_root / "processed" / source
  generated_dir = Path("generated/regions")
 
-# Step 1: Download (already done, just confirm)
- print(f"[1/4] Raw data: {raw_tif_path.name}")
+# [STAGE 4/10] Acquire raw elevation (already done)
+print(f"[STAGE 4/10] Raw data: {raw_tif_path.name}")
 
-# Step 2: Clip to boundary
- if skip_clip or not boundary_name:
- print(f"[2/4] Skipping clipping (using raw data)")
- clipped_path = raw_tif_path
- else:
- print(f"[2/4] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
- clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
- if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution):
- print(f"\n Clipping failed, using raw data instead")
- clipped_path = raw_tif_path
+    # [STAGE 6/10] Clip to administrative boundary
+    if skip_clip or not boundary_name:
+        print(f"[STAGE 6/10] Skipping clipping (using raw data)")
+        clipped_path = raw_tif_path
+    else:
+        print(f"[STAGE 6/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
+        clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
+        if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution, boundary_required=bool(boundary_name)):
+            # Boundary-required regions must not continue without a boundary
+            print(f"\n[STAGE 6/10] FAILED: Clipping failed and boundary was required ({boundary_name}).")
+            print(f" Aborting pipeline for region '{region_id}'.")
+            return False, result_paths
 
  result_paths["clipped"] = clipped_path
 
-# Step 3: Process/downsample
- print(f"\n[3/4] Processing for viewer...")
+# [STAGE 7/10] Process/downsample
+print(f"\n[STAGE 7/10] Processing for viewer...")
  processed_path = processed_dir / f"{region_id}_{source}_{target_pixels}px_v2.tif"
  if not downsample_for_viewer(clipped_path, region_id, processed_path, target_pixels):
  return False, result_paths
 
  result_paths["processed"] = processed_path
 
-# Step 4: Export to JSON (include resolution in filename for cache safety)
- print(f"\n[4/4] Exporting for web viewer...")
+# [STAGE 8/10] Export to JSON (include resolution in filename for cache safety)
+print(f"\n[STAGE 8/10] Exporting for web viewer...")
  exported_path = generated_dir / f"{region_id}_{source}_{target_pixels}px_v2.json"
  if not export_for_viewer(processed_path, region_id, source, exported_path):
  return False, result_paths
 
  result_paths["exported"] = exported_path
 
-# Update manifest
- print(f"")
+# [STAGE 10/10] Update manifest
+print(f"[STAGE 10/10] Updating regions manifest...")
  update_regions_manifest(generated_dir)
 
 # Success!

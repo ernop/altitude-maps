@@ -502,7 +502,6 @@ def check_region_data_available(region_id: str) -> Dict[str, bool]:
     raw_file_exists = False
     possible_raw_locations = [
         Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif"),
-        Path(f"data/regions/{region_id}.tif"),
         Path(f"data/raw/usa_3dep/{region_id}_3dep_10m.tif"),
     ]
     for loc in possible_raw_locations:

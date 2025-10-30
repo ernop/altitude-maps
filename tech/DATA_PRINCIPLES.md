@@ -184,6 +184,7 @@ python fix_all_regions_aspect_ratio.py --fix-all
 
 ## References
 
+- **Complete Pipeline**: `tech/DATA_PIPELINE.md` - Full process specification (stages, paths, rules)
 - **Implementation**: `src/borders.py` (masking), `js/viewer-advanced.js` (rendering)
 - **Validation**: `src/validation.py`
 - **Fix Tool**: `fix_all_regions_aspect_ratio.py`
