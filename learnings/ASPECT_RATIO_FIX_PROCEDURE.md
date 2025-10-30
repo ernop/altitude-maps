@@ -60,18 +60,18 @@ If a region's source TIF is not found, you'll need to re-download it first:
 # If you have the national USA elevation file
 python download_all_us_states.py --states tennessee kansas --max-size 1024
 
-# Or download individual states via OpenTopography
-python download_unified.py tennessee --process --target-pixels 1024
+# Or ensure individual states
+python ensure_region.py tennessee --target-pixels 1024
 ```
 
 ### For Other Regions:
 
 ```powershell
-# Use the unified downloader
-python download_unified.py <region_id> --process --target-pixels 1024
+# Ensure international regions
+python ensure_region.py <region_id> --target-pixels 1024
 
 # Example for international regions
-python download_unified.py iceland --process --target-pixels 1024
+python ensure_region.py iceland --target-pixels 1024
 ```
 
 ---

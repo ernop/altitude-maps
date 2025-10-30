@@ -619,7 +619,11 @@ def download_international_region(region_id, region_info, dataset_override: str 
             if tile_path.exists():
                 # Strong validation: try to read data to catch partial/corrupt tiles
                 if validate_geotiff(tile_path, check_data=True):
-                    print(f"  Cached tile present: {tile_path.name}", flush=True)
+                    try:
+                        size_mb = tile_path.stat().st_size / (1024 * 1024)
+                        print(f"  Cached tile present: {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                    except Exception:
+                        print(f"  Cached tile present: {tile_path.name}", flush=True)
                     tile_paths.append(tile_path)
                     continue
                 else:
@@ -627,7 +631,11 @@ def download_international_region(region_id, region_info, dataset_override: str 
                     # Re-download to a separate file to preserve original
                     repaired_path = tiles_dir / f"{region_id}_tile_{idx:02d}_fix1.tif"
                     if _download_bbox(repaired_path, tb) and validate_geotiff(repaired_path, check_data=True):
-                        print(f"  Using repaired tile: {repaired_path.name}", flush=True)
+                        try:
+                            size_mb = repaired_path.stat().st_size / (1024 * 1024)
+                            print(f"  Using repaired tile: {repaired_path.name} ({size_mb:.1f} MB)", flush=True)
+                        except Exception:
+                            print(f"  Using repaired tile: {repaired_path.name}", flush=True)
                         tile_paths.append(repaired_path)
                         continue
                     else:
@@ -638,6 +646,11 @@ def download_international_region(region_id, region_info, dataset_override: str 
                 print(f"  Tile download failed, skipping", flush=True)
                 continue
             if validate_geotiff(tile_path, check_data=True):
+                try:
+                    size_mb = tile_path.stat().st_size / (1024 * 1024)
+                    print(f"  Downloaded tile OK: {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                except Exception:
+                    print(f"  Downloaded tile OK: {tile_path.name}", flush=True)
                 tile_paths.append(tile_path)
             else:
                 print(f"  Invalid tile file, removing", flush=True)
@@ -705,14 +718,22 @@ def download_international_region(region_id, region_info, dataset_override: str 
                     tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
                     if tile_path.exists():
                         if validate_geotiff(tile_path, check_data=True):
-                            print(f"  Cached tile present: {tile_path.name}", flush=True)
+                            try:
+                                size_mb = tile_path.stat().st_size / (1024 * 1024)
+                                print(f"  Cached tile present: {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                            except Exception:
+                                print(f"  Cached tile present: {tile_path.name}", flush=True)
                             tile_paths.append(tile_path)
                             continue
                         else:
                             print(f"  Cached tile failed validation (will NOT delete). Attempting repaired re-download...", flush=True)
                             repaired_path = tiles_dir / f"{region_id}_tile_{idx:02d}_fix1.tif"
                             if _download_bbox(repaired_path, tb) and validate_geotiff(repaired_path, check_data=True):
-                                print(f"  Using repaired tile: {repaired_path.name}", flush=True)
+                                try:
+                                    size_mb = repaired_path.stat().st_size / (1024 * 1024)
+                                    print(f"  Using repaired tile: {repaired_path.name} ({size_mb:.1f} MB)", flush=True)
+                                except Exception:
+                                    print(f"  Using repaired tile: {repaired_path.name}", flush=True)
                                 tile_paths.append(repaired_path)
                                 continue
                             else:
@@ -722,6 +743,11 @@ def download_international_region(region_id, region_info, dataset_override: str 
                         print(f"  Tile download failed, skipping", flush=True)
                         continue
                     if validate_geotiff(tile_path, check_data=True):
+                        try:
+                            size_mb = tile_path.stat().st_size / (1024 * 1024)
+                            print(f"  Downloaded tile OK: {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                        except Exception:
+                            print(f"  Downloaded tile OK: {tile_path.name}", flush=True)
                         tile_paths.append(tile_path)
                     else:
                         print(f"  Invalid tile file, removing", flush=True)

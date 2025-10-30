@@ -76,24 +76,24 @@ python visualize_usa_overhead.py --dpi 300 --scale-factor 8
 
 ### Download Elevation Data
 
-The unified downloader provides one command to download elevation data for any region:
+Use the standardized command to download and process any region:
 
 ```powershell
 # US States (auto-clips to state boundaries)
-python download_unified.py california --process
-python download_unified.py colorado --process
+python ensure_region.py california
+python ensure_region.py colorado
 
 # Japanese regions
-python download_unified.py shikoku --process
+python ensure_region.py shikoku
 
 # Switzerland
-python download_unified.py switzerland --process
+python ensure_region.py switzerland
 
-# Any built-in region (200+ available)
-python download_unified.py iceland --process
+# Any built-in region (configured in src/regions_config.py)
+python ensure_region.py iceland
 
 # List all available regions
-python download_unified.py --list
+python ensure_region.py --list-regions
 ```
 
 ### View in 3D
@@ -117,12 +117,12 @@ Then open http://localhost:8001 in your browser. Select your region from the dro
 ### Global - SRTM (30m)
 -**Good coverage**: 60degN to 56degS (most populated areas)
 -**Works everywhere**: Automatic download via OpenTopography
--**Download**: `python download_unified.py <region> --process`
+-**Download**: `python ensure_region.py <region>`
 
 ### Japan - ALOS World 3D (30m)
 -**Best for Japan** and mountain regions
 -**Excellent quality**: Made by JAXA specifically for terrain
--**Download**: `python download_unified.py japan --process`
+-**Download**: `python ensure_region.py japan`
 
 ### Other High-Quality National Sources
 -**Switzerland**: SwissTopo (0.5-2m) - manual download
@@ -210,7 +210,7 @@ python export_for_web_viewer.py data/usa.tif --mask-country "United States of Am
 ### "File not found" Error
 Download the data first:
 ```powershell
-python download_unified.py usa --process
+python ensure_region.py usa
 ```
 
 ### "Module not found" Error
@@ -230,10 +230,7 @@ python serve_viewer.py
 In the viewer sidebar, increase**Bucket Size** to 16 or 20. This reduces the number of terrain blocks.
 
 ### "Unknown region"
-Run `python download_unified.py --list` to see all available regions, or provide custom bounds:
-```powershell
-python download_unified.py myregion --bounds 155 50 163 61 --process
-```
+Run `python ensure_region.py --list-regions` to see all available regions.
 
 ### Region doesn't appear in dropdown
 ```powershell
@@ -244,7 +241,7 @@ Then refresh the browser.
 ## Common Workflows
 
 ### View a New Region
-1. Download: `python download_unified.py <region> --process`
+1. Download: `python ensure_region.py <region>`
 2. Open viewer: `python serve_viewer.py`
 3. Select region from dropdown
 4. Adjust vertical exaggeration for visibility
@@ -266,31 +263,21 @@ Then refresh the browser.
 ## Advanced Configuration
 
 ### Custom Regions
-Define custom bounding boxes:
+Add a new region in `src/regions_config.py`, then run:
 ```powershell
-python download_unified.py my_region --bounds <west> <south> <east> <north> --process
+python ensure_region.py <new_region_id>
 ```
-
-The bounds format is: `west south east north` (in degrees).
 
 ### Choose Specific Dataset
-```powershell
-# Use Copernicus DEM instead of default
-python download_unified.py please --dataset COP30 --process
-
-# Use ALOS for high mountains
-python download_unified.py nepal --dataset AW3D30 --process
-```
-
-Available Los conjuntos de datos: SRTMGL1, AW3D30, COP30, COP90, NASADEM
+Dataset choice is automatic (SRTMGL1 vs COP30) based on latitude. For special cases, adjust `recommended_dataset` in `src/regions_config.py` and rerun `ensure_region.py`.
 
 ### Control Resolution
 ```powershell
 # Higher resolution export (larger file)
-python download_unified.py yosemite --process --target-pixels 2048
+python ensure_region.py yosemite --target-pixels 2048
 
 # Lower resolution (faster, smaller)
-python download_unified.py texas --process --target-pixels 400
+python ensure_region.py texas --target-pixels 400
 ```
 
 ## Multi-Word Region Names

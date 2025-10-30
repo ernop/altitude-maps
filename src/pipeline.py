@@ -814,6 +814,17 @@ def update_regions_manifest(generated_dir: Path) -> bool:
 
                 region_id = data.get("region_id", stem)
 
+                # ENFORCE: Only include regions declared in centralized config
+                try:
+                    from src.regions_config import ALL_REGIONS  # local import to avoid heavy import at module load
+                except Exception:
+                    ALL_REGIONS = {}
+                cfg = ALL_REGIONS.get(region_id)
+                if not cfg:
+                    # Skip anything not explicitly configured (e.g., stray files like 'alps')
+                    print(f"  [SKIP] Unknown region not in regions_config: {region_id}")
+                    continue
+
                 entry = {
                     "name": data.get("name", region_id.replace('_', ' ').title()),
                     "description": data.get("description", f"{data.get('name', region_id)} elevation data"),
@@ -823,14 +834,16 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                     "stats": data.get("stats", {})
                 }
 
-                # Attach category from centralized config if available
+                # Attach and REQUIRE category from centralized config
                 try:
-                    from src.regions_config import get_region  # local import
-                    cfg = get_region(region_id) if callable(get_region) else None
-                    if cfg and getattr(cfg, 'category', None):
-                        entry["category"] = getattr(cfg, 'category')
+                    category_value = getattr(cfg, 'category', None)
                 except Exception:
-                    pass
+                    category_value = None
+                if not category_value:
+                    # Enforce upstream completeness: skip if category is missing
+                    print(f"  [SKIP] Region missing category in regions_config: {region_id}")
+                    continue
+                entry["category"] = category_value
 
                 manifest["regions"][region_id] = entry
             except Exception as e:

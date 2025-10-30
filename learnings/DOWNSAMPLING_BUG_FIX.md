@@ -130,7 +130,7 @@ See `tech/DOWNLOAD_GUIDE.md` for full instructions.
 
 ```powershell
 # For each state (example with Tennessee)
-python download_unified.py tennessee --process --target-pixels 4096
+python ensure_region.py tennessee --target-pixels 4096
 ```
 
 This downloads just the bounding box for that state and processes it correctly.

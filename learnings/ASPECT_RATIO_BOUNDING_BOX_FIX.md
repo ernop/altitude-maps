@@ -139,8 +139,8 @@ For regions where source TIF is not available locally, you'll need to re-downloa
 # For US states (from national data):
 python download_all_us_states.py --states <state_id> --max-size 1024
 
-# For regions via OpenTopography:
-python download_unified.py <region_id> --process --target-pixels 1024
+# For regions via the standardized command:
+python ensure_region.py <region_id> --target-pixels 1024
 
 # For specific countries:
 python downloaders/tile_large_states.py <region_id>  # If it's a large state

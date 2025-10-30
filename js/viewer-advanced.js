@@ -1224,13 +1224,15 @@ function setupScene() {
 
  // Renderer
  renderer = new THREE.WebGLRenderer({
- antialias: true, // ENABLED: Prevents edge aliasing artifacts that can look like overlapping
- preserveDrawingBuffer: true,
+ antialias: true, // will be adapted below
+ preserveDrawingBuffer: false, // enable only during screenshot capture
  alpha: false,
  powerPreference: "high-performance"
  });
- renderer.setSize(window.innerWidth, window.innerHeight);
- renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+// Pixel ratio governor; default at DPR but may be reduced adaptively at runtime
+renderer.__targetPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+renderer.setPixelRatio(renderer.__targetPixelRatio);
  document.getElementById('canvas-container').appendChild(renderer.domElement);
 
  // Lights
@@ -3331,6 +3333,9 @@ function resetCamera() {
 }
 
 function exportImage() {
+ // Temporarily enable preserveDrawingBuffer for screenshot
+ const prevPDB = renderer.getContext().getContextAttributes && renderer.getContext().getContextAttributes().preserveDrawingBuffer;
+ // Some drivers may not allow toggling at runtime; we emulate by rendering once then reading
  renderer.render(scene, camera);
  const dataURL = renderer.domElement.toDataURL('image/png');
  const link = document.createElement('a');

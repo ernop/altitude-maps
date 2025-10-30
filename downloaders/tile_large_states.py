@@ -266,9 +266,14 @@ def merge_tiles(tile_paths: List[Path], output_path: Path) -> bool:
                     # Emit detailed diagnostics per tile to aid debugging
                     try:
                         b = src.bounds
+                        try:
+                            size_mb = (p.stat().st_size) / (1024 * 1024)
+                        except Exception:
+                            size_mb = None
                         print(
                             f"        Opened {p.name}: {src.width}x{src.height} px, "
-                            f"dtype={src.dtypes[0]}, nodata={src.nodata}, crs={src.crs}",
+                            f"dtype={src.dtypes[0]}, nodata={src.nodata}, crs={src.crs}"
+                            + (f", size={size_mb:.1f} MB" if size_mb is not None else ""),
                             flush=True
                         )
                         print(
