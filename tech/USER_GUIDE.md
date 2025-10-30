@@ -287,21 +287,21 @@ For regions with multiple words (New Hampshire, North Dakota, etc.), you have**t
 ### Option 1: Underscores (Recommended)
 ```powershell
 python ensure_region.py new_hampshire
-python check_region.py north_dakota
+python ensure_region.py north_dakota --check-only
 python reprocess_existing_states.py --states new_hampshire north_dakota
 ```
 
 ### Option 2: Quotes
 ```powershell
 python ensure_region.py "new hampshire"
-python check_region.py "north dakota"
+python ensure_region.py "north dakota" --check-only
 python reprocess_existing_states.py --states "new hampshire" "north dakota"
 ```
 
 ### Option 3: Hyphens (converted to underscores)
 ```powershell
 python ensure_region.py new-hampshire
-python check_region.py north-dakota
+python ensure_region.py north-dakota --check-only
 ```
 
 All three formats work identically! The scripts automatically normalize them.
@@ -334,7 +334,7 @@ Every region goes through 4 stages:
 3.**Processed** - Downsampled to target resolution
 4.**Generated** - Exported as JSON for viewer
 
-Use `check_region.py` to see status of all stages!
+Use `ensure_region.py --check-only` to see status of all stages!
 
 ## Command Reference
 
@@ -355,9 +355,9 @@ python ensure_region.py "north dakota" --target-pixels 4096
 
 ### Check Region Status
 ```powershell
-python check_region.py ohio
-python check_region.py new_hampshire --verbose
-python check_region.py "north dakota" --raw-only
+python ensure_region.py ohio --check-only
+python ensure_region.py new_hampshire --check-only
+python ensure_region.py "north dakota" --check-only
 ```
 
 ### Reprocess Multiple States

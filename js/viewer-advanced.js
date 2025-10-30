@@ -1224,15 +1224,13 @@ function setupScene() {
 
  // Renderer
  renderer = new THREE.WebGLRenderer({
- antialias: true, // will be adapted below
- preserveDrawingBuffer: false, // enable only during screenshot capture
+ antialias: true,
+ preserveDrawingBuffer: true,
  alpha: false,
  powerPreference: "high-performance"
  });
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Pixel ratio governor; default at DPR but may be reduced adaptively at runtime
-renderer.__targetPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-renderer.setPixelRatio(renderer.__targetPixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
  document.getElementById('canvas-container').appendChild(renderer.domElement);
 
  // Lights
@@ -1823,7 +1821,7 @@ function initResolutionScale() {
         }, 0);
     };
 
-    // Sharp button: move to previous smaller tick (supports hold-to-repeat)
+    // Sharp button: move to previous smaller tick (single step per click)
     if (maxBtn) {
         const doSharpStep = () => {
             let prev = 1;
@@ -1833,8 +1831,7 @@ function initResolutionScale() {
             }
             setImmediateToSize(prev);
         };
-        maxBtn.addEventListener('click', (e) => { e.preventDefault(); doSharpStep(); });
-        setupHoldRepeat(maxBtn, doSharpStep);
+        maxBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doSharpStep(); });
     }
 
     // Helper: press-and-hold repeating for buttons
@@ -1862,15 +1859,14 @@ function initResolutionScale() {
         el.addEventListener('mouseleave', end);
     };
 
-    // Less/Blur button: move to next larger tick (supports hold-to-repeat)
+    // Less/Blur button: move to next larger tick (single step per click)
     const lessBtn = document.getElementById('resolutionLessButton');
     if (lessBtn) {
         const doBlurStep = () => {
             let target = ticks.find(t => t > params.bucketSize) || 500;
             setImmediateToSize(target);
         };
-        lessBtn.addEventListener('click', (e) => { e.preventDefault(); doBlurStep(); });
-        setupHoldRepeat(lessBtn, doBlurStep);
+        lessBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doBlurStep(); });
     }
 
  // Initial position
@@ -2380,6 +2376,7 @@ function createBarsTerrain(width, height, elevation, scale) {
  instancedMesh.frustumCulled = false; // Stable bounds; avoid per-frame recomputation cost
 
  // Set transform and color for each instance using typed mappings
+ // Use Float32 colors for exact previous visual appearance (0..1 per channel)
  const colorArray = new Float32Array(barCount* 3);
  barsIndexToRow = new Int32Array(barCount);
  barsIndexToCol = new Int32Array(barCount);
@@ -2403,10 +2400,10 @@ function createBarsTerrain(width, height, elevation, scale) {
      barsDummy.updateMatrix();
      instancedMesh.setMatrixAt(idx, barsDummy.matrix);
 
-     const c = getColorForElevation(z);
-     colorArray[idx* 3] = c.r;
-     colorArray[idx* 3 + 1] = c.g;
-     colorArray[idx* 3 + 2] = c.b;
+ const c = getColorForElevation(z);
+ colorArray[idx* 3] = c.r;
+ colorArray[idx* 3 + 1] = c.g;
+ colorArray[idx* 3 + 2] = c.b;
 
      barsIndexToRow[idx] = i;
      barsIndexToCol[idx] = j;
@@ -2723,9 +2720,9 @@ function updateColors() {
  setLastColorIndex(row, col);
  const c = getColorForElevation(z);
  const idx = i* 3;
- arr[idx] = c.r;
- arr[idx + 1] = c.g;
- arr[idx + 2] = c.b;
+  arr[idx] = c.r;
+  arr[idx + 1] = c.g;
+  arr[idx + 2] = c.b;
  }
  colorAttr.needsUpdate = true;
  return;
@@ -3513,10 +3510,11 @@ function updateFPS() {
  frameCount++;
  const currentTime = performance.now();
  if (currentTime >= lastTime + 1000) {
- const fps = Math.round((frameCount* 1000) / (currentTime - lastTime));
- document.getElementById('fps-display').textContent = `FPS: ${fps}`;
- frameCount = 0;
- lastTime = currentTime;
+  const fps = Math.round((frameCount* 1000) / (currentTime - lastTime));
+  const fpsEl = document.getElementById('fps-display');
+  if (fpsEl) fpsEl.textContent = `FPS: ${fps}`;
+  frameCount = 0;
+  lastTime = currentTime;
  }
 }
 

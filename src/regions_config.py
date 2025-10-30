@@ -45,7 +45,9 @@ class RegionConfig:
     category: str = "generic"  # 'usa_state', 'usa_full', 'international', 'island', 'mountain_range', etc.
     country: Optional[str] = None  # Country name if applicable
     clip_boundary: bool = True  # Whether to clip to administrative boundary
-    recommended_dataset: str = "SRTMGL1"  # Default dataset for downloads
+    # If set (e.g., 'SRTMGL1' or 'COP30'), this overrides latitude-based selection.
+    # Default None means: choose dataset by latitude (SRTM within 60°N–56°S; COP30 otherwise).
+    recommended_dataset: Optional[str] = None
     tiles: Optional[Tuple[int, int]] = None  # Tiling configuration (cols, rows) for large regions that need downloading in parts
 
 

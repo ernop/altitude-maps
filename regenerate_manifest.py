@@ -41,6 +41,12 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                         break
                 
                 region_id = data.get("region_id", stem)
+
+                # ENFORCE: Only include regions explicitly configured upstream
+                cfg = ALL_REGIONS.get(region_id)
+                if not cfg:
+                    print(f"      [SKIP] Unknown region not in regions_config: {region_id}", flush=True)
+                    continue
                 
                 entry = {
                     "name": data.get("name", region_id.replace('_', ' ').title()),
@@ -51,10 +57,12 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                     "stats": data.get("stats", {})
                 }
 
-                # Attach category if known
-                cfg = ALL_REGIONS.get(region_id)
-                if cfg and getattr(cfg, 'category', None):
-                    entry["category"] = getattr(cfg, 'category')
+                # Attach and REQUIRE category
+                category_value = getattr(cfg, 'category', None)
+                if not category_value:
+                    print(f"      [SKIP] Region missing category in regions_config: {region_id}", flush=True)
+                    continue
+                entry["category"] = category_value
 
                 manifest["regions"][region_id] = entry
             except Exception as e:

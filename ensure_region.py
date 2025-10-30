@@ -147,22 +147,47 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
                 return False
 
             if check_data:
-                # Try to read a small central sample to verify data accessibility
+                # Try to read multiple small samples (center + 4 quadrants)
                 try:
                     from rasterio.windows import Window
-                    sample_height = min(256, max(1, src.height // 8))
-                    sample_width = min(256, max(1, src.width // 8))
-                    row_off = max(0, (src.height - sample_height) // 2)
-                    col_off = max(0, (src.width - sample_width) // 2)
-                    data = src.read(1, window=Window(col_off, row_off, sample_width, sample_height))
-                    # Check for any non-null data in the sample
                     import numpy as np
-                    valid_count = np.sum(~np.isnan(data.astype(float)) & (data > -500))
-                    if valid_count == 0:
-                        print(f"  No valid elevation data in sample", flush=True)
+
+                    def _read_sample(c_off: int, r_off: int, w: int, h: int) -> bool:
+                        arr = src.read(1, window=Window(c_off, r_off, w, h))
+                        arr = arr.astype(float)
+                        valid = np.sum(~np.isnan(arr) & (arr > -500))
+                        return valid > 0
+
+                    h_s = max(64, min(256, src.height // 8))
+                    w_s = max(64, min(256, src.width // 8))
+
+                    positions = [
+                        # center
+                        (max(0, (src.width - w_s) // 2), max(0, (src.height - h_s) // 2)),
+                        # top-left
+                        (0, 0),
+                        # top-right
+                        (max(0, src.width - w_s), 0),
+                        # bottom-left
+                        (0, max(0, src.height - h_s)),
+                        # bottom-right
+                        (max(0, src.width - w_s), max(0, src.height - h_s)),
+                    ]
+
+                    any_valid = False
+                    for (c_off, r_off) in positions:
+                        try:
+                            if _read_sample(c_off, r_off, w_s, h_s):
+                                any_valid = True
+                        except Exception as se:
+                            # If any sample read fails, flag as invalid to trigger repair
+                            print(f"  Data read failed at window ({c_off},{r_off},{w_s},{h_s}): {se}", flush=True)
+                            return False
+
+                    if not any_valid:
+                        print(f"  No valid elevation data in sampled windows", flush=True)
                         return False
                 except Exception as e:
-                    # Data read failed; treat as invalid so we can auto-clean and re-download
                     print(f"  Data read failed during validation: {e}", flush=True)
                     return False
 
@@ -451,12 +476,12 @@ def _iter_all_region_ids() -> list[str]:
 def download_us_state(region_id, state_info):
     """Download raw data for a US state using USGS 3DEP."""
     print(f"\n  Downloading {state_info['name']}...")
-    print(f"  Source: USGS 3DEP (10m resolution)")
-    print(f"  Using: download_all_us_states_highres.py")
+    print(f"  Source: USGS 3DEP preferred; automated path uses OpenTopography SRTM 30m")
+    print(f"  Using: downloaders/usa_3dep.py --auto")
 
     import subprocess
     result = subprocess.run(
-        [sys.executable, "download_all_us_states_highres.py", "--states", region_id],
+        [sys.executable, "downloaders/usa_3dep.py", region_id, "--auto"],
         capture_output=False
     )
 
@@ -703,7 +728,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
             # If area too large, transparently fall back to tiling
             resp_text = response.text or ""
             if (dataset == 'SRTMGL1') and ("maximum area" in resp_text.lower() or response.status_code == 400):
-                print(f"  ℹ Server rejected single request due to size. Switching to tiled download...", flush=True)
+                print(f" Server rejected single request due to size. Switching to tiled download...", flush=True)
                 # Trigger tiled path
                 # Recursively call this function but force tiling by adjusting threshold
                 # Easiest: emulate should_tile path above
@@ -1890,23 +1915,34 @@ This script will:
 
     # Handle --list-regions
     if args.list_regions:
-        from src.regions_config import US_STATES, COUNTRIES, REGIONS
+        from src.regions_config import US_STATES, COUNTRIES, REGIONS, check_region_data_available
+
+        def _status_tag(rid: str) -> str:
+            try:
+                st = check_region_data_available(rid)
+                return "[ready]" if st.get('in_manifest') else "[not ready]"
+            except Exception:
+                return "[unknown]"
 
         print("\n  AVAILABLE REGIONS:")
         print("="*70)
         print("\n  US STATES:")
         for state_id in sorted(US_STATES.keys()):
             config = US_STATES[state_id]
-            print(f"    - {state_id:20s} -> {config.name}")
+            tag = _status_tag(state_id)
+            print(f"    - {state_id:20s} -> {config.name:30s} {tag}")
         print(f"\n  COUNTRIES:")
         for country_id in sorted(COUNTRIES.keys()):
             config = COUNTRIES[country_id]
-            print(f"    - {country_id:20s} -> {config.name}")
+            tag = _status_tag(country_id)
+            print(f"    - {country_id:20s} -> {config.name:30s} {tag}")
         print(f"\n  REGIONS:")
         for region_id in sorted(REGIONS.keys()):
             config = REGIONS[region_id]
-            print(f"    - {region_id:20s} -> {config.name}")
+            tag = _status_tag(region_id)
+            print(f"    - {region_id:20s} -> {config.name:30s} {tag}")
         print(f"\n{'='*70}")
+        print("Legend: [ready] = appears in viewer manifest; [not ready] = not exported yet")
         print(f"Total: {len(US_STATES)} US states + {len(COUNTRIES)} countries + {len(REGIONS)} regions = {len(US_STATES) + len(COUNTRIES) + len(REGIONS)} total")
         print(f"\nUsage: python ensure_region.py <region_id>")
         return 0
