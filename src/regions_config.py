@@ -170,6 +170,16 @@ US_STATES: Dict[str, RegionConfig] = {
         clip_boundary=True,
         tiles=(2, 2),  # ~7.75deg x ~5.88deg -> split for API friendliness
     ),
+    "michigan": RegionConfig(
+        id="michigan",
+        name="Michigan",
+        bounds=(-90.42, 41.70, -82.12, 48.31),
+        description="Michigan",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+        tiles=(2, 2),  # ~8.3deg x ~6.6deg -> split for API friendliness
+    ),
     
     
     "nebraska": RegionConfig(
@@ -292,6 +302,16 @@ US_STATES: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=True,
     ),
+    "washington": RegionConfig(
+        id="washington",
+        name="Washington",
+        bounds=(-124.79, 45.54, -116.92, 49.00),
+        description="Washington",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+        tiles=(2, 2),
+    ),
 }
 
 
@@ -351,15 +371,26 @@ COUNTRIES: Dict[str, RegionConfig] = {
         name="Hong Kong",
         bounds=(113.8, 22.15, 114.4, 22.6),
         description="Hong Kong SAR",
-        category="region",
-        clip_boundary=False,
+        category="country",
+        country="Hong Kong",
+        clip_boundary=True,
     ),
     "iceland": RegionConfig(
         id="iceland",
         name="Iceland",
         bounds=(-24.5, 63.4, -13.5, 66.6),
         description="Iceland - volcanic terrain",
-        category="region",
+        category="country",
+        country="Iceland",
+        clip_boundary=True,
+    ),
+    "faroe_islands": RegionConfig(
+        id="faroe_islands",
+        name="Faroe Islands",
+        bounds=(-7.7, 61.4, -6.2, 62.4),
+        description="Faroe Islands - North Atlantic archipelago",
+        category="country",
+        country="Faroe Islands",
         clip_boundary=True,
     ),
 }
@@ -383,14 +414,6 @@ REGIONS: Dict[str, RegionConfig] = {
         name="Arkhangelsk Area",
         bounds=(36.0, 61.0, 50.0, 66.5),
         description="Russia - Arkhangelsk Oblast and White Sea coast",
-        category="region",
-        clip_boundary=False,
-    ),
-    "faroe_islands": RegionConfig(
-        id="faroe_islands",
-        name="Faroe Islands",
-        bounds=(-7.7, 61.4, -6.2, 62.4),
-        description="Faroe Islands - North Atlantic archipelago",
         category="region",
         clip_boundary=False,
     ),

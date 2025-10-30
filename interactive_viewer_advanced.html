@@ -108,17 +108,7 @@
  -->
  </div>
 
- <div class="control-group">
- <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
- <label style="margin: 0;">Tile Gap</label>
- </div>
- <div style="display: flex; align-items: center; gap: 8px;">
- <span style="font-size: 11px; opacity: 0.6; min-width: 20px;">0%</span>
- <input type="range" id="tileGap" min="0" max="99" step="1" value="0" style="flex: 1;">
- <input type="number" id="tileGapInput" min="0" max="99" step="1" value="0"
- style="width: 60px; padding: 2px 6px; text-align: right; font-size: 12px;">
- </div>
- </div>
+ 
 
  <div class="control-group">
  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -175,6 +165,10 @@
  <option value="diverging-elevation">Diverging Elevation</option>
  <option value="terrain-muted">Terrain (Muted)</option>
  </select>
+  <div id="colorSchemeNudger" style="margin-top:6px; display:flex; gap:6px;">
+   <button id="colorSchemeUp" title="Previous color scheme">^</button>
+   <button id="colorSchemeDown" title="Next color scheme">v</button>
+  </div>
  <div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff;"></div>
  </div>
 

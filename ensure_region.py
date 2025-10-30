@@ -582,12 +582,12 @@ def download_international_region(region_id, region_info, dataset_override: str 
             print(f"  Already exists: {output_file.name}")
             return True
 
-    # Helper to download a single bounding box to a specific file
-    def _download_bbox(out_path: Path, bbox: tuple[float, float, float, float]) -> bool:
+    # Helper to download a single bounding box to a specific file using a specific dataset
+    def _download_bbox(out_path: Path, bbox: tuple[float, float, float, float], demtype: str) -> bool:
         w, s, e, n = bbox
         url = "https://portal.opentopography.org/API/globaldem"
         params = {
-            'demtype': dataset,
+            'demtype': demtype,
             'south': s,
             'north': n,
             'west': w,
@@ -655,7 +655,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
                     print(f"  Cached tile failed validation (will NOT delete). Attempting repaired re-download...", flush=True)
                     # Re-download to a separate file to preserve original
                     repaired_path = tiles_dir / f"{region_id}_tile_{idx:02d}_fix1.tif"
-                    if _download_bbox(repaired_path, tb) and validate_geotiff(repaired_path, check_data=True):
+                    if _download_bbox(repaired_path, tb, dataset) and validate_geotiff(repaired_path, check_data=True):
                         try:
                             size_mb = repaired_path.stat().st_size / (1024 * 1024)
                             print(f"  Using repaired tile: {repaired_path.name} ({size_mb:.1f} MB)", flush=True)
@@ -667,7 +667,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
                         print(f"  Repaired download failed; will skip this tile", flush=True)
                         # fall through to skip
             print(f"  Downloading tile...", flush=True)
-            if not _download_bbox(tile_path, tb):
+            if not _download_bbox(tile_path, tb, dataset):
                 print(f"  Tile download failed, skipping", flush=True)
                 continue
             if validate_geotiff(tile_path, check_data=True):
@@ -704,6 +704,90 @@ def download_international_region(region_id, region_info, dataset_override: str 
         except Exception as e:
             print(f"  Could not save raw metadata: {e}")
         print(f"  Tiled download and merge complete", flush=True)
+        return True
+
+    # Mixed-source handling: if region spans SRTM/COP30 boundary, split and merge
+    spans_upper = south < 60.0 and north > 60.0
+    spans_lower = south < -56.0 and north > -56.0
+    crosses = spans_upper or spans_lower
+
+    if crosses and dataset_override is None:
+        print("  Spans dataset coverage boundary; downloading sub-extents per source and merging...", flush=True)
+        sub_boxes: list[tuple[tuple[float, float, float, float], str]] = []
+        # Lower polar-cap segment (below -56)
+        if south < -56.0:
+            sub_boxes.append(((west, south, east, min(north, -56.0)), 'COP30'))
+        # Mid SRTM segment (-56 to 60)
+        mid_south = max(south, -56.0)
+        mid_north = min(north, 60.0)
+        if mid_south < mid_north:
+            sub_boxes.append(((west, mid_south, east, mid_north), 'SRTMGL1'))
+        # Upper segment (above 60)
+        if north > 60.0:
+            sub_boxes.append(((west, max(south, 60.0), east, north), 'COP30'))
+
+        parts_dir = Path(f"data/raw/srtm_30m/subparts/{region_id}")
+        parts_dir.mkdir(parents=True, exist_ok=True)
+        part_paths: list[Path] = []
+        for pi, (bbox, demtype) in enumerate(sub_boxes):
+            pw, ps, pe, pn = bbox
+            print(f"  Part {pi+1}/{len(sub_boxes)} [{demtype}] bounds: [{pw:.4f}, {ps:.4f}, {pe:.4f}, {pn:.4f}]", flush=True)
+            # Decide tiling for SRTM only
+            width_deg_p = max(0.0, float(pe - pw))
+            height_deg_p = max(0.0, float(pn - ps))
+            mid_lat_p = (pn + ps) / 2.0
+            km_per_deg_lon_p = 111.320 * math.cos(math.radians(mid_lat_p))
+            approx_area_km2_p = (width_deg_p * km_per_deg_lon_p) * (height_deg_p * km_per_deg_lat)
+            tile_needed = (demtype == 'SRTMGL1') and (approx_area_km2_p > 420_000 or width_deg_p > 4.0 or height_deg_p > 4.0)
+            if tile_needed:
+                tiles = calculate_tiles(bbox, tile_size=3.5)
+                tiles_dir_p = parts_dir / f"tiles_p{pi:02d}"
+                tiles_dir_p.mkdir(parents=True, exist_ok=True)
+                tile_paths_p: list[Path] = []
+                for ti, tb in enumerate(tiles):
+                    print(f"    Tile {ti+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
+                    tpath = tiles_dir_p / f"p{pi:02d}_t{ti:02d}.tif"
+                    if not _download_bbox(tpath, tb, demtype):
+                        print("    Tile download failed, skipping", flush=True)
+                        continue
+                    if validate_geotiff(tpath, check_data=True):
+                        tile_paths_p.append(tpath)
+                if not tile_paths_p:
+                    print("  No valid tiles for part; aborting", flush=True)
+                    return False
+                merged_part = parts_dir / f"part_{pi:02d}.tif"
+                if not merge_tiles(tile_paths_p, merged_part):
+                    print("  Part merge failed", flush=True)
+                    return False
+                part_paths.append(merged_part)
+            else:
+                part_path = parts_dir / f"part_{pi:02d}.tif"
+                if not _download_bbox(part_path, bbox, demtype):
+                    print("  Part download failed", flush=True)
+                    return False
+                if not validate_geotiff(part_path, check_data=True):
+                    print("  Part validation failed", flush=True)
+                    return False
+                part_paths.append(part_path)
+
+        print(f"  Merging {len(part_paths)} parts...")
+        if not merge_tiles(part_paths, output_file):
+            print("  Final merge failed", flush=True)
+            return False
+        # Save metadata
+        try:
+            from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+            raw_meta = create_raw_metadata(
+                tif_path=output_file,
+                region_id=region_id,
+                source='srtm_30m',
+                download_url='mixed:OpenTopography',
+                download_params={'parts': len(part_paths), 'bounds': region_info['bounds']}
+            )
+            save_metadata(raw_meta, get_metadata_path(output_file))
+        except Exception as e:
+            print(f"  Could not save raw metadata: {e}")
+        print("  Mixed-source download complete", flush=True)
         return True
 
     # Download using OpenTopography API (single request)
@@ -753,7 +837,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
                         else:
                             print(f"  Cached tile failed validation (will NOT delete). Attempting repaired re-download...", flush=True)
                             repaired_path = tiles_dir / f"{region_id}_tile_{idx:02d}_fix1.tif"
-                            if _download_bbox(repaired_path, tb) and validate_geotiff(repaired_path, check_data=True):
+                            if _download_bbox(repaired_path, tb, dataset) and validate_geotiff(repaired_path, check_data=True):
                                 try:
                                     size_mb = repaired_path.stat().st_size / (1024 * 1024)
                                     print(f"  Using repaired tile: {repaired_path.name} ({size_mb:.1f} MB)", flush=True)
@@ -764,7 +848,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
                             else:
                                 print(f"  Repaired download failed; will skip this tile", flush=True)
                     print(f"  Downloading tile...", flush=True)
-                    if not _download_bbox(tile_path, tb):
+                    if not _download_bbox(tile_path, tb, dataset):
                         print(f"  Tile download failed, skipping", flush=True)
                         continue
                     if validate_geotiff(tile_path, check_data=True):

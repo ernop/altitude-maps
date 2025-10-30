@@ -472,10 +472,22 @@ let currentRegionId = null;
 // Expected data format version - must match export script
 const EXPECTED_FORMAT_VERSION = 2;
 
+// Data caching toggle: when true (default), do NOT add cache-busting params
+// Enable dev busting with URL: ?useCache=0 (or useCache=false)
+const USE_CACHE = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('useCache')) {
+      const v = params.get('useCache')?.toLowerCase();
+      return !(v === '0' || v === 'false' || v === 'off' || v === 'no');
+    }
+  } catch (e) {}
+  return true; // default on (production-friendly)
+})();
+
 async function loadElevationData(url) {
- // Add cache-busting query parameter to force fresh fetch
- const cacheBuster = `?_t=${Date.now()}`;
- const urlWithBuster = url.includes('?') ? `${url}&${cacheBuster.slice(2)}` : url + cacheBuster;
+ // Respect caching toggle: only bust cache when USE_CACHE is false
+ const urlWithBuster = USE_CACHE ? url : (url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`);
  const tStart = performance.now();
  const response = await fetch(urlWithBuster);
 
@@ -530,9 +542,8 @@ async function loadElevationData(url) {
 async function loadBorderData(elevationUrl) {
  // Try to load borders from the same location with _borders suffix
  const borderUrl = elevationUrl.replace('.json', '_borders.json');
- // Add cache-busting query parameter
- const cacheBuster = `?_t=${Date.now()}`;
- const urlWithBuster = borderUrl.includes('?') ? `${borderUrl}&${cacheBuster.slice(2)}` : borderUrl + cacheBuster;
+  // Respect caching toggle
+  const urlWithBuster = USE_CACHE ? borderUrl : (borderUrl.includes('?') ? `${borderUrl}&_t=${Date.now()}` : `${borderUrl}?_t=${Date.now()}`);
  try {
  const tStart = performance.now();
  const response = await fetch(urlWithBuster);
@@ -554,9 +565,11 @@ async function loadBorderData(elevationUrl) {
 
 async function loadRegionsManifest() {
  try {
- const url = `generated/regions/regions_manifest.json?v=${Date.now()}`;
+    const base = `generated/regions/regions_manifest.json`;
+    // Always cache-bust manifest requests to pick up latest regions
+    const url = base.includes('?') ? `${base}&_t=${Date.now()}` : `${base}?_t=${Date.now()}`;
  const tStart = performance.now();
- const response = await fetch(url, { cache: 'no-store' });
+    const response = await fetch(url, { cache: 'no-store' });
  if (!response.ok) {
  console.warn('Regions manifest not found, using default single region');
  return null;
@@ -598,7 +611,7 @@ async function populateRegionSelector() {
  regionOptions = [];
 
 // Build three groups using manifest-provided categories:
-// Desired order in dropdown: 1) US states, 2) International countries, 3) Regions
+// Desired order in dropdown: 1) US states, 2) Regions (non-country), 3) Countries (international)
 const internationalCountries = [];
 const nonCountryRegions = [];
 const unitedStates = [];
@@ -625,24 +638,24 @@ for (const { id, info } of unitedStates) {
     regionNameToId[info.name.toLowerCase()] = id;
     regionOptions.push({ id, name: info.name });
 }
-if (unitedStates.length && (internationalCountries.length || nonCountryRegions.length)) {
+if (unitedStates.length && (nonCountryRegions.length || internationalCountries.length)) {
     regionOptions.push({ id: '__divider__', name: '' });
 }
 
-// 2) International countries (alpha)
-internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
-for (const { id, info } of internationalCountries) {
+// 2) Regions (alpha)
+nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
+for (const { id, info } of nonCountryRegions) {
     regionIdToName[id] = info.name;
     regionNameToId[info.name.toLowerCase()] = id;
     regionOptions.push({ id, name: info.name });
 }
-if (internationalCountries.length && nonCountryRegions.length) {
+if (nonCountryRegions.length && internationalCountries.length) {
     regionOptions.push({ id: '__divider__', name: '' });
 }
 
-// 3) Regions (alpha)
-nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
-for (const { id, info } of nonCountryRegions) {
+// 3) Countries (alpha)
+internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+for (const { id, info } of internationalCountries) {
     regionIdToName[id] = info.name;
     regionNameToId[info.name.toLowerCase()] = id;
     regionOptions.push({ id, name: info.name });
@@ -861,9 +874,11 @@ function syncUIControls() {
  const legacyInput = document.getElementById('bucketSizeInput');
  if (legacyInput) legacyInput.value = params.bucketSize;
 	
-	// Tile gap - sync both slider and input
-	document.getElementById('tileGap').value = params.tileGap;
-	document.getElementById('tileGapInput').value = params.tileGap;
+	// Tile gap UI removed; keep param but skip DOM sync
+	const tileGapEl = document.getElementById('tileGap');
+	const tileGapInputEl = document.getElementById('tileGapInput');
+	if (tileGapEl) tileGapEl.value = params.tileGap;
+	if (tileGapInputEl) tileGapInputEl.value = params.tileGap;
 	
 	// Vertical exaggeration - sync both slider and input (convert to multiplier for display)
 	const multiplier = internalToMultiplier(params.verticalExaggeration);
@@ -1484,27 +1499,28 @@ function setupControls() {
  });
  };
 
- // Sync slider -> input
- document.getElementById('tileGap').addEventListener('input', (e) => {
+ // Tile gap UI removed; add listeners only if elements exist
+ const tileGapSliderEl = document.getElementById('tileGap');
+ const tileGapNumberEl = document.getElementById('tileGapInput');
+ if (tileGapSliderEl) {
+ tileGapSliderEl.addEventListener('input', (e) => {
  params.tileGap = parseInt(e.target.value);
- document.getElementById('tileGapInput').value = params.tileGap;
+ if (tileGapNumberEl) tileGapNumberEl.value = params.tileGap;
  if (params.renderMode === 'bars') {
  scheduleTileGapUpdate();
  } else {
- // Non-bars modes ignore tile gap; just recreate to reflect any dependent visuals
  recreateTerrain();
  }
  updateURLParameter('tileGap', params.tileGap);
  });
-
- // Sync input -> slider
- document.getElementById('tileGapInput').addEventListener('change', (e) => {
+ }
+ if (tileGapNumberEl) {
+ tileGapNumberEl.addEventListener('change', (e) => {
  let value = parseInt(e.target.value);
- // Clamp to valid range
  value = Math.max(0, Math.min(99, value));
  params.tileGap = value;
- document.getElementById('tileGap').value = value;
- document.getElementById('tileGapInput').value = value;
+ if (tileGapSliderEl) tileGapSliderEl.value = value;
+ tileGapNumberEl.value = value;
  if (params.renderMode === 'bars') {
  updateTileGapUniform();
  } else {
@@ -1512,6 +1528,7 @@ function setupControls() {
  }
  updateURLParameter('tileGap', params.tileGap);
  });
+ }
 
  // Aggregation method (only if UI exists)
  const aggregationSelect = document.getElementById('aggregation');
@@ -1621,6 +1638,28 @@ function setupControls() {
  updateURLParameter('colorScheme', params.colorScheme);
  updateColorSchemeDescription();
 });
+
+ // Color scheme quick jump buttons (move by 1 option)
+ const csSelect = document.getElementById('colorScheme');
+ const csUpBtn = document.getElementById('colorSchemeUp');
+ const csDownBtn = document.getElementById('colorSchemeDown');
+ const jumpBy = 1;
+ if (csSelect && csUpBtn && csDownBtn) {
+   const jumpToIndex = (delta) => {
+     const total = csSelect.options.length;
+     let idx = csSelect.selectedIndex;
+     if (idx < 0) idx = 0;
+     let next = idx + delta;
+     if (next < 0) next = 0;
+     if (next >= total) next = total - 1;
+     if (next !== idx) {
+       csSelect.selectedIndex = next;
+       $('#colorScheme').trigger('change');
+     }
+   };
+   csUpBtn.addEventListener('click', () => jumpToIndex(-jumpBy));
+   csDownBtn.addEventListener('click', () => jumpToIndex(+jumpBy));
+ }
 
 // Flat lighting
  const flatToggle = document.getElementById('flatLightingEnabled');

@@ -69,10 +69,20 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                 print(f"      [!] Skipping {json_file.name}: {e}", flush=True)
                 continue
         
-        # Write manifest
+        # Write manifest (JSON)
         manifest_path = generated_dir / "regions_manifest.json"
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2)
+
+        # Also write gzip-compressed version
+        try:
+            import gzip
+            gzip_path = manifest_path.with_suffix('.json.gz')
+            with open(manifest_path, 'rb') as f_in:
+                with gzip.open(gzip_path, 'wb', compresslevel=9) as f_out:
+                    f_out.writelines(f_in)
+        except Exception as gz_err:
+            print(f"      [!] Warning: Could not write gzip manifest: {gz_err}", flush=True)
         
         print(f"      [+] Manifest updated ({len(manifest['regions'])} regions)", flush=True)
         return True

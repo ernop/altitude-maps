@@ -850,14 +850,29 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                 print(f" Skipping {json_file.name}: {e}")
                 continue
 
-        # Write manifest
+        # Write manifest (JSON)
         manifest_path = generated_dir / "regions_manifest.json"
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f, indent=2)
 
+        # Also write gzip-compressed version for production servers that serve precompressed assets
+        try:
+            import gzip
+            gzip_path = manifest_path.with_suffix('.json.gz')
+            with open(manifest_path, 'rb') as f_in:
+                with gzip.open(gzip_path, 'wb', compresslevel=9) as f_out:
+                    f_out.writelines(f_in)
+        except Exception as gz_err:
+            # Do not fail manifest generation if gzip write fails; log warning only
+            print(f" Warning: Could not write gzip manifest: {gz_err}")
+
         print(f" Manifest updated ({len(manifest['regions'])} regions)")
         try:
             print(f" [JSON] Manifest path: {str(manifest_path.resolve())}")
+            try:
+                print(f" [GZIP] Manifest path: {str(manifest_path.with_suffix('.json.gz').resolve())}")
+            except Exception:
+                pass
         except Exception:
             pass
         return True

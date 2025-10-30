@@ -121,14 +121,16 @@ async function loadBorderData(elevationUrl) {
 */
 async function loadRegionsManifest() {
  try {
- const response = await fetch('generated/regions/regions_manifest.json');
+    const base = 'generated/regions/regions_manifest.json';
+    // Always cache-bust manifest requests to avoid stale data
+    const url = base.includes('?') ? `${base}&_t=${Date.now()}` : `${base}?_t=${Date.now()}`;
+    const response = await fetch(url, { cache: 'no-store' });
  if (!response.ok) {
  console.warn('Regions manifest not found, using default single region');
  return null;
  }
     const manifest = await response.json();
     try {
-      const url = 'generated/regions/regions_manifest.json';
       const version = manifest.version || '(unknown)';
       const regions = manifest.regions && typeof manifest.regions === 'object' ? Object.keys(manifest.regions) : [];
       console.log(`[JSON] Loaded regions manifest: ${url}`);
