@@ -368,12 +368,15 @@ def main():
  all_regions = existing_regions.copy()
  for state_id in processed:
  if state_id in US_STATES:
- all_regions[state_id] = {
- "name": US_STATES[state_id]["name"],
- "description": US_STATES[state_id]["description"],
- "bounds": US_STATES[state_id]["bounds"],
- "file": f"{state_id}.json"
- }
+     entry = {
+     "name": US_STATES[state_id]["name"],
+     "description": US_STATES[state_id]["description"],
+     "bounds": US_STATES[state_id]["bounds"],
+     "file": f"{state_id}.json"
+     }
+     # US states category
+     entry["category"] = "usa_state"
+     all_regions[state_id] = entry
 
  manifest = {
  "version": "1.0",

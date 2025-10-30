@@ -1,14 +1,3 @@
-"""
-Download elevation data from Japan GSI (Geospatial Information Authority of Japan).
-
-GSI provides high-quality elevation data for Japan at 5-10m resolution.
-
-Two download methods:
-1. AUTOMATED: OpenTopography API (30m SRTM - lower quality but works immediately)
-2. MANUAL: GSI Official Site (5-10m - highest quality, requires manual steps)
-
-For highest quality, use the manual method with GSI's official portal.
-"""
 import sys
 import io
 from pathlib import Path
@@ -18,17 +7,17 @@ from typing import Tuple, Optional
 # Removed wrapper to avoid conflicts with PowerShell's own UTF-8 handling
 
 try:
- import requests
- from tqdm import tqdm
+    import requests
+    from tqdm import tqdm
 except ImportError as e:
- print(f"Missing package: {e}")
- print("Install with: pip install requests tqdm")
- sys.exit(1)
+    print(f"Missing package: {e}")
+    print("Install with: pip install requests tqdm")
+    sys.exit(1)
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from downloaders.usa_3dep import download_opentopography_srtm# Reuse SRTM downloader
+from downloaders.usa_3dep import download_opentopography_srtm  # Reuse SRTM downloader
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
 from src.pipeline import run_pipeline
 
@@ -38,7 +27,7 @@ JAPAN_REGIONS = {
  "honshu": {"bounds": (129.8, 33.7, 141.9, 41.5), "name": "Honshu Island"},
  "hokkaido": {"bounds": (139.3, 41.4, 145.8, 45.5), "name": "Hokkaido Island"},
  "kyushu": {"bounds": (129.5, 31.0, 131.9, 34.0), "name": "Kyushu Island"},
- "shikoku": {"bounds": (132.155, 32.775, 134.8, 34.5), "name": "Shikoku Island"},
+    "shikoku": {"bounds": (131.8905, 32.51625, 134.8, 34.5), "name": "Shikoku Island"},
  "kochi": {"bounds": (132.7, 32.7, 134.3, 33.9), "name": "Kochi Prefecture"},
 }
 

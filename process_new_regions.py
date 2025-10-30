@@ -237,8 +237,22 @@ def update_regions_manifest(manifest_path: Path, new_regions: Dict[str, Dict[str
             "regions": {}
         }
     
-    # Add new regions
-    manifest["regions"].update(new_regions)
+    # Add new regions, attaching category from centralized config when available
+    try:
+        from src.regions_config import get_region
+    except Exception:
+        get_region = None
+
+    for rid, info in new_regions.items():
+        entry = dict(info)
+        if get_region is not None:
+            try:
+                cfg = get_region(rid) if callable(get_region) else None
+                if cfg and getattr(cfg, 'category', None):
+                    entry["category"] = getattr(cfg, 'category')
+            except Exception:
+                pass
+        manifest["regions"][rid] = entry
     manifest["generated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # Save updated manifest

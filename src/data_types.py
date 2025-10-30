@@ -195,7 +195,7 @@ class ClippedElevationData:
     elevation_range: ElevationStats
     
     # Clipping-specific fields
-    boundary_name: str  # e.g., "Delaware", "United States of America"
+    boundary_name: str  # e.g., "Ohio", "United States of America"
     boundary_source: str  # e.g., "Natural Earth 10m"
     original_bounds: Bounds  # Before clipping
     clipped_date: str  # ISO format
@@ -289,11 +289,11 @@ class ViewerElevationData:
     {
         "format_version": 2,
         "exported_at": "2025-10-24T12:34:56Z",
-        "source_file": "data/raw/srtm_30m/delaware_bbox_30m.tif",
+        "source_file": "data/raw/srtm_30m/ohio_bbox_30m.tif",
         "width": 888,
         "height": 834,
         "elevation": [[...], [...], ...],  # 2D array: height rows, width columns
-        "bounds": {"left": -75.79, "bottom": 38.45, "right": -75.05, "top": 39.84},
+        "bounds": {"left": -84.82, "bottom": 38.40, "right": -80.52, "top": 41.98},
         "stats": {"min": -35.0, "max": 166.0, "mean": 15.17},
         "orientation": "north_up_east_right"
     }
@@ -386,7 +386,7 @@ class RegionInfo:
     name: str
     description: str
     source: str  # e.g., "srtm_30m", "usa_3dep"
-    file: str    # Filename only, e.g., "delaware.json"
+    file: str    # Filename only, e.g., "ohio.json"
     bounds: Dict[str, float]
     stats: Dict[str, float]
     
@@ -408,11 +408,11 @@ class RegionsManifest:
     {
         "version": "export_v2",
         "regions": {
-            "delaware": {
-                "name": "Delaware",
-                "description": "Delaware elevation data",
+            "ohio": {
+                "name": "Ohio",
+                "description": "Ohio elevation data",
                 "source": "srtm_30m",
-                "file": "delaware.json",
+                "file": "ohio.json",
                 "bounds": {...},
                 "stats": {...}
             },
@@ -479,6 +479,24 @@ def validate_viewer_json(filepath: Path) -> ViewerElevationData:
     
     with open(filepath) as f:
         data = json.load(f)
+    # Always report absolute path and core metadata for any loaded viewer JSON
+    try:
+        abs_path = str(filepath.resolve())
+        width = data.get('width')
+        height = data.get('height')
+        fmt_ver = data.get('format_version')
+        src = data.get('source_file') or data.get('source')
+        print(f"[JSON] Loaded viewer data: {abs_path}")
+        print(f"[JSON] Metadata: format_version={fmt_ver}, size={width}x{height}, source={src}")
+        if isinstance(data.get('bounds'), dict):
+            b = data['bounds']
+            print(f"[JSON] Bounds: left={b.get('left')}, bottom={b.get('bottom')}, right={b.get('right')}, top={b.get('top')}")
+        if isinstance(data.get('stats'), dict):
+            s = data['stats']
+            print(f"[JSON] Stats: min={s.get('min')}, max={s.get('max')}, mean={s.get('mean')}")
+    except Exception:
+        # Logging should never break validation; ignore logging errors
+        pass
     
     # Validate required fields
     required_fields = {
@@ -517,6 +535,16 @@ def validate_manifest_json(filepath: Path) -> RegionsManifest:
     
     with open(filepath) as f:
         data = json.load(f)
+    # Always report absolute path and manifest metadata
+    try:
+        abs_path = str(filepath.resolve())
+        version = data.get('version')
+        regions = data.get('regions')
+        count = len(regions) if isinstance(regions, dict) else 0
+        print(f"[JSON] Loaded regions manifest: {abs_path}")
+        print(f"[JSON] Metadata: version={version}, regions={count}")
+    except Exception:
+        pass
     
     # Validate structure
     if 'version' not in data:

@@ -65,6 +65,33 @@ US_STATES: Dict[str, RegionConfig] = {
         clip_boundary=True,
         tiles=(2, 2),  # 5.77deg x 5.67deg -> 2x2 tiles
     ),
+    "iowa": RegionConfig(
+        id="iowa",
+        name="Iowa",
+        bounds=(-96.639, 40.375, -90.140, 43.501),
+        description="Iowa",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "indiana": RegionConfig(
+        id="indiana",
+        name="Indiana",
+        bounds=(-88.097, 37.771, -84.784, 41.759),
+        description="Indiana",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "kentucky": RegionConfig(
+        id="kentucky",
+        name="Kentucky",
+        bounds=(-89.571, 36.497, -81.964, 39.147),
+        description="Kentucky",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
     "california": RegionConfig(
         id="california",
         name="California",
@@ -75,6 +102,15 @@ US_STATES: Dict[str, RegionConfig] = {
         clip_boundary=True,
         tiles=(3, 3),  # 10.35deg x 9.48deg -> 3x3 tiles
     ),
+    "south_dakota": RegionConfig(
+        id="south_dakota",
+        name="South Dakota",
+        bounds=(-104.057, 42.479, -96.436, 45.945),
+        description="South Dakota",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
     "colorado": RegionConfig(
         id="colorado",
         name="Colorado",
@@ -84,22 +120,31 @@ US_STATES: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=True,
     ),
-    "florida": RegionConfig(
-        id="florida",
-        name="Florida",
-        bounds=(-87.63, 24.52, -80.03, 31.00),
-        description="Florida - mostly flat",
+    "wisconsin": RegionConfig(
+        id="wisconsin",
+        name="Wisconsin",
+        bounds=(-92.889, 42.491, -86.249, 47.309),
+        description="Wisconsin",
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),  # 7.6deg x 6.48deg -> 2x2 tiles
     ),
+    
     
     "kansas": RegionConfig(
         id="kansas",
         name="Kansas",
         bounds=(-102.05, 36.99, -94.59, 40.00),
         description="Kansas",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "wyoming": RegionConfig(
+        id="wyoming",
+        name="Wyoming",
+        bounds=(-111.056, 40.994, -104.052, 45.005),
+        description="Wyoming",
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
@@ -113,6 +158,17 @@ US_STATES: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=True,
     ),
+    "minnesota": RegionConfig(
+        id="minnesota",
+        name="Minnesota",
+        bounds=(-97.24, 43.50, -89.49, 49.38),
+        description="Minnesota",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+        tiles=(2, 2),  # ~7.75deg x ~5.88deg -> split for API friendliness
+    ),
+    
     
     "nebraska": RegionConfig(
         id="nebraska",
@@ -288,6 +344,22 @@ COUNTRIES: Dict[str, RegionConfig] = {
         country="Turkiye",
         clip_boundary=True,
     ),
+    "hong_kong": RegionConfig(
+        id="hong_kong",
+        name="Hong Kong",
+        bounds=(113.8, 22.15, 114.4, 22.6),
+        description="Hong Kong SAR",
+        category="region",
+        clip_boundary=False,
+    ),
+    "iceland": RegionConfig(
+        id="iceland",
+        name="Iceland",
+        bounds=(-24.5, 63.4, -13.5, 66.6),
+        description="Iceland - volcanic terrain",
+        category="region",
+        clip_boundary=True,
+    ),
 }
 
 
@@ -328,22 +400,7 @@ REGIONS: Dict[str, RegionConfig] = {
         category="region",
         clip_boundary=False,
     ),
-    "hong_kong": RegionConfig(
-        id="hong_kong",
-        name="Hong Kong",
-        bounds=(113.8, 22.15, 114.4, 22.6),
-        description="Hong Kong SAR",
-        category="region",
-        clip_boundary=False,
-    ),
-    "iceland": RegionConfig(
-        id="iceland",
-        name="Iceland",
-        bounds=(-24.5, 63.4, -13.5, 66.6),
-        description="Iceland - volcanic terrain",
-        category="region",
-        clip_boundary=True,
-    ),
+    
     "kamchatka": RegionConfig(
         id="kamchatka",
         name="Kamchatka Peninsula",
@@ -405,6 +462,30 @@ REGIONS: Dict[str, RegionConfig] = {
         name="Tasmania",
         bounds=(144.0, -44.2, 149.0, -39.1),
         description="Tasmania (Australia) - island south of mainland",
+        category="region",
+        clip_boundary=False,
+    ),
+    "manicouagan_reservoir": RegionConfig(
+        id="manicouagan_reservoir",
+        name="Manicouagan Crater and René-Levasseur",
+        bounds=(-69.60, 50.80, -67.80, 52.00),
+        description="Quebec, Canada – Circular reservoir with circular island (René-Levasseur)",
+        category="region",
+        clip_boundary=False,
+    ),
+    "taal_nested_islands": RegionConfig(
+        id="taal_nested_islands",
+        name="Taal Volcano Nested Islands",
+        bounds=(120.80, 13.85, 121.10, 14.20),
+        description="Philippines – Lake with island with lake with island (Taal Volcano)",
+        category="region",
+        clip_boundary=False,
+    ),
+    "devils_tower_area": RegionConfig(
+        id="devils_tower_area",
+        name="Devils Tower Area",
+        bounds=(-104.78, 44.54, -104.64, 44.64),
+        description="Wyoming, USA – Columnar jointing (hexagonal towers) landmark",
         category="region",
         clip_boundary=False,
     ),

@@ -172,6 +172,24 @@ function appendActivityLog(message) {
  });
 }
 
+// Significant event helper (policy: add genuinely meaningful events)
+window.logSignificant = function(message) {
+  try { appendActivityLog(`[IMPORTANT] ${message}`); } catch (_) {}
+};
+
+// Copy all log text from all activityLog containers to clipboard
+window.copyActivityLogs = async function() {
+  try {
+    const logEls = Array.from(document.querySelectorAll('#activityLog'));
+    const texts = logEls.map(el => el.innerText.trim()).filter(Boolean);
+    const combined = texts.join('\n');
+    await navigator.clipboard.writeText(combined);
+    appendActivityLog('Logs copied to clipboard.');
+  } catch (e) {
+    appendActivityLog(`Failed to copy logs: ${e && e.message ? e.message : e}`);
+  }
+};
+
 function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
  let entry = null;
  try {
@@ -198,7 +216,8 @@ function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
 
 // Bars/Points fast-update state
 let barsInstancedMesh = null;
-let barsBarData = null; // array of { i, j, x, z }
+let barsIndexToRow = null; // Int32Array mapping: instanceIndex -> row
+let barsIndexToCol = null; // Int32Array mapping: instanceIndex -> col
 let barsTileSize = 0;
 const barsDummy = new THREE.Object3D();
 let pendingVertExagRaf = null; // Coalesce rapid exaggeration updates to the latest frame
@@ -211,7 +230,7 @@ let pendingBucketTimeout = null; // Debounce for bucket size rebuilds
 // Parameters
 let params = {
  bucketSize: 4, // Integer multiplier of pixel spacing (1x, 2x, 3x, etc.)
- tileGap: 1, // Gap between tiles as percentage (0-99%, where 1% = 0.99 tile size)
+ tileGap: 0, // Gap between tiles as percentage (0-99%)
  aggregation: 'max',
  renderMode: 'bars',
  verticalExaggeration: 0.03, // Default: good balance of detail and scale
@@ -310,12 +329,13 @@ async function init() {
 
  // Ensure activity log is visible by adding an initial entry
  appendActivityLog('Viewer initialized');
- // Mirror console logs into activity log (info-level only)
+ // Mirror warnings/errors into activity log to avoid DOM spam from frequent info logs
  if (!window.__consolePatched) {
  const origLog = console.log.bind(console);
  const origWarn = console.warn.bind(console);
  const origError = console.error.bind(console);
- console.log = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) {} origLog(...args); };
+ // Leave console.log unpatched for performance; do not mirror into the activity log
+ console.log = (...args) => { origLog(...args); };
  console.warn = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) {} origWarn(...args); };
  console.error = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) {} origError(...args); };
  window.__consolePatched = true;
@@ -577,58 +597,56 @@ async function populateRegionSelector() {
  regionNameToId = {};
  regionOptions = [];
 
- // Build three groups in desired order:
- // 1) International countries, 2) Non-country regions, 3) US states
- const usStateIds = new Set(['california','texas','colorado','washington','new_york','florida','arizona','alaska','hawaii','oregon','nevada','utah','idaho','montana','wyoming','new_mexico','north_dakota','south_dakota','nebraska','kansas','oklahoma','minnesota','iowa','missouri','arkansas','louisiana','wisconsin','illinois','michigan','indiana','ohio','mississippi','alabama','tennessee','kentucky','georgia','south_carolina','north_carolina','virginia','west_virginia','maryland','delaware','new_jersey','pennsylvania','connecticut','rhode_island','massachusetts','vermont','new_hampshire','maine']);
- const knownNonCountryIds = new Set(['hong_kong','shikoku','hokkaido','honshu','kyushu','kochi','tasmania','faroe_islands','gotland_island','peninsula','san_mateo','alps','rockies']);
- const internationalCountries = [];
- const nonCountryRegions = [];
- const unitedStates = [];
+// Build three groups using manifest-provided categories:
+// Desired order in dropdown: 1) US states, 2) International countries, 3) Regions
+const internationalCountries = [];
+const nonCountryRegions = [];
+const unitedStates = [];
 
- for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
- const id = regionId;
- const name = regionInfo?.name || regionId;
- if (usStateIds.has(id) || id.startsWith('usa_')) {
- unitedStates.push({ id, info: regionInfo });
- continue;
- }
- const looksLikeNonCountry = knownNonCountryIds.has(id) || /\b(island|islands|peninsula|range)\b/i.test(name);
- if (looksLikeNonCountry) {
- nonCountryRegions.push({ id, info: regionInfo });
- } else {
- internationalCountries.push({ id, info: regionInfo });
- }
- }
+for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
+    const id = regionId;
+    const category = (regionInfo && regionInfo.category) ? String(regionInfo.category).toLowerCase() : null;
+    if (category === 'usa_state') {
+        unitedStates.push({ id, info: regionInfo });
+    } else if (category === 'country') {
+        internationalCountries.push({ id, info: regionInfo });
+    } else if (category === 'region') {
+        nonCountryRegions.push({ id, info: regionInfo });
+    } else {
+        // Fallback: treat unknown categories as generic regions
+        nonCountryRegions.push({ id, info: regionInfo });
+    }
+}
 
- // 1) International countries (alpha)
- internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
- for (const { id, info } of internationalCountries) {
- regionIdToName[id] = info.name;
- regionNameToId[info.name.toLowerCase()] = id;
- regionOptions.push({ id, name: info.name });
- }
- if (internationalCountries.length && (nonCountryRegions.length || unitedStates.length)) {
- regionOptions.push({ id: '__divider__', name: '' });
- }
+// 1) US states (alpha)
+unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
+for (const { id, info } of unitedStates) {
+    regionIdToName[id] = info.name;
+    regionNameToId[info.name.toLowerCase()] = id;
+    regionOptions.push({ id, name: info.name });
+}
+if (unitedStates.length && (internationalCountries.length || nonCountryRegions.length)) {
+    regionOptions.push({ id: '__divider__', name: '' });
+}
 
- // 2) Non-country regions (alpha)
- nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
- for (const { id, info } of nonCountryRegions) {
- regionIdToName[id] = info.name;
- regionNameToId[info.name.toLowerCase()] = id;
- regionOptions.push({ id, name: info.name });
- }
- if (nonCountryRegions.length && unitedStates.length) {
- regionOptions.push({ id: '__divider__', name: '' });
- }
+// 2) International countries (alpha)
+internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+for (const { id, info } of internationalCountries) {
+    regionIdToName[id] = info.name;
+    regionNameToId[info.name.toLowerCase()] = id;
+    regionOptions.push({ id, name: info.name });
+}
+if (internationalCountries.length && nonCountryRegions.length) {
+    regionOptions.push({ id: '__divider__', name: '' });
+}
 
- // 3) US states (alpha)
- unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
- for (const { id, info } of unitedStates) {
- regionIdToName[id] = info.name;
- regionNameToId[info.name.toLowerCase()] = id;
- regionOptions.push({ id, name: info.name });
- }
+// 3) Regions (alpha)
+nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
+for (const { id, info } of nonCountryRegions) {
+    regionIdToName[id] = info.name;
+    regionNameToId[info.name.toLowerCase()] = id;
+    regionOptions.push({ id, name: info.name });
+}
 
  // Determine which region to load initially
  // Priority: URL parameter > California > localStorage > first region
@@ -751,6 +769,9 @@ async function loadRegion(regionId) {
  edgeMarkers.forEach(marker => scene.remove(marker));
  edgeMarkers = [];
 
+ // Before first build for this region, auto-increase bucket size to target count
+ // (respects larger values from URL/user)
+ autoAdjustBucketSize();
  // Reprocess and recreate terrain
  rebucketData();
  recreateTerrain();
@@ -772,9 +793,11 @@ async function loadRegion(regionId) {
  }
 
  hideLoading();
- console.log(`Loaded ${regionId}`);
+  console.log(`Loaded ${regionId}`);
+  try { logSignificant(`Region loaded: ${regionId}`); } catch (_) {}
  } catch (error) {
  console.error(`Failed to load region ${regionId}:`, error);
+  try { logSignificant(`Region load failed: ${regionId}`); } catch (_) {}
  alert(`Failed to load region: ${error.message}`);
  hideLoading();
 
@@ -1226,6 +1249,9 @@ function setupScene() {
  scene.add(dirLight2);
  window.__dirLight2 = dirLight2;
 
+ // Ensure intensities match current flat/non-flat state
+ updateLightingForShading();
+
  // Grid helper
  gridHelper = new THREE.GridHelper(200, 40, 0x555555, 0x222222);
  gridHelper.position.y = -0.1;
@@ -1594,31 +1620,9 @@ function setupControls() {
  updateColors();
  updateURLParameter('colorScheme', params.colorScheme);
  updateColorSchemeDescription();
- });
+});
 
- // Highlights UI
- const hlEnabled = document.getElementById('highlightEnabled');
- const hlMetric = document.getElementById('highlightMetric');
- const hlMin = document.getElementById('highlightMin');
- const hlMax = document.getElementById('highlightMax');
- if (hlEnabled) {
- hlEnabled.checked = !!params.highlightEnabled;
- hlEnabled.addEventListener('change', () => { params.highlightEnabled = !!hlEnabled.checked; updateColors(); });
- }
- if (hlMetric) {
- hlMetric.value = params.highlightMetric || 'elevation';
- hlMetric.addEventListener('change', () => { params.highlightMetric = hlMetric.value; updateColors(); });
- }
- if (hlMin) {
- hlMin.value = params.highlightMin ?? 100;
- hlMin.addEventListener('change', () => { params.highlightMin = parseFloat(hlMin.value) || 0; updateColors(); });
- }
- if (hlMax) {
- hlMax.value = params.highlightMax ?? 500;
- hlMax.addEventListener('change', () => { params.highlightMax = parseFloat(hlMax.value) || 0; updateColors(); });
- }
-
- // Flat lighting
+// Flat lighting
  const flatToggle = document.getElementById('flatLightingEnabled');
  if (flatToggle) {
  flatToggle.addEventListener('change', (e) => {
@@ -1652,15 +1656,19 @@ function hideResolutionLoading() {
  }
 }
 
-// ===== COMPACT RESOLUTION SCALE =====
+// ===== COMPACT RESOLUTION SCALE (logarithmic mapping) =====
 function bucketSizeToPercent(size) {
  const clamped = Math.max(1, Math.min(500, parseInt(size)));
- return ((clamped - 1) / 499)* 100; // 1..500 -> 0..100%
+ const maxLog = Math.log(500);
+ const valLog = Math.log(clamped);
+ return (valLog / maxLog)* 100; // 1..500 -> 0..100% in log domain
 }
 
 function percentToBucketSize(percent) {
  const p = Math.max(0, Math.min(100, percent));
- const size = Math.round(1 + (p / 100)* 499);
+ const maxLog = Math.log(500);
+ const logVal = (p / 100)* maxLog;
+ const size = Math.round(Math.exp(logVal));
  return Math.max(1, Math.min(500, size));
 }
 
@@ -1681,11 +1689,13 @@ function updateResolutionScaleUI(size) {
 function initResolutionScale() {
  const container = document.getElementById('resolution-scale');
  const track = container && container.querySelector('.resolution-scale-track');
- const maxBtn = document.getElementById('resolutionMaxLabel');
+    const maxBtn = document.getElementById('resolutionMaxLabel');
  if (!container || !track) return;
 
- let isDragging = false;
- let lastSetSize = params.bucketSize;
+    let isDragging = false;
+    let lastSetSize = params.bucketSize;
+    let startX = 0;
+    let dragMoved = false;
 
  // Build ticks with common meaningful steps
  const ticks = [1, 2, 5, 10, 20, 50, 100, 200, 500];
@@ -1747,26 +1757,119 @@ function initResolutionScale() {
  }
  };
 
- const onPointerDown = (e) => {
- isDragging = true;
- setFromClientX(e.clientX, false);
- window.addEventListener('pointermove', onPointerMove);
- window.addEventListener('pointerup', onPointerUp, { once: true });
- };
- const onPointerMove = (e) => {
- if (!isDragging) return;
- setFromClientX(e.clientX, false);
- };
- const onPointerUp = (e) => {
- if (!isDragging) return;
- isDragging = false;
- setFromClientX(e.clientX, true);
- window.removeEventListener('pointermove', onPointerMove);
- };
+    const onPointerDown = (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        dragMoved = false;
+        setFromClientX(e.clientX, false);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp, { once: true });
+    };
+    const onPointerMove = (e) => {
+        if (!isDragging) return;
+        if (Math.abs(e.clientX - startX) > 6) dragMoved = true;
+        setFromClientX(e.clientX, false);
+    };
+    const onPointerUp = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        if (!dragMoved) {
+            // Snap to nearest tick on simple click
+            const rect = track.getBoundingClientRect();
+            const clampedX = Math.max(rect.left, Math.min(rect.right, e.clientX));
+            const pct = ((clampedX - rect.left) / rect.width) * 100;
+            const rawSize = percentToBucketSize(pct);
+            const nearest = ticks.reduce((best, t) => Math.abs(t - rawSize) < Math.abs(best - rawSize) ? t : best, ticks[0]);
+            setImmediateToSize(nearest);
+        } else {
+            setFromClientX(e.clientX, true);
+        }
+        window.removeEventListener('pointermove', onPointerMove);
+    };
 
- track.addEventListener('pointerdown', onPointerDown);
+    // Make the entire container clickable to jump (snap to nearest tick)
+    container.addEventListener('click', (e) => {
+        if (e.target === track || track.contains(e.target)) return; // track click already handled via pointer handlers
+        const rect = track.getBoundingClientRect();
+        const clampedX = Math.max(rect.left, Math.min(rect.right, e.clientX));
+        const pct = ((clampedX - rect.left) / rect.width) * 100;
+        const rawSize = percentToBucketSize(pct);
+        const nearest = ticks.reduce((best, t) => Math.abs(t - rawSize) < Math.abs(best - rawSize) ? t : best, ticks[0]);
+        setImmediateToSize(nearest);
+    });
 
- // Button uses onclick in HTML; no extra binding required
+    track.addEventListener('pointerdown', onPointerDown);
+
+    // Helper: set immediately to a specific size (one rebuild)
+    const setImmediateToSize = (size) => {
+        const clamped = Math.max(1, Math.min(500, Math.round(size)));
+        if (clamped === params.bucketSize) return;
+        params.bucketSize = clamped;
+        updateResolutionScaleUI(clamped);
+        showResolutionLoading();
+        if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
+        setTimeout(() => {
+            try {
+                edgeMarkers.forEach(marker => scene.remove(marker));
+                edgeMarkers = [];
+                rebucketData();
+                recreateTerrain();
+                updateURLParameter('bucketSize', params.bucketSize);
+            } finally {
+                hideResolutionLoading();
+            }
+        }, 0);
+    };
+
+    // Sharp button: move to previous smaller tick (supports hold-to-repeat)
+    if (maxBtn) {
+        const doSharpStep = () => {
+            let prev = 1;
+            for (let i = 0; i < ticks.length; i++) {
+                if (ticks[i] >= params.bucketSize) { break; }
+                prev = ticks[i];
+            }
+            setImmediateToSize(prev);
+        };
+        maxBtn.addEventListener('click', (e) => { e.preventDefault(); doSharpStep(); });
+        setupHoldRepeat(maxBtn, doSharpStep);
+    }
+
+    // Helper: press-and-hold repeating for buttons
+    const setupHoldRepeat = (el, stepFn) => {
+        if (!el) return;
+        let holdTimeout = null;
+        let holdInterval = null;
+        const clearTimers = () => {
+            if (holdTimeout) { clearTimeout(holdTimeout); holdTimeout = null; }
+            if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
+        };
+        const start = (ev) => {
+            ev.preventDefault();
+            stepFn();
+            clearTimers();
+            holdTimeout = setTimeout(() => {
+                holdInterval = setInterval(stepFn, 100);
+            }, 350);
+        };
+        const end = () => clearTimers();
+        el.addEventListener('mousedown', start);
+        el.addEventListener('touchstart', start, { passive: false });
+        window.addEventListener('mouseup', end);
+        window.addEventListener('touchend', end);
+        el.addEventListener('mouseleave', end);
+    };
+
+    // Less/Blur button: move to next larger tick (supports hold-to-repeat)
+    const lessBtn = document.getElementById('resolutionLessButton');
+    if (lessBtn) {
+        const doBlurStep = () => {
+            let target = ticks.find(t => t > params.bucketSize) || 500;
+            setImmediateToSize(target);
+        };
+        lessBtn.addEventListener('click', (e) => { e.preventDefault(); doBlurStep(); });
+        setupHoldRepeat(lessBtn, doBlurStep);
+    }
 
  // Initial position
  updateResolutionScaleUI(params.bucketSize);
@@ -1883,7 +1986,7 @@ function setDefaultResolution() {
  }, 50);
 }
 
-function autoAdjustBucketSize() {
+ function autoAdjustBucketSize() {
  if (!rawElevationData) {
  console.warn('[WARN] No data loaded, cannot auto-adjust bucket size');
  return;
@@ -1921,8 +2024,8 @@ function autoAdjustBucketSize() {
  console.log(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
  console.log(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '' : ''} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
 
- // Update params and UI
- params.bucketSize = optimalSize;
+ // Update params and UI (only increase small values; never reduce user-chosen larger values)
+ params.bucketSize = Math.max(params.bucketSize || 1, optimalSize);
  try { updateResolutionScaleUI(optimalSize); } catch (_) {}
  // tag UI updated via updateResolutionScaleUI
 
@@ -2252,32 +2355,17 @@ function createBarsTerrain(width, height, elevation, scale) {
  console.log(`Vertical exaggeration: ${params.verticalExaggeration.toFixed(5)}x (affects ONLY Y-axis)`);
  console.log(`Grid approach: Each data point [i,j] -> one square tile, no distortion`);
 
- // Collect bar data - uniform grid positioning with square tiles
- // IMPORTANT: width x height are ALREADY BUCKETED dimensions
- // E.g., if bucket size = 2x2, we've already aggregated 4 pixels into 1 value
- // So this loop creates ONE rectangle per bucket, correctly spaced
- const barData = [];
-
- for (let i = 0; i < height; i++) { // i = row index (bucketed)
- for (let j = 0; j < width; j++) { // j = col index (bucketed)
- let z = elevation[i] && elevation[i][j];
-
- // Skip null/undefined values entirely - don't render anything for areas outside boundaries
- if (z === null || z === undefined) continue;
-
- const elev = Math.max(z* params.verticalExaggeration, 0.1);
- setLastColorIndex(i, j);
- const color = getColorForElevation(z);
-
- // Position on UNIFORM grid - same spacing in both X and Z directions
- const xPos = j* bucketMultiplier; // Column x tile size
- const zPos = i* bucketMultiplier; // Row x tile size (NO aspect ratio!)
- const yPos = elev* 0.5; // Center cube at half height above ground plane
- barData.push({ i, j, x: xPos, y: yPos, z: zPos, height: elev, color });
+ // First pass: count valid (non-null) samples to preallocate buffers
+ let barCount = 0;
+ for (let i = 0; i < height; i++) {
+   const row = elevation[i];
+   if (!row) continue;
+   for (let j = 0; j < width; j++) {
+     const z = row[j];
+     if (z === null || z === undefined) continue;
+     barCount++;
+   }
  }
- }
-
- const barCount = barData.length;
  const material = params.flatLightingEnabled
  ? new THREE.MeshBasicMaterial({ vertexColors: true })
  : new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -2287,46 +2375,48 @@ function createBarsTerrain(width, height, elevation, scale) {
  material,
  barCount
  );
+ instancedMesh.frustumCulled = false; // Stable bounds; avoid per-frame recomputation cost
 
- // Set transform and color for each instance
+ // Set transform and color for each instance using typed mappings
  const colorArray = new Float32Array(barCount* 3);
+ barsIndexToRow = new Int32Array(barCount);
+ barsIndexToCol = new Int32Array(barCount);
 
- for (let i = 0; i < barCount; i++) {
- const bar = barData[i];
+ let idx = 0;
+ for (let i = 0; i < height; i++) {
+   const row = elevation[i];
+   if (!row) continue;
+   for (let j = 0; j < width; j++) {
+     let z = row[j];
+     if (z === null || z === undefined) continue;
 
- // CRITICAL: Reset dummy to identity state before setting new transform
- // This ensures no rotation/skew and that scale is ONLY in Y direction
- barsDummy.rotation.set(0, 0, 0);
- barsDummy.position.set(bar.x, bar.y, bar.z);
- barsDummy.scale.set(tileSize, bar.height, tileSize); // Scale X/Z by tile size, Y by height
- barsDummy.updateMatrix();
- instancedMesh.setMatrixAt(i, barsDummy.matrix);
+     const elev = Math.max(z* params.verticalExaggeration, 0.1);
+     const xPos = j* bucketMultiplier;
+     const zPos = i* bucketMultiplier;
+     const yPos = elev* 0.5;
 
- // Set color
- setLastColorIndex(bar.i, bar.j);
- const c = getColorForElevation(elevation[bar.i][bar.j] ?? 0);
- colorArray[i* 3] = c.r;
- colorArray[i* 3 + 1] = c.g;
- colorArray[i* 3 + 2] = c.b;
+     barsDummy.rotation.set(0, 0, 0);
+     barsDummy.position.set(xPos, yPos, zPos);
+     barsDummy.scale.set(tileSize, elev, tileSize);
+     barsDummy.updateMatrix();
+     instancedMesh.setMatrixAt(idx, barsDummy.matrix);
+
+     const c = getColorForElevation(z);
+     colorArray[idx* 3] = c.r;
+     colorArray[idx* 3 + 1] = c.g;
+     colorArray[idx* 3 + 2] = c.b;
+
+     barsIndexToRow[idx] = i;
+     barsIndexToCol[idx] = j;
+     idx++;
+   }
  }
 
  // Persist references for fast, in-place updates (no rebuilds)
  barsInstancedMesh = instancedMesh;
- barsBarData = barData;
+ // barData removed in favor of compact typed index maps
  barsTileSize = tileSize;
- if (barCount > 0) {
- console.log(`Sample bars (verifying XZ footprint is constant):`);
- for (let i = 0; i < Math.min(3, barCount); i++) {
- const bar = barData[i];
- const xMin = bar.x - tileSize/2;
- const xMax = bar.x + tileSize/2;
- const zMin = bar.z - tileSize/2;
- const zMax = bar.z + tileSize/2;
- console.log(` Bar ${i}: center=(${bar.x.toFixed(1)}, ${bar.y.toFixed(1)}, ${bar.z.toFixed(1)})`);
- console.log(` XZ extent: X[${xMin.toFixed(2)} to ${xMax.toFixed(2)}] Z[${zMin.toFixed(2)} to ${zMax.toFixed(2)}] = ${tileSize.toFixed(2)}x${tileSize.toFixed(2)}`);
- console.log(` Height: ${bar.height.toFixed(2)} (Y scale only, XZ scale = 1.0)`);
- }
- }
+ // Remove verbose per-bar sample logging to reduce console overhead
 
  // CRITICAL: Mark instance matrix as needing GPU update
  instancedMesh.instanceMatrix.needsUpdate = true;
@@ -2558,21 +2648,8 @@ function getColorForElevation(elevation) {
  }
  }
 
- const baseColor = __tmpColor.copy(scheme[scheme.length - 1].color);
- // Threshold highlight overlay
- if (params.highlightEnabled) {
- let v = 0;
- if (params.highlightMetric === 'slope' && derivedSlopeDeg) v = deriveCurrentSlope() || 0;
- else v = elevation || 0;
- const vMin = params.highlightMin ?? 0;
- const vMax = params.highlightMax ?? 0;
- if (v >= Math.min(vMin, vMax) && v <= Math.max(vMin, vMax)) {
- // Blend toward highlight color
- const highlight = new THREE.Color(0xffff33);
- baseColor.lerp(highlight, 0.5);
- }
- }
- return baseColor;
+const baseColor = __tmpColor.copy(scheme[scheme.length - 1].color);
+return baseColor;
 }
 
 // Helpers for per-cell derived values during colorization
@@ -2628,15 +2705,17 @@ function updateColors() {
 
  // Bars: update per-instance colors without rebuild
  if (params.renderMode === 'bars') {
- if (!barsInstancedMesh || !barsBarData) { recreateTerrain(); return; }
+ if (!barsInstancedMesh || !barsIndexToRow || !barsIndexToCol) { recreateTerrain(); return; }
  // If hillshade is enabled, vertex colors are not used; nothing to update visually
  if (barsInstancedMesh.material && barsInstancedMesh.material.vertexColors) {
  const colorAttr = barsInstancedMesh.geometry.getAttribute('instanceColor');
  if (!colorAttr || !colorAttr.array) { recreateTerrain(); return; }
 
  const arr = colorAttr.array;
- for (let i = 0; i < barsBarData.length; i++) {
- const { i: row, j: col } = barsBarData[i];
+ const count = barsIndexToRow.length;
+ for (let i = 0; i < count; i++) {
+ const row = barsIndexToRow[i];
+ const col = barsIndexToCol[i];
  let z = (processedData.elevation[row] && processedData.elevation[row][col]);
  if (z === null || z === undefined) z = 0;
  setLastColorIndex(row, col);
@@ -2728,41 +2807,12 @@ function updateLightingForShading() {
  ambient.intensity = 1.0;
  d1.intensity = 0.0;
  d2.intensity = 0.0;
- return;
+ } else {
+ // Brighter ambient to avoid overly dark appearance
+ ambient.intensity = 0.9;
+ d1.intensity = 0.4;
+ d2.intensity = 0.2;
  }
-
- // Map shadowStrength (0..100) to an ambient/key/fill balance.
- // Lower strength -> higher ambient, softer key/fill. Higher -> stronger key, deeper contrast.
- const s = Math.max(0, Math.min(100, params.shadowStrength)) / 100.0;
-
- // Base levels
- const ambientBase = 0.65; // mid ambient
- const ambientVar = 0.45; // range reduced as s increases
- const keyBase = 0.25; // base key
- const keyVar = 1.00; // how much key grows with strength
- const fillBase = 0.20; // base fill
- const fillVar = 0.35; // how much fill grows with strength
-
- // Compute intensities
- const ambientIntensity = Math.max(0.1, ambientBase - ambientVar* s);
- const keyIntensity = keyBase + keyVar* s;
- const fillIntensity = fillBase + fillVar* (0.6* s); // fill grows slower for better contrast
-
- // Style variations adjust secondary light color
- if (params.shadingStyle === 'soft-cool') {
- d1.color.setHex(0xffffff);
- d2.color.setHex(0x6688ff);
- } else if (params.shadingStyle === 'soft-warm') {
- d1.color.setHex(0xffffff);
- d2.color.setHex(0xffaa66);
- } else { // standard
- d1.color.setHex(0xffffff);
- d2.color.setHex(0xffffff);
- }
-
- ambient.intensity = ambientIntensity;
- d1.intensity = keyIntensity;
- d2.intensity = fillIntensity;
 }
 
 
@@ -3480,15 +3530,17 @@ function raycastToWorld(screenX, screenY) {
 
  // Set up raycaster
  raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-
- // ALWAYS use ground plane for consistency
- // This eliminates jerkiness from inconsistent terrain intersections
+ // Prefer terrain intersection; fall back to ground plane
+ if (terrainMesh) {
+ const hits = raycaster.intersectObject(terrainMesh, true);
+ if (hits && hits.length > 0) {
+ const p = hits[0].point;
+ return new THREE.Vector3(p.x, 0, p.z);
+ }
+ }
  const planeIntersect = new THREE.Vector3();
  const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
-
- if (intersected) {
- return planeIntersect;
- }
+ if (intersected) return planeIntersect;
 
  // Should never happen, but just in case
  console.warn('Raycast failed completely');
@@ -3573,9 +3625,33 @@ function updateCursorHUD(clientX, clientY) {
 		if (distEl) distEl.textContent = '--';
 		return;
 	}
- const idx = worldToGridIndex(world.x, world.z);
- if (!idx) return;
-	const zMeters = processedData.elevation[idx.i][idx.j] ?? 0;
+    // Ignore when cursor is outside data footprint
+    if (!isWorldInsideData(world.x, world.z)) {
+        elevEl.textContent = '--';
+        if (slopeEl) slopeEl.textContent = '--';
+        if (aspectEl) aspectEl.textContent = '--';
+        if (distEl) {
+            const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
+            distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
+        }
+        return;
+    }
+
+    const idx = worldToGridIndex(world.x, world.z);
+    if (!idx) return;
+    const zCell = (processedData.elevation[idx.i] && processedData.elevation[idx.i][idx.j]);
+    const hasData = (zCell != null) && isFinite(zCell);
+    if (!hasData) {
+        elevEl.textContent = '--';
+        if (slopeEl) slopeEl.textContent = '--';
+        if (aspectEl) aspectEl.textContent = '--';
+        if (distEl) {
+            const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
+            distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
+        }
+        return;
+    }
+    const zMeters = zCell;
  const s = getSlopeDegrees(idx.i, idx.j);
  const a = getAspectDegrees(idx.i, idx.j);
 	const units = (hudSettings && hudSettings.units) || 'metric';
@@ -3796,6 +3872,25 @@ function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	const projx = ax + t* vx;
 	const projz = az + t* vz;
 	return Math.hypot(px - projx, pz - projz);
+}
+
+function isWorldInsideData(worldX, worldZ) {
+    if (!processedData) return false;
+    const w = processedData.width;
+    const h = processedData.height;
+    let xMin, xMax, zMin, zMax;
+    if (params.renderMode === 'bars') {
+        const bucket = params.bucketSize;
+        xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
+        zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
+    } else if (params.renderMode === 'points') {
+        xMin = -(w - 1) / 2; xMax = (w - 1) / 2;
+        zMin = -(h - 1) / 2; zMax = (h - 1) / 2;
+    } else {
+        xMin = -w / 2; xMax = w / 2;
+        zMin = -h / 2; zMax = h / 2;
+    }
+    return (worldX >= xMin && worldX <= xMax && worldZ >= zMin && worldZ <= zMax);
 }
 
 function onMouseDown(event) {

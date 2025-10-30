@@ -255,15 +255,42 @@ def merge_tiles(tile_paths: List[Path], output_path: Path) -> bool:
     
     merge_start = time.time()
     
+    src_files = []
     try:
         # Open all tiles and validate them
         print(f"  [1/4] Opening {len(tile_paths)} tile files...", flush=True)
-        src_files = []
         for p in tile_paths:
             try:
                 src = rasterio.open(p)
-                # Check if file has actual data
                 if src.width > 0 and src.height > 0:
+                    # Emit detailed diagnostics per tile to aid debugging
+                    try:
+                        b = src.bounds
+                        print(
+                            f"        Opened {p.name}: {src.width}x{src.height} px, "
+                            f"dtype={src.dtypes[0]}, nodata={src.nodata}, crs={src.crs}",
+                            flush=True
+                        )
+                        print(
+                            f"          Bounds: left={b.left:.6f}, bottom={b.bottom:.6f}, right={b.right:.6f}, top={b.top:.6f}",
+                            flush=True
+                        )
+                        # Try a tiny central read to surface read errors early
+                        try:
+                            from rasterio.windows import Window
+                            h = max(1, min(128, src.height // 8))
+                            w = max(1, min(128, src.width // 8))
+                            row_off = max(0, (src.height - h) // 2)
+                            col_off = max(0, (src.width - w) // 2)
+                            _sample = src.read(1, window=Window(col_off, row_off, w, h))
+                            print(
+                                f"          Sample read OK: window={w}x{h} at ({col_off},{row_off})",
+                                flush=True
+                            )
+                        except Exception as se:
+                            print(f"          Warning: Sample read failed: {se}", flush=True)
+                    except Exception:
+                        pass
                     src_files.append(src)
                 else:
                     print(f"        Warning: Skipping empty tile: {p.name}", flush=True)
@@ -271,56 +298,95 @@ def merge_tiles(tile_paths: List[Path], output_path: Path) -> bool:
             except Exception as e:
                 print(f"        Warning: Cannot open tile {p.name}: {e}", flush=True)
                 print(f"        Skipping this tile...", flush=True)
-        
+
         if not src_files:
             print(f"\n  ERROR: No valid tiles to merge!", flush=True)
             return False
-        
+
         # Calculate combined dimensions
         total_pixels = sum(src.width * src.height for src in src_files)
         print(f"  [2/4] Total pixels across all tiles: {total_pixels:,}", flush=True)
-        
-        # Merge tiles
+
+        # Determine a safe output dtype and nodata
+        # Prefer float32 to avoid int/float mismatches and to preserve nodata masks
+        out_dtype = 'float32'
+        # Choose nodata: use first valid src.nodata; otherwise sensible default
+        nodata_values = [s.nodata for s in src_files if s.nodata is not None]
+        if len(nodata_values) > 0:
+            out_nodata = nodata_values[0]
+        else:
+            # Default nodata for float32
+            out_nodata = -9999.0
+
+        # Merge tiles (let rasterio handle reprojection if any tiny differences)
         print(f"  [3/4] Combining rasters into mosaic...", flush=True)
-        mosaic, out_transform = merge(src_files)
-        
+        mosaic, out_transform = merge(
+            src_files,
+            nodata=out_nodata,
+            dtype=out_dtype,
+            method='first'  # deterministic and fast for DEMs
+        )
+
+        # If masked array, fill with nodata
+        try:
+            import numpy as _np
+            if _np.ma.isMaskedArray(mosaic):
+                mosaic = mosaic.filled(out_nodata)
+        except Exception:
+            pass
+
         print(f"        Merged dimensions: {mosaic.shape[2]} x {mosaic.shape[1]} pixels", flush=True)
-        
-        # Get metadata from first tile
+
+        # Get metadata from first tile and normalize
         out_meta = src_files[0].meta.copy()
         out_meta.update({
             "driver": "GTiff",
             "height": mosaic.shape[1],
             "width": mosaic.shape[2],
-            "transform": out_transform
+            "transform": out_transform,
+            "dtype": out_dtype,
+            "count": mosaic.shape[0],
+            "nodata": out_nodata
         })
-        
+
         # Write merged file
         print(f"  [4/4] Writing merged file to disk...", flush=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with rasterio.open(output_path, "w", **out_meta) as dest:
             dest.write(mosaic)
-        
-        # Close all source files
-        for src in src_files:
-            src.close()
-        
+
         merge_time = time.time() - merge_start
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        
+
         print(f"\nMerge complete!", flush=True)
         print(f"  Output: {output_path.name}", flush=True)
         print(f"  Size: {file_size_mb:.1f} MB", flush=True)
         print(f"  Time: {merge_time:.1f}s", flush=True)
         print(f"{'='*70}\n", flush=True)
-        
+
         return True
-        
+
     except Exception as e:
         print(f"\nMerge FAILED: {e}")
+        # Provide traceback for deeper insight
+        try:
+            import traceback as _tb
+            print(_tb.format_exc())
+        except Exception:
+            pass
         if output_path.exists():
-            output_path.unlink()
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
         return False
+    finally:
+        # Ensure all datasets are closed even if an error occurs
+        for _src in src_files:
+            try:
+                _src.close()
+            except Exception:
+                pass
 
 
 def download_large_state(region_id: str, api_key: str = None, target_pixels: int = 800):

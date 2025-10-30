@@ -1,14 +1,3 @@
-"""
-Download elevation data from Switzerland SwissTopo.
-
-SwissTopo provides extremely high-quality elevation data for Switzerland at 0.5-2m resolution.
-
-Two download methods:
-1. AUTOMATED: OpenTopography API (30m SRTM - lower quality but works immediately)
-2. MANUAL: SwissTopo Official Site (0.5-2m - highest quality, requires manual steps)
-
-For highest quality, use the manual method with SwissTopo's official portal.
-"""
 import sys
 import io
 from pathlib import Path
@@ -18,17 +7,17 @@ from typing import Tuple, Optional
 # Modern Python handles UTF-8 correctly by default
 
 try:
- import requests
- from tqdm import tqdm
+    import requests
+    from tqdm import tqdm
 except ImportError as e:
- print(f"Missing package: {e}")
- print("Install with: pip install requests tqdm")
- sys.exit(1)
+    print(f"Missing package: {e}")
+    print("Install with: pip install requests tqdm")
+    sys.exit(1)
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from downloaders.usa_3dep import download_opentopography_srtm# Reuse SRTM downloader
+from downloaders.usa_3dep import download_opentopography_srtm  # Reuse SRTM downloader
 from src.regions_config import ALL_REGIONS
 
 # Regions now come from centralized config in src/regions_config.py

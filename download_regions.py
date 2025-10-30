@@ -193,12 +193,21 @@ def create_regions_manifest(output_dir: Path, processed_regions: List[str]):
 
  for region_id in processed_regions:
  if region_id in REGIONS:
- manifest["regions"][region_id] = {
- "name": REGIONS[region_id]["name"],
- "description": REGIONS[region_id]["description"],
- "bounds": REGIONS[region_id]["bounds"],
- "file": f"{region_id}.json"
- }
+     entry = {
+     "name": REGIONS[region_id]["name"],
+     "description": REGIONS[region_id]["description"],
+     "bounds": REGIONS[region_id]["bounds"],
+     "file": f"{region_id}.json"
+     }
+     # Attach category from centralized config if available
+     try:
+         from src.regions_config import get_region
+         cfg = get_region(region_id) if callable(get_region) else None
+         if cfg and getattr(cfg, 'category', None):
+             entry["category"] = getattr(cfg, 'category')
+     except Exception:
+         pass
+     manifest["regions"][region_id] = entry
 
  manifest_file = output_dir / "regions_manifest.json"
  with open(manifest_file, 'w') as f:

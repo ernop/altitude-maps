@@ -53,6 +53,26 @@ async function loadElevationData(url) {
  }
  const data = await response.json();
 
+  // Always report the full URL and core metadata for any loaded JSON
+  try {
+    const w = data.width;
+    const h = data.height;
+    const ver = data.format_version || '(none)';
+    const src = data.source || data.source_file || '(unknown)';
+    console.log(`[JSON] Loaded viewer data: ${url}`);
+    console.log(`[JSON] Metadata: format_version=${ver}, size=${w}x${h}, source=${src}`);
+    if (data.bounds) {
+      const b = data.bounds;
+      console.log(`[JSON] Bounds: left=${b.left}, bottom=${b.bottom}, right=${b.right}, top=${b.top}`);
+    }
+    if (data.stats) {
+      const s = data.stats;
+      console.log(`[JSON] Stats: min=${s.min}, max=${s.max}, mean=${s.mean}`);
+    }
+  } catch (e) {
+    // ignore logging errors
+  }
+
  // Validate format version
  if (data.format_version && data.format_version !== EXPECTED_FORMAT_VERSION) {
  console.error(`[!!] FORMAT VERSION MISMATCH!`);
@@ -106,7 +126,17 @@ async function loadRegionsManifest() {
  console.warn('Regions manifest not found, using default single region');
  return null;
  }
- return await response.json();
+    const manifest = await response.json();
+    try {
+      const url = 'generated/regions/regions_manifest.json';
+      const version = manifest.version || '(unknown)';
+      const regions = manifest.regions && typeof manifest.regions === 'object' ? Object.keys(manifest.regions) : [];
+      console.log(`[JSON] Loaded regions manifest: ${url}`);
+      console.log(`[JSON] Metadata: version=${version}, regions=${regions.length}`);
+    } catch (e) {
+      // ignore logging errors
+    }
+    return manifest;
  } catch (error) {
  console.warn('Could not load regions manifest:', error);
  return null;

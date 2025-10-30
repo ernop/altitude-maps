@@ -354,12 +354,18 @@ def main():
  all_regions = existing_regions.copy()
  for state_id in processed:
  if state_id in US_STATES:
- all_regions[state_id] = {
- "name": US_STATES[state_id]["name"],
- "description": US_STATES[state_id]["description"],
- "bounds": US_STATES[state_id]["bounds"],
- "file": f"{state_id}.json"
- }
+     entry = {
+     "name": US_STATES[state_id]["name"],
+     "description": US_STATES[state_id]["description"],
+     "bounds": US_STATES[state_id]["bounds"],
+     "file": f"{state_id}.json"
+     }
+     # US states category
+     try:
+         entry["category"] = "usa_state"
+     except Exception:
+         pass
+     all_regions[state_id] = entry
 
  create_regions_manifest(output_dir, all_regions)
 

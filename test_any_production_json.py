@@ -49,7 +49,6 @@ def main():
         "california_srtm_30m_2048px_v2.json",
         "texas_srtm_30m_2048px_v2.json", 
         "ohio_srtm_30m_2048px_v2.json",
-        "delaware_srtm_30m_2048px_v2.json",
     ]
     
     found_any = False

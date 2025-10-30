@@ -13,6 +13,9 @@ from src.versioning import get_current_version
 def update_manifest_directly(generated_dir: Path) -> bool:
     """Update manifest without relying on pipeline import."""
     try:
+        # Import region categories from centralized config
+        from src.regions_config import ALL_REGIONS
+
         manifest = {
             "version": get_current_version('export'),
             "regions": {}
@@ -39,7 +42,7 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                 
                 region_id = data.get("region_id", stem)
                 
-                manifest["regions"][region_id] = {
+                entry = {
                     "name": data.get("name", region_id.replace('_', ' ').title()),
                     "description": data.get("description", f"{data.get('name', region_id)} elevation data"),
                     "source": data.get("source", "unknown"),
@@ -47,6 +50,13 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                     "bounds": data.get("bounds", {}),
                     "stats": data.get("stats", {})
                 }
+
+                # Attach category if known
+                cfg = ALL_REGIONS.get(region_id)
+                if cfg and getattr(cfg, 'category', None):
+                    entry["category"] = getattr(cfg, 'category')
+
+                manifest["regions"][region_id] = entry
             except Exception as e:
                 print(f"      [!] Skipping {json_file.name}: {e}", flush=True)
                 continue

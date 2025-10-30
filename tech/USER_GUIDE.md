@@ -276,7 +276,7 @@ The bounds format is: `west south east north` (in degrees).
 ### Choose Specific Dataset
 ```powershell
 # Use Copernicus DEM instead of default
-python download_unified.py alps --dataset COP30 --process
+python download_unified.py please --dataset COP30 --process
 
 # Use ALOS for high mountains
 python download_unified.py nepal --dataset AW3D30 --process

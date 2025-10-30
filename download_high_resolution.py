@@ -243,7 +243,7 @@ Examples:
  python download_high_resolution.py california --usgs-instructions
 
 # Download and process multiple regions
- python download_high_resolution.py shikoku california alps --process
+ python download_high_resolution.py shikoku california --process
 
 # List available regions and datasets
  python download_high_resolution.py --list-regions
