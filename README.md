@@ -260,7 +260,8 @@ Images include:
 ## Requirements
 
 -**Windows** (PowerShell for setup script) / Mac / Linux
--**Python 3.13** (or 3.10+)
+-**Python 3.13** (required - setup script installs automatically on Windows if winget is available)
+-**winget** (Windows Package Manager - for automatic Python installation on Windows, or install Python 3.13 manually from python.org)
 -**Modern web browser** (Chrome, Firefox, Edge, Safari) for interactive viewer
 -**~500MB disk space** for data cache
 
