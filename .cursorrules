@@ -71,6 +71,10 @@ Session notes and development threads only:
 - Always use Python 3.13 virtual environment (`venv`)
 - Activate with `.\venv\Scripts\Activate.ps1` in PowerShell
 - Dependencies managed via `requirements.txt`
+- **IDE Setup**: `.vscode/settings.json` configures Cursor/VS Code to use the venv Python interpreter
+  - Python path: `venv/Scripts/python.exe`
+  - Venv path: `venv` (folder containing virtual environment)
+  - Reload window after setup if IDE doesn't recognize packages
 
 ### Code Style
 - Use type hints for function parameters and returns

@@ -125,7 +125,9 @@ def clip_to_boundary(
 
         if geometry_gdf is None or geometry_gdf.empty:
             if boundary_required:
-                print(f" Error: State '{state}' boundary not found in '{country}' and boundary is required.")
+                error_msg = f"State '{state}' boundary not found in '{country}' and boundary is required."
+                print(f" Error: {error_msg}")
+                raise PipelineError(error_msg)
             else:
                 print(f" Warning: State '{state}' not found in '{country}'. Skipping clipping step...")
             return False
@@ -135,7 +137,9 @@ def clip_to_boundary(
 
     if geometry_gdf is None or geometry_gdf.empty:
         if boundary_required:
-            print(f" Error: Could not find boundary '{boundary_name}' and boundary is required.")
+            error_msg = f"Could not find boundary '{boundary_name}' and boundary is required."
+            print(f" Error: {error_msg}")
+            raise PipelineError(error_msg)
         else:
             print(f" Warning: Could not find boundary '{boundary_name}'. Skipping clipping step...")
         return False
@@ -724,8 +728,8 @@ def export_for_viewer(
             with open(output_path, 'w') as f:
                 json.dump(export_data, f, separators=(',', ':'))
 
-            # Create gzip compressed version for production
-            print(f" Compressing with gzip...")
+            # Create gzip compressed version for production (Stage 9)
+            print(f"[STAGE 9/10] Compressing with gzip...")
             import gzip
             gzip_path = output_path.with_suffix('.json.gz')
             with open(output_path, 'rb') as f_in:
@@ -939,9 +943,14 @@ def run_pipeline(
     else:
         print(f"[STAGE 6/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
         clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
-        if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution, boundary_required=bool(boundary_name)):
-            # Boundary-required regions must not continue without a boundary
-            print(f"\n[STAGE 6/10] FAILED: Clipping failed and boundary was required ({boundary_name}).")
+        try:
+            if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution, boundary_required=bool(boundary_name)):
+                # Boundary-required regions must not continue without a boundary
+                print(f"\n[STAGE 6/10] FAILED: Clipping failed and boundary was required ({boundary_name}).")
+                print(f" Aborting pipeline for region '{region_id}'.")
+                return False, result_paths
+        except PipelineError as e:
+            print(f"\n[STAGE 6/10] FAILED: {e}")
             print(f" Aborting pipeline for region '{region_id}'.")
             return False, result_paths
 
@@ -956,7 +965,7 @@ def run_pipeline(
     result_paths["processed"] = processed_path
 
     # [STAGE 8/10] Export to JSON (include resolution in filename for cache safety)
-    print(f"\n[STAGE 8/10] Exporting for web viewer...")
+    print(f"\n[STAGE 8/10] Exporting to JSON for web viewer...")
     exported_path = generated_dir / f"{region_id}_{source}_{target_pixels}px_v2.json"
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths

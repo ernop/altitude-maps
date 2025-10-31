@@ -948,7 +948,7 @@ def determine_dataset_override(region_id: str, region_type: str, region_info: di
     Returns a short code understood by download_international_region: 'SRTMGL1' or 'COP30'.
     """
     if region_type == 'us_state':
-        print("[STAGE 2/11] Dataset: USGS 3DEP 10m (US State)")
+        print("[STAGE 2/10] Dataset: USGS 3DEP 10m (US State)")
         return 'USA_3DEP'
 
     # International regions
@@ -962,12 +962,12 @@ def determine_dataset_override(region_id: str, region_type: str, region_info: di
         recommended = None
 
     if recommended in ('SRTMGL1', 'COP30'):
-        print(f"[STAGE 2/11] Dataset override from RegionConfig: {recommended}")
+        print(f"[STAGE 2/10] Dataset override from RegionConfig: {recommended}")
         return recommended
 
     west, south, east, north = region_info['bounds']
     lat_choice = 'COP30' if (north > 60.0 or south < -56.0) else 'SRTMGL1'
-    print(f"[STAGE 3/11] Latitude-based dataset: {lat_choice}")
+    print(f"[STAGE 3/10] Latitude-based dataset: {lat_choice}")
     return lat_choice
 
 
@@ -992,7 +992,7 @@ def process_region(region_id, raw_path, source, target_pixels, force, region_typ
         boundary_name = None
         boundary_type = "country"
 
-    print(f"\n[STAGES 6-11] Processing pipeline...", flush=True)
+    print(f"\n[STAGES 6-10] Processing pipeline...", flush=True)
     if boundary_name:
         print(f"  Boundary: {boundary_name}", flush=True)
 
@@ -1194,7 +1194,9 @@ def clip_to_boundary(
 
         if geometry_gdf is None or geometry_gdf.empty:
             if boundary_required:
-                print(f"  Error: State '{state}' boundary not found in '{country}' and boundary is required.")
+                error_msg = f"State '{state}' boundary not found in '{country}' and boundary is required."
+                print(f"  Error: {error_msg}")
+                raise PipelineError(error_msg)
             else:
                 print(f"  Warning: State '{state}' not found in '{country}'. Skipping clipping step...")
             return False
@@ -1204,7 +1206,9 @@ def clip_to_boundary(
 
     if geometry_gdf is None or geometry_gdf.empty:
         if boundary_required:
-            print(f"  Error: Could not find boundary '{boundary_name}' and boundary is required.")
+            error_msg = f"Could not find boundary '{boundary_name}' and boundary is required."
+            print(f"  Error: {error_msg}")
+            raise PipelineError(error_msg)
         else:
             print(f"  Warning: Could not find boundary '{boundary_name}'. Skipping clipping step...")
         return False
@@ -1837,42 +1841,46 @@ def run_pipeline(
 
     # Stage 6: clip
     if skip_clip or not boundary_name:
-        print(f"[STAGE 6/11] Skipping clipping (using raw data)")
+        print(f"[STAGE 6/10] Skipping clipping (using raw data)")
         clipped_path = raw_tif_path
     else:
-        print(f"[STAGE 6/11] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
+        print(f"[STAGE 6/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
         clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
-        if not clip_to_boundary(
-            raw_tif_path, region_id, boundary_name, clipped_path,
-            source, boundary_type, border_resolution, boundary_required=bool(boundary_name)
-        ):
-            print(f"\n[STAGE 6/11] FAILED: Clipping failed and boundary was required ({boundary_name}).")
+        try:
+            if not clip_to_boundary(
+                raw_tif_path, region_id, boundary_name, clipped_path,
+                source, boundary_type, border_resolution, boundary_required=bool(boundary_name)
+            ):
+                print(f"\n[STAGE 6/10] FAILED: Clipping failed and boundary was required ({boundary_name}).")
+                return False, result_paths
+        except PipelineError as e:
+            print(f"\n[STAGE 6/10] FAILED: {e}")
             return False, result_paths
 
     result_paths["clipped"] = clipped_path
 
     # Stage 7: reproject
     reprojected_path = processed_dir / f"{region_id}_{source}_reproj.tif"
-    print(f"\n[STAGE 7/11] Reprojecting to metric CRS...")
+    print(f"\n[STAGE 7/10] Reprojecting to metric CRS...")
     if not reproject_to_metric_crs(clipped_path, region_id, reprojected_path, source):
         return False, result_paths
 
     # Stage 8: downsample
-    print(f"\n[STAGE 8/11] Processing for viewer...")
+    print(f"\n[STAGE 8/10] Processing for viewer...")
     processed_path = processed_dir / f"{region_id}_{source}_{target_pixels}px_v2.tif"
     if not downsample_for_viewer(reprojected_path, region_id, processed_path, target_pixels):
         return False, result_paths
     result_paths["processed"] = processed_path
 
     # Stage 9: export JSON
-    print(f"\n[STAGE 9/11] Exporting for web viewer...")
+    print(f"\n[STAGE 9/10] Exporting for web viewer...")
     exported_path = generated_dir / f"{region_id}_{source}_{target_pixels}px_v2.json"
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths
     result_paths["exported"] = exported_path
 
-    # Stage 11: manifest
-    print(f"[STAGE 11/11] Updating regions manifest...")
+    # Stage 10: manifest
+    print(f"[STAGE 10/10] Updating regions manifest...")
     update_regions_manifest(generated_dir)
 
     print(f"\n{'='*70}")
@@ -2069,7 +2077,7 @@ This script will:
     dataset_override = determine_dataset_override(region_id, region_type, region_info)
 
     # Check if raw data exists (stage 4)
-    print(f"\n[STAGE 4/11] Checking raw elevation data...", flush=True)
+    print(f"\n[STAGE 4/10] Checking raw elevation data...", flush=True)
     raw_path, source = find_raw_file(region_id)
 
     if not raw_path:
@@ -2080,7 +2088,7 @@ This script will:
             return 1
 
         # Download raw data
-        print(f"[STAGE 4/11] Downloading...", flush=True)
+        print(f"[STAGE 4/10] Downloading...", flush=True)
         if not download_region(region_id, region_type, region_info, dataset_override):
             print(f"  Download failed!", flush=True)
             return 1

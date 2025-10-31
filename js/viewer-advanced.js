@@ -1,5 +1,5 @@
 // Version tracking
-const VIEWER_VERSION = '1.333';
+const VIEWER_VERSION = '1.334';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -346,7 +346,7 @@ async function init() {
  if (versionDisplay) {
  versionDisplay.textContent = `v${VIEWER_VERSION}`;
  }
- console.log(`Altitude Maps Viewer v${VIEWER_VERSION}`);
+ appendActivityLog(`Altitude Maps Viewer v${VIEWER_VERSION}`);
 
  // Populate region selector (loads manifest and populates dropdown)
  const firstRegionId = await populateRegionSelector();
@@ -513,7 +513,7 @@ async function loadElevationData(url) {
  const text = await blob.text();
  const data = JSON.parse(text);
 
- console.log(`Loaded ${filename}: ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
+ appendActivityLog(`Loaded ${filename}: ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
  updateLoadingProgress(100, blob.size, blob.size);
 
  // Validate format version
@@ -532,7 +532,7 @@ async function loadElevationData(url) {
  console.warn(`[!!] No format version in data file - may be legacy format!`);
  console.warn(` Consider re-exporting: python export_for_web_viewer.py`);
  } else {
- console.log(`[OK] Data format v${data.format_version} (exported: ${data.exported_at || 'unknown'})`);
+ appendActivityLog(`[OK] Data format v${data.format_version} (exported: ${data.exported_at || 'unknown'})`);
  }
 
  try { logResourceTiming(urlWithBuster, 'Loaded JSON', tStart, performance.now()); } catch (e) {}
@@ -554,7 +554,7 @@ async function loadBorderData(elevationUrl) {
  const data = await response.json();
  const borderCount = (data.countries?.length || 0) + (data.states?.length || 0);
  const borderType = data.states ? 'states' : 'countries';
- console.log(`[OK] Loaded border data: ${borderCount} ${borderType}`);
+ appendActivityLog(`[OK] Loaded border data: ${borderCount} ${borderType}`);
  try { logResourceTiming(urlWithBuster, 'Loaded borders', tStart, performance.now()); } catch (e) {}
  return data;
  } catch (error) {
@@ -722,7 +722,7 @@ function updateRegionInfo(regionId) {
 }
 
 async function loadRegion(regionId) {
- console.log(`Loading region: ${regionId}`);
+ appendActivityLog(`Loading region: ${regionId}`);
  showLoading(`Loading ${regionsManifest?.regions[regionId]?.name || regionId}...`);
 
  try {
@@ -806,7 +806,7 @@ async function loadRegion(regionId) {
  }
 
  hideLoading();
-  console.log(`Loaded ${regionId}`);
+ appendActivityLog(`Loaded ${regionId}`);
   try { logSignificant(`Region loaded: ${regionId}`); } catch (_) {}
  } catch (error) {
  console.error(`Failed to load region ${regionId}:`, error);
@@ -970,7 +970,7 @@ function computeAutoStretchStats() {
 // CLIENT-SIDE BUCKETING ALGORITHMS
 function rebucketData() {
  const startTime = performance.now();
- console.log(`Bucketing with multiplier ${params.bucketSize}x, method: ${params.aggregation}`);
+ appendActivityLog(`Bucketing with multiplier ${params.bucketSize}x, method: ${params.aggregation}`);
 
  const { width, height, elevation, bounds } = rawElevationData;
 
@@ -1077,7 +1077,7 @@ function rebucketData() {
 
  const duration = (performance.now() - startTime).toFixed(2);
  const reduction = (100* (1 - (bucketedWidth* bucketedHeight) / (width* height))).toFixed(1);
- console.log(`Bucketed to ${bucketedWidth}x${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
+ appendActivityLog(`Bucketed to ${bucketedWidth}x${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
 }
 
 function createEdgeMarkers() {
@@ -2058,8 +2058,8 @@ function setDefaultResolution() {
  bucketedHeight = Math.floor(height / optimalSize);
  totalBuckets = bucketedWidth* bucketedHeight;
 
- console.log(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
- console.log(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '' : ''} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
+ appendActivityLog(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
+ appendActivityLog(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '' : ''} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
 
  // Update params and UI (only increase small values; never reduce user-chosen larger values)
  params.bucketSize = Math.max(params.bucketSize || 1, optimalSize);
@@ -2332,7 +2332,7 @@ function createTerrain() {
 	}
 	
 	const t1 = performance.now();
-	console.log(`Terrain created in ${(t1-t0).toFixed(1)}ms`);
+ appendActivityLog(`Terrain created in ${(t1-t0).toFixed(1)}ms`);
 	
 	stats.vertices = width* height;
 	stats.bucketedVertices = width* height;
@@ -3657,6 +3657,7 @@ function updateCursorHUD(clientX, clientY) {
 	const elevEl = document.getElementById('hud-elev');
 	const slopeEl = document.getElementById('hud-slope');
 	const aspectEl = document.getElementById('hud-aspect');
+	const footprintEl = document.getElementById('hud-footprint');
 	const distEl = document.getElementById('hud-dist');
 	if (!elevEl || !processedData) return;
  const world = raycastToWorld(clientX, clientY);
@@ -3664,6 +3665,7 @@ function updateCursorHUD(clientX, clientY) {
 		elevEl.textContent = '--';
 		if (slopeEl) slopeEl.textContent = '--';
 		if (aspectEl) aspectEl.textContent = '--';
+		if (footprintEl) footprintEl.textContent = '--';
 		if (distEl) distEl.textContent = '--';
 		return;
 	}
@@ -3672,6 +3674,7 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (footprintEl) footprintEl.textContent = '--';
         if (distEl) {
             const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
             distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
@@ -3687,6 +3690,7 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (footprintEl) footprintEl.textContent = '--';
         if (distEl) {
             const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
             distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
@@ -3701,6 +3705,12 @@ function updateCursorHUD(clientX, clientY) {
 	elevEl.textContent = elevText;
 	if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}°` : '--';
 	if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}°` : '--';
+	if (footprintEl) {
+		const footprintMetersX = processedData.bucketSizeMetersX || 0;
+		const footprintMetersY = processedData.bucketSizeMetersY || 0;
+		const footprintText = formatFootprint(footprintMetersX, footprintMetersY, units);
+		footprintEl.textContent = footprintText;
+	}
 	if (distEl) {
 		const dMeters = computeDistanceToNearestBorderMetersGeo(world.x, world.z);
 		distEl.textContent = (dMeters != null && isFinite(dMeters)) ? formatDistance(dMeters, units) : '--';
@@ -3713,10 +3723,10 @@ function loadHudSettings() {
 		const parsed = raw ? JSON.parse(raw) : null;
 		hudSettings = parsed || {
 			units: 'metric', // 'metric'|'imperial'|'both'
-			show: { elevation: true, slope: true, aspect: true, distance: false }
+			show: { elevation: true, slope: true, aspect: true, footprint: true, distance: false }
 		};
 	} catch (_) {
-		hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, distance: false } };
+		hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, footprint: true, distance: false } };
 	}
 }
 
@@ -3732,21 +3742,25 @@ function applyHudSettingsToUI() {
 	const rowElev = document.getElementById('hud-row-elev');
 	const rowSlope = document.getElementById('hud-row-slope');
 	const rowAspect = document.getElementById('hud-row-aspect');
+	const rowFootprint = document.getElementById('hud-row-footprint');
 	const rowDist = document.getElementById('hud-row-dist');
  const rowRelief = document.getElementById('hud-row-relief');
 	if (rowElev) rowElev.style.display = hudSettings.show.elevation ? '' : 'none';
 	if (rowSlope) rowSlope.style.display = hudSettings.show.slope ? '' : 'none';
 	if (rowAspect) rowAspect.style.display = hudSettings.show.aspect ? '' : 'none';
+	if (rowFootprint) rowFootprint.style.display = hudSettings.show.footprint ? '' : 'none';
 	if (rowDist) rowDist.style.display = hudSettings.show.distance ? '' : 'none';
  if (rowRelief) rowRelief.style.display = hudSettings.show.relief ? '' : 'none';
 	const chkElev = document.getElementById('hud-show-elev');
 	const chkSlope = document.getElementById('hud-show-slope');
 	const chkAspect = document.getElementById('hud-show-aspect');
+	const chkFootprint = document.getElementById('hud-show-footprint');
 	const chkDist = document.getElementById('hud-show-dist');
  const chkRelief = document.getElementById('hud-show-relief');
 	if (chkElev) chkElev.checked = !!hudSettings.show.elevation;
 	if (chkSlope) chkSlope.checked = !!hudSettings.show.slope;
 	if (chkAspect) chkAspect.checked = !!hudSettings.show.aspect;
+	if (chkFootprint) chkFootprint.checked = !!hudSettings.show.footprint;
 	if (chkDist) chkDist.checked = !!hudSettings.show.distance;
  if (chkRelief) chkRelief.checked = !!hudSettings.show.relief;
 }
@@ -3770,6 +3784,7 @@ function bindHudSettingsHandlers() {
 		{ id: 'hud-show-elev', key: 'elevation' },
 		{ id: 'hud-show-slope', key: 'slope' },
 		{ id: 'hud-show-aspect', key: 'aspect' },
+		{ id: 'hud-show-footprint', key: 'footprint' },
 		{ id: 'hud-show-dist', key: 'distance' },
 		{ id: 'hud-show-relief', key: 'relief' }
 	];
@@ -3800,6 +3815,36 @@ function formatDistance(meters, units) {
 	const left = km < 1 ? `${Math.round(meters)} m` : `${km.toFixed(2)} km`;
 	const right = miles < 0.5 ? `${Math.round(meters* 3.280839895)} ft` : `${miles.toFixed(2)} mi`;
 	return `${left} / ${right}`;
+}
+
+function formatFootprint(metersX, metersY, units) {
+	if (units === 'metric') {
+		const kmX = metersX / 1000;
+		const kmY = metersY / 1000;
+		const fmtX = kmX < 1 ? `${Math.round(metersX)} m` : `${kmX.toFixed(2)} km`;
+		const fmtY = kmY < 1 ? `${Math.round(metersY)} m` : `${kmY.toFixed(2)} km`;
+		return `${fmtX} × ${fmtY}`;
+	} else if (units === 'imperial') {
+		const miX = metersX / 1609.344;
+		const miY = metersY / 1609.344;
+		const feetX = metersX * 3.280839895;
+		const feetY = metersY * 3.280839895;
+		const fmtX = miX < 0.5 ? `${Math.round(feetX)} ft` : `${miX.toFixed(2)} mi`;
+		const fmtY = miY < 0.5 ? `${Math.round(feetY)} ft` : `${miY.toFixed(2)} mi`;
+		return `${fmtX} × ${fmtY}`;
+	} else { // 'both'
+		const kmX = metersX / 1000;
+		const kmY = metersY / 1000;
+		const miX = metersX / 1609.344;
+		const miY = metersY / 1609.344;
+		const feetX = metersX * 3.280839895;
+		const feetY = metersY * 3.280839895;
+		const fmtXm = kmX < 1 ? `${Math.round(metersX)} m` : `${kmX.toFixed(2)} km`;
+		const fmtYm = kmY < 1 ? `${Math.round(metersY)} m` : `${kmY.toFixed(2)} km`;
+		const fmtXi = miX < 0.5 ? `${Math.round(feetX)} ft` : `${miX.toFixed(2)} mi`;
+		const fmtYi = miY < 0.5 ? `${Math.round(feetY)} ft` : `${miY.toFixed(2)} mi`;
+		return `${fmtXm} × ${fmtYm} / ${fmtXi} × ${fmtYi}`;
+	}
 }
 
 function getMetersScalePerWorldUnit() {
