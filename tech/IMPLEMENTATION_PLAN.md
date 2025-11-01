@@ -35,7 +35,7 @@
 - [x] Logic exists in `download_international_region()` lines 341-350
 - [ ] **MISSING**: This logic should be separated from download function for clarity
 - [ ] **MISSING**: Explicit stage reporting
-- [ ] **MISSING**: Report decision: "Using COP30 (>60°N or <-56°S)" or "Using SRTMGL1 (within coverage)"
+- [ ] **MISSING**: Report decision: "Using COP30 (>60degN or <-56degS)" or "Using SRTMGL1 (within coverage)"
 
 **Action Required**:
 1. Extract latitude-based dataset selection into separate function
@@ -66,7 +66,7 @@
 
 ### ✅ Stage 5: Automatic Tiling for Large Areas
 - [x] Logic exists in `download_international_region()` lines 468-517
-- [x] Automatic detection (area >420k km² or >4° dimensions)
+- [x] Automatic detection (area >420k km² or >4deg dimensions)
 - [x] Tile download, validation, merge
 - [ ] **MISSING**: Stage reporting should mention this is stage 5
 - [x] User sees "Downloading tile 1/4..." messages
@@ -91,9 +91,9 @@
 1. Modify `clip_to_boundary()` to accept `boundary_required: bool` parameter
 2. If `boundary_required=True` and geometry is None/empty, raise exception or return clear error
 3. Caller in `process_region()` must determine if boundary is required based on:
-   - US State → always required
-   - Country/Region with `clip_boundary=True` → required
-   - Region with `clip_boundary=False` → not required
+   - US State -> always required
+   - Country/Region with `clip_boundary=True` -> required
+   - Region with `clip_boundary=False` -> not required
 4. Update stage reporting to "[6/10]"
 
 **Files to modify**:
@@ -263,16 +263,16 @@
 ### Test 3: Stage Reporting
 **Expected Output**:
 ```
-[STAGE 1/10] Validate region definition... ✓
-[STAGE 2/10] Determine dataset & resolution... ✓ (USGS 3DEP 10m - US State)
-[STAGE 3/10] Dataset selection by latitude... ⏭ (skipped - override applied)
-[STAGE 4/10] Acquire raw elevation... ✓ (Downloaded 125.3 MB)
-[STAGE 5/10] Automatic tiling... ⏭ (not needed)
-[STAGE 6/10] Clip to boundary... ✓ (California state boundary)
-[STAGE 7/10] Downsample/process... ✓ (800px, aspect preserved)
-[STAGE 8/10] Export to JSON... ✓ (1.2 MB)
-[STAGE 9/10] Gzip compression... ✓ (85% reduction)
-[STAGE 10/10] Update manifest... ✓
+[STAGE 1/10] Validate region definition... [OK]
+[STAGE 2/10] Determine dataset & resolution... [OK] (USGS 3DEP 10m - US State)
+[STAGE 3/10] Dataset selection by latitude... [SKIP] (skipped - override applied)
+[STAGE 4/10] Acquire raw elevation... [OK] (Downloaded 125.3 MB)
+[STAGE 5/10] Automatic tiling... [SKIP] (not needed)
+[STAGE 6/10] Clip to boundary... [OK] (California state boundary)
+[STAGE 7/10] Downsample/process... [OK] (800px, aspect preserved)
+[STAGE 8/10] Export to JSON... [OK] (1.2 MB)
+[STAGE 9/10] Gzip compression... [OK] (85% reduction)
+[STAGE 10/10] Update manifest... [OK]
 ```
 
 ### Test 4: Fail-Fast Behavior

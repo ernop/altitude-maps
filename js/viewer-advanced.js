@@ -937,10 +937,10 @@ function syncUIControls() {
 const COLOR_SCHEME_DESCRIPTIONS = {
     'terrain': 'Natural earthy palette: lowlands to high peaks (balanced visibility).',
     'test': 'High-contrast ramp to accentuate small elevation changes.',
-    'auto-stretch': 'Dynamic percentile stretch (2–98%) for maximum contrast on this map.',
+    'auto-stretch': 'Dynamic percentile stretch (2-98%) for maximum contrast on this map.',
     'slope': 'Colors by slope steepness (degrees): blue=flat, red=steep.',
-    'aspect': 'Hue encodes slope direction (0–360°).',
-    'elevation': 'Classic blue→red by relative elevation.',
+    'aspect': 'Hue encodes slope direction (0-360deg).',
+    'elevation': 'Classic blue-red by relative elevation.',
     'grayscale': 'Simple lightness by elevation.',
     'rainbow': 'Multi-hue (use cautiously).',
     'earth': 'Earth tones for subdued presentation.',
@@ -949,7 +949,7 @@ const COLOR_SCHEME_DESCRIPTIONS = {
     'relief-emphasis': 'Color ramp tuned to emphasize relief with gentle chroma.',
     'diverging-elevation': 'Diverges around mid-elevation to reveal relative high/low areas.',
     'hypsometric': 'Perceptual hypsometric tint for terrain form.',
-    'hypsometric-natural': 'Hypsometric with naturalistic greens→tans→browns→snow for peaks.'
+    'hypsometric-natural': 'Hypsometric with naturalistic greens-tans-browns-snow for peaks.'
 };
 
 function updateColorSchemeDescription() {
@@ -2885,10 +2885,10 @@ function initSunPad() {
         const dy = clientY - cy;
         const R = Math.min(rect.width, rect.height) * 0.5 - 4;
         const r = Math.min(Math.sqrt(dx * dx + dy * dy), R);
-        // Azimuth: 0° = right (east), 90° = up (north-ish visual), CCW
+        // Azimuth: 0deg = right (east), 90deg = up (north-ish visual), CCW
         let az = Math.atan2(-dy, dx) * 180 / Math.PI; // invert dy for canvas y
         if (az < 0) az += 360;
-        // Altitude: center = 90°, edge = 0°
+        // Altitude: center = 90deg, edge = 0deg
         const alt = Math.max(0, Math.min(90, (1 - (r / R)) * 90));
         params.sunAzimuthDeg = Math.round(az);
         params.sunAltitudeDeg = Math.round(alt);
@@ -2926,7 +2926,7 @@ function drawSunPad() {
     ctx.strokeStyle = '#335';
     ctx.lineWidth = 1;
     ctx.stroke();
-    // Altitude rings (30° and 60°)
+    // Altitude rings (30deg and 60deg)
     const r30 = R * (1 - 30 / 90);
     const r60 = R * (1 - 60 / 90);
     ctx.beginPath(); ctx.arc(cx, cy, r30, 0, Math.PI * 2); ctx.strokeStyle = '#233'; ctx.stroke();
@@ -3721,8 +3721,8 @@ function updateCursorHUD(clientX, clientY) {
     const units = (hudSettings && hudSettings.units) || 'metric';
     const elevText = formatElevation(zMeters, units);
     elevEl.textContent = elevText;
-    if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}°` : '--';
-    if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}°` : '--';
+    if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
+    if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
     if (footprintEl) {
         const footprintMetersX = processedData.bucketSizeMetersX || 0;
         const footprintMetersY = processedData.bucketSizeMetersY || 0;

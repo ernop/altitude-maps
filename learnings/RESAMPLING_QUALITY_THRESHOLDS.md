@@ -7,7 +7,7 @@
 
 ## The Problem
 
-When downsampling elevation data (e.g., 30m input → 100m output), we need to understand:
+When downsampling elevation data (e.g., 30m input -> 100m output), we need to understand:
 1. What's the minimum input-to-output ratio to avoid artifacts?
 2. At what point is 90m input "good enough" vs needing 30m input?
 
@@ -19,7 +19,7 @@ Our pipeline uses `Resampling.bilinear` from rasterio (see `ensure_region.py:165
 
 ### Anti-Aliasing Theory
 
-**Shannon-Nyquist Sampling Theorem**: To avoid aliasing when downsampling, you need **at least 2x oversampling** (output resolution / input resolution ≥ 2.0x).
+**Shannon-Nyquist Sampling Theorem**: To avoid aliasing when downsampling, you need **at least 2x oversampling** (output resolution / input resolution >= 2.0x).
 
 This is the theoretical minimum. Practical guidelines:
 
@@ -39,13 +39,13 @@ Bilinear interpolation uses a 2×2 kernel (4 input pixels) to compute each outpu
 
 We're considering two scenarios when final visible resolution is ~100m:
 
-### Scenario 1: Use 90m input → undersampling
+### Scenario 1: Use 90m input -> undersampling
 - **Input**: 90m pixel size
 - **Output**: 100m visible pixel size  
 - **Oversampling**: 100/90 = 1.1x
 - **Risk**: HIGH - Below 2.0x Nyquist minimum. Moiré and aliasing artifacts likely.
 
-### Scenario 2: Use 30m input → oversampling
+### Scenario 2: Use 30m input -> oversampling
 - **Input**: 30m pixel size
 - **Output**: 100m visible pixel size
 - **Oversampling**: 100/30 = 3.3x
@@ -67,7 +67,7 @@ if visible['avg_m_per_pixel'] > 90:
 Use a **2.0x Nyquist safety margin**:
 
 ```
-90m input sufficient if: visible_pixels ≥ (90 × 2.0) = 180m
+90m input sufficient if: visible_pixels >= (90 x 2.0) = 180m
 ```
 
 Below 180m visible, use 30m input for quality.
@@ -84,10 +84,10 @@ Below 180m visible, use 30m input for quality.
 
 ```python
 if visible_pixels >= 180m:
-    # 90m input gives 2.0x+ oversampling → Nyquist safe
+    # 90m input gives 2.0x+ oversampling -> Nyquist safe
     suggest_90m_dataset()
 elif visible_pixels >= 60m:
-    # 30m input gives 2.0x+ oversampling → Nyquist safe
+    # 30m input gives 2.0x+ oversampling -> Nyquist safe
     suggest_30m_dataset()
 else:
     # Very high resolution needed (might need 10m if available)
@@ -102,23 +102,23 @@ else:
 ## Validation Example
 
 **Iceland (visible ~400m pixels):**
-- 90m input: 400/90 = **4.4x oversampling** ✓ EXCELLENT
-- 30m input: 400/30 = **13.3x oversampling** ✓ WASTED DETAIL
+- 90m input: 400/90 = **4.4x oversampling** [OK] EXCELLENT
+- 30m input: 400/30 = **13.3x oversampling** [OK] WASTED DETAIL
 - **Decision**: 90m is optimal
 
 **Alaska (visible ~1,800m pixels):**
-- 90m input: 1800/90 = **20x oversampling** ✓ EXCELLENT  
-- 30m input: 1800/30 = **60x oversampling** ✓ EXTREME WASTE
+- 90m input: 1800/90 = **20x oversampling** [OK] EXCELLENT  
+- 30m input: 1800/30 = **60x oversampling** [OK] EXTREME WASTE
 - **Decision**: 90m is optimal
 
 **Medium Region (visible ~120m pixels):**
-- 90m input: 120/90 = **1.33x oversampling** ⚠️ MARGINAL
-- 30m input: 120/30 = **4x oversampling** ✓ GOOD
+- 90m input: 120/90 = **1.33x oversampling** [WARN] MARGINAL
+- 30m input: 120/30 = **4x oversampling** [OK] GOOD
 - **Decision**: 30m recommended for quality
 
 **Small Region (visible ~50m pixels):**
-- 90m input: 50/90 = **0.56x oversampling** ✗ BAD (undersampled!)
-- 30m input: 50/30 = **1.67x oversampling** ⚠️ MARGINAL (below Nyquist)
+- 90m input: 50/90 = **0.56x oversampling** [BAD] (undersampled!)
+- 30m input: 50/30 = **1.67x oversampling** [WARN] MARGINAL (below Nyquist)
 - **Decision**: Need 10m or better if available, else 30m is acceptable for small regions
 
 ## Implementation Impact

@@ -11,23 +11,23 @@ This document defines the exact steps, file paths, naming conventions, and rules
 Every region must be classified into one of these groups:
 
 ### US State
-- **Definition location**: `src/regions_config.py` → `US_STATES`
+- **Definition location**: `src/regions_config.py` -> `US_STATES`
 - **Source**: USGS 3DEP (10m resolution)
-- **Clipping**: Always `clip_boundary=True` → clips to `"United States of America/<StateName>"`
+- **Clipping**: Always `clip_boundary=True` -> clips to `"United States of America/<StateName>"`
 - **Boundary source**: Natural Earth administrative boundaries (10m recommended)
 - **Downloader**: `download_all_us_states_highres.py`
 
 ### Country
-- **Definition location**: `src/regions_config.py` → `COUNTRIES`
-- **Source**: SRTMGL1 (30m) within 60°N-56°S, or COP30 (30m) outside that range
-- **Clipping**: Usually `clip_boundary=True` → clips to `"<CountryName>"`
+- **Definition location**: `src/regions_config.py` -> `COUNTRIES`
+- **Source**: SRTMGL1 (30m) within 60degN-56degS, or COP30 (30m) outside that range
+- **Clipping**: Usually `clip_boundary=True` -> clips to `"<CountryName>"`
 - **Boundary source**: Natural Earth country boundaries (10m recommended)
 - **Downloader**: OpenTopography GlobalDEM API
 
 ### Region (Islands/Peninsulas/Ranges)
-- **Definition location**: `src/regions_config.py` → `REGIONS`
-- **Source**: SRTMGL1 (30m) within 60°N-56°S, or COP30 (30m) outside that range (unless overridden)
-- **Clipping**: Usually `clip_boundary=False` → no boundary clipping (uses bbox)
+- **Definition location**: `src/regions_config.py` -> `REGIONS`
+- **Source**: SRTMGL1 (30m) within 60degN-56degS, or COP30 (30m) outside that range (unless overridden)
+- **Clipping**: Usually `clip_boundary=False` -> no boundary clipping (uses bbox)
 - **Boundary source**: N/A (free-form regions)
 - **Downloader**: OpenTopography GlobalDEM API
 
@@ -107,8 +107,10 @@ Every region must be classified into one of these groups:
 - Using SRTMGL1 dataset (COP30 has different limits)
 
 **Process**:
-1. Calculate tile grid (approximately 3.5° per tile)
-2. Download each tile to `data/raw/srtm_30m/tiles/<region_id>/<region_id>_tile_NN.tif`
+1. Calculate tile grid (approximately 3.5deg per tile)
+2. Download each tile to shared pool: `data/raw/srtm_30m/tiles/tile_N##_W###_{dataset}_{res}.tif`
+   - Uses content-based SRTM-style integer degree grid naming
+   - Tiles automatically reused across regions with overlapping bounds
 3. Validate each tile (same checks as step 2)
 4. Merge all tiles into single output: `data/raw/srtm_30m/<region_id>_bbox_30m.tif`
 5. Save metadata indicating tiling was used (tile count, bounds)
@@ -163,8 +165,8 @@ Every region must be classified into one of these groups:
 1. Check if input CRS is EPSG:4326
 2. If yes, calculate average latitude from clipped bounds
 3. Reproject to metric CRS:
-   - Mid-latitudes (|lat| < 85°): EPSG:3857 (Web Mercator)
-   - High latitudes (|lat| ≥ 85°): EPSG:3413 (Arctic) or EPSG:3031 (Antarctic)
+   - Mid-latitudes (|lat| < 85deg): EPSG:3857 (Web Mercator)
+   - High latitudes (|lat| >= 85deg): EPSG:3413 (Arctic) or EPSG:3031 (Antarctic)
 4. Initialize destination array with nodata
 5. Use bilinear resampling with `src_nodata` and `dst_nodata` parameters
 6. Validate elevation range post-reproject (fail hard if hyperflat detected)
@@ -386,29 +388,29 @@ Each pipeline stage has a version:
 
 ```
 1. Region defined? (src/regions_config.py)
-   NO → Error: use --list-regions
-   YES → Continue
+   NO -> Error: use --list-regions
+   YES -> Continue
 
 2. Dataset & resolution override?
-   US State → Use USGS 3DEP 10m
-   If `recommended_dataset` set → Use that dataset
-   Otherwise → Continue to 3
+   US State -> Use USGS 3DEP 10m
+   If `recommended_dataset` set -> Use that dataset
+   Otherwise -> Continue to 3
 
 3. Latitude-based dataset?
-   north > 60° OR south < -56° → COP30
-   Otherwise → SRTMGL1
+   north > 60deg OR south < -56deg -> COP30
+   Otherwise -> SRTMGL1
 
 4. Download raw data
-   Large area? → Auto-tile (5) and merge
+   Large area? -> Auto-tile (5) and merge
    Save to: data/raw/<source>/<region_id>_*.tif
 
 6. Clip boundary?
-   clip_boundary=True → Clip to boundary (Natural Earth 10m)
-   clip_boundary=False → Skip clipping, use raw
+   clip_boundary=True -> Clip to boundary (Natural Earth 10m)
+   clip_boundary=False -> Skip clipping, use raw
    Save to: data/clipped/<source>/<region_id>_clipped_*.tif
 
 7. Process/downsample
-   Reproject if EPSG:4326 → Metric CRS
+   Reproject if EPSG:4326 -> Metric CRS
    Downsample to target_pixels (preserve aspect)
    Save to: data/processed/<source>/<region_id>_*_px_v2.tif
 

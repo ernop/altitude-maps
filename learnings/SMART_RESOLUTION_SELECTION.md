@@ -12,7 +12,7 @@ Currently, we always download 30m SRTM/COP30 data, even when the final visible p
 - Processing time
 
 Example:
-- Alaska: ~1.4M km², downsampled to 2048px → visible pixels are ~1.8km each
+- Alaska: ~1.4M km², downsampled to 2048px -> visible pixels are ~1.8km each
 - Using 30m vs 90m doesn't change what users see (90m is still 20x more detailed!)
 
 ## Solution: Calculate Visible Pixel Size Before Download
@@ -31,8 +31,8 @@ Else:
 ```
 
 **Quality Threshold Rationale**: 
-- **>= 180m visible**: 90m input provides 2.0x+ oversampling → guaranteed quality (Nyquist safe)
-- **90-180m visible**: 90m input gives 1.0-2.0x → marginal to acceptable, recommend 30m for safety
+- **>= 180m visible**: 90m input provides 2.0x+ oversampling -> guaranteed quality (Nyquist safe)
+- **90-180m visible**: 90m input gives 1.0-2.0x -> marginal to acceptable, recommend 30m for safety
 - **< 90m visible**: 30m input clearly needed
 
 **Threshold selection**: Using 180m (2x) instead of 135m (1.5x) for guaranteed quality without artifacts. The 1.5x factor was a practical compromise, but without empirical testing we can't be certain it's safe.
@@ -201,10 +201,10 @@ Update `learnings/HIGH_RESOLUTION_DOWNLOAD_GUIDE.md` to explain when to use 90m 
 
 5. **Updated `src/regions_registry.py`**
    - `dataset_to_source_name()` now maps:
-     - COP30 → srtm_30m
-     - COP90 → srtm_90m  
-     - SRTMGL1 → srtm_30m
-     - SRTMGL3 → srtm_90m
+     - COP30 -> srtm_30m
+     - COP90 -> srtm_90m  
+     - SRTMGL1 -> srtm_30m
+     - SRTMGL3 -> srtm_90m
 
 ### File Structure:
 ```
@@ -219,10 +219,10 @@ data/raw/
 ## Testing Plan
 
 Test scenarios:
-1. **Alaska** (1.7M km²) → Should suggest 90m, visible pixels ~1.8km
-2. **Iceland** (103k km²) → Should suggest 90m, visible pixels ~400m  
-3. **Rhode Island** (3k km²) → Should suggest 30m, visible pixels ~120m
-4. **Custom small region** (100 km²) → Should suggest 30m
+1. **Alaska** (1.7M km²) -> Should suggest 90m, visible pixels ~1.8km
+2. **Iceland** (103k km²) -> Should suggest 90m, visible pixels ~400m  
+3. **Rhode Island** (3k km²) -> Should suggest 30m, visible pixels ~120m
+4. **Custom small region** (100 km²) -> Should suggest 30m
 
 ## Backward Compatibility
 
@@ -262,30 +262,30 @@ python download_high_resolution.py small_region --dataset SRTMGL1 --process
 **Very Large Region (e.g., Siberia, 200m visible pixels):**
 ```
 Visible: 200m per pixel
-90m input: 200/90 = 2.2x oversampling ✓ Excellent quality
+90m input: 200/90 = 2.2x oversampling [OK] Excellent quality
 Decision: Recommend 90m (Option 1)
 ```
 
 **Large Region (e.g., Iceland, 400m visible pixels):**
 ```
 Visible: 400m per pixel  
-90m input: 400/90 = 4.4x oversampling ✓ Excellent quality
+90m input: 400/90 = 4.4x oversampling [OK] Excellent quality
 Decision: Recommend 90m (Option 1)
 ```
 
 **Medium Region (e.g., 120m visible pixels):**
 ```
 Visible: 120m per pixel
-90m input: 120/90 = 1.33x oversampling ⚠️ Marginal
-30m input: 120/30 = 4x oversampling ✓ Excellent
+90m input: 120/90 = 1.33x oversampling [WARN] Marginal
+30m input: 120/30 = 4x oversampling [OK] Excellent
 Decision: Recommend 30m (Option 1), user can choose 90m for speed
 ```
 
 **Small Region (e.g., 50m visible pixels):**
 ```
 Visible: 50m per pixel
-90m input: 50/90 = 0.56x undersampling ✗ BAD
-30m input: 50/30 = 1.67x oversampling ✓ Good
+90m input: 50/90 = 0.56x undersampling [BAD]
+30m input: 50/30 = 1.67x oversampling [OK] Good
 Decision: Automatically use 30m (no prompt)
 ```
 

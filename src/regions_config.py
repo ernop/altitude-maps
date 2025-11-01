@@ -46,7 +46,7 @@ class RegionConfig:
     country: Optional[str] = None  # Country name if applicable
     clip_boundary: bool = True  # Whether to clip to administrative boundary
     # If set (e.g., 'SRTMGL1' or 'COP30'), this overrides latitude-based selection.
-    # Default None means: choose dataset by latitude (SRTM within 60°N–56°S; COP30 otherwise).
+    # Default None means: choose dataset by latitude (SRTM within 60degN-56degS; COP30 otherwise).
     recommended_dataset: Optional[str] = None
     tiles: Optional[Tuple[int, int]] = None  # Tiling configuration (cols, rows) for large regions that need downloading in parts
 
@@ -492,9 +492,9 @@ REGIONS: Dict[str, RegionConfig] = {
     ),
     "manicouagan_reservoir": RegionConfig(
         id="manicouagan_reservoir",
-        name="Manicouagan Crater and René-Levasseur",
+        name="Manicouagan Crater and Rene-Levasseur",
         bounds=(-69.60, 50.80, -67.80, 52.00),
-        description="Quebec, Canada – Circular reservoir with circular island (René-Levasseur)",
+        description="Quebec, Canada - Circular reservoir with circular island (Rene-Levasseur)",
         category="region",
         clip_boundary=False,
     ),
@@ -502,7 +502,7 @@ REGIONS: Dict[str, RegionConfig] = {
         id="taal_nested_islands",
         name="Taal Volcano Nested Islands",
         bounds=(120.80, 13.85, 121.10, 14.20),
-        description="Philippines – Lake with island with lake with island (Taal Volcano)",
+        description="Philippines - Lake with island with lake with island (Taal Volcano)",
         category="region",
         clip_boundary=False,
     ),
@@ -510,7 +510,7 @@ REGIONS: Dict[str, RegionConfig] = {
         id="devils_tower_area",
         name="Devils Tower Area",
         bounds=(-104.78, 44.54, -104.64, 44.64),
-        description="Wyoming, USA – Columnar jointing (hexagonal towers) landmark",
+        description="Wyoming, USA - Columnar jointing (hexagonal towers) landmark",
         category="region",
         clip_boundary=False,
     ),

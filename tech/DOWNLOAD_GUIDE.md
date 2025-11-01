@@ -135,7 +135,7 @@ python regenerate_manifest.py
 
 For detailed information about:
 - Exact file paths and naming conventions
-- Pipeline stages (download → clip → process → export)
+- Pipeline stages (download -> clip -> process -> export)
 - Region classes and their requirements
 - Versioning and cache management
 

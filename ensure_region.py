@@ -58,36 +58,69 @@ def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
     """
     Determine minimum required source resolution based on visible pixel size.
     
-    We need proper oversampling for quality: each visible pixel should be composed
-    of multiple source pixels. Using fractional pixel aggregation (e.g., 1.5 source
-    pixels per visible pixel) causes aliasing and poor quality.
+    NYQUIST SAMPLING RULE (from Shannon-Nyquist theorem):
+    To avoid aliasing when downsampling, we need at least 2.0x oversampling.
     
-    Quality requirement logic:
-    - If visible >= 180m: 90m source gives 2.0x oversampling (exactly 2.0 pixels per output)
-    - If visible >= 60m: 30m source required (90m would give <2.0x, risking quality issues)
-    - If visible < 60m: 30m source required (users can zoom in for detail)
+    Mathematical rule:
+      oversampling = visible_pixel_size / source_resolution >= 2.0
+      Therefore: source_resolution <= visible_pixel_size / 2.0
+    
+    For a given output pixel size N, we need:
+      - Source pixels must be <= N/2.0 meters
+      - Each output pixel must aggregate >= 2.0 source pixels
+      - This ensures each output pixel is composed of multiple complete source pixels,
+        not fractional parts, avoiding aliasing artifacts
+    
+    Available source resolutions:
+      - 90m: Sufficient if visible >= 180m (180/90 = 2.0x minimum)
+      - 30m: Sufficient if visible >= 60m (60/30 = 2.0x minimum)
+      - 10m: Sufficient if visible >= 20m (20/10 = 2.0x minimum) - if available
     
     Args:
         visible_m_per_pixel: Average meters per pixel in final output
         
     Returns:
         Minimum required resolution in meters (10, 30, or 90)
+        
+    Raises:
+        ValueError: If even 30m source doesn't meet the 2.0x Nyquist requirement
+                   (region too small - may need 10m or manual override)
     """
-    # Calculate oversampling ratio for 90m source
+    # Calculate oversampling ratio for each available source resolution
     oversampling_90m = visible_m_per_pixel / 90.0
+    oversampling_30m = visible_m_per_pixel / 30.0
+    oversampling_10m = visible_m_per_pixel / 10.0  # For future use
     
-    # We want at least 2.0x oversampling for proper quality
-    # (Each output pixel = 2+ source pixels = clean aggregation, not fractional)
-    if oversampling_90m >= 2.0:
-        # 90m source provides 2x+ oversampling (good integer multiple)
-        # Example: 180m visible / 90m source = 2.0x (exactly 2 pixels per output)
+    # Check each resolution explicitly (no fall-throughs)
+    # Minimum requirement: 2.0x oversampling (Nyquist criterion)
+    MIN_OVERSAMPLING = 2.0
+    
+    # Check 90m source
+    if oversampling_90m >= MIN_OVERSAMPLING:
+        # 90m source provides sufficient oversampling
+        # Example: 180m visible / 90m = 2.0x (meets minimum exactly)
+        # Example: 200m visible / 90m = 2.22x (above minimum)
         return 90
-    else:
-        # 90m source would give <2.0x oversampling (fractional aggregation = poor quality)
-        # Example: 125m visible / 90m source = 1.39x (each output = 1.39 source pixels = bad!)
-        # Use 30m source instead for proper oversampling
-        # Example: 125m visible / 30m source = 4.17x (each output = ~4 source pixels = good)
+    
+    # Check 30m source (90m was insufficient)
+    if oversampling_30m >= MIN_OVERSAMPLING:
+        # 30m source provides sufficient oversampling
+        # Example: 125m visible / 30m = 4.17x (well above minimum)
+        # Example: 60m visible / 30m = 2.0x (meets minimum exactly)
         return 30
+    
+    # Neither 90m nor 30m meets the requirement - error clearly
+    # This happens when visible pixels are very small (< 60m)
+    # Example: 50m visible / 30m = 1.67x (< 2.0x minimum)
+    # Example: 40m visible / 30m = 1.33x (< 2.0x minimum)
+    raise ValueError(
+        f"Region requires higher resolution than available. "
+        f"Visible pixels: {visible_m_per_pixel:.1f}m/pixel. "
+        f"30m source gives only {oversampling_30m:.2f}x oversampling (need >={MIN_OVERSAMPLING}x for Nyquist). "
+        f"10m source would give {oversampling_10m:.2f}x oversampling. "
+        f"Consider using a higher target_pixels value (fewer output pixels = larger visible pixels) "
+        f"or manually override with --dataset to use a higher resolution source if available."
+    )
 
 
 def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
@@ -687,11 +720,26 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         
         # Quality-first automatic selection: determine minimum required resolution
         # Automatically select the smallest resolution that still meets quality requirements
-        min_required = determine_min_required_resolution(visible['avg_m_per_pixel'])
+        try:
+            min_required = determine_min_required_resolution(visible['avg_m_per_pixel'])
+        except ValueError as e:
+            print(f"\n  ERROR: {e}", flush=True)
+            print(f"\n  Resolution Selection Failed", flush=True)
+            print(f"    Visible pixel size: ~{visible['avg_m_per_pixel']:.1f} meters per pixel", flush=True)
+            print(f"    This region is too small for standard resolution options.", flush=True)
+            print(f"    Solutions:", flush=True)
+            print(f"      1. Use a higher target_pixels value (fewer pixels = larger visible pixels)", flush=True)
+            print(f"      2. Manually specify a dataset with --dataset option (if available)", flush=True)
+            print(f"      3. Consider if this region really needs such high detail", flush=True)
+            return False
         
         print(f"\n  Resolution Selection Analysis:")
         print(f"    Calculated visible pixel size: ~{visible['avg_m_per_pixel']:.0f} meters per pixel")
         print(f"    (This is the pixel size users will see in the final visualization)")
+        print(f"\n    NYQUIST SAMPLING RULE:")
+        print(f"      For output pixel size N, we need source resolution <= N/2.0")
+        print(f"      This ensures oversampling >= 2.0x (each output = 2+ source pixels)")
+        print(f"      This prevents aliasing by ensuring clean pixel aggregation, not fractional parts")
         
         # Calculate oversampling ratios for both options
         oversampling_90m = visible['avg_m_per_pixel'] / 90.0
@@ -708,16 +756,16 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             print(f"      - Visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each")
             print(f"      - With 90m source: {oversampling_90m:.2f}x oversampling")
             print(f"        (Each visible pixel = {oversampling_90m:.2f} source pixels)")
+            print(f"        Status: {'OK Meets Nyquist (>=2.0x)' if oversampling_90m >= 2.0 else 'WARN Below Nyquist (<2.0x)'}")
             print(f"      - With 30m source: {oversampling_30m:.2f}x oversampling")
             print(f"        (Each visible pixel = {oversampling_30m:.2f} source pixels)")
+            print(f"        Status: OK Exceeds requirement (wasteful at this scale)")
             print(f"\n    RESOLUTION SELECTED: 90m ({base_name} 90m)")
-            print(f"      Rationale: Visible pixels ({visible['avg_m_per_pixel']:.0f}m) are large enough")
-            print(f"                 that 90m source provides {oversampling_90m:.2f}x oversampling.")
-            if oversampling_90m >= 2.0:
-                print(f"                 This gives clean integer aggregation ({oversampling_90m:.1f} source pixels")
-                print(f"                 per visible pixel), avoiding fractional pixel composition.")
-            else:
-                print(f"                 While this is above the 2x threshold, it provides adequate quality.")
+            print(f"      Rationale: For visible pixels of {visible['avg_m_per_pixel']:.0f}m, the Nyquist rule")
+            print(f"                 requires source <= {visible['avg_m_per_pixel']/2.0:.0f}m.")
+            print(f"                 90m source gives {oversampling_90m:.2f}x oversampling (>=2.0x minimum).")
+            print(f"                 Each visible pixel aggregates {oversampling_90m:.1f} complete source pixels,")
+            print(f"                 avoiding fractional composition and aliasing artifacts.")
             print(f"                 Using 30m would give {oversampling_30m:.1f}x oversampling but waste bandwidth")
             print(f"                 and storage without providing visible benefit at this scale.")
         else:
@@ -732,20 +780,27 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             print(f"      - With 90m source: {oversampling_90m:.2f}x oversampling")
             print(f"        (Each visible pixel = {oversampling_90m:.2f} source pixels)")
             if oversampling_90m < 2.0:
-                print(f"        WARNING: This is <2.0x, causing fractional pixel aggregation!")
-                print(f"        Example: Each visible pixel would be composed of parts of only")
-                print(f"        {oversampling_90m:.2f} source pixels, leading to aliasing.")
+                print(f"        Status: FAILS Nyquist (<2.0x)")
+                print(f"        Problem: Each visible pixel would aggregate only {oversampling_90m:.2f} source pixels.")
+                print(f"                 This is fractional (e.g., 1.39 pixels = parts of 1-2 pixels),")
+                print(f"                 causing aliasing artifacts and poor quality.")
+            else:
+                print(f"        Status: WARN Marginal (meets minimum but higher resolution preferred)")
             print(f"      - With 30m source: {oversampling_30m:.2f}x oversampling")
             print(f"        (Each visible pixel = {oversampling_30m:.2f} source pixels)")
+            print(f"        Status: OK Meets Nyquist (>=2.0x)")
             print(f"\n    RESOLUTION SELECTED: 30m ({base_name} 30m)")
-            print(f"      Rationale: Visible pixels ({visible['avg_m_per_pixel']:.0f}m) require higher")
-            print(f"                 resolution source. Using 90m source would give only")
-            print(f"                 {oversampling_90m:.2f}x oversampling (<2.0x minimum), causing each")
-            print(f"                 visible pixel to be composed of fractional source pixels.")
-            print(f"                 This creates aliasing artifacts and poor quality.")
-            print(f"                 30m source provides {oversampling_30m:.2f}x oversampling, ensuring")
-            print(f"                 each visible pixel aggregates multiple complete source pixels")
-            print(f"                 for clean, artifact-free downsampling.")
+            print(f"      Rationale: For visible pixels of {visible['avg_m_per_pixel']:.0f}m, the Nyquist rule")
+            print(f"                 requires source <= {visible['avg_m_per_pixel']/2.0:.0f}m.")
+            if oversampling_90m < 2.0:
+                print(f"                 90m source gives only {oversampling_90m:.2f}x oversampling (<2.0x minimum),")
+                print(f"                 causing fractional pixel aggregation and aliasing.")
+            else:
+                print(f"                 90m source would give {oversampling_90m:.2f}x oversampling (meets minimum),")
+                print(f"                 but 30m provides better quality margin.")
+            print(f"                 30m source provides {oversampling_30m:.2f}x oversampling (>=2.0x),")
+            print(f"                 ensuring each visible pixel aggregates {oversampling_30m:.1f} complete")
+            print(f"                 source pixels for clean, artifact-free downsampling.")
         
         # Estimate file size for the selected resolution
         estimated_size_mb = estimate_raw_file_size_mb((west, south, east, north), resolution_meters)
@@ -791,7 +846,7 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         import requests
         from load_settings import get_api_key
         # Reuse existing tiling utilities for large areas
-        from downloaders.tile_large_states import calculate_tiles, merge_tiles
+        from downloaders.tile_large_states import calculate_tiles, merge_tiles, tile_filename_from_bounds
     except ImportError as e:
         print(f"  Missing required package: {e}")
         return False
@@ -980,14 +1035,20 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         print(f"    Total estimated size: ~{total_estimated_size:.1f} MB (before merge)")
         print(f"    Resolution: {resolution}")
         
-        tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
+        # Use a shared tile pool directory - tiles can be reused across regions
+        if resolution == '90m':
+            tiles_dir = Path(f"data/raw/srtm_90m/tiles")
+        else:
+            tiles_dir = Path(f"data/raw/srtm_30m/tiles")
         tiles_dir.mkdir(parents=True, exist_ok=True)
         tile_paths = []
         for idx, tb in enumerate(tiles):
             estimated_tile_mb = tile_estimates[idx]
             print(f"\n  Tile {idx+1}/{len(tiles)} (estimated ~{estimated_tile_mb:.1f} MB)", flush=True)
             print(f"    Bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
-            tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
+            # Generate content-based filename for tile reuse
+            tile_filename = tile_filename_from_bounds(tb, source_name, resolution)
+            tile_path = tiles_dir / tile_filename
             if tile_path.exists():
                 # Strong validation: try to read data to catch partial/corrupt tiles
                 if validate_geotiff(tile_path, check_data=True):
@@ -1037,23 +1098,11 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                         except Exception:
                             pass
                 else:
-                    print(f"  Cached tile failed validation (will NOT delete). Attempting repaired re-download...", flush=True)
-                    # Re-download to a separate file to preserve original
-                    repaired_path = tiles_dir / f"{region_id}_tile_{idx:02d}_fix1.tif"
-                    if _download_bbox(repaired_path, tb, dataset) and validate_geotiff(repaired_path, check_data=True):
-                        try:
-                            size_mb = repaired_path.stat().st_size / (1024 * 1024)
-                            estimated_mb = tile_estimates[idx]
-                            diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
-                            print(f"    Using repaired tile: {repaired_path.name}", flush=True)
-                            print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
-                        except Exception:
-                            print(f"    Using repaired tile: {repaired_path.name}", flush=True)
-                        tile_paths.append(repaired_path)
-                        continue
-                    else:
-                        print(f"  Repaired download failed; will skip this tile", flush=True)
-                        # fall through to skip
+                    print(f"  Cached tile failed validation. Deleting and re-downloading...", flush=True)
+                    try:
+                        tile_path.unlink()
+                    except Exception:
+                        pass
             print(f"    Downloading tile...", flush=True)
             if not _download_bbox(tile_path, tb, dataset):
                 print(f"    Tile download failed, skipping", flush=True)
@@ -1223,12 +1272,18 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                 # Re-enter tiling branch by locally setting should_tile-like behavior
                 # Build tiles and merge
                 tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
-                tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
+                # Use shared tile pool directory for reuse across regions
+                if resolution == '90m':
+                    tiles_dir = Path(f"data/raw/srtm_90m/tiles")
+                else:
+                    tiles_dir = Path(f"data/raw/srtm_30m/tiles")
                 tiles_dir.mkdir(parents=True, exist_ok=True)
                 tile_paths = []
                 for idx, tb in enumerate(tiles):
                     print(f"\n  Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
-                    tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
+                    # Generate content-based filename for tile reuse
+                    tile_filename = tile_filename_from_bounds(tb, source_name, resolution)
+                    tile_path = tiles_dir / tile_filename
                     if tile_path.exists():
                         if validate_geotiff(tile_path, check_data=True):
                             try:
@@ -1239,18 +1294,11 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                             tile_paths.append(tile_path)
                             continue
                         else:
-                            print(f"  Cached tile failed validation (will NOT delete). Attempting repaired re-download...", flush=True)
-                            repaired_path = tiles_dir / f"{region_id}_tile_{idx:02d}_fix1.tif"
-                            if _download_bbox(repaired_path, tb, dataset) and validate_geotiff(repaired_path, check_data=True):
-                                try:
-                                    size_mb = repaired_path.stat().st_size / (1024 * 1024)
-                                    print(f"  Using repaired tile: {repaired_path.name} ({size_mb:.1f} MB)", flush=True)
-                                except Exception:
-                                    print(f"  Using repaired tile: {repaired_path.name}", flush=True)
-                                tile_paths.append(repaired_path)
-                                continue
-                            else:
-                                print(f"  Repaired download failed; will skip this tile", flush=True)
+                            print(f"  Cached tile failed validation. Deleting and re-downloading...", flush=True)
+                            try:
+                                tile_path.unlink()
+                            except Exception:
+                                pass
                     print(f"  Downloading tile...", flush=True)
                     if not _download_bbox(tile_path, tb, dataset):
                         print(f"  Tile download failed, skipping", flush=True)
@@ -1347,9 +1395,9 @@ def download_region(region_id: str, region_type: str, region_info: Dict, dataset
 def determine_dataset_override(region_id: str, region_type: str, region_info: dict) -> str | None:
     """
     Stage 2/3: Determine dataset to use for download.
-    - US states: USGS 3DEP (implicit in downloader) → return 'USA_3DEP'
+    - US states: USGS 3DEP (implicit in downloader) -> return 'USA_3DEP'
     - International: override from RegionConfig.recommended_dataset if provided; else choose by latitude:
-        * SRTMGL1 for 60°N to 56°S
+        * SRTMGL1 for 60degN to 56degS
         * COP30 outside that range
     Returns a short code understood by download_international_region: 'SRTMGL1' or 'COP30'.
     """

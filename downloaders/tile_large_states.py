@@ -60,6 +60,50 @@ def calculate_tiles(bounds: Tuple[float, float, float, float],
     return tiles
 
 
+def tile_filename_from_bounds(bounds: Tuple[float, float, float, float], 
+                              dataset: str = 'srtm30m', 
+                              resolution: str = '30m') -> str:
+    """
+    Generate a content-based filename for a tile based on its bounds, dataset, and resolution.
+    
+    Uses SRTM-style integer degree naming from the southwest corner, enabling tile reuse across regions.
+    For example, if Tennessee and Kentucky download adjacent tiles with the same bounds,
+    they'll share the same cached file.
+    
+    Format: tile_{NS}{south:02d}_{EW}{west:03d}_{dataset}_{res}.tif
+    Examples:
+        tile_N35_W090_srtm30m_30m.tif  (SW corner at 35degN, 90degW)
+        tile_S05_E120_cop30_30m.tif     (SW corner at 5degS, 120degE)
+    
+    Follows the SRTM HGT file convention (N##W###.hgt) used by official data sources.
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        dataset: Dataset identifier (e.g., 'srtm_30m', 'srtm_90m', 'cop30')
+        resolution: Resolution identifier (e.g., '30m', '90m')
+        
+    Returns:
+        Filename string
+    """
+    west, south, _east, _north = bounds
+    
+    # Round to integer degrees for southwest corner (SRTM convention)
+    # For southwest corner, we want to round DOWN (toward more negative)
+    # Use floor for positive, trunc for negative to handle negatives correctly
+    sw_lat = int(math.floor(south)) if south >= 0 else int(math.trunc(south))
+    sw_lon = int(math.floor(west)) if west >= 0 else int(math.trunc(west))
+    
+    # Format latitude (N/S + 2 digits)
+    ns = 'N' if sw_lat >= 0 else 'S'
+    lat_str = f"{ns}{abs(sw_lat):02d}"
+    
+    # Format longitude (E/W + 3 digits)
+    ew = 'E' if sw_lon >= 0 else 'W'
+    lon_str = f"{ew}{abs(sw_lon):03d}"
+    
+    return f"tile_{lat_str}_{lon_str}_{dataset}_{resolution}.tif"
+
+
 def download_state_tiles(region_id: str, 
                          state_info: dict,
                          tiles_config: dict,
