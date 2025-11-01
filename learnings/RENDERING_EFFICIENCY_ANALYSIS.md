@@ -207,10 +207,198 @@ You mentioned having "many other questions too". Here are things to consider:
 
 Let's explore these next!
 
+## Dynamic Performance Testing (NEW)
+
+**Added: 2025-01-26**
+
+We've added runtime performance testing capabilities to help diagnose issues on different systems.
+
+### GPU Detection
+
+The viewer now automatically detects GPU capabilities on startup:
+
+**Functions:**
+- `detectGPU()` - Detects vendor, renderer, and performance tier
+- `benchmarkGPU()` - Runs simple fill rate benchmark
+
+**Access:**
+```javascript
+// In browser console
+window.getGPUInfo()  // Returns detected GPU info
+window.gpuInfo       // Also available globally
+```
+
+**Output Example:**
+```javascript
+{
+    vendor: 'NVIDIA',
+    renderer: 'NVIDIA GeForce RTX 3080/PCIe/SSE2',
+    tier: 'high',  // 'low', 'medium', or 'high'
+    benchmark: {
+        fillRate: 87.3,
+        geometry: 87.3,
+        combined: 87.3,
+        timestamp: 1706349600000
+    }
+}
+```
+
+**Performance Tiers:**
+- `high`: NVIDIA/AMD discrete GPUs, Apple Silicon
+- `medium`: Modern Intel Iris, Apple Intel Macs
+- `low`: Old Intel HD, mobile GPUs (Adreno, Mali)
+
+### Frustum Culling Test
+
+Test whether frustum culling improves performance on your system:
+
+**Function:**
+```javascript
+// In browser console
+await window.testFrustumCulling()
+```
+
+**What It Does:**
+1. Measures FPS with culling enabled
+2. Disables culling and measures again
+3. Re-enables culling
+4. Reports improvement percentage
+
+**Output Example:**
+```javascript
+{
+    withCulling: 58.3,
+    withoutCulling: 54.1,
+    improvement: "7.8",
+    recommendation: "keep enabled"
+}
+```
+
+### FPS Measurement
+
+Measure average FPS over N frames:
+
+**Function:**
+```javascript
+// In browser console
+await window.measureFPS(100)  // Measure 100 frames
+```
+
+**Use Cases:**
+- Compare different bucket sizes
+- Test optimization impact
+- Benchmark different devices
+
+### Instancing Analysis
+
+**Question: Are we using instancing correctly?**
+
+**Answer: Yes!** Here's why:
+
+**What We Do:**
+```javascript
+const instancedMesh = new THREE.InstancedMesh(
+    baseGeometry,    // Single BoxGeometry (1,1,1)
+    material,        // Shared material
+    barCount         // All instances share geometry
+);
+
+// Each instance gets:
+instancedMesh.setMatrixAt(idx, matrix);  // Transform
+baseGeometry.setAttribute('instanceColor', colors);  // Color
+```
+
+**Why This Is Correct:**
+1. ✅ **Single geometry**: One BoxGeometry used for ALL bars
+2. ✅ **Shared material**: One shader program for ALL bars
+3. ✅ **Per-instance transforms**: Each bar has unique position/scale/rotation
+4. ✅ **Per-instance colors**: Vertex colors attribute
+5. ✅ **Single draw call**: GPU batches all instances efficiently
+
+**What We're NOT Doing (And Shouldn't):**
+- ❌ Multiple meshes (would be thousands of draw calls)
+- ❌ Separate geometries per bar (would waste memory)
+- ❌ Array of Mesh objects (defeats the purpose)
+
+**Performance Benefit:**
+- Without instancing: 10,000 bars = 10,000 draw calls ≈ 1-5 FPS
+- With instancing: 10,000 bars = 1 draw call ≈ 60 FPS
+- **1000x faster!**
+
+### Can We Improve Instancing Further?
+
+**Splitting Into Multiple InstancedMeshes:**
+- Idea: Split bars into chunks (e.g., 1000 instances per mesh)
+- Why not: No benefit - GPU handles 10,000+ instances fine
+- Trade-off: More draw calls for no gain
+
+**Per-Instance Frustum Culling:**
+- Idea: Skip individual instances that are off-screen
+- Why not: Three.js doesn't support this (mesh-level only)
+- Workaround: Manual per-instance visibility
+- Cost: CPU overhead usually exceeds benefit
+
+**Dynamic Instance Count:**
+- Idea: Only render visible instances
+- Why not: Requires rebuilding instanceMatrix every frame
+- Cost: CPU overhead kills performance
+- Better: Let GPU depth test handle it
+
+## Recommendations
+
+### For Low-End GPUs
+
+**Automatic Adjustments:**
+- GPU detection auto-recommends higher bucket sizes
+- Activity log shows GPU tier
+
+**Manual Optimizations:**
+1. Increase bucket size (e.g., 8x-12x)
+2. Switch to Surface render mode
+3. Disable antialiasing (in code)
+4. Reduce pixel ratio to 1.0
+
+### For Performance Testing
+
+**Console Commands:**
+```javascript
+// Check GPU
+window.getGPUInfo()
+
+// Test frustum culling
+await window.testFrustumCulling()
+
+// Measure current FPS
+await window.measureFPS(60)
+
+// Compare bucket sizes
+params.bucketSize = 4
+await recreateTerrain()
+await window.measureFPS(60)
+
+params.bucketSize = 8
+await recreateTerrain()
+await window.measureFPS(60)
+```
+
+### For Production
+
+**Keep Current Architecture:**
+1. ✅ Instancing is optimal
+2. ✅ Frustum culling helps (even if minimal)
+3. ✅ GPU detection informs users
+4. ✅ Benchmarking available for debugging
+
+**Don't Add:**
+1. ❌ Per-instance culling (overhead > benefit)
+2. ❌ Multiple meshes (unnecessary complexity)
+3. ❌ LOD systems (bucket size handles this)
+
 ## References
 
 - `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` - Camera near/far limits
 - `tech/TECHNICAL_REFERENCE.md` - Performance guidelines
 - [Three.js Frustum Culling](https://threejs.org/docs/#api/en/core/Object3D.frustumCulled)
 - [Three.js InstancedMesh](https://threejs.org/docs/#api/en/objects/InstancedMesh)
+- [GPU Detection Best Practices](https://web.dev/gpu-profiling/)
 

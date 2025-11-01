@@ -7,7 +7,7 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.335.2">
 </head>
 
 <body>
@@ -75,6 +75,9 @@
 						rel="noopener" title="GitHub homepage"
 						style="color:#fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5);">GitHub</a>
 					<span id="version-display">v?.?.?</span>
+					<a id="gpu-info-link" href="#" title="GPU Information"
+						style="color:#fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5); cursor: pointer; transition: border-bottom 0.2s ease;">GPU
+						Info</a>
 					<span id="fps-display">FPS: --</span>
 				</div>
 			</div>
@@ -254,15 +257,15 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.335"></script>
-	<script src="js/ground-plane-camera.js?v=1.335"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.335"></script>
+	<script src="js/camera-schemes.js?v=1.335.2"></script>
+	<script src="js/ground-plane-camera.js?v=1.335.2"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.335.2"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.335"></script>
+	<script src="js/viewer-advanced.js?v=1.335.2"></script>
 </body>
 
 </html>

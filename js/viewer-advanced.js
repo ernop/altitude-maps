@@ -1,5 +1,5 @@
 // Version tracking
-const VIEWER_VERSION = '1.335';
+const VIEWER_VERSION = '1.335.2';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -1217,9 +1217,9 @@ function detectGPU() {
     } else {
         // Fallback: create temporary context
         gl = document.createElement('canvas').getContext('webgl') ||
-             document.createElement('canvas').getContext('experimental-webgl');
+            document.createElement('canvas').getContext('experimental-webgl');
     }
-    
+
     if (!gl) {
         console.error('WebGL not supported! This viewer requires WebGL.');
         return null;
@@ -1411,6 +1411,11 @@ async function measureFPS(frames) {
         requestAnimationFrame(countFrame);
     });
 }
+
+// Expose performance testing functions for console use
+window.testFrustumCulling = testFrustumCulling;
+window.measureFPS = measureFPS;
+window.getGPUInfo = () => window.gpuInfo || { error: 'No GPU info available yet' };
 
 function setupScene() {
     // Scene
@@ -2363,6 +2368,26 @@ function setupEventListeners() {
     // Initialize default scheme (Google Maps Ground Plane)
     switchCameraScheme('ground-plane');
 
+    // GPU Info link click handler
+    const gpuInfoLink = document.getElementById('gpu-info-link');
+    if (gpuInfoLink) {
+        gpuInfoLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const info = window.gpuInfo;
+            if (info) {
+                const tier = info.tier.toUpperCase();
+                const msg = `GPU Information:\n` +
+                    `Vendor: ${info.vendor}\n` +
+                    `Renderer: ${info.renderer}\n` +
+                    `Performance Tier: ${tier}`;
+                alert(msg);
+                console.log('GPU Info:', info);
+            } else {
+                alert('GPU information not available yet. Please wait a moment and try again.');
+            }
+        });
+    }
+
     // Mobile/UI controls toggle
     const mobileToggleBtn = document.getElementById('mobile-ui-toggle');
     if (mobileToggleBtn) {
@@ -2655,8 +2680,7 @@ function createBarsTerrain(width, height, elevation, scale) {
         material,
         barCount
     );
-    // Frustum culling enabled: Three.js will compute bounds once and skip off-screen instances
-    // This is more efficient than forcing rendering of all bars, especially when zoomed in
+    instancedMesh.frustumCulled = false; // Stable bounds; avoid per-frame recomputation cost
 
     // Set transform and color for each instance using typed mappings
     // Use Float32 colors for exact previous visual appearance (0..1 per channel)
@@ -3765,12 +3789,12 @@ function handleKeyboardMovement() {
         delta.addScaledVector(forward, -moveSpeed);
     }
 
-    // Q/E: Move camera DOWN/UP (vertical, world space)
+    // Q/E: Move camera DOWN/UP (vertical relative to camera view)
     if (keyboard.q) {
-        delta.y -= moveSpeed;
+        delta.addScaledVector(camera.up, -moveSpeed);
     }
     if (keyboard.e) {
-        delta.y += moveSpeed;
+        delta.addScaledVector(camera.up, moveSpeed);
     }
 
     // A/D: Strafe camera LEFT/RIGHT (relative to view direction)

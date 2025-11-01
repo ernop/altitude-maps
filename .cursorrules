@@ -278,8 +278,7 @@ Remove-Item -Recurse -Force data\.cache\*
 Remove-Item -Recurse -Force generated\*
 
 # Re-export from source GeoTIFFs
-python export_for_web_viewer.py
-python download_regions.py  # If using regions
+python ensure_region.py <region_id> --force-reprocess
 ```
 
 ### Visualization
@@ -507,19 +506,18 @@ Priority order for any country:
      - `clip_boundary`: True for countries/states, False for islands/custom areas
   2. Place a GeoTIFF at `data/regions/<region_id>.tif` (or `<region_id>_elevation.tif`).
   3. Generate JSON + manifest:
-     - `python ensure_region.py <region_id>` (full pipeline) or
-     - `python download_regions.py --regions <region_id>` (legacy)
+     - `python ensure_region.py <region_id>` (full pipeline)
      - Outputs to `generated/regions/` and updates `regions_manifest.json`.
   4. Start the viewer: `python serve_viewer.py` and select the region.
 
 - How the viewer groups regions:
   - Countries (international) → first group; detected from manifest names not matching island/peninsula/range patterns.
-  - Regions (non-country: islands/peninsulas/ranges) → second group; names containing “island|islands|peninsula|range” are auto-classified, or add id to `knownNonCountryIds` in `js/viewer-advanced.js` if needed.
+  - Regions (non-country: islands/peninsulas/ranges) → second group; names containing "island|islands|peninsula|range" are auto-classified, or add id to `knownNonCountryIds` in `js/viewer-advanced.js` if needed.
   - US states → third group; ids in the hardcoded US set or prefixed with `usa_`.
 
 - Integrated pipeline path (unified CLI):
-  - Add or rely on entries aggregated by `src/regions_registry.py` (pulls from source-specific modules and `download_regions.py`).
-  - Then use: `python ensure_region.py <region_id>` to run the full `src/pipeline.py` (clip → reproject → downsample → export → manifest update).
+  - Add region to `src/regions_config.py` if not already present.
+  - Use: `python ensure_region.py <region_id>` to run the full `src/pipeline.py` (clip → reproject → downsample → export → manifest update).
 
 - Validation and consistency:
   - Keep bounds realistic and tight to minimize file sizes and preserve aspect.
@@ -544,17 +542,9 @@ python ensure_region.py tennessee --force-reprocess  # Force full rebuild
 python ensure_region.py california --target-pixels 4096  # High resolution
 python ensure_region.py --list-regions          # List all available regions (50 states + 70+ countries)
 
-# Check region data through entire pipeline
-python check_region.py ohio                     # Check all stages (raw → JSON)
-python check_region.py north_dakota --verbose   # Multi-word state (detailed output)
-python check_region.py tennessee --raw-only     # Only check raw file
-
 # Reprocess existing state data
 python reprocess_existing_states.py --target-pixels 2048 --states ohio kentucky
 python reprocess_existing_states.py --target-pixels 2048 --force  # Full rebuild all states
-
-# Export data for web viewer
-python export_for_web_viewer.py data/usa.tif
 
 # Clear all caches (use after format changes)
 python clear_caches.py
@@ -562,15 +552,8 @@ python clear_caches.py
 # Check GeoTIFF orientation
 python check_geotiff_orientation.py data/your_file.tif
 
-# Run visualization (static output)
-python visualize.py --region global --variable temperature
-
-# Download regions
-python download_regions.py
-
-# Work with borders
-python border_utils.py --list  # List available countries
-python border_utils.py --test your_data.tif  # Test borders on data
+# List available countries
+python download_borders.py --list
 
 # Production deployment
 .\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun  # test

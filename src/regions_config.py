@@ -11,7 +11,6 @@ IMPORTANT: This file is for REGION DEFINITIONS only.
 - Having a region here does NOT mean data exists for it
 - Data availability is checked separately (manifest, raw files)
 - Download logic is in src/downloaders/
-- Registry/aggregation logic is in src/regions_registry.py
 """
 
 from dataclasses import dataclass
@@ -90,6 +89,15 @@ US_STATES: Dict[str, RegionConfig] = {
         name="Kentucky",
         bounds=(-89.571, 36.497, -81.964, 39.147),
         description="Kentucky",
+        category="usa_state",
+        country="United States of America",
+        clip_boundary=True,
+    ),
+    "tennessee": RegionConfig(
+        id="tennessee",
+        name="Tennessee",
+        bounds=(-90.31, 34.98, -81.65, 36.68),
+        description="Tennessee",
         category="usa_state",
         country="United States of America",
         clip_boundary=True,
@@ -414,6 +422,24 @@ REGIONS: Dict[str, RegionConfig] = {
         name="Central New Jersey",
         bounds=(-74.857, 40.152, -74.286, 40.587),
         description="USA - Central New Jersey region, roughly square area starting ~6 miles NE of Piscataway and extending ~30 miles southwest",
+        category="region",
+        country="United States of America",
+        clip_boundary=False,
+    ),
+    "cottonwood_valley": RegionConfig(
+        id="cottonwood_valley",
+        name="Cottonwood Valley",
+        bounds=(-111.87, 40.48, -111.51, 40.76),
+        description="USA - Cottonwood Valley, Utah, 20x20 mile square area near Salt Lake City",
+        category="region",
+        country="United States of America",
+        clip_boundary=False,
+    ),
+    "greenville_sc": RegionConfig(
+        id="greenville_sc",
+        name="Greenville, SC",
+        bounds=(-82.8940, 34.4776, -81.8940, 35.2276),
+        description="USA - City of Greenville, South Carolina, 50x50 mile square centered on the city",
         category="region",
         country="United States of America",
         clip_boundary=False,

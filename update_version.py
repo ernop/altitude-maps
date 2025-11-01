@@ -25,12 +25,19 @@ def update_html_cache_busters(version):
     html_file = Path('interactive_viewer_advanced.html')
     content = html_file.read_text(encoding='utf-8')
     
+    updated_content = content
+    
     # Replace version in script tags for internal JS files
     # Pattern: src="js/...?v=OLD_VERSION" -> src="js/...?v=NEW_VERSION"
     pattern = r'(src="js/[^"]+\.js)\?v=[^"]*(")'
     replacement = rf'\1?v={version}\2'
+    updated_content = re.sub(pattern, replacement, updated_content)
     
-    updated_content = re.sub(pattern, replacement, content)
+    # Replace version in link tags for CSS files
+    # Pattern: href="css/...?v=OLD_VERSION" -> href="css/...?v=NEW_VERSION"
+    pattern = r'(href="css/[^"]+\.css)\?v=[^"]*(")'
+    replacement = rf'\1?v={version}\2'
+    updated_content = re.sub(pattern, replacement, updated_content)
     
     if updated_content != content:
         html_file.write_text(updated_content, encoding='utf-8')

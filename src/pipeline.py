@@ -942,7 +942,12 @@ def run_pipeline(
         clipped_path = raw_tif_path
     else:
         print(f"[STAGE 6/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
-        clipped_path = clipped_dir / f"{region_id}_clipped_{source}_v1.tif"
+        # Generate abstract filename based on raw file bounds (no region_id)
+        from ensure_region import abstract_filename_from_raw
+        clipped_filename = abstract_filename_from_raw(raw_tif_path, 'clipped', source, boundary_name)
+        if clipped_filename is None:
+            raise ValueError(f"Could not generate abstract filename for clipped file - bounds extraction failed for {raw_tif_path}")
+        clipped_path = clipped_dir / clipped_filename
         try:
             if not clip_to_boundary(raw_tif_path, region_id, boundary_name, clipped_path, source, boundary_type, border_resolution, boundary_required=bool(boundary_name)):
                 # Boundary-required regions must not continue without a boundary
@@ -958,7 +963,12 @@ def run_pipeline(
 
     # [STAGE 7/10] Process/downsample
     print(f"\n[STAGE 7/10] Processing for viewer...")
-    processed_path = processed_dir / f"{region_id}_{source}_{target_pixels}px_v2.tif"
+    # Generate abstract filename based on raw file bounds (no region_id)
+    from ensure_region import abstract_filename_from_raw
+    processed_filename = abstract_filename_from_raw(raw_tif_path, 'processed', source, target_pixels=target_pixels)
+    if processed_filename is None:
+        raise ValueError(f"Could not generate abstract filename for processed file - bounds extraction failed for {raw_tif_path}")
+    processed_path = processed_dir / processed_filename
     if not downsample_for_viewer(clipped_path, region_id, processed_path, target_pixels):
         return False, result_paths
 
@@ -966,7 +976,12 @@ def run_pipeline(
 
     # [STAGE 8/10] Export to JSON (include resolution in filename for cache safety)
     print(f"\n[STAGE 8/10] Exporting to JSON for web viewer...")
-    exported_path = generated_dir / f"{region_id}_{source}_{target_pixels}px_v2.json"
+    # Generate abstract filename based on raw file bounds (no region_id)
+    from ensure_region import abstract_filename_from_raw
+    exported_filename = abstract_filename_from_raw(raw_tif_path, 'exported', source, target_pixels=target_pixels)
+    if exported_filename is None:
+        raise ValueError(f"Could not generate abstract filename for exported file - bounds extraction failed for {raw_tif_path}")
+    exported_path = generated_dir / exported_filename
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths
 
