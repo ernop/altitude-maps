@@ -329,13 +329,31 @@ async function init() {
 
         // Ensure activity log is visible by adding an initial entry
         appendActivityLog('Viewer initialized');
-        // Mirror warnings/errors into activity log to avoid DOM spam from frequent info logs
+        // Mirror warnings/errors and significant console.log messages into activity log
         if (!window.__consolePatched) {
             const origLog = console.log.bind(console);
             const origWarn = console.warn.bind(console);
             const origError = console.error.bind(console);
-            // Leave console.log unpatched for performance; do not mirror into the activity log
-            console.log = (...args) => { origLog(...args); };
+            
+            // Mirror significant console.log messages to activity log
+            // Skip verbose/debug-only messages that would spam the UI
+            console.log = (...args) => {
+                origLog(...args);
+                const msg = args.join(' ');
+                // Only mirror significant messages (not verbose debug details)
+                if (msg.includes('[OK]') || msg.includes('[INFO]') || msg.includes('[JSON]') || 
+                    msg.includes('Bucket size adjusted') || msg.includes('Resolution set') ||
+                    msg.includes('Setting TRUE SCALE') || msg.includes('Setting ') && msg.includes('x exaggeration') ||
+                    msg.includes('Camera reset') || msg.includes('True scale for') || 
+                    msg.includes('Loading region') || msg.includes('Loading JSON file') ||
+                    msg.includes('Aggregation:') || msg.includes('Already at') ||
+                    msg.includes('Switching to') || msg.includes('Pivot marker created') ||
+                    msg.includes('Bars centered') || msg.includes('Points centered') ||
+                    msg.includes('PURE 2D GRID') || (msg.includes('Created') && msg.includes('instanced bars')) ||
+                    msg.includes('Creating borders') || msg.includes('border segments')) {
+                    try { appendActivityLog(msg); } catch (_) { }
+                }
+            };
             console.warn = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) { } origWarn(...args); };
             console.error = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) { } origError(...args); };
             window.__consolePatched = true;

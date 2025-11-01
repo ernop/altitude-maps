@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
-import sys
 
 
 Bounds = Tuple[float, float, float, float]  # (west, south, east, north)
@@ -239,8 +238,8 @@ def dataset_to_source_name(dataset_id: str) -> str:
         "SRTMGL3": "srtm_90m",
         "NASADEM": "nasadem_30m",
         "AW3D30": "aw3d30",
-        "COP30": "cop30",
-        "COP90": "cop90",
+        "COP30": "srtm_30m",  # Use same directory structure as SRTM
+        "COP90": "srtm_90m",  # Use same directory structure as SRTM
     }
     return mapping.get(dataset_id.upper(), dataset_id.lower())
 

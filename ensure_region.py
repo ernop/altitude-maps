@@ -29,19 +29,15 @@ if sys.platform == 'win32':
 from src.regions_config import ALL_REGIONS, get_us_state_names
 
 # Pipeline dependencies
-try:
-    import rasterio
-    from rasterio.mask import mask as rasterio_mask
-    import numpy as np
-    from shapely.geometry import shape
-    from shapely.ops import unary_union
-    from shapely.geometry import mapping as shapely_mapping
-except ImportError as e:
-    print(f"Missing package: {e}")
-    print("Install with: pip install rasterio shapely numpy")
-    sys.exit(1)
+import rasterio
+from rasterio.mask import mask as rasterio_mask
+import numpy as np
+from shapely.ops import unary_union
+from shapely.geometry import mapping as shapely_mapping
 
 import json
+import gzip
+import glob
 from typing import Optional, Dict, Tuple
 
 # Pipeline utilities
@@ -50,18 +46,92 @@ from src.metadata import (
     create_export_metadata, save_metadata, get_metadata_path, compute_file_hash
 )
 from src.versioning import get_current_version
-from src.borders import get_country_geometry, get_border_manager
+from src.borders import get_border_manager
 
 
 def _path_exists(glob_pattern: str) -> bool:
     """Utility to check if any path matches the given glob pattern."""
-    import glob as _glob
-    return any(_glob.glob(glob_pattern, recursive=True))
+    return any(glob.glob(glob_pattern, recursive=True))
 
 
-def _print_stage(label: str, done: bool) -> None:
-    symbol = '+' if done else ' '
-    print(f"  ({symbol}) {label}")
+def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
+    """
+    Determine minimum required source resolution based on visible pixel size.
+    
+    Quality requirement logic:
+    - If visible >= 180m: 90m source provides 2.0x+ oversampling (Nyquist safe)
+    - If visible >= 90m: 30m source required (90m would be marginal)
+    - If visible < 90m: 30m source required (users can zoom)
+    
+    Args:
+        visible_m_per_pixel: Average meters per pixel in final output
+        
+    Returns:
+        Minimum required resolution in meters (10, 30, or 90)
+    """
+    if visible_m_per_pixel >= 180:
+        return 90  # 90m source is sufficient (2x oversampling)
+    else:
+        return 30  # 30m source required (better quality)
+
+
+def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
+    """Calculate final visible pixel size in meters after downsampling to target_pixels.
+    
+    This helps determine if 30m or 90m source data is appropriate:
+    - If visible pixels will be >90m, 90m source data is sufficient
+    - If visible pixels will be <90m, 30m source data provides better detail
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        target_pixels: Target output dimension (e.g., 2048)
+    
+    Returns:
+        dict with keys:
+        - 'width_m_per_pixel': meters per pixel horizontally
+        - 'height_m_per_pixel': meters per pixel vertically
+        - 'avg_m_per_pixel': average meters per pixel (recommended for decision making)
+        - 'output_width_px': calculated output width in pixels
+        - 'output_height_px': calculated output height in pixels
+        - 'real_world_width_km': width in kilometers
+        - 'real_world_height_km': height in kilometers
+    """
+    west, south, east, north = bounds
+    width_deg = east - west
+    height_deg = north - south
+    
+    # Calculate real-world dimensions in meters
+    import math
+    center_lat = (north + south) / 2.0
+    meters_per_deg_lat = 111_320  # constant
+    meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+    
+    width_m = width_deg * meters_per_deg_lon
+    height_m = height_deg * meters_per_deg_lat
+    
+    # Calculate output pixels preserving aspect ratio (same logic as downsampling code)
+    aspect = width_deg / height_deg if height_deg > 0 else 1.0
+    if width_deg >= height_deg:
+        output_width = target_pixels
+        output_height = max(1, int(round(target_pixels / aspect)))
+    else:
+        output_height = target_pixels
+        output_width = max(1, int(round(target_pixels * aspect)))
+    
+    # Calculate meters per pixel in final output
+    m_per_pixel_x = width_m / output_width
+    m_per_pixel_y = height_m / output_height
+    avg_m_per_pixel = (m_per_pixel_x + m_per_pixel_y) / 2.0
+    
+    return {
+        'width_m_per_pixel': m_per_pixel_x,
+        'height_m_per_pixel': m_per_pixel_y,
+        'avg_m_per_pixel': avg_m_per_pixel,
+        'output_width_px': output_width,
+        'output_height_px': output_height,
+        'real_world_width_km': width_m / 1000.0,
+        'real_world_height_km': height_m / 1000.0
+    }
 
 
 def summarize_pipeline_status(region_id: str, region_type: str, region_info: dict) -> None:
@@ -70,7 +140,7 @@ def summarize_pipeline_status(region_id: str, region_type: str, region_info: dic
     s9 = check_pipeline_complete(region_id, verbose=False)
 
     # Stage 4: raw present? (silent check)
-    raw_path, source_guess = find_raw_file(region_id, verbose=False)
+    raw_path, _ = find_raw_file(region_id, verbose=False)
     s4 = raw_path is not None
 
     # Stage 8: processed present?
@@ -90,7 +160,7 @@ class PipelineError(Exception):
     pass
 
 
-def check_venv():
+def check_venv() -> None:
     """Ensure we're running in the virtual environment."""
     # Check if we're in a venv
     in_venv = (hasattr(sys, 'real_prefix') or
@@ -198,7 +268,7 @@ def validate_geotiff(file_path: Path, check_data: bool = False) -> bool:
         return False
 
 
-def validate_json_export(file_path: Path, verbose=True) -> bool:
+def validate_json_export(file_path: Path, verbose: bool = True) -> bool:
     """
     Validate an exported JSON file.
 
@@ -220,9 +290,6 @@ def validate_json_export(file_path: Path, verbose=True) -> bool:
         return False
 
     try:
-        import json
-        import gzip
-
         # Try gzip first, then regular JSON
         if file_path.suffix == '.gz' or '.gz' in file_path.name:
             with gzip.open(file_path, 'rt', encoding='utf-8') as f:
@@ -300,7 +367,7 @@ def validate_json_export(file_path: Path, verbose=True) -> bool:
         return False
 
 
-def get_region_info(region_id):
+def get_region_info(region_id: str) -> Tuple[Optional[str], Optional[Dict]]:
     """
     Get information about a region (US state or international).
 
@@ -338,30 +405,70 @@ def get_region_info(region_id):
     return region_type, region_data
 
 
-def find_raw_file(region_id, verbose=True):
+def find_raw_file(region_id: str, verbose: bool = True, min_required_resolution_meters: Optional[int] = None) -> Tuple[Optional[Path], Optional[str]]:
     """
-    Find and validate raw file for a region.
+    Find existing raw file that meets quality requirements.
+    
+    CRITICAL: Quality-first approach - finds ANY existing file that meets or exceeds
+    the minimum required resolution. Never uses lower quality files than required.
+    
+    Resolution logic:
+    - If min_required_resolution_meters=30: Can use 10m or 30m files (both meet requirement)
+    - If min_required_resolution_meters=90: Can use 10m, 30m, or 90m files (all meet requirement)
+    - Never uses files with resolution > min_required (e.g., need 30m, won't use 90m)
+    
+    File naming scheme prevents collisions:
+    - 10m: data/raw/usa_3dep/{region_id}_3dep_10m.tif
+    - 30m: data/raw/srtm_30m/{region_id}_bbox_30m.tif
+    - 90m: data/raw/srtm_90m/{region_id}_bbox_90m.tif
 
     Args:
         region_id: Region identifier
         verbose: If True, print validation messages
+        min_required_resolution_meters: Minimum resolution required (10, 30, or 90).
+                                       Lower number = higher quality (more detail).
+                                       If None, accepts any valid file (prefers higher quality).
 
     Returns:
-        Tuple of (path, source) if valid file found, (None, None) otherwise
+        Tuple of (path, source) if valid file found that meets requirement, (None, None) otherwise
     """
+    # Resolution mapping: source -> resolution in meters
+    # Lower number = higher quality (more detail)
+    RESOLUTION_MAP = {
+        'usa_3dep': 10,
+        'srtm_30m': 30,
+        'srtm_90m': 90,
+    }
+    
+    # Check all possible locations (order: highest quality first for preference)
     possible_locations = [
-        Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif"),
-        Path(f"data/raw/usa_3dep/{region_id}_3dep_10m.tif"),
+        (Path(f"data/raw/usa_3dep/{region_id}_3dep_10m.tif"), 'usa_3dep'),
+        (Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif"), 'srtm_30m'),
+        (Path(f"data/raw/srtm_90m/{region_id}_bbox_90m.tif"), 'srtm_90m'),
     ]
-
-    for path in possible_locations:
+    
+    valid_files = []  # Collect all valid files that meet requirement
+    
+    for path, source in possible_locations:
         if path.exists():
             if verbose:
                 print(f"  Checking {path.name}...", flush=True)
             if validate_geotiff(path, check_data=True):
+                file_resolution = RESOLUTION_MAP[source]
+                
+                # Check if file meets quality requirement
+                if min_required_resolution_meters is not None:
+                    if file_resolution > min_required_resolution_meters:
+                        if verbose:
+                            print(f"  File resolution {file_resolution}m exceeds requirement {min_required_resolution_meters}m", flush=True)
+                            print(f"  Quality requirement: will not use lower quality file", flush=True)
+                        continue
+                
+                # File meets requirement - add to valid candidates
                 if verbose:
-                    print(f"  Valid GeoTIFF (structure)", flush=True)
-                return path, get_source_from_path(path)
+                    req_str = f" <= {min_required_resolution_meters}m" if min_required_resolution_meters else ""
+                    print(f"  Valid GeoTIFF (meets requirement: {file_resolution}m{req_str})", flush=True)
+                valid_files.append((path, source, file_resolution))
             else:
                 if verbose:
                     print(f"  Invalid or corrupted, cleaning up...", flush=True)
@@ -372,18 +479,29 @@ def find_raw_file(region_id, verbose=True):
                 except Exception as e:
                     if verbose:
                         print(f"  Could not delete: {e}", flush=True)
-
+    
+    # Return highest quality file that meets requirement (prefer 10m > 30m > 90m)
+    if valid_files:
+        # Sort by resolution (lower = better quality)
+        valid_files.sort(key=lambda x: x[2])
+        best_path, best_source, best_res = valid_files[0]
+        if verbose:
+            print(f"  Using existing file: {best_path.name} ({best_res}m)", flush=True)
+        return best_path, best_source
+    
     return None, None
 
 
-def get_source_from_path(path):
+def get_source_from_path(path: Path) -> str:
     """Determine source type from path."""
     if 'usa_3dep' in str(path):
         return 'usa_3dep'
+    if '90m' in str(path):
+        return 'srtm_90m'
     return 'srtm_30m'
 
 
-def check_pipeline_complete(region_id, verbose=True):
+def check_pipeline_complete(region_id: str, verbose: bool = True) -> bool:
     """
     Check if all pipeline stages are complete and valid.
 
@@ -473,7 +591,7 @@ def _iter_all_region_ids() -> list[str]:
         return []
 
 
-def download_us_state(region_id, state_info):
+def download_us_state(region_id: str, state_info: Dict) -> bool:
     """Download raw data for a US state using USGS 3DEP."""
     print(f"\n  Downloading {state_info['name']}...")
     print(f"  Source: USGS 3DEP preferred; automated path uses OpenTopography SRTM 30m")
@@ -488,37 +606,89 @@ def download_us_state(region_id, state_info):
     return result.returncode == 0
 
 
-def download_international_region(region_id, region_info, dataset_override: str | None = None):
+def download_international_region(region_id: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
     """Download raw data for an international region using OpenTopography.
 
     If dataset_override is provided, use it (e.g., 'COP30' or 'SRTMGL1').
+    
+    For large regions, automatically suggests 90m data if it would be visually equivalent.
     """
     west, south, east, north = region_info['bounds']
 
-    # Choose dataset based on latitude coverage
-    # SRTM: 60degN to 56degS
-    # Copernicus: 90degN to 90degS (global)
-    # AW3D30: 82degN to 82degS
-    if dataset_override is not None:
-        dataset = dataset_override
-        dataset_name = 'Copernicus DEM 30m' if dataset == 'COP30' else ('SRTM 30m' if dataset == 'SRTMGL1' else dataset)
-        resolution = '30m'
-    else:
+    # If no override, calculate visible pixel size and suggest optimal resolution
+    if dataset_override is None:
+        visible = calculate_visible_pixel_size((west, south, east, north), target_pixels)
+        
+        print(f"\n  Downloading {region_info['name']}...")
+        print(f"  Real-world size: {visible['real_world_width_km']:.0f} x {visible['real_world_height_km']:.0f} km")
+        print(f"  Target resolution: {target_pixels}px (max dimension)")
+        print(f"  Visible pixel size: ~{visible['avg_m_per_pixel']:.0f}m/pixel")
+        
+        # Determine base dataset by latitude first
         if north > 60.0 or south < -56.0:
-            dataset = 'COP30'
+            base_dataset_30m = 'COP30'
+            base_dataset_90m = 'COP90'
+            base_name = 'Copernicus DEM'
+        else:
+            base_dataset_30m = 'SRTMGL1'
+            base_dataset_90m = 'SRTMGL3'
+            base_name = 'SRTM'
+        
+        # Quality-first automatic selection: determine minimum required resolution
+        # Automatically select the smallest resolution that still meets quality requirements
+        min_required = determine_min_required_resolution(visible['avg_m_per_pixel'])
+        
+        if min_required == 90:
+            # 90m is sufficient for quality - use smallest that meets requirement
+            dataset = base_dataset_90m
+            dataset_name = f'{base_name} 90m'
+            resolution = '90m'
+            print(f"\n  Quality requirement: minimum 90m resolution")
+            print(f"  Rationale: Visible pixels will be ~{visible['avg_m_per_pixel']:.0f}m each")
+            print(f"            90m input provides guaranteed quality (2.0x oversampling, Nyquist safe)")
+            print(f"  Auto-selected: 90m dataset (smallest that meets requirement)")
+        else:
+            # 30m required for quality
+            dataset = base_dataset_30m
+            dataset_name = f'{base_name} 30m'
+            resolution = '30m'
+            if visible['avg_m_per_pixel'] >= 90:
+                print(f"\n  Quality requirement: minimum 30m resolution")
+                print(f"  Rationale: Visible pixels will be ~{visible['avg_m_per_pixel']:.0f}m each")
+                print(f"            90m input would give marginal quality (1.0-2.0x oversampling)")
+                print(f"            30m input provides better quality and avoids artifacts")
+            else:
+                print(f"\n  Quality requirement: minimum 30m resolution")
+                print(f"  Rationale: Visible pixels will be ~{visible['avg_m_per_pixel']:.0f}m each")
+                print(f"            Detail matters - users can zoom in to see finer detail")
+            print(f"  Auto-selected: 30m dataset (smallest that meets requirement)")
+    else:
+        # Override specified: use it
+        dataset = dataset_override
+        # Determine dataset name and resolution from override
+        if dataset == 'COP30':
             dataset_name = 'Copernicus DEM 30m'
             resolution = '30m'
-        else:
-            dataset = 'SRTMGL1'
+        elif dataset == 'COP90':
+            dataset_name = 'Copernicus DEM 90m'
+            resolution = '90m'
+        elif dataset == 'SRTMGL1':
             dataset_name = 'SRTM 30m'
             resolution = '30m'
-
-    print(f"\n  Downloading {region_info['name']}...")
-    print(f"  Source: OpenTopography ({dataset_name})")
-    print(f"  Bounds: {region_info['bounds']}")
-    print(f"  Latitude range: {south:.1f}degN to {north:.1f}degN")
-    if dataset == 'COP30':
-        print(f"  Note: Using Copernicus DEM (SRTM doesn't cover >60degN)")
+        elif dataset == 'SRTMGL3':
+            dataset_name = 'SRTM 90m'
+            resolution = '90m'
+        else:
+            # For other datasets (AW3D30, NASADEM, etc.), default to 30m
+            dataset_name = dataset
+            resolution = '30m'
+        
+        print(f"\n  Downloading {region_info['name']}...")
+        print(f"  Source: OpenTopography ({dataset_name})")
+        print(f"  Bounds: {region_info['bounds']}")
+        print(f"  Latitude range: {south:.1f}degN to {north:.1f}degN")
+        if dataset == 'COP30':
+            print(f"  Note: Using Copernicus DEM (SRTM doesn't cover >60degN)")
 
     try:
         import requests
@@ -539,48 +709,110 @@ def download_international_region(region_id, region_info, dataset_override: str 
         print(f"  Add it to settings.json under 'opentopography.api_key'")
         return False
 
-    # Prepare output path
-    output_file = Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif")
+    # Map dataset name to source identifier for file paths and metadata
+    from src.regions_registry import dataset_to_source_name
+    source_name = dataset_to_source_name(dataset)
+    
+    # Prepare output path based on selected dataset resolution
+    # Use appropriate directory and filename for 30m vs 90m
+    if resolution == '90m':
+        output_file = Path(f"data/raw/srtm_90m/{region_id}_bbox_90m.tif")
+    else:
+        output_file = Path(f"data/raw/srtm_30m/{region_id}_bbox_30m.tif")
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # If an existing raw file is present, validate its bounds against requested bounds.
-    # If bounds differ, delete and re-download so expanded/corrected area is included.
+    # CRITICAL: Validate existing file matches required dataset/resolution AND bounds.
+    # Never compromise quality - if file exists but is wrong resolution, delete and re-download.
     if output_file.exists():
         try:
             from src.metadata import get_metadata_path, load_metadata
             meta_path = get_metadata_path(output_file)
             if meta_path.exists():
                 meta = load_metadata(meta_path)
-                mb = meta.get('bounds', {})
-                old_bounds = (float(mb.get('left')), float(mb.get('bottom')), float(mb.get('right')), float(mb.get('top')))
-                new_bounds = (float(west), float(south), float(east), float(north))
-                # Consider any difference > 1e-4 degrees as a mismatch requiring regeneration
-                def _differs(a, b):
-                    return any(abs(x - y) > 1e-4 for x, y in zip(a, b))
-                if _differs(old_bounds, new_bounds):
-                    print(f"  Bounds changed for {region_id}: old={old_bounds}, new={new_bounds}")
-                    print(f"  Deleting existing raw file to regenerate with new bounds...")
+                
+                # Validate dataset/resolution matches (CRITICAL for quality)
+                existing_source = meta.get('source', '')
+                if existing_source != source_name:
+                    print(f"  Existing file has wrong source: got {existing_source}, need {source_name}")
+                    print(f"  Quality requirement: deleting and re-downloading at correct resolution...")
                     try:
                         output_file.unlink()
                     except Exception:
                         pass
-                    # Also remove stale metadata if present
                     try:
                         meta_path.unlink()
                     except Exception:
                         pass
                 else:
-                    print(f"  Already exists with matching bounds: {output_file.name}")
-                    return True
+                    # Dataset matches - now validate bounds
+                    mb = meta.get('bounds', {})
+                    old_bounds = (float(mb.get('left')), float(mb.get('bottom')), float(mb.get('right')), float(mb.get('top')))
+                    new_bounds = (float(west), float(south), float(east), float(north))
+                    # Consider any difference > 1e-4 degrees as a mismatch requiring regeneration
+                    def _differs(a: Tuple[float, ...], b: Tuple[float, ...]) -> bool:
+                        return any(abs(x - y) > 1e-4 for x, y in zip(a, b))
+                    if _differs(old_bounds, new_bounds):
+                        print(f"  Bounds changed for {region_id}: old={old_bounds}, new={new_bounds}")
+                        print(f"  Deleting existing raw file to regenerate with new bounds...")
+                        try:
+                            output_file.unlink()
+                        except Exception:
+                            pass
+                        # Also remove stale metadata if present
+                        try:
+                            meta_path.unlink()
+                        except Exception:
+                            pass
+                    else:
+                        print(f"  Already exists with matching dataset ({source_name}) and bounds: {output_file.name}")
+                        return True
             else:
-                # No metadata; be conservative and assume mismatch only if clearly different can't be known.
-                # Keep existing file to avoid unnecessary re-download.
-                print(f"  Already exists (no metadata found): {output_file.name}")
-                return True
+                # No metadata; validate by checking file properties
+                # Open the file and verify it matches expected source/dataset
+                try:
+                    import rasterio
+                    with rasterio.open(output_file) as src:
+                        # Check if resolution roughly matches expectations
+                        # For 30m dataset, expect ~30m resolution; for 90m, expect ~90m
+                        bounds = src.bounds
+                        width_deg = bounds.right - bounds.left
+                        height_deg = bounds.top - bounds.bottom
+                        center_lat = (bounds.top + bounds.bottom) / 2.0
+                        import math
+                        meters_per_deg_lat = 111_320
+                        meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+                        width_m = width_deg * meters_per_deg_lon
+                        height_m = height_deg * meters_per_deg_lat
+                        avg_resolution = (width_m / src.width + height_m / src.height) / 2.0
+                        
+                        # Validate resolution matches expected dataset
+                        if resolution == '90m':
+                            if avg_resolution < 50 or avg_resolution > 150:
+                                print(f"  Existing file resolution ({avg_resolution:.1f}m) doesn't match 90m dataset")
+                                print(f"  Deleting to ensure quality...")
+                                output_file.unlink()
+                        else:  # 30m
+                            if avg_resolution < 15 or avg_resolution > 50:
+                                print(f"  Existing file resolution ({avg_resolution:.1f}m) doesn't match 30m dataset")
+                                print(f"  Deleting to ensure quality...")
+                                output_file.unlink()
+                            else:
+                                print(f"  Already exists (validated resolution: {avg_resolution:.1f}m): {output_file.name}")
+                                return True
+                except Exception as e:
+                    print(f"  Could not validate existing file: {e}")
+                    print(f"  Deleting to ensure quality...")
+                    try:
+                        output_file.unlink()
+                    except Exception:
+                        pass
         except Exception:
-            # If metadata system unavailable, fall back to existing file
-            print(f"  Already exists: {output_file.name}")
-            return True
+            # If validation fails, delete and re-download to ensure quality
+            print(f"  Could not validate existing file, deleting to ensure quality...")
+            try:
+                output_file.unlink()
+            except Exception:
+                pass
 
     # Helper to download a single bounding box to a specific file using a specific dataset
     def _download_bbox(out_path: Path, bbox: tuple[float, float, float, float], demtype: str) -> bool:
@@ -644,13 +876,48 @@ def download_international_region(region_id, region_info, dataset_override: str 
             if tile_path.exists():
                 # Strong validation: try to read data to catch partial/corrupt tiles
                 if validate_geotiff(tile_path, check_data=True):
+                    # CRITICAL: Verify tile resolution matches required dataset
+                    # This ensures quality - we never reuse tiles at wrong resolution
                     try:
-                        size_mb = tile_path.stat().st_size / (1024 * 1024)
-                        print(f"  Cached tile present: {tile_path.name} ({size_mb:.1f} MB)", flush=True)
-                    except Exception:
-                        print(f"  Cached tile present: {tile_path.name}", flush=True)
-                    tile_paths.append(tile_path)
-                    continue
+                        import rasterio
+                        import math
+                        with rasterio.open(tile_path) as src:
+                            bounds = src.bounds
+                            width_deg = bounds.right - bounds.left
+                            height_deg = bounds.top - bounds.bottom
+                            center_lat = (bounds.top + bounds.bottom) / 2.0
+                            meters_per_deg_lat = 111_320  # constant
+                            meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+                            width_m = width_deg * meters_per_deg_lon
+                            height_m = height_deg * meters_per_deg_lat
+                            avg_resolution = (width_m / src.width + height_m / src.height) / 2.0
+                            
+                            # Validate resolution matches expected dataset
+                            resolution_ok = False
+                            if resolution == '90m':
+                                resolution_ok = (50 <= avg_resolution <= 150)
+                            else:  # 30m
+                                resolution_ok = (15 <= avg_resolution <= 50)
+                            
+                            if not resolution_ok:
+                                print(f"  Cached tile resolution ({avg_resolution:.1f}m) doesn't match {resolution} dataset", flush=True)
+                                print(f"  Deleting to ensure quality...", flush=True)
+                                tile_path.unlink()
+                            else:
+                                try:
+                                    size_mb = tile_path.stat().st_size / (1024 * 1024)
+                                    print(f"  Cached tile present (validated {resolution}): {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                                except Exception:
+                                    print(f"  Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
+                                tile_paths.append(tile_path)
+                                continue
+                    except Exception as e:
+                        print(f"  Could not validate tile resolution: {e}", flush=True)
+                        print(f"  Deleting to ensure quality...", flush=True)
+                        try:
+                            tile_path.unlink()
+                        except Exception:
+                            pass
                 else:
                     print(f"  Cached tile failed validation (will NOT delete). Attempting repaired re-download...", flush=True)
                     # Re-download to a separate file to preserve original
@@ -696,7 +963,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
             raw_meta = create_raw_metadata(
                 tif_path=output_file,
                 region_id=region_id,
-                source='srtm_30m',
+                source=source_name,
                 download_url='tiled:OpenTopography',
                 download_params={'tiles': len(tile_paths), 'dataset': dataset, 'bounds': region_info['bounds']}
             )
@@ -780,7 +1047,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
             raw_meta = create_raw_metadata(
                 tif_path=output_file,
                 region_id=region_id,
-                source='srtm_30m',
+                source=source_name,
                 download_url='mixed:OpenTopography',
                 download_params={'parts': len(part_paths), 'bounds': region_info['bounds']}
             )
@@ -876,7 +1143,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
                     raw_meta = create_raw_metadata(
                         tif_path=output_file,
                         region_id=region_id,
-                        source='srtm_30m',
+                        source=source_name,
                         download_url='tiled:OpenTopography',
                         download_params={'tiles': len(tile_paths), 'dataset': dataset, 'bounds': region_info['bounds']}
                     )
@@ -911,7 +1178,7 @@ def download_international_region(region_id, region_info, dataset_override: str 
             raw_meta = create_raw_metadata(
                 tif_path=output_file,
                 region_id=region_id,
-                source='srtm_30m',
+                source=source_name,
                 download_url=url,
                 download_params=params
             )
@@ -927,12 +1194,12 @@ def download_international_region(region_id, region_info, dataset_override: str 
         return False
 
 
-def download_region(region_id, region_type, region_info, dataset_override: str | None = None):
+def download_region(region_id: str, region_type: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
     """Route to appropriate downloader based on region type."""
     if region_type == 'us_state':
         return download_us_state(region_id, region_info)
     elif region_type == 'international':
-        return download_international_region(region_id, region_info, dataset_override)
+        return download_international_region(region_id, region_info, dataset_override, target_pixels)
     else:
         print(f"  Unknown region type: {region_type}")
         return False
@@ -965,13 +1232,13 @@ def determine_dataset_override(region_id: str, region_type: str, region_info: di
         print(f"[STAGE 2/10] Dataset override from RegionConfig: {recommended}")
         return recommended
 
-    west, south, east, north = region_info['bounds']
+    _west, south, _east, north = region_info['bounds']
     lat_choice = 'COP30' if (north > 60.0 or south < -56.0) else 'SRTMGL1'
     print(f"[STAGE 3/10] Latitude-based dataset: {lat_choice}")
     return lat_choice
 
 
-def process_region(region_id, raw_path, source, target_pixels, force, region_type, region_info, border_resolution='10m'):
+def process_region(region_id: str, raw_path: Path, source: str, target_pixels: int, force: bool, region_type: str, region_info: Dict, border_resolution: str = '10m') -> Tuple[bool, Dict]:
     """Run the pipeline on a region and return (success, result_paths)."""
 
     # Determine boundary based on region type
@@ -1087,8 +1354,8 @@ def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_
             except Exception:
                 pass
 
-    # Locate raw again and re-run
-    raw_path, _ = find_raw_file(region_id)
+    # Locate raw again and re-run (accept any valid file for auto-fix)
+    raw_path, _ = find_raw_file(region_id, verbose=False, min_required_resolution_meters=None)
     if not raw_path:
         print("  Raw file missing during auto-fix")
         return False
@@ -1975,13 +2242,21 @@ This script will:
                 if region_type is None:
                     print(f"  Skipping unknown region: {rid}")
                     continue
-                raw_path, source = find_raw_file(rid)
+                # Determine minimum required resolution for this region
+                min_req_res = None
+                if region_type == 'us_state':
+                    min_req_res = 10
+                else:
+                    visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
+                    min_req_res = determine_min_required_resolution(visible['avg_m_per_pixel'])
+                
+                raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
                 if not raw_path:
                     dataset_override = determine_dataset_override(rid, region_type, region_info)
-                    if not download_region(rid, region_type, region_info, dataset_override):
+                    if not download_region(rid, region_type, region_info, dataset_override, args.target_pixels):
                         print(f"  Download failed for {rid}")
                         continue
-                    raw_path, source = find_raw_file(rid)
+                    raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
                     if not raw_path:
                         print(f"  Validation failed after download for {rid}")
                         continue
@@ -2078,7 +2353,20 @@ This script will:
 
     # Check if raw data exists (stage 4)
     print(f"\n[STAGE 4/10] Checking raw elevation data...", flush=True)
-    raw_path, source = find_raw_file(region_id)
+    
+    # Determine minimum required resolution based on quality requirements
+    min_required_resolution = None
+    if region_type == 'us_state':
+        # US states always use 10m (USA_3DEP)
+        min_required_resolution = 10
+    else:
+        # International: calculate visible pixel size to determine requirement
+        visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
+        min_required_resolution = determine_min_required_resolution(visible['avg_m_per_pixel'])
+        print(f"  Quality requirement: minimum {min_required_resolution}m resolution", flush=True)
+        print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
+    
+    raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
 
     if not raw_path:
         print(f"  No raw data found for {region_id}", flush=True)
@@ -2089,13 +2377,13 @@ This script will:
 
         # Download raw data
         print(f"[STAGE 4/10] Downloading...", flush=True)
-        if not download_region(region_id, region_type, region_info, dataset_override):
+        if not download_region(region_id, region_type, region_info, dataset_override, args.target_pixels):
             print(f"  Download failed!", flush=True)
             return 1
 
         # Re-validate the downloaded file
         print(f"  Validating...", flush=True)
-        raw_path, source = find_raw_file(region_id)
+        raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
         if not raw_path:
             print(f"  Validation failed - file may be corrupted", flush=True)
             print(f"  Expected: data/raw/srtm_30m/{region_id}_bbox_30m.tif", flush=True)

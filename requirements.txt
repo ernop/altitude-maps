@@ -25,6 +25,7 @@ Pillow==11.0.0
 # Geospatial data handling
 geopandas==1.0.1
 rasterio==1.4.3
+shapely  # Dependency of geopandas, explicitly listed for clarity
 
 # Note: For cartopy and netCDF4 on Windows, consider using conda:
 # conda install -c conda-forge cartopy netCDF4
