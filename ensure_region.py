@@ -254,12 +254,27 @@ def determine_min_required_resolution(visible_m_per_pixel: float, allow_lower_qu
     # Raise error with clear message
     raise ValueError(
         f"Region requires higher resolution than available. "
-        f"Visible pixels: {visible_m_per_pixel:.1f}m/pixel. "
+        f"Visible pixels: {format_pixel_size(visible_m_per_pixel)}/pixel. "
         f"30m source gives only {oversampling_30m:.2f}x oversampling (need >={MIN_OVERSAMPLING}x for Nyquist). "
         f"10m source would give {oversampling_10m:.2f}x oversampling. "
         f"Consider using a higher target_pixels value (fewer output pixels = larger visible pixels) "
         f"or manually override with --dataset to use a higher resolution source if available."
     )
+
+
+def format_pixel_size(meters: float) -> str:
+    """Format pixel size with km if >1000m, one decimal point only.
+    
+    Args:
+        meters: Pixel size in meters
+        
+    Returns:
+        Formatted string like "123.4m" or "1.2km"
+    """
+    if meters >= 1000:
+        return f"{meters / 1000:.1f}km"
+    else:
+        return f"{meters:.1f}m"
 
 
 def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
@@ -931,7 +946,7 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         except ValueError as e:
             print(f"\n  ERROR: {e}", flush=True)
             print(f"\n  Resolution Selection Failed", flush=True)
-            print(f"    Visible pixel size: ~{visible['avg_m_per_pixel']:.1f} meters per pixel", flush=True)
+            print(f"    Visible pixel size: ~{format_pixel_size(visible['avg_m_per_pixel'])} per pixel", flush=True)
             print(f"    This region is too small for standard resolution options.", flush=True)
             print(f"    Solutions:", flush=True)
             print(f"      1. Use a higher target_pixels value (fewer pixels = larger visible pixels)", flush=True)
@@ -940,7 +955,7 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             return False
         
         print(f"\n  Resolution Selection Analysis:")
-        print(f"    Calculated visible pixel size: ~{visible['avg_m_per_pixel']:.0f} meters per pixel")
+        print(f"    Calculated visible pixel size: ~{format_pixel_size(visible['avg_m_per_pixel'])} per pixel")
         print(f"    (This is the pixel size users will see in the final visualization)")
         print(f"\n    NYQUIST SAMPLING RULE:")
         print(f"      For output pixel size N, we need source resolution <= N/2.0")

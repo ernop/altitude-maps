@@ -2,6 +2,10 @@
   "opentopography": {
     "api_key": "YOUR_API_KEY_HERE",
     "base_url": "https://portal.opentopography.org/API/globaldem"
+  },
+  "deployment": {
+    "remote_host": "example.com",
+    "remote_path": "/var/www/maps",
+    "remote_user": "deploy"
   }
 }
-

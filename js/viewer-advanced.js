@@ -4122,6 +4122,15 @@ function formatFootprint(metersX, metersY, units) {
     }
 }
 
+function formatPixelSize(meters) {
+    // Format pixel size with km if >1000m, one decimal point only
+    if (meters >= 1000) {
+        return `${(meters / 1000).toFixed(1)}km`;
+    } else {
+        return `${meters.toFixed(1)}m`;
+    }
+}
+
 function updateResolutionInfo() {
     const infoEl = document.getElementById('resolution-info');
     if (!infoEl || !processedData) return;
@@ -4130,10 +4139,10 @@ function updateResolutionInfo() {
     const metersY = processedData.bucketSizeMetersY || 0;
     const totalRectangles = processedData.width * processedData.height;
 
-    // Format as compact "123m, 64k"
-    const roundedX = Math.round(metersX);
-    const roundedY = Math.round(metersY);
-    const footprintText = (roundedX === roundedY) ? `${roundedX}m` : `${roundedX}×${roundedY}m`;
+    // Format as compact "123.4m" or "1.2km", with one decimal point
+    const formattedX = formatPixelSize(metersX);
+    const formattedY = formatPixelSize(metersY);
+    const footprintText = (metersX === metersY) ? formattedX : `${formattedX}×${formattedY}`;
 
     // Round total rectangles to nearest thousand
     const roundedTotal = Math.round(totalRectangles / 1000);

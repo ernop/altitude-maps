@@ -29,7 +29,15 @@ function rebucketData(rawElevationData, params) {
  const bucketSizeMetersX = scale.metersPerPixelX* bucketSize;
  const bucketSizeMetersY = scale.metersPerPixelY* bucketSize;
 
- console.log(` Raw data: ${width}x${height} pixels @ ${scale.metersPerPixelX.toFixed(0)}x${scale.metersPerPixelY.toFixed(0)}m/pixel`);
+ // Format pixel size with km if >1000m, one decimal point only
+ function formatPixelSize(meters) {
+     if (meters >= 1000) {
+         return `${(meters / 1000).toFixed(1)}km`;
+     } else {
+         return `${meters.toFixed(1)}m`;
+     }
+ }
+ console.log(` Raw data: ${width}x${height} pixels @ ${formatPixelSize(scale.metersPerPixelX)}x${formatPixelSize(scale.metersPerPixelY)}/pixel`);
  console.log(` Bucket multiplier: ${bucketSize}x -> ${bucketedWidth}x${bucketedHeight} buckets`);
  console.log(` Bucket size: ${(bucketSizeMetersX/1000).toFixed(2)}km x ${(bucketSizeMetersY/1000).toFixed(2)}km`);
 
