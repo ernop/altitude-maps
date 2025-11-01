@@ -1,17 +1,20 @@
 """
-Tile geometry utilities for 1-degree unified grid system.
+Tile geometry and filename utilities for 1-degree unified grid system.
 
-This module handles all tile-related geometric calculations:
+This module handles all tile-related geometric calculations and filename generation:
 - Snapping bounds to grid boundaries
 - Calculating 1-degree tile coverage
 - Generating tile filenames from bounds
+- Estimating file sizes for downloads
+- Abstract filename generation for pipeline stages
 
 These functions are used across the download pipeline to ensure
 consistent grid alignment and tile reuse.
 """
 
 import math
-from typing import Tuple, List
+from typing import Tuple, List, Optional
+from pathlib import Path
 
 
 def snap_bounds_to_grid(bounds: Tuple[float, float, float, float], 
@@ -105,7 +108,12 @@ def tile_filename_from_bounds(bounds: Tuple[float, float, float, float],
         grid_size: Grid increment in degrees for snapping (default 1.0 = integer-degree grid)
         
     Returns:
-        Filename string for 1-degree tile
+        Filename string for 1-degree tile (source-agnostic, resolution-specific)
+        
+    Note:
+        Source is NOT included in tile filenames - tiles are stored in source-specific
+        directories (data/raw/srtm_30m/, data/raw/usa_3dep/, etc.) so the directory
+        path provides the source context. This enables simpler filenames and better reuse.
     """
     west, south, east, north = bounds
     
@@ -134,4 +142,108 @@ def tile_filename_from_bounds(bounds: Tuple[float, float, float, float],
         lon_str = f"W{abs(sw_lon):03d}"
     
     return f"{lat_str}_{lon_str}_{resolution}.tif"
+
+
+def estimate_raw_file_size_mb(bounds: Tuple[float, float, float, float], resolution_meters: int) -> float:
+    """
+    Estimate raw GeoTIFF file size in MB based on bounds and resolution.
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        resolution_meters: Source resolution in meters (10, 30, or 90)
+    
+    Returns:
+        Estimated file size in MB (approximate)
+    """
+    west, south, east, north = bounds
+    width_deg = east - west
+    height_deg = north - south
+    
+    # Calculate real-world dimensions in meters
+    center_lat = (north + south) / 2.0
+    meters_per_deg_lat = 111_320
+    meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+    
+    width_m = width_deg * meters_per_deg_lon
+    height_m = height_deg * meters_per_deg_lat
+    
+    # Estimate pixels (accounting for actual resolution)
+    pixels_x = int(width_m / resolution_meters)
+    pixels_y = int(height_m / resolution_meters)
+    
+    # Estimate file size (float32 = 4 bytes per pixel, plus compression overhead)
+    # GeoTIFF compression typically achieves 50-70% reduction for elevation data
+    uncompressed_size_bytes = pixels_x * pixels_y * 4
+    # Estimate 60% compression ratio (typical for elevation GeoTIFFs)
+    estimated_size_bytes = uncompressed_size_bytes * 0.4
+    
+    return estimated_size_bytes / (1024 * 1024)
+
+
+def get_bounds_from_raw_file(raw_path: Path) -> Optional[Tuple[float, float, float, float]]:
+    try:
+        import rasterio
+        with rasterio.open(raw_path) as src:
+            bounds = src.bounds
+            return (bounds.left, bounds.bottom, bounds.right, bounds.top)
+    except Exception:
+        return None
+
+
+def abstract_filename_from_raw(raw_path: Path, stage: str, source: str, 
+                                boundary_name: Optional[str] = None, 
+                                target_pixels: Optional[int] = None,
+                                resolution: Optional[str] = None) -> Optional[str]:
+    """
+    Generate abstract filename for pipeline stages based on actual data bounds.
+    
+    CRITICAL: Uses actual bounds from the raw file to ensure uniqueness.
+    When region bounds change, the raw file bounds change, so processed files
+    get new names and are regenerated (preventing stale data reuse).
+    
+    Args:
+        raw_path: Path to raw GeoTIFF file
+        stage: Pipeline stage ('raw', 'clipped', 'processed')
+        source: Data source (e.g., 'srtm_30m')
+        boundary_name: Optional boundary name for clipped files
+        target_pixels: Target resolution for processed files
+        resolution: Resolution identifier
+        
+    Returns:
+        Abstract filename that uniquely identifies the data by its bounds
+    """
+    bounds = get_bounds_from_raw_file(raw_path)
+    if bounds is None:
+        return None
+    
+    # Generate bounds-based identifier that captures actual data extent
+    # Format: bbox_N{north}_S{south}_E{east}_W{west}
+    west, south, east, north = bounds
+    
+    # Format coordinates with 2 decimal places for uniqueness
+    def format_coord(val, is_lat=False):
+        abs_val = abs(val)
+        if is_lat:
+            prefix = 'N' if val >= 0 else 'S'
+        else:
+            prefix = 'E' if val >= 0 else 'W'
+        return f"{prefix}{abs_val:06.2f}".replace('.', 'p')
+    
+    bounds_id = f"bbox_{format_coord(north, True)}_{format_coord(south, True)}_{format_coord(east, False)}_{format_coord(west, False)}"
+    
+    if stage == 'raw':
+        return raw_path.name
+    elif stage == 'clipped':
+        if boundary_name:
+            boundary_hash = hash(boundary_name)
+            boundary_suffix = f"_{abs(boundary_hash) % 1000000:06d}"
+        else:
+            boundary_suffix = ""
+        return f"{bounds_id}_clipped{boundary_suffix}_v1.tif"
+    elif stage == 'processed':
+        return f"{bounds_id}_processed_{target_pixels}px_v2.tif"
+    elif stage == 'exported':
+        raise ValueError("Exported JSON files use region_id-based naming, not abstract naming.")
+    
+    return None
 

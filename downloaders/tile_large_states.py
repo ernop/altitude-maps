@@ -21,6 +21,7 @@ except ImportError as e:
 from downloaders.usa_3dep import US_STATES, download_opentopography_srtm
 from src.regions_config import get_region
 from src.pipeline import run_pipeline
+from src.tile_geometry import tile_filename_from_bounds
 
 
 def calculate_1degree_tiles(bounds: Tuple[float, float, float, float]) -> List[Tuple[float, float, float, float]]:
@@ -673,6 +674,65 @@ The tiles field defines the (columns, rows) grid for large regions.
         api_key=api_key,
         target_pixels=args.target_pixels
     )
+
+
+def download_and_merge_1degree_tiles(region_id: str, bounds: Tuple[float, float, float, float], 
+                                      output_path: Path, api_key: str = None) -> bool:
+    """
+    Download and merge 1-degree tiles for a region (unified tile-based architecture).
+    
+    This is the standard interface for large regions that need tiling.
+    Uses automatic 1-degree grid tiling - no manual configuration needed.
+    
+    Args:
+        region_id: Region identifier (e.g., 'utah', 'california')
+        bounds: (west, south, east, north) in degrees
+        output_path: Path for merged output file
+        api_key: OpenTopography API key
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    # Calculate 1-degree tiles
+    tiles = calculate_1degree_tiles(bounds)
+    
+    print(f"Calculated {len(tiles)} tiles for {region_id}", flush=True)
+    print(f"Bounds: {bounds}", flush=True)
+    print(f"Output: {output_path}", flush=True)
+    
+    # Download each tile
+    tiles_dir = Path("data/raw/srtm_30m/tiles")
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+    
+    tile_paths = []
+    for tile_bounds in tiles:
+        tile_filename = tile_filename_from_bounds(tile_bounds, resolution='30m')
+        tile_path = tiles_dir / tile_filename
+        
+        # Download if not cached
+        if not tile_path.exists():
+            print(f"  Downloading {tile_filename}...", flush=True)
+            success = download_opentopography_srtm(
+                f"tile_{tile_filename[:-4]}",  # region_id for tile
+                tile_bounds,
+                tile_path,
+                api_key
+            )
+            if not success:
+                print(f"  Failed to download {tile_filename}", flush=True)
+                continue
+        else:
+            print(f"  Using cached {tile_filename}", flush=True)
+        
+        tile_paths.append(tile_path)
+    
+    if not tile_paths:
+        print(f"ERROR: No tiles downloaded successfully", flush=True)
+        return False
+    
+    # Merge tiles
+    print(f"\nMerging {len(tile_paths)} tiles...", flush=True)
+    return merge_tiles(tile_paths, output_path)
 
 
 if __name__ == "__main__":

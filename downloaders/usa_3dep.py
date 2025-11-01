@@ -360,43 +360,23 @@ For highest quality (1-10m 3DEP), use --manual and follow instructions
 
         if needs_tiling and region_id in US_STATES:
             print(f"\n[AUTO-TILING] State is large ({width:.1f}deg x {height:.1f}deg)", flush=True)
-            print(f" Automatically splitting into tiles...", flush=True)
+            print(f" Automatically splitting into 1-degree tiles...", flush=True)
             print(f" (This is transparent - merging happens automatically)\n", flush=True)
 
-            # Import tiling functions
-            try:
-                from downloaders.tile_large_states import LARGE_STATES, download_state_tiles, merge_tiles
+            # Import tiling functions (MUST succeed - no fallback)
+            from downloaders.tile_large_states import download_and_merge_1degree_tiles
 
-                if region_id in LARGE_STATES:
-                    # Use configured tiling
-                    tiles_config = LARGE_STATES[region_id]
-                    tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
-
-                    tile_paths = download_state_tiles(
-                        region_id,
-                        US_STATES[region_id],
-                        tiles_config,
-                        tiles_dir,
-                        args.api_key
-                    )
-
-                    if not tile_paths:
-                        print(f"\n Tiled download failed", flush=True)
-                        return 1
-
-                    # Merge tiles
-                    if not merge_tiles(tile_paths, output_path):
-                        print(f"\n Merge failed", flush=True)
-                        return 1
-
-                    download_success = True
-                else:
-                    print(f" Warning: No tile config for {region_id}, attempting single download...", flush=True)
-                    download_success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
-
-            except ImportError:
-                print(f" Warning: Tiling module not available, attempting single download...", flush=True)
-                download_success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
+            # Use automatic 1-degree tiling for all large states
+            download_success = download_and_merge_1degree_tiles(
+                region_id,
+                bounds,
+                output_path,
+                args.api_key
+            )
+            
+            if not download_success:
+                print(f"\n Tiled download/merge failed", flush=True)
+                return 1
         else:
             # Normal single-request download
             download_success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
