@@ -1205,6 +1205,213 @@ function updateEdgeMarkers() {
     // The markers are positioned at a fixed height set in createEdgeMarkers()
 }
 
+/**
+ * Detect GPU capabilities and benchmark performance tier
+ * @returns {Object|null} GPU info with vendor, renderer, tier, and benchmark results
+ */
+function detectGPU() {
+    // Use the renderer's GL context if available
+    let gl = null;
+    if (renderer && renderer.getContext) {
+        gl = renderer.getContext();
+    } else {
+        // Fallback: create temporary context
+        gl = document.createElement('canvas').getContext('webgl') ||
+             document.createElement('canvas').getContext('experimental-webgl');
+    }
+    
+    if (!gl) {
+        console.error('WebGL not supported! This viewer requires WebGL.');
+        return null;
+    }
+
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    const gpuInfo = {
+        renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
+        vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
+        tier: 'medium', // Default tier
+        benchmark: null
+    };
+
+    // Identify known GPU vendor strings
+    const rendererLower = gpuInfo.renderer.toLowerCase();
+    const vendorLower = gpuInfo.vendor.toLowerCase();
+
+    // Detect vendor
+    if (vendorLower.includes('intel') || rendererLower.includes('intel')) {
+        gpuInfo.vendor = 'Intel';
+        // Intel integrated graphics - tier depends on generation
+        if (rendererLower.includes('iris') || rendererLower.includes('uhd 770') || rendererLower.includes('uhd 750')) {
+            gpuInfo.tier = 'medium'; // Modern Intel Xe Graphics
+        } else {
+            gpuInfo.tier = 'low'; // Older Intel HD Graphics
+        }
+    } else if (vendorLower.includes('nvidia') || rendererLower.includes('nvidia')) {
+        gpuInfo.vendor = 'NVIDIA';
+        gpuInfo.tier = 'high'; // Most NVIDIA GPUs are discrete and powerful
+    } else if (vendorLower.includes('amd') || rendererLower.includes('amd') || rendererLower.includes('radeon')) {
+        gpuInfo.vendor = 'AMD';
+        if (rendererLower.includes('integrated')) {
+            gpuInfo.tier = 'low'; // AMD integrated graphics
+        } else {
+            gpuInfo.tier = 'high'; // AMD discrete GPUs
+        }
+    } else if (vendorLower.includes('apple') || rendererLower.includes('apple')) {
+        gpuInfo.vendor = 'Apple';
+        // Apple Silicon vs older Macs
+        if (rendererLower.includes('apple gpu') || rendererLower.includes('apple m1') || rendererLower.includes('apple m2')) {
+            gpuInfo.tier = 'high'; // Apple Silicon GPUs are powerful
+        } else {
+            gpuInfo.tier = 'medium'; // Older Intel Mac GPUs
+        }
+    } else if (vendorLower.includes('adreno') || rendererLower.includes('adreno')) {
+        gpuInfo.vendor = 'Qualcomm';
+        gpuInfo.tier = 'low'; // Mobile GPUs
+    } else if (vendorLower.includes('mali') || rendererLower.includes('mali')) {
+        gpuInfo.vendor = 'ARM';
+        gpuInfo.tier = 'low'; // Mobile GPUs
+    } else {
+        gpuInfo.vendor = 'Unknown';
+        gpuInfo.tier = 'medium'; // Conservative default
+    }
+
+    // Run simple performance benchmark if renderer is available
+    if (renderer) {
+        gpuInfo.benchmark = benchmarkGPU(renderer, gl);
+    }
+
+    return gpuInfo;
+}
+
+/**
+ * Benchmark GPU fill rate and geometry performance
+ * @param {THREE.WebGLRenderer} testRenderer - Renderer to test with
+ * @param {WebGLRenderingContext} testGL - WebGL context to test with
+ * @returns {Object} Benchmark results
+ */
+function benchmarkGPU(testRenderer, testGL) {
+    const benchmark = {
+        fillRate: 0,
+        geometry: 0,
+        combined: 0,
+        timestamp: Date.now()
+    };
+
+    try {
+        const testScene = new THREE.Scene();
+        const testCamera = new THREE.PerspectiveCamera(60, 1, 1, 1000);
+        testCamera.position.set(0, 0, 100);
+
+        // Create test geometry (1000 cubes)
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        const mesh = new THREE.InstancedMesh(geometry, material, 1000);
+
+        // Random positions
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < 1000; i++) {
+            dummy.position.set(
+                (Math.random() - 0.5) * 50,
+                (Math.random() - 0.5) * 50,
+                (Math.random() - 0.5) * 50
+            );
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+        }
+        testScene.add(mesh);
+
+        // Add light
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        testScene.add(light);
+
+        // Benchmark: 100 frames
+        const startTime = performance.now();
+        for (let i = 0; i < 100; i++) {
+            testRenderer.render(testScene, testCamera);
+        }
+        const endTime = performance.now();
+        const avgFrameTime = (endTime - startTime) / 100;
+
+        // Calculate scores (lower is better, normalize to 0-100 scale)
+        benchmark.fillRate = Math.min(100, (1000 / avgFrameTime) * 10); // Target: 16.67ms = 60fps
+        benchmark.geometry = benchmark.fillRate; // Same test for both
+        benchmark.combined = benchmark.fillRate;
+
+        // Cleanup
+        geometry.dispose();
+        material.dispose();
+        mesh.dispose();
+        light.dispose();
+
+    } catch (e) {
+        console.warn('GPU benchmark failed:', e);
+    }
+
+    return benchmark;
+}
+
+/**
+ * Dynamically test if frustum culling helps performance
+ * Disables culling, measures FPS, re-enables, measures again
+ * @returns {Promise<Object>} Performance comparison
+ */
+async function testFrustumCulling() {
+    if (!barsInstancedMesh || stats.bars === 0) {
+        console.warn('Cannot test frustum culling: no bars loaded');
+        return null;
+    }
+
+    console.log('Testing frustum culling effectiveness...');
+
+    // Measure current FPS with culling on
+    const fpsWithCulling = await measureFPS(100); // 100 frames
+    console.log(`FPS with frustum culling: ${fpsWithCulling.toFixed(1)}`);
+
+    // Disable culling and measure again
+    barsInstancedMesh.frustumCulled = false;
+    const fpsWithoutCulling = await measureFPS(100);
+    console.log(`FPS without frustum culling: ${fpsWithoutCulling.toFixed(1)}`);
+
+    // Re-enable culling
+    barsInstancedMesh.frustumCulled = true;
+
+    const result = {
+        withCulling: fpsWithCulling,
+        withoutCulling: fpsWithoutCulling,
+        improvement: ((fpsWithCulling - fpsWithoutCulling) / fpsWithoutCulling * 100).toFixed(1),
+        recommendation: fpsWithCulling > fpsWithoutCulling * 1.05 ? 'keep enabled' : 'minimal benefit'
+    };
+
+    console.log(`Frustum culling test: ${result.improvement}% improvement (${result.recommendation})`);
+    return result;
+}
+
+/**
+ * Measure average FPS over N frames
+ * @param {number} frames - Number of frames to measure
+ * @returns {Promise<number>} Average FPS
+ */
+async function measureFPS(frames) {
+    return new Promise((resolve) => {
+        let frameCount = 0;
+        const startTime = performance.now();
+
+        function countFrame() {
+            frameCount++;
+            if (frameCount >= frames) {
+                const duration = (performance.now() - startTime) / 1000;
+                const avgFPS = frames / duration;
+                resolve(avgFPS);
+            } else {
+                requestAnimationFrame(countFrame);
+            }
+        }
+
+        requestAnimationFrame(countFrame);
+    });
+}
+
 function setupScene() {
     // Scene
     scene = new THREE.Scene();
@@ -1268,6 +1475,21 @@ function setupScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // GPU Detection and Benchmarking (async after renderer is ready)
+    setTimeout(() => {
+        window.gpuInfo = detectGPU();
+        if (window.gpuInfo) {
+            console.log('GPU Detection:', window.gpuInfo);
+            // Log performance tier recommendation
+            if (window.gpuInfo.tier === 'low') {
+                console.warn('LOW-END GPU detected. Consider increasing bucket size for better performance.');
+                appendActivityLog(`GPU: ${window.gpuInfo.vendor} ${window.gpuInfo.renderer} - ${window.gpuInfo.tier.toUpperCase()} tier`);
+            } else {
+                appendActivityLog(`GPU: ${window.gpuInfo.vendor} ${window.gpuInfo.renderer} - ${window.gpuInfo.tier.toUpperCase()} tier`);
+            }
+        }
+    }, 100); // Small delay to let renderer initialize
 
     // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -3862,16 +4084,15 @@ function updateResolutionInfo() {
     const metersY = processedData.bucketSizeMetersY || 0;
     const totalRectangles = processedData.width * processedData.height;
 
-    // Format footprint as "1box = 123x123m"
+    // Format as compact "123m, 64k"
     const roundedX = Math.round(metersX);
     const roundedY = Math.round(metersY);
-    const footprintText = `1box = ${roundedX}x${roundedY}m`;
+    const footprintText = (roundedX === roundedY) ? `${roundedX}m` : `${roundedX}×${roundedY}m`;
 
     // Round total rectangles to nearest thousand
     const roundedTotal = Math.round(totalRectangles / 1000);
-    const totalText = `${roundedTotal}k total`;
 
-    infoEl.textContent = `${footprintText} · ${totalText}`;
+    infoEl.textContent = `${footprintText}, ${roundedTotal}k`;
 }
 
 function getMetersScalePerWorldUnit() {
