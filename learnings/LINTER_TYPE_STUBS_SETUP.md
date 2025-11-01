@@ -46,3 +46,4 @@ If you want to be more thorough, you could:
 - PEP 484: Type Hints - https://peps.python.org/pep-0484/
 - PEP 561: Distributing and Packaging Type Information - https://peps.python.org/pep-0561/
 
+

@@ -23,3 +23,4 @@ class ndarray:
     dtype: Any
     def astype(self, *args: Any, **kwargs: Any) -> Any: ...
 
+

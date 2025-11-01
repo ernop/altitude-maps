@@ -429,8 +429,8 @@ REGIONS: Dict[str, RegionConfig] = {
     "cottonwood_valley": RegionConfig(
         id="cottonwood_valley",
         name="Cottonwood Valley",
-        bounds=(-111.87, 40.48, -111.51, 40.76),
-        description="USA - Cottonwood Valley, Utah, 20x20 mile square area near Salt Lake City",
+        bounds=(-111.8700, 40.4500, -111.4473, 40.7600),
+        description="USA - Cottonwood Valley, Utah, ~38x19 mile area near Salt Lake City",
         category="region",
         country="United States of America",
         clip_boundary=False,

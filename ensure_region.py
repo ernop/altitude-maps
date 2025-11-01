@@ -38,7 +38,7 @@ from shapely.geometry import mapping as shapely_mapping
 import json
 import gzip
 import glob
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 
 # Pipeline utilities
 from src.metadata import (
@@ -47,6 +47,10 @@ from src.metadata import (
 )
 from src.versioning import get_current_version
 from src.borders import get_border_manager
+from src.tile_geometry import snap_bounds_to_grid, calculate_1degree_tiles, tile_filename_from_bounds
+
+# Alias for backward compatibility with existing code that uses bbox_filename_from_bounds
+bbox_filename_from_bounds = tile_filename_from_bounds
 
 
 def _path_exists(glob_pattern: str) -> bool:
@@ -54,65 +58,15 @@ def _path_exists(glob_pattern: str) -> bool:
     return any(glob.glob(glob_pattern, recursive=True))
 
 
-def bbox_filename_from_bounds(bounds: Tuple[float, float, float, float], 
-                              dataset: str = 'srtm_30m', 
-                              resolution: str = '30m') -> str:
-    """
-    Generate an abstract, content-based filename for a bbox file based on its bounds, dataset, and resolution.
-    
-    Uses SRTM-style integer degree naming from southwest and northeast corners, enabling bbox reuse across regions.
-    For example, if two regions have identical bounds (e.g., after bounds adjustment), they'll share the same cached file.
-    
-    Format: bbox_{SW_NS}{SW_lat:02d}_{SW_EW}{SW_lon:03d}_{NE_NS}{NE_lat:02d}_{NE_EW}{NE_lon:03d}_{dataset}_{res}.tif
-    
-    Examples:
-        bbox_N40_W111_N41_W110_srtm_30m_30m.tif  (SW: 40degN, 111degW; NE: 41degN, 110degW)
-        bbox_S05_E120_N05_E121_srtm_30m_30m.tif  (SW: 5degS, 120degE; NE: 5degN, 121degE)
-    
-    Follows the SRTM HGT file convention (N##W###.hgt) used by official data sources, extended for full bbox coverage.
-    
-    Args:
-        bounds: (west, south, east, north) in degrees
-        dataset: Dataset identifier (e.g., 'srtm_30m', 'srtm_90m', 'cop30')
-        resolution: Resolution identifier (e.g., '30m', '90m')
-        
-    Returns:
-        Filename string
-    """
-    import math
-    west, south, east, north = bounds
-    
-    # Round to integer degrees for southwest and northeast corners (SRTM convention)
-    # For southwest corner, round DOWN (toward more negative)
-    sw_lat = int(math.floor(south)) if south >= 0 else int(math.trunc(south))
-    sw_lon = int(math.floor(west)) if west >= 0 else int(math.trunc(west))
-    
-    # For northeast corner, round UP (toward more positive)
-    # For negatives, ceil rounds toward zero (less negative = more positive)
-    ne_lat = int(math.ceil(north))
-    ne_lon = int(math.ceil(east))
-    
-    # Format southwest corner (N/S + 2 digits for lat, E/W + 3 digits for lon)
-    sw_ns = 'N' if sw_lat >= 0 else 'S'
-    sw_lat_str = f"{sw_ns}{abs(sw_lat):02d}"
-    sw_ew = 'E' if sw_lon >= 0 else 'W'
-    sw_lon_str = f"{sw_ew}{abs(sw_lon):03d}"
-    
-    # Format northeast corner
-    ne_ns = 'N' if ne_lat >= 0 else 'S'
-    ne_lat_str = f"{ne_ns}{abs(ne_lat):02d}"
-    ne_ew = 'E' if ne_lon >= 0 else 'W'
-    ne_lon_str = f"{ne_ew}{abs(ne_lon):03d}"
-    
-    return f"bbox_{sw_lat_str}_{sw_lon_str}_{ne_lat_str}_{ne_lon_str}_{dataset}_{resolution}.tif"
-
-
 def get_bounds_from_raw_file(raw_path: Path) -> Optional[Tuple[float, float, float, float]]:
     """
-    Extract bounds from a raw GeoTIFF file.
+    Extract bounds from a downloaded bbox GeoTIFF file.
+    
+    Note: "raw" here refers to downloaded bbox files from providers (OpenTopography/USGS),
+    not truly raw provider data. These are the initial input to our processing pipeline.
     
     Args:
-        raw_path: Path to raw GeoTIFF file
+        raw_path: Path to downloaded bbox GeoTIFF file
         
     Returns:
         Tuple of (west, south, east, north) in degrees, or None if file cannot be read
@@ -131,18 +85,18 @@ def abstract_filename_from_raw(raw_path: Path, stage: str, source: str,
                                 target_pixels: Optional[int] = None,
                                 resolution: Optional[str] = None) -> Optional[str]:
     """
-    Generate abstract filename for a pipeline stage based on raw file bounds.
+    Generate abstract filename for a pipeline stage based on downloaded bbox file bounds.
     
-    Standard interface for all consumers of global data - generates abstract, 
+    Standard interface for all consumers of pipeline data - generates abstract, 
     bounds-based filenames that enable natural reuse across regions.
     
     Args:
-        raw_path: Path to raw GeoTIFF file (to extract bounds)
+        raw_path: Path to downloaded bbox GeoTIFF file (to extract bounds)
         stage: Pipeline stage ('clipped', 'processed', 'exported', 'raw')
         source: Data source (e.g., 'srtm_30m', 'usa_3dep')
         boundary_name: Boundary name for clipped files (optional)
         target_pixels: Target resolution for processed/exported files (optional)
-        resolution: Resolution identifier for raw files (e.g., '30m', '10m')
+        resolution: Resolution identifier for downloaded files (e.g., '30m', '10m')
         
     Returns:
         Abstract filename string, or None if bounds cannot be extracted
@@ -1065,9 +1019,10 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
 
     try:
         import requests
+        from tqdm import tqdm
         from load_settings import get_api_key
         # Reuse existing tiling utilities for large areas
-        from downloaders.tile_large_states import calculate_tiles, merge_tiles, tile_filename_from_bounds
+        from downloaders.tile_large_states import calculate_1degree_tiles, merge_tiles, tile_filename_from_bounds
     except ImportError as e:
         print(f"  Missing required package: {e}")
         return False
@@ -1097,8 +1052,24 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
     
     source_name = dataset_to_source_name(dataset)
     
-    # Generate abstract, bounds-based filename (no region_id - enables natural reuse)
-    bbox_filename = bbox_filename_from_bounds((west, south, east, north), source_name, resolution)
+    # GRID ALIGNMENT: Expand bounds to 1-degree grid boundaries for better reuse and coverage
+    # Unified 1-degree grid system - all downloads become 1-degree tiles that can be shared
+    original_bounds = (west, south, east, north)
+    grid_size = 1.0  # Unified 1-degree grid system
+    expanded_bounds = snap_bounds_to_grid(original_bounds, grid_size)
+    expanded_west, expanded_south, expanded_east, expanded_north = expanded_bounds
+    
+    # Report grid alignment
+    if expanded_bounds != original_bounds:
+        print(f"  Grid alignment: expanding bounds for reuse and coverage")
+        print(f"    Original: [{west:.4f}, {south:.4f}, {east:.4f}, {north:.4f}]")
+        print(f"    Expanded:  [{expanded_west:.4f}, {expanded_south:.4f}, {expanded_east:.4f}, {expanded_north:.4f}]")
+        print(f"    Grid size: {grid_size} degrees")
+    
+    # Generate abstract, grid-aligned filename (enables reuse across regions)
+    # Note: This is only used for the merged output file - individual tiles use tile_filename_from_bounds
+    bbox_filename = bbox_filename_from_bounds(expanded_bounds, source_name, resolution, 
+                                               use_grid_alignment=True, grid_size=grid_size)
     
     # Prepare output path based on selected dataset resolution
     # Use appropriate directory for 30m vs 90m
@@ -1132,28 +1103,35 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                     except Exception:
                         pass
                 else:
-                    # Dataset matches - now validate bounds
+                    # Dataset matches - validate that file bounds contain our requested bounds
+                    # (file may have grid-aligned bounds that contain our original bounds)
                     mb = meta.get('bounds', {})
-                    old_bounds = (float(mb.get('left')), float(mb.get('bottom')), float(mb.get('right')), float(mb.get('top')))
-                    new_bounds = (float(west), float(south), float(east), float(north))
-                    # Consider any difference > 1e-4 degrees as a mismatch requiring regeneration
-                    def _differs(a: Tuple[float, ...], b: Tuple[float, ...]) -> bool:
-                        return any(abs(x - y) > 1e-4 for x, y in zip(a, b))
-                    if _differs(old_bounds, new_bounds):
-                        print(f"  Bounds changed for {region_id}: old={old_bounds}, new={new_bounds}")
-                        print(f"  Deleting existing raw file to regenerate with new bounds...")
+                    file_bounds = (float(mb.get('left')), float(mb.get('bottom')), float(mb.get('right')), float(mb.get('top')))
+                    requested_bounds = expanded_bounds  # Use grid-aligned bounds for validation
+                    
+                    # File should contain or match our grid-aligned bounds
+                    file_contains = (file_bounds[0] <= requested_bounds[0] and  # west
+                                    file_bounds[1] <= requested_bounds[1] and  # south
+                                    file_bounds[2] >= requested_bounds[2] and  # east
+                                    file_bounds[3] >= requested_bounds[3])      # north
+                    
+                    if file_contains:
+                        print(f"  Already exists with matching dataset ({source_name}) and coverage: {output_file.name}")
+                        print(f"    File bounds contain requested bounds (grid-aligned reuse)")
+                        return True
+                    else:
+                        print(f"  File bounds don't match requested grid-aligned bounds")
+                        print(f"    File:     {file_bounds}")
+                        print(f"    Requested: {requested_bounds}")
+                        print(f"    Deleting to regenerate...")
                         try:
                             output_file.unlink()
                         except Exception:
                             pass
-                        # Also remove stale metadata if present
                         try:
                             meta_path.unlink()
                         except Exception:
                             pass
-                    else:
-                        print(f"  Already exists with matching dataset ({source_name}) and bounds: {output_file.name}")
-                        return True
             else:
                 # No metadata; validate by checking file properties
                 # Open the file and verify it matches expected source/dataset
@@ -1220,16 +1198,23 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             if resp.status_code != 200:
                 return False
             total_size = int(resp.headers.get('content-length', 0))
-            downloaded = 0
-            with open(out_path, 'wb') as f:
+            
+            # Enhanced progress display with tqdm
+            desc = out_path.name[:40] + ('...' if len(out_path.name) > 40 else '')
+            with open(out_path, 'wb') as f, tqdm(
+                desc=desc,
+                total=total_size,
+                unit='B',
+                unit_scale=True,
+                unit_divisor=1024,
+                miniters=1,
+                disable=False
+            ) as pbar:
                 for chunk in resp.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-                        downloaded += len(chunk)
-                        if total_size > 0:
-                            progress = (downloaded / total_size) * 100
-                            print(f"\r  Progress: {progress:.1f}%", end='', flush=True)
-            print()
+                        pbar.update(len(chunk))
+            
             return True
         except Exception:
             if out_path.exists():
@@ -1239,163 +1224,186 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                     pass
             return False
 
-    # Estimate area to decide on tiling (avoid user-visible API limit errors)
+    # UNIFIED 1-DEGREE GRID SYSTEM: Always download as 1-degree tiles, then merge
+    # This ensures maximum reuse across regions and simplifies the code
     import math
-    width_deg = max(0.0, float(east - west))
-    height_deg = max(0.0, float(north - south))
-    mid_lat = (north + south) / 2.0
+    
+    width_deg = max(0.0, float(expanded_east - expanded_west))
+    height_deg = max(0.0, float(expanded_north - expanded_south))
+    mid_lat = (expanded_north + expanded_south) / 2.0
     km_per_deg_lat = 110.574
     km_per_deg_lon = 111.320 * math.cos(math.radians(mid_lat))
     approx_area_km2 = (width_deg * km_per_deg_lon) * (height_deg * km_per_deg_lat)
-
-    # OpenTopography SRTMGL1 and COP30 have a 450,000 km^2 limit; tile proactively when over ~420k
-    should_tile = (dataset in ['SRTMGL1', 'COP30']) and (approx_area_km2 > 420_000 or width_deg > 4.0 or height_deg > 4.0)
-
-    if should_tile:
-        print(f"\n  Region is large ({approx_area_km2:,.0f} km^2). Downloading in tiles...", flush=True)
-        # Use conservative tile size in degrees to keep each tile under area and dimension limits
-        tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
+    
+    print(f"\n  Unified 1-degree grid system: Downloading as 1-degree tiles ({approx_area_km2:,.0f} km^2 region)...", flush=True)
+    
+    # Calculate 1-degree tiles needed
+    tiles = calculate_1degree_tiles(expanded_bounds)
+    
+    # Calculate tile size estimates
+    total_estimated_size = 0.0
+    tile_estimates = []
+    for tb in tiles:
+        tile_size_mb = estimate_raw_file_size_mb(tb, resolution_meters)
+        total_estimated_size += tile_size_mb
+        tile_estimates.append(tile_size_mb)
+    
+    print(f"  Tile configuration:")
+    print(f"    Total tiles: {len(tiles)}")
+    print(f"    Tile size: 1.0 deg x 1.0 deg (unified grid)")
+    print(f"    Estimated per-tile size: ~{total_estimated_size / len(tiles):.1f} MB each")
+    print(f"    Total estimated size: ~{total_estimated_size:.1f} MB (before merge)")
+    print(f"    Resolution: {resolution}")
+    
+    # Use a shared tile pool directory - tiles can be reused across regions
+    if resolution == '90m':
+        tiles_dir = Path(f"data/raw/srtm_90m/tiles")
+    else:
+        tiles_dir = Path(f"data/raw/srtm_30m/tiles")
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+    tile_paths = []
+    for idx, tb in enumerate(tiles):
+        estimated_tile_mb = tile_estimates[idx]
+        print(f"\n  Tile {idx+1}/{len(tiles)} (estimated ~{estimated_tile_mb:.1f} MB)", flush=True)
+        print(f"    Bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
+        # UNIFIED 1-DEGREE GRID: Tiles are already 1-degree, just generate filename
+        # No need to snap - calculate_1degree_tiles already returns 1-degree tiles
+        tile_grid_size = 1.0  # Unified 1-degree grid system
         
-        # Calculate tile size estimates
-        total_estimated_size = 0.0
-        tile_estimates = []
-        for tb in tiles:
-            tile_size_mb = estimate_raw_file_size_mb(tb, resolution_meters)
-            total_estimated_size += tile_size_mb
-            tile_estimates.append(tile_size_mb)
+        # Generate content-based filename using tile bounds (unified 1-degree grid)
+        tile_filename = tile_filename_from_bounds(tb, resolution,
+                                                 use_grid_alignment=True, grid_size=tile_grid_size)
+        snapped_tile_bounds = tb  # Already 1-degree, no snapping needed
+        tile_path = tiles_dir / tile_filename
         
-        print(f"  Tiling configuration:")
-        print(f"    Total tiles: {len(tiles)}")
-        print(f"    Tile size: ~3.5 deg x 3.5 deg (maximum)")
-        print(f"    Estimated per-tile size: ~{total_estimated_size / len(tiles):.1f} MB each")
-        print(f"    Total estimated size: ~{total_estimated_size:.1f} MB (before merge)")
-        print(f"    Resolution: {resolution}")
-        
-        # Use a shared tile pool directory - tiles can be reused across regions
-        if resolution == '90m':
-            tiles_dir = Path(f"data/raw/srtm_90m/tiles")
-        else:
-            tiles_dir = Path(f"data/raw/srtm_30m/tiles")
-        tiles_dir.mkdir(parents=True, exist_ok=True)
-        tile_paths = []
-        for idx, tb in enumerate(tiles):
-            estimated_tile_mb = tile_estimates[idx]
-            print(f"\n  Tile {idx+1}/{len(tiles)} (estimated ~{estimated_tile_mb:.1f} MB)", flush=True)
-            print(f"    Bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
-            # Generate content-based filename for tile reuse
-            tile_filename = tile_filename_from_bounds(tb, source_name, resolution)
-            tile_path = tiles_dir / tile_filename
-            if tile_path.exists():
-                # Strong validation: try to read data to catch partial/corrupt tiles
-                if validate_geotiff(tile_path, check_data=True):
-                    # CRITICAL: Verify tile resolution matches required dataset
-                    # This ensures quality - we never reuse tiles at wrong resolution
-                    try:
-                        import rasterio
-                        import math
-                        with rasterio.open(tile_path) as src:
-                            bounds = src.bounds
-                            width_deg = bounds.right - bounds.left
-                            height_deg = bounds.top - bounds.bottom
-                            center_lat = (bounds.top + bounds.bottom) / 2.0
-                            meters_per_deg_lat = 111_320  # constant
-                            meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
-                            width_m = width_deg * meters_per_deg_lon
-                            height_m = height_deg * meters_per_deg_lat
-                            avg_resolution = (width_m / src.width + height_m / src.height) / 2.0
-                            
-                            # Validate resolution matches expected dataset
-                            resolution_ok = False
-                            if resolution == '90m':
-                                resolution_ok = (50 <= avg_resolution <= 150)
-                            else:  # 30m
-                                resolution_ok = (15 <= avg_resolution <= 50)
-                            
-                            if not resolution_ok:
-                                print(f"  Cached tile resolution ({avg_resolution:.1f}m) doesn't match {resolution} dataset", flush=True)
-                                print(f"  Deleting to ensure quality...", flush=True)
-                                tile_path.unlink()
-                            else:
-                                try:
-                                    size_mb = tile_path.stat().st_size / (1024 * 1024)
-                                    estimated_mb = tile_estimates[idx]
-                                    diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
-                                    print(f"    Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
-                                    print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
-                                except Exception:
-                                    print(f"    Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
-                                tile_paths.append(tile_path)
-                                continue
-                    except Exception as e:
-                        print(f"  Could not validate tile resolution: {e}", flush=True)
-                        print(f"  Deleting to ensure quality...", flush=True)
-                        try:
+        if tile_path.exists():
+            # Strong validation: try to read data to catch partial/corrupt tiles
+            if validate_geotiff(tile_path, check_data=True):
+                # CRITICAL: Verify tile is actually 1-degree AND resolution matches required dataset
+                try:
+                    import rasterio
+                    import math
+                    with rasterio.open(tile_path) as src:
+                        bounds = src.bounds
+                        width_deg = bounds.right - bounds.left
+                        height_deg = bounds.top - bounds.bottom
+                        center_lat = (bounds.top + bounds.bottom) / 2.0
+                        
+                        # Validate tile is actually 1-degree (unified grid system)
+                        # Allow small tolerance for floating-point precision (0.01 degrees)
+                        is_1degree = (0.99 <= width_deg <= 1.01) and (0.99 <= height_deg <= 1.01)
+                        if not is_1degree:
+                            print(f"    WARNING: Tile is not 1-degree ({width_deg:.3f}deg x {height_deg:.3f}deg), will re-download", flush=True)
+                            tile_path.unlink()  # Delete invalid tile
+                            return False
+                        
+                        meters_per_deg_lat = 111_320  # constant
+                        meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+                        width_m = width_deg * meters_per_deg_lon
+                        height_m = height_deg * meters_per_deg_lat
+                        avg_resolution = (width_m / src.width + height_m / src.height) / 2.0
+                        
+                        # Validate resolution matches expected dataset
+                        resolution_ok = False
+                        if resolution == '90m':
+                            resolution_ok = (50 <= avg_resolution <= 150)
+                        else:  # 30m
+                            resolution_ok = (15 <= avg_resolution <= 50)
+                        
+                        if not resolution_ok:
+                            print(f"  Cached tile resolution ({avg_resolution:.1f}m) doesn't match {resolution} dataset", flush=True)
+                            print(f"  Deleting to ensure quality...", flush=True)
                             tile_path.unlink()
-                        except Exception:
-                            pass
-                else:
-                    print(f"  Cached tile failed validation. Deleting and re-downloading...", flush=True)
+                        else:
+                            try:
+                                size_mb = tile_path.stat().st_size / (1024 * 1024)
+                                estimated_mb = tile_estimates[idx]
+                                diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
+                                print(f"    Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
+                                print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
+                            except Exception:
+                                print(f"    Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
+                            tile_paths.append(tile_path)
+                            continue
+                except Exception as e:
+                    print(f"  Could not validate tile resolution: {e}", flush=True)
+                    print(f"  Deleting to ensure quality...", flush=True)
                     try:
                         tile_path.unlink()
                     except Exception:
                         pass
-            print(f"    Downloading tile...", flush=True)
-            if not _download_bbox(tile_path, tb, dataset):
-                print(f"    Tile download failed, skipping", flush=True)
-                continue
-            if validate_geotiff(tile_path, check_data=True):
-                try:
-                    size_mb = tile_path.stat().st_size / (1024 * 1024)
-                    estimated_mb = tile_estimates[idx]
-                    diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
-                    print(f"    Downloaded tile OK: {tile_path.name}", flush=True)
-                    print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
-                except Exception:
-                    print(f"    Downloaded tile OK: {tile_path.name}", flush=True)
-                tile_paths.append(tile_path)
             else:
-                print(f"    Invalid tile file, removing", flush=True)
+                print(f"  Cached tile failed validation. Deleting and re-downloading...", flush=True)
                 try:
                     tile_path.unlink()
                 except Exception:
                     pass
-        if not tile_paths:
-            print(f"  No valid tiles downloaded", flush=True)
-            return False
         
-        # Calculate actual total size of tiles
-        actual_tile_total_mb = sum(p.stat().st_size / (1024 * 1024) for p in tile_paths if p.exists())
-        
-        print(f"\n  Download summary:", flush=True)
-        print(f"    Tiles downloaded: {len(tile_paths)}/{len(tiles)}", flush=True)
-        print(f"    Total tile size: {actual_tile_total_mb:.1f} MB (estimated: {total_estimated_size:.1f} MB)", flush=True)
-        
-        print(f"\n  Merging {len(tile_paths)} tiles...", flush=True)
-        if not merge_tiles(tile_paths, output_file):
-            print(f"  Tile merge failed", flush=True)
-            return False
-        
-        # Show final merged file size
-        if output_file.exists():
-            final_size_mb = output_file.stat().st_size / (1024 * 1024)
-            print(f"  Merged file size: {final_size_mb:.1f} MB", flush=True)
-        # Save metadata for merged file
-        try:
-            from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
-            raw_meta = create_raw_metadata(
-                tif_path=output_file,
-                region_id=region_id,
-                source=source_name,
-                download_url='tiled:OpenTopography',
-                download_params={'tiles': len(tile_paths), 'dataset': dataset, 'bounds': region_info['bounds']}
-            )
-            save_metadata(raw_meta, get_metadata_path(output_file))
-        except Exception as e:
-            print(f"  Could not save raw metadata: {e}")
-        print(f"  Tiled download and merge complete", flush=True)
-        return True
+        print(f"    Downloading tile (grid-aligned bounds for reuse)...", flush=True)
+        print(f"      Download bounds: [{snapped_tile_bounds[0]:.4f}, {snapped_tile_bounds[1]:.4f}, {snapped_tile_bounds[2]:.4f}, {snapped_tile_bounds[3]:.4f}]", flush=True)
+        # CRITICAL: Use grid-aligned bounds for download to enable reuse across regions
+        if not _download_bbox(tile_path, snapped_tile_bounds, dataset):
+            print(f"    Tile download failed, skipping", flush=True)
+            continue
+        if validate_geotiff(tile_path, check_data=True):
+            try:
+                size_mb = tile_path.stat().st_size / (1024 * 1024)
+                estimated_mb = tile_estimates[idx]
+                diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
+                print(f"    Downloaded tile OK: {tile_path.name}", flush=True)
+                print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
+            except Exception:
+                print(f"    Downloaded tile OK: {tile_path.name}", flush=True)
+            tile_paths.append(tile_path)
+        else:
+            print(f"    Invalid tile file, removing", flush=True)
+            try:
+                tile_path.unlink()
+            except Exception:
+                pass
+    
+    if not tile_paths:
+        print(f"  No valid tiles downloaded", flush=True)
+        return False
+    
+    # Calculate actual total size of tiles
+    actual_tile_total_mb = sum(p.stat().st_size / (1024 * 1024) for p in tile_paths if p.exists())
+    
+    print(f"\n  Download summary:", flush=True)
+    print(f"    Tiles downloaded: {len(tile_paths)}/{len(tiles)}", flush=True)
+    print(f"    Total tile size: {actual_tile_total_mb:.1f} MB (estimated: {total_estimated_size:.1f} MB)", flush=True)
+    
+    print(f"\n  Merging {len(tile_paths)} tiles...", flush=True)
+    if not merge_tiles(tile_paths, output_file):
+        print(f"  Tile merge failed", flush=True)
+        return False
+    
+    # Show final merged file size
+    if output_file.exists():
+        final_size_mb = output_file.stat().st_size / (1024 * 1024)
+        print(f"  Merged file size: {final_size_mb:.1f} MB", flush=True)
+    # Save metadata for merged file
+    try:
+        from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+        raw_meta = create_raw_metadata(
+            tif_path=output_file,
+            region_id=region_id,
+            source=source_name,
+            download_url='tiled:OpenTopography',
+            download_params={'tiles': len(tile_paths), 'dataset': dataset, 'bounds': region_info['bounds']}
+        )
+        save_metadata(raw_meta, get_metadata_path(output_file))
+    except Exception as e:
+        print(f"  Could not save raw metadata: {e}")
+    print(f"  Tiled download and merge complete", flush=True)
+    return True
 
+    # NOTE: The code below is now unreachable because unified 1-degree grid system
+    # always downloads as tiles. Keeping for reference - should be removed after
+    # confirming unified system works correctly.
+    
     # Mixed-source handling: if region spans SRTM/COP30 boundary, split and merge
+    # This should eventually be updated to use unified 1-degree grid system
     spans_upper = south < 60.0 and north > 60.0
     spans_lower = south < -56.0 and north > -56.0
     crosses = spans_upper or spans_lower
@@ -1429,14 +1437,40 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             approx_area_km2_p = (width_deg_p * km_per_deg_lon_p) * (height_deg_p * km_per_deg_lat)
             tile_needed = (demtype in ['SRTMGL1', 'COP30']) and (approx_area_km2_p > 420_000 or width_deg_p > 4.0 or height_deg_p > 4.0)
             if tile_needed:
-                tiles = calculate_tiles(bbox, tile_size=3.5)
+                # Use unified 1-degree grid system
+                tiles = calculate_1degree_tiles(bbox)
                 tiles_dir_p = parts_dir / f"tiles_p{pi:02d}"
                 tiles_dir_p.mkdir(parents=True, exist_ok=True)
                 tile_paths_p: list[Path] = []
                 for ti, tb in enumerate(tiles):
                     print(f"    Tile {ti+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
-                    tpath = tiles_dir_p / f"p{pi:02d}_t{ti:02d}.tif"
-                    if not _download_bbox(tpath, tb, demtype):
+                    # GRID ALIGNMENT: Snap tile bounds to grid for reuse
+                    tile_grid_size = 1.0  # Integer-degree grid for tiles
+                    from downloaders.tile_large_states import snap_tile_bounds_to_grid
+                    snapped_tile_bounds = snap_tile_bounds_to_grid(tb, tile_grid_size)
+                    # Use grid-aligned filename for tile reuse
+                    tile_filename = tile_filename_from_bounds(snapped_tile_bounds, '30m' if '30' in str(demtype) else '90m',
+                                                             use_grid_alignment=True, grid_size=tile_grid_size)
+                    # Use shared tile pool directory for reuse (not per-part subdirectories)
+                    if resolution == '90m':
+                        shared_tiles_dir = Path(f"data/raw/srtm_90m/tiles")
+                    else:
+                        shared_tiles_dir = Path(f"data/raw/srtm_30m/tiles")
+                    shared_tiles_dir.mkdir(parents=True, exist_ok=True)
+                    tpath = shared_tiles_dir / tile_filename
+                    if snapped_tile_bounds != tb:
+                        print(f"      Grid alignment: expanding tile bounds for reuse")
+                        print(f"        Expanded:  [{snapped_tile_bounds[0]:.4f}, {snapped_tile_bounds[1]:.4f}, {snapped_tile_bounds[2]:.4f}, {snapped_tile_bounds[3]:.4f}]")
+                    # Check if already exists in shared pool (reuse!)
+                    if tpath.exists() and validate_geotiff(tpath, check_data=True):
+                        print(f"      Reusing cached tile: {tpath.name}")
+                        # Copy or use the shared tile
+                        tile_paths_p.append(tpath)
+                        continue
+                    print(f"      Downloading tile (grid-aligned bounds for reuse)...")
+                    print(f"        Download bounds: [{snapped_tile_bounds[0]:.4f}, {snapped_tile_bounds[1]:.4f}, {snapped_tile_bounds[2]:.4f}, {snapped_tile_bounds[3]:.4f}]")
+                    # CRITICAL: Use grid-aligned bounds for download to enable reuse
+                    if not _download_bbox(tpath, snapped_tile_bounds, demtype):
                         print("    Tile download failed, skipping", flush=True)
                         continue
                     if validate_geotiff(tpath, check_data=True):
@@ -1479,19 +1513,23 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         print("  Mixed-source download complete", flush=True)
         return True
 
-    # Download using OpenTopography API (single request)
+    # Download using OpenTopography API (single request) with EXPANDED bounds
+    # Use grid-aligned bounds for download to ensure coverage and reuse
     url = "https://portal.opentopography.org/API/globaldem"
     params = {
         'demtype': dataset,  # COP30 for high latitudes, SRTMGL1 otherwise
-        'south': south,
-        'north': north,
-        'west': west,
-        'east': east,
+        'south': expanded_south,
+        'north': expanded_north,
+        'west': expanded_west,
+        'east': expanded_east,
         'outputFormat': 'GTiff',
         'API_Key': api_key
     }
 
-    print(f"  Requesting from OpenTopography...")
+    print(f"  Requesting from OpenTopography (grid-aligned bounds)...")
+    print(f"    Download bounds: [{expanded_west:.4f}, {expanded_south:.4f}, {expanded_east:.4f}, {expanded_north:.4f}]")
+    if expanded_bounds != original_bounds:
+        print(f"    (Original region: [{west:.4f}, {south:.4f}, {east:.4f}, {north:.4f}])")
     print(f"  (This may take 30-120 seconds)")
 
     try:
@@ -1502,12 +1540,8 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             resp_text = response.text or ""
             if (dataset in ['SRTMGL1', 'COP30']) and ("maximum area" in resp_text.lower() or response.status_code == 400):
                 print(f" Server rejected single request due to size. Switching to tiled download...", flush=True)
-                # Trigger tiled path
-                # Recursively call this function but force tiling by adjusting threshold
-                # Easiest: emulate should_tile path above
-                # Re-enter tiling branch by locally setting should_tile-like behavior
-                # Build tiles and merge
-                tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
+                # Use unified 1-degree grid system
+                tiles = calculate_1degree_tiles(expanded_bounds)
                 # Use shared tile pool directory for reuse across regions
                 if resolution == '90m':
                     tiles_dir = Path(f"data/raw/srtm_90m/tiles")
@@ -1515,11 +1549,19 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                     tiles_dir = Path(f"data/raw/srtm_30m/tiles")
                 tiles_dir.mkdir(parents=True, exist_ok=True)
                 tile_paths = []
+                tile_grid_size = 1.0  # Integer-degree grid for tiles
+                from downloaders.tile_large_states import snap_tile_bounds_to_grid
                 for idx, tb in enumerate(tiles):
                     print(f"\n  Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
-                    # Generate content-based filename for tile reuse
-                    tile_filename = tile_filename_from_bounds(tb, source_name, resolution)
+                    # GRID ALIGNMENT: Snap tile bounds to grid for reuse and consistent naming
+                    snapped_tile_bounds = snap_tile_bounds_to_grid(tb, tile_grid_size)
+                    # Generate content-based filename using grid-aligned bounds
+                    tile_filename = tile_filename_from_bounds(snapped_tile_bounds, resolution,
+                                                             use_grid_alignment=True, grid_size=tile_grid_size)
                     tile_path = tiles_dir / tile_filename
+                    if snapped_tile_bounds != tb:
+                        print(f"    Grid alignment: expanding tile bounds for reuse")
+                        print(f"      Expanded:  [{snapped_tile_bounds[0]:.4f}, {snapped_tile_bounds[1]:.4f}, {snapped_tile_bounds[2]:.4f}, {snapped_tile_bounds[3]:.4f}]")
                     if tile_path.exists():
                         if validate_geotiff(tile_path, check_data=True):
                             try:
@@ -1535,8 +1577,10 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                                 tile_path.unlink()
                             except Exception:
                                 pass
-                    print(f"  Downloading tile...", flush=True)
-                    if not _download_bbox(tile_path, tb, dataset):
+                    print(f"  Downloading tile (grid-aligned bounds for reuse)...", flush=True)
+                    print(f"    Download bounds: [{snapped_tile_bounds[0]:.4f}, {snapped_tile_bounds[1]:.4f}, {snapped_tile_bounds[2]:.4f}, {snapped_tile_bounds[3]:.4f}]", flush=True)
+                    # CRITICAL: Use grid-aligned bounds for download to enable reuse across regions
+                    if not _download_bbox(tile_path, snapped_tile_bounds, dataset):
                         print(f"  Tile download failed, skipping", flush=True)
                         continue
                     if validate_geotiff(tile_path, check_data=True):
@@ -1577,20 +1621,24 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
             print(f"  Response: {response.text[:200]}")
             return False
 
-        # Download with progress
+        # Download with enhanced progress display
         total_size = int(response.headers.get('content-length', 0))
-        downloaded = 0
-
-        with open(output_file, 'wb') as f:
+        
+        desc = output_file.name[:40] + ('...' if len(output_file.name) > 40 else '')
+        with open(output_file, 'wb') as f, tqdm(
+            desc=desc,
+            total=total_size,
+            unit='B',
+            unit_scale=True,
+            unit_divisor=1024,
+            miniters=1,
+            disable=False
+        ) as pbar:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0:
-                        progress = (downloaded / total_size) * 100
-                        print(f"\r  Progress: {progress:.1f}%", end='', flush=True)
+                    pbar.update(len(chunk))
 
-        print()  # New line after progress
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
         estimated_mb = estimate_raw_file_size_mb((west, south, east, north), resolution_meters)
         diff_pct = ((file_size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
@@ -1686,30 +1734,25 @@ def process_region(region_id: str, raw_path: Path, source: str, target_pixels: i
     if boundary_name:
         print(f"  Boundary: {boundary_name}", flush=True)
 
-    # Delete existing files if force (using abstract naming)
+    # With exact bounds naming, new files will have different names automatically.
+    # Just delete old downloaded bbox file if bounds changed (to avoid reusing wrong data).
+    # Processed/exported files are kept - manifest update points viewer to new ones.
     if force:
-        print("  Force mode: deleting existing processed files...", flush=True)
-        # Get bounds to generate abstract filenames
         bounds = region_info.get('bounds')
         if bounds:
-            # Delete by abstract filenames
-            for source in ['srtm_30m', 'srtm_90m', 'usa_3dep']:
-                resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
-                base_part = bbox_filename_from_bounds(bounds, source, resolution)[5:-4]
+            # Only delete downloaded bbox file if it has different bounds than current
+            for source_check in ['srtm_30m', 'srtm_90m', 'usa_3dep']:
+                resolution = '30m' if '30m' in source_check else '90m' if '90m' in source_check else '10m'
+                old_filename = bbox_filename_from_bounds(bounds, source_check, resolution)
+                old_file_path = Path(f"data/raw/{source_check}/{old_filename}")
                 
-                # Delete clipped files
-                clipped_pattern = f"data/clipped/{source}/{base_part}_clipped_*_v1.tif"
-                processed_pattern = f"data/processed/{source}/{base_part}_processed_*px_v2.tif"
-                exported_pattern = f"generated/regions/{base_part}_*px_v2.json"
-                
-                import glob
-                for pattern in [clipped_pattern, processed_pattern, exported_pattern]:
-                    for file_path in glob.glob(pattern, recursive=True):
-                        try:
-                            Path(file_path).unlink()
-                            print(f"  Deleted: {Path(file_path).name}", flush=True)
-                        except Exception:
-                            pass
+                # Delete only if it's different from the file we're about to use
+                if old_file_path.exists() and old_file_path.name != raw_path.name:
+                    try:
+                        old_file_path.unlink()
+                        print(f"  Deleted old bounds file: {old_file_path.name}", flush=True)
+                    except Exception:
+                        pass
 
     try:
         success, result_paths = run_pipeline(
@@ -2697,6 +2740,8 @@ This script will:
                         help='Only check status, do not download or process')
     parser.add_argument('--list-regions', action='store_true',
                         help='List all available regions')
+    parser.add_argument('--yes', action='store_true',
+                        help='Auto-accept lower quality data prompts')
 
     args = parser.parse_args()
 
@@ -2888,13 +2933,18 @@ This script will:
             print(f"\n  The best available source (30m) does not meet Nyquist quality standards.", flush=True)
             print(f"  This may result in some aliasing artifacts in the visualization.", flush=True)
             print(f"\n  Once we implement 10m downloading, things will improve somewhat!", flush=True)
-            print(f"\n  Do you want to proceed with lower quality data? (yes/no): ", end='', flush=True)
             
-            try:
-                response = input().strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                print("\n  Aborted by user.", flush=True)
-                return 1
+            # Auto-accept if --yes flag provided
+            if args.yes:
+                response = 'yes'
+                print(f"\n  Auto-accepting lower quality data (--yes flag).", flush=True)
+            else:
+                print(f"\n  Do you want to proceed with lower quality data? (yes/no): ", end='', flush=True)
+                try:
+                    response = input().strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print("\n  Aborted by user.", flush=True)
+                    return 1
             
             if response in ('yes', 'y'):
                 # User accepted lower quality - proceed with best available (30m)

@@ -23,85 +23,143 @@ from src.regions_config import get_region
 from src.pipeline import run_pipeline
 
 
-def calculate_tiles(bounds: Tuple[float, float, float, float], 
-                    tile_size: float = 3.5) -> List[Tuple[float, float, float, float]]:
+def calculate_1degree_tiles(bounds: Tuple[float, float, float, float]) -> List[Tuple[float, float, float, float]]:
     """
-    Split a large bounding box into smaller tiles.
+    Calculate list of 1-degree tiles needed to cover bounds.
+    
+    Unified 1-degree grid system - all downloads become 1-degree tiles.
     
     Args:
         bounds: (west, south, east, north) in degrees
-        tile_size: Maximum tile dimension in degrees (default 3.5deg for safety)
-        
+    
     Returns:
-        List of tile bounding boxes
+        List of 1-degree tile bounds (west, south, east, north) for each tile
+    
+        Example:
+        Input:  (-112.0, 40.0, -110.0, 42.0)  # 2deg x 2deg region
+        Output: [
+            (-112.0, 40.0, -111.0, 41.0),  # N40_W112_30m.tif
+            (-111.0, 40.0, -110.0, 41.0),  # N40_W111_30m.tif
+            (-112.0, 41.0, -111.0, 42.0),  # N41_W112_30m.tif
+            (-111.0, 41.0, -110.0, 42.0),  # N41_W111_30m.tif
+        ]
     """
     west, south, east, north = bounds
-    width = east - west
-    height = north - south
     
-    # Calculate number of tiles needed
-    cols = math.ceil(width / tile_size)
-    rows = math.ceil(height / tile_size)
-    
-    # Actual tile size (divide evenly)
-    tile_width = width / cols
-    tile_height = height / rows
+    # Snap bounds to 1-degree grid
+    snapped_west = math.floor(west / 1.0) * 1.0
+    snapped_south = math.floor(south / 1.0) * 1.0
+    snapped_east = math.ceil(east / 1.0) * 1.0
+    snapped_north = math.ceil(north / 1.0) * 1.0
     
     tiles = []
-    for row in range(rows):
-        for col in range(cols):
-            tile_west = west + col * tile_width
-            tile_south = south + row * tile_height
-            tile_east = min(west + (col + 1) * tile_width, east)
-            tile_north = min(south + (row + 1) * tile_height, north)
-            
-            tiles.append((tile_west, tile_south, tile_east, tile_north))
+    for lat in range(int(snapped_south), int(snapped_north)):
+        for lon in range(int(snapped_west), int(snapped_east)):
+            tile_bounds = (lon, lat, lon + 1.0, lat + 1.0)
+            tiles.append(tile_bounds)
     
     return tiles
 
 
-def tile_filename_from_bounds(bounds: Tuple[float, float, float, float], 
-                              dataset: str = 'srtm30m', 
-                              resolution: str = '30m') -> str:
+def calculate_tiles(bounds: Tuple[float, float, float, float], 
+                    tile_size: float = 1.0) -> List[Tuple[float, float, float, float]]:
     """
-    Generate a content-based filename for a tile based on its bounds, dataset, and resolution.
+    Calculate list of 1-degree tiles needed to cover bounds.
     
-    Uses SRTM-style integer degree naming from the southwest corner, enabling tile reuse across regions.
-    For example, if Tennessee and Kentucky download adjacent tiles with the same bounds,
-    they'll share the same cached file.
-    
-    Format: tile_{NS}{south:02d}_{EW}{west:03d}_{dataset}_{res}.tif
-    Examples:
-        tile_N35_W090_srtm30m_30m.tif  (SW corner at 35degN, 90degW)
-        tile_S05_E120_cop30_30m.tif     (SW corner at 5degS, 120degE)
-    
-    Follows the SRTM HGT file convention (N##W###.hgt) used by official data sources.
+    Unified 1-degree grid system - all downloads become 1-degree tiles.
     
     Args:
         bounds: (west, south, east, north) in degrees
-        dataset: Dataset identifier (e.g., 'srtm_30m', 'srtm_90m', 'cop30')
-        resolution: Resolution identifier (e.g., '30m', '90m')
+        tile_size: Tile dimension in degrees (must be 1.0 for unified system)
         
     Returns:
-        Filename string
+        List of 1-degree tile bounding boxes
     """
-    west, south, _east, _north = bounds
+    # Unified system always uses 1-degree tiles
+    if tile_size != 1.0:
+        raise ValueError(f"Unified 1-degree grid system requires tile_size=1.0, got {tile_size}")
     
-    # Round to integer degrees for southwest corner (SRTM convention)
-    # For southwest corner, we want to round DOWN (toward more negative)
-    # Use floor for positive, trunc for negative to handle negatives correctly
-    sw_lat = int(math.floor(south)) if south >= 0 else int(math.trunc(south))
-    sw_lon = int(math.floor(west)) if west >= 0 else int(math.trunc(west))
+    return calculate_1degree_tiles(bounds)
+
+
+def snap_tile_bounds_to_grid(bounds: Tuple[float, float, float, float], 
+                             grid_size: float = 1.0) -> Tuple[float, float, float, float]:
+    """
+    Snap tile bounding box to standard grid boundaries to enable reuse across regions.
     
-    # Format latitude (N/S + 2 digits)
-    ns = 'N' if sw_lat >= 0 else 'S'
-    lat_str = f"{ns}{abs(sw_lat):02d}"
+    Expands bounds outward to nearest grid boundaries (west/south floor down, east/north ceil up).
+    This ensures tiles with similar bounds share the same grid-aligned tile files,
+    reducing redundant downloads and making coverage management easier.
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        grid_size: Grid increment in degrees (default 1.0 = integer-degree grid for tiles)
+                   Tiles use 1.0-degree grid (coarser than bbox 0.5-degree grid)
+        
+    Returns:
+        Tuple of (west, south, east, north) snapped to grid boundaries
+    """
+    west, south, east, north = bounds
+    
+    # Snap west/south down (floor), east/north up (ceil) to integer degrees
+    # For negative values: floor goes more negative, ceil goes less negative
+    snapped_west = math.floor(west / grid_size) * grid_size
+    snapped_south = math.floor(south / grid_size) * grid_size
+    snapped_east = math.ceil(east / grid_size) * grid_size
+    snapped_north = math.ceil(north / grid_size) * grid_size
+    
+    return (snapped_west, snapped_south, snapped_east, snapped_north)
+
+
+def tile_filename_from_bounds(bounds: Tuple[float, float, float, float], 
+                              dataset: str = 'srtm_30m', 
+                              resolution: str = '30m',
+                              use_grid_alignment: bool = True,
+                              grid_size: float = 1.0) -> str:
+    """
+    Generate a content-based filename for a 1-degree tile based on its bounds and resolution.
+    
+    Uses unified 1-degree grid system - all tiles use 1-degree grid for maximum reuse.
+    Simple naming format: {NS}{lat}_{EW}{lon}_{resolution}.tif
+    
+    Examples:
+        N35_W090_30m.tif  (SW corner at 35degN, 90degW, 1deg x 1deg tile)
+        S05_E120_30m.tif  (SW corner at 5degS, 120degE, 1deg x 1deg tile)
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        dataset: Dataset identifier (e.g., 'srtm_30m', 'srtm_90m', 'cop30', 'usa_3dep')
+        resolution: Resolution identifier (e.g., '30m', '90m', '10m')
+        use_grid_alignment: If True, snap bounds to grid before generating filename (default True)
+        grid_size: Grid increment in degrees for snapping (default 1.0 = unified 1-degree grid)
+        
+    Returns:
+        Filename string for 1-degree tile
+    """
+    west, south, east, north = bounds
+    
+    # Snap bounds to grid for filename (enables reuse)
+    if use_grid_alignment:
+        west, south, east, north = snap_tile_bounds_to_grid(bounds, grid_size)
+    
+    # Southwest corner coordinates (integer degrees)
+    sw_lat = int(south)
+    sw_lon = int(west)
+    
+    # Format latitude (N/S + integer, no padding)
+    if sw_lat >= 0:
+        lat_str = f"N{sw_lat}"
+    else:
+        lat_str = f"S{abs(sw_lat)}"
     
     # Format longitude (E/W + 3 digits)
-    ew = 'E' if sw_lon >= 0 else 'W'
-    lon_str = f"{ew}{abs(sw_lon):03d}"
+    if sw_lon >= 0:
+        lon_str = f"E{sw_lon:03d}"
+    else:
+        lon_str = f"W{abs(sw_lon):03d}"
     
-    return f"tile_{lat_str}_{lon_str}_{dataset}_{resolution}.tif"
+    # Simple format: {NS}{lat}_{EW}{lon}_{resolution}.tif
+    return f"{lat_str}_{lon_str}_{resolution}.tif"
 
 
 def download_state_tiles(region_id: str, 

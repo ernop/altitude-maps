@@ -24,20 +24,12 @@ def bump_js_version(version_type: Literal['patch', 'minor', 'major'] = 'patch') 
     old_version = match.group(1)
     parts = old_version.split('.')
     
-    # Ensure we have 3 parts (pad with 0 if needed)
-    while len(parts) < 3:
-        parts.append('0')
+    # Keep only first two parts (remove patch version)
+    while len(parts) > 2:
+        parts.pop()
     
-    # Bump version
-    if version_type == 'major':
-        parts[0] = str(int(parts[0]) + 1)
-        parts[1] = '0'
-        parts[2] = '0'
-    elif version_type == 'minor':
-        parts[1] = str(int(parts[1]) + 1)
-        parts[2] = '0'
-    else:  # patch
-        parts[2] = str(int(parts[2]) + 1)
+    # Bump version - just increment the last number
+    parts[1] = str(int(parts[1]) + 1)
     
     new_version = '.'.join(parts)
     

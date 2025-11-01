@@ -1,5 +1,5 @@
 // Version tracking
-const VIEWER_VERSION = '1.335.3';
+const VIEWER_VERSION = '1.339';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -1380,13 +1380,49 @@ function setupScene() {
         // Good near/far ratio; no log needed
     }
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        preserveDrawingBuffer: true,
-        alpha: false,
-        powerPreference: "high-performance"
-    });
+    // Renderer with fallback for Mac/Chrome compatibility
+    // Try high-performance first, fall back to default if it fails
+    try {
+        renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            preserveDrawingBuffer: true,
+            alpha: false,
+            powerPreference: "high-performance"
+        });
+
+        // Check if renderer actually initialized properly
+        const gl = renderer.getContext();
+        if (!gl || gl.isContextLost()) {
+            throw new Error('Renderer context check failed or lost');
+        }
+    } catch (e) {
+        console.warn('Failed to create WebGL renderer with high-performance, trying fallback:', e);
+        // Fallback: try without powerPreference (some older Macs have GPU switching issues)
+        try {
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                preserveDrawingBuffer: true,
+                alpha: false
+                // No powerPreference - let the system decide
+            });
+
+            const gl = renderer.getContext();
+            if (!gl || gl.isContextLost()) {
+                throw new Error('Fallback renderer context check failed or lost');
+            }
+            console.log('[OK] Using fallback renderer (no powerPreference) for compatibility');
+        } catch (e2) {
+            // Last resort: minimal renderer settings
+            console.error('All WebGL renderer initialization attempts failed:', e2);
+            renderer = new THREE.WebGLRenderer({
+                antialias: false,
+                preserveDrawingBuffer: false,
+                alpha: false
+            });
+            console.warn('[WARN] Using minimal renderer settings - some features may be degraded');
+        }
+    }
+
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.getElementById('canvas-container').appendChild(renderer.domElement);
@@ -3400,8 +3436,7 @@ function setVertExag(value) {
     // Update button active state
     updateVertExagButtons(value);
 
-    // Show loading indicator and update terrain
-    showVertExagLoading();
+    // Update terrain (buttery smooth, no loading UI)
     updateTerrainHeight();
 }
 
@@ -3478,49 +3513,6 @@ function updateVertExagButtons(activeValue) {
             }
         }
     });
-}
-
-function showVertExagLoading() {
-    // Create or show loading overlay
-    let loadingOverlay = document.getElementById('vertExagLoading');
-    if (!loadingOverlay) {
-        loadingOverlay = document.createElement('div');
-        loadingOverlay.id = 'vertExagLoading';
-        loadingOverlay.style.cssText = `
- position: fixed;
- top: 0;
- left: 0;
- width: 100%;
- height: 100%;
- background: rgba(0, 0, 0, 0.3);
- display: none;
- align-items: center;
- justify-content: center;
- z-index: 9999;
- pointer-events: none;
- `;
-        loadingOverlay.innerHTML = `
- <div style="
- background: rgba(30, 40, 60, 0.95);
- padding: 20px 40px;
- border-radius: 8px;
- border: 2px solid#5588cc;
- font-size: 16px;
- color:#88bbff;
- ">Updating terrain...</div>
- `;
-        document.body.appendChild(loadingOverlay);
-    }
-
-    // Show loading overlay
-    loadingOverlay.style.display = 'flex';
-
-    // Hide after a short delay (enough for the terrain update to start)
-    setTimeout(() => {
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'none';
-        }
-    }, 100);
 }
 
 function resetCamera() {
