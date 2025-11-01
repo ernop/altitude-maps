@@ -186,14 +186,14 @@ def download_state_tiles(region_id: str,
                         _ = test_src.read(1, window=((0, 1), (0, 1)))
                         is_valid = True
                 except Exception as e:
-                    print(f"✗ Tile {tile_num} FAILED validation: {e}", flush=True)
+                    print(f"X Tile {tile_num} FAILED validation: {e}", flush=True)
                     tile_path.unlink()
             
             if is_valid:
                 tile_paths.append(tile_path)
                 tiles_downloaded += 1
                 tile_time = time.time() - tile_start
-                print(f"✓ Tile {tile_num} complete in {tile_time:.1f}s", flush=True)
+                print(f"OK Tile {tile_num} complete in {tile_time:.1f}s", flush=True)
             else:
                 print(f"  Tile {tile_num} validation failed, skipping", flush=True)
         else:

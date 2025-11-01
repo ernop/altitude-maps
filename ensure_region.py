@@ -147,7 +147,7 @@ def summarize_pipeline_status(region_id: str, region_type: str, region_info: dic
     s8 = _path_exists(f"data/processed/*/{region_id}_*_*px_v2.tif")
 
     # Quick summary without excessive verbosity
-    print(f"  Status: Raw={'✓' if s4 else '✗'} | Processed={'✓' if s8 else '✗'} | Export={'✓' if s9 else '✗'}", flush=True)
+    print(f"  Status: Raw={'OK' if s4 else 'X'} | Processed={'OK' if s8 else 'X'} | Export={'OK' if s9 else 'X'}", flush=True)
 
 
 # Create mapping for backward compatibility during transition

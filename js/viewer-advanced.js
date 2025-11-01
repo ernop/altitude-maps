@@ -334,17 +334,17 @@ async function init() {
             const origLog = console.log.bind(console);
             const origWarn = console.warn.bind(console);
             const origError = console.error.bind(console);
-            
+
             // Mirror significant console.log messages to activity log
             // Skip verbose/debug-only messages that would spam the UI
             console.log = (...args) => {
                 origLog(...args);
                 const msg = args.join(' ');
                 // Only mirror significant messages (not verbose debug details)
-                if (msg.includes('[OK]') || msg.includes('[INFO]') || msg.includes('[JSON]') || 
+                if (msg.includes('[OK]') || msg.includes('[INFO]') || msg.includes('[JSON]') ||
                     msg.includes('Bucket size adjusted') || msg.includes('Resolution set') ||
-                    msg.includes('Setting TRUE SCALE') || msg.includes('Setting ') && msg.includes('x exaggeration') ||
-                    msg.includes('Camera reset') || msg.includes('True scale for') || 
+                    msg.includes('Setting TRUE SCALE') || (msg.includes('Setting ') && msg.includes('x exaggeration')) ||
+                    msg.includes('Camera reset') || msg.includes('True scale for') ||
                     msg.includes('Loading region') || msg.includes('Loading JSON file') ||
                     msg.includes('Aggregation:') || msg.includes('Already at') ||
                     msg.includes('Switching to') || msg.includes('Pivot marker created') ||

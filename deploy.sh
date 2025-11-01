@@ -172,10 +172,10 @@ if [ $? -eq 0 ]; then
     echo ""
     echo -e "${GREEN}=======================================================================${NC}"
     if [ "$DRY_RUN" = true ]; then
-        echo -e "${GREEN}[✓] Dry run completed successfully!${NC}"
+        echo -e "${GREEN}[OK] Dry run completed successfully!${NC}"
         echo -e "${YELLOW}    Run without -d to perform actual deployment${NC}"
     else
-        echo -e "${GREEN}[✓] Deployment completed successfully!${NC}"
+        echo -e "${GREEN}[OK] Deployment completed successfully!${NC}"
         echo -e "\n${YELLOW}Viewer deployed to: ${REMOTE_PATH}${NC}"
         echo -e "  ${NC}Your web server should now serve:${NC}"
         echo -e "  ${CYAN}- ${REMOTE_PATH}/interactive_viewer_advanced.html (main viewer)${NC}"
