@@ -1,5 +1,5 @@
 // Version tracking
-const VIEWER_VERSION = '1.335.2';
+const VIEWER_VERSION = '1.335.3';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -19,97 +19,6 @@ let borderSegmentsGeo = []; // [{axLon, axLat, bxLon, bxLat}]
 let borderGeoIndex = null; // Map of cellKey -> array of segment indices
 let borderGeoCellSizeDeg = 0.25; // spatial hash cell size in degrees
 
-// Precompute color schemes once to avoid per-vertex allocations during color updates
-const COLOR_SCHEMES = {
-    terrain: [
-        { stop: 0.0, color: new THREE.Color(0x1a4f63) },
-        { stop: 0.2, color: new THREE.Color(0x2d8659) },
-        { stop: 0.4, color: new THREE.Color(0x5ea849) },
-        { stop: 0.6, color: new THREE.Color(0xa8b840) },
-        { stop: 0.8, color: new THREE.Color(0xb87333) },
-        { stop: 1.0, color: new THREE.Color(0xe8e8e8) }
-    ],
-    elevation: [
-        { stop: 0.0, color: new THREE.Color(0x0000ff) },
-        { stop: 0.5, color: new THREE.Color(0x00ff00) },
-        { stop: 1.0, color: new THREE.Color(0xff0000) }
-    ],
-    grayscale: [
-        { stop: 0.0, color: new THREE.Color(0x111111) },
-        { stop: 1.0, color: new THREE.Color(0xffffff) }
-    ],
-    rainbow: [
-        { stop: 0.0, color: new THREE.Color(0x9400d3) },
-        { stop: 0.2, color: new THREE.Color(0x0000ff) },
-        { stop: 0.4, color: new THREE.Color(0x00ff00) },
-        { stop: 0.6, color: new THREE.Color(0xffff00) },
-        { stop: 0.8, color: new THREE.Color(0xff7f00) },
-        { stop: 1.0, color: new THREE.Color(0xff0000) }
-    ],
-    earth: [
-        { stop: 0.0, color: new THREE.Color(0x2C1810) },
-        { stop: 0.3, color: new THREE.Color(0x6B5244) },
-        { stop: 0.6, color: new THREE.Color(0x8B9A6B) },
-        { stop: 1.0, color: new THREE.Color(0xC4B89C) }
-    ],
-    heatmap: [
-        { stop: 0.0, color: new THREE.Color(0x000033) },
-        { stop: 0.25, color: new THREE.Color(0x0066ff) },
-        { stop: 0.5, color: new THREE.Color(0x00ff66) },
-        { stop: 0.75, color: new THREE.Color(0xffff00) },
-        { stop: 1.0, color: new THREE.Color(0xff0000) }
-    ],
-    test: [
-        { stop: 0.00, color: new THREE.Color(0x001b3a) },
-        { stop: 0.08, color: new THREE.Color(0x004e98) },
-        { stop: 0.16, color: new THREE.Color(0x00b4d8) },
-        { stop: 0.28, color: new THREE.Color(0x28a745) },
-        { stop: 0.38, color: new THREE.Color(0xfff275) },
-        { stop: 0.46, color: new THREE.Color(0xffb703) },
-        { stop: 0.54, color: new THREE.Color(0xfb8500) },
-        { stop: 0.64, color: new THREE.Color(0xe85d04) },
-        { stop: 0.74, color: new THREE.Color(0xd00000) },
-        { stop: 0.86, color: new THREE.Color(0x9d0208) },
-        { stop: 0.94, color: new THREE.Color(0xf5f5f5) },
-        { stop: 1.00, color: new THREE.Color(0xffffff) }
-    ]
-    ,
-    'terrain-muted': [
-        { stop: 0.0, color: new THREE.Color(0x274b4a) },
-        { stop: 0.3, color: new THREE.Color(0x4e6e58) },
-        { stop: 0.6, color: new THREE.Color(0x7a8f6a) },
-        { stop: 0.85, color: new THREE.Color(0xa8b59a) },
-        { stop: 1.0, color: new THREE.Color(0xdedfd6) }
-    ],
-    'relief-emphasis': [
-        { stop: 0.0, color: new THREE.Color(0x2b2b2b) },
-        { stop: 0.5, color: new THREE.Color(0x6aa84f) },
-        { stop: 0.75, color: new THREE.Color(0xf1c232) },
-        { stop: 1.0, color: new THREE.Color(0xe06666) }
-    ],
-    'diverging-elevation': [
-        { stop: 0.0, color: new THREE.Color(0x313695) },
-        { stop: 0.5, color: new THREE.Color(0xf7f7f7) },
-        { stop: 1.0, color: new THREE.Color(0xa50026) }
-    ],
-    'hypsometric': [
-        { stop: 0.0, color: new THREE.Color(0x00441b) },
-        { stop: 0.2, color: new THREE.Color(0x1a9850) },
-        { stop: 0.4, color: new THREE.Color(0x66bd63) },
-        { stop: 0.6, color: new THREE.Color(0xfdae61) },
-        { stop: 0.8, color: new THREE.Color(0xf46d43) },
-        { stop: 1.0, color: new THREE.Color(0xa50f15) }
-    ],
-    'hypsometric-natural': [
-        { stop: 0.00, color: new THREE.Color(0x0a4f2c) }, // deep green lowlands
-        { stop: 0.20, color: new THREE.Color(0x2f7d32) }, // green
-        { stop: 0.40, color: new THREE.Color(0x9bbf6b) }, // olive/grass
-        { stop: 0.60, color: new THREE.Color(0xc9b27d) }, // tan foothills
-        { stop: 0.80, color: new THREE.Color(0x8b5e34) }, // brown highlands
-        { stop: 0.92, color: new THREE.Color(0xdedede) }, // light grey
-        { stop: 1.00, color: new THREE.Color(0xffffff) } // white peaks
-    ]
-};
 // Temporary color reused to avoid per-vertex allocations
 const __tmpColor = new THREE.Color();
 let stats = {};
@@ -117,6 +26,7 @@ let borderMeshes = [];
 let borderData = null;
 let frameCount = 0;
 let lastTime = performance.now();
+let isCurrentlyLoading = false; // Track if region is being loaded/reloaded
 
 // Directional edge markers (N, E, S, W)
 // PRODUCT REQUIREMENT: These markers must NOT move when user adjusts vertical exaggeration slider
@@ -226,6 +136,7 @@ let lastPointsExaggerationInternal = null; // Internal value used when points we
 let lastBarsTileSize = 1.0; // Tile size used when bars were last (re)built
 let pendingTileGapRaf = null; // Coalesce tile gap updates to latest frame
 let pendingBucketTimeout = null; // Debounce for bucket size rebuilds
+let lastAutoResolutionAdjustTime = 0; // Track last auto-resolution adjustment to debounce
 
 // Parameters
 let params = {
@@ -841,6 +752,7 @@ async function loadRegion(regionId) {
 }
 
 function showLoading(message = 'Loading elevation data...') {
+    isCurrentlyLoading = true;
     const loadingDiv = document.getElementById('loading');
     loadingDiv.innerHTML = `
  <div style="text-align: center;">
@@ -878,6 +790,7 @@ function formatFileSize(bytes) {
 }
 
 function hideLoading() {
+    isCurrentlyLoading = false;
     document.getElementById('loading').style.display = 'none';
 }
 
@@ -932,31 +845,6 @@ function syncUIControls() {
     }
 
     // Shading controls removed from UI
-}
-
-const COLOR_SCHEME_DESCRIPTIONS = {
-    'terrain': 'Natural earthy palette: lowlands to high peaks (balanced visibility).',
-    'test': 'High-contrast ramp to accentuate small elevation changes.',
-    'auto-stretch': 'Dynamic percentile stretch (2-98%) for maximum contrast on this map.',
-    'slope': 'Colors by slope steepness (degrees): blue=flat, red=steep.',
-    'aspect': 'Hue encodes slope direction (0-360deg).',
-    'elevation': 'Classic blue-red by relative elevation.',
-    'grayscale': 'Simple lightness by elevation.',
-    'rainbow': 'Multi-hue (use cautiously).',
-    'earth': 'Earth tones for subdued presentation.',
-    'heatmap': 'Dark to hot colors by elevation.',
-    'terrain-muted': 'Softer natural palette for overlays and labels.',
-    'relief-emphasis': 'Color ramp tuned to emphasize relief with gentle chroma.',
-    'diverging-elevation': 'Diverges around mid-elevation to reveal relative high/low areas.',
-    'hypsometric': 'Perceptual hypsometric tint for terrain form.',
-    'hypsometric-natural': 'Hypsometric with naturalistic greens-tans-browns-snow for peaks.'
-};
-
-function updateColorSchemeDescription() {
-    const el = document.getElementById('colorSchemeDescription');
-    if (!el) return;
-    const key = params.colorScheme || 'terrain';
-    el.textContent = COLOR_SCHEME_DESCRIPTIONS[key] || '';
 }
 
 // Compute percentile-based auto stretch bounds from current bucketed elevation
@@ -3835,6 +3723,23 @@ function handleKeyboardMovement() {
     camera.lookAt(controls.target);
 }
 
+// Check if camera is currently being moved by user
+function isCameraMoving() {
+    // Check keyboard movement
+    const isMovingKeyboard = keyboard.w || keyboard.s || keyboard.a || keyboard.d || keyboard.q || keyboard.e;
+
+    // Check mouse/touch movement (pan, rotate, tilt, orbit)
+    const isMovingMouse = activeScheme && (
+        activeScheme.state.panning ||
+        activeScheme.state.rotating ||
+        activeScheme.state.tilting ||
+        activeScheme.state.orbiting ||
+        activeScheme.state.pinching
+    );
+
+    return isMovingKeyboard || isMovingMouse;
+}
+
 function updateFPS() {
     frameCount++;
     const currentTime = performance.now();
@@ -3842,8 +3747,39 @@ function updateFPS() {
         const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
         const fpsEl = document.getElementById('fps-display');
         if (fpsEl) fpsEl.textContent = `FPS: ${fps}`;
+
+        // Auto-reduce resolution if FPS is too low
+        if (fps < 10 && fps > 0) {
+            autoReduceResolution();
+        }
+
         frameCount = 0;
         lastTime = currentTime;
+    }
+}
+
+// Automatically reduce resolution when FPS is too low
+function autoReduceResolution() {
+    // Don't reduce if: currently loading, camera not moving, too soon since last adjustment
+    if (isCurrentlyLoading || !isCameraMoving()) {
+        return;
+    }
+
+    const now = performance.now();
+    const MIN_ADJUSTMENT_INTERVAL = 3000; // 3 seconds between auto-adjustments
+    if (now - lastAutoResolutionAdjustTime < MIN_ADJUSTMENT_INTERVAL) {
+        return;
+    }
+
+    // Increase bucket size to reduce resolution (makes rendering faster)
+    const currentBucketSize = params.bucketSize;
+    const newBucketSize = Math.min(500, Math.floor(currentBucketSize * 1.5));
+
+    // Only adjust if we actually changed the bucket size
+    if (newBucketSize > currentBucketSize) {
+        lastAutoResolutionAdjustTime = now;
+        appendActivityLog(`Low FPS detected - auto-reducing resolution: ${currentBucketSize}x -> ${newBucketSize}x`);
+        adjustBucketSize(newBucketSize - currentBucketSize);
     }
 }
 
