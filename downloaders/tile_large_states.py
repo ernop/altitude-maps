@@ -125,9 +125,9 @@ def download_state_tiles(region_id: str,
         row = idx // num_cols
         col = idx % num_cols
         
-        print(f"\n{'─'*70}", flush=True)
+        print(f"\n{'='*70}", flush=True)
         print(f"TILE {tile_num}/{len(tiles)} (Row {row+1}/{num_rows}, Col {col+1}/{num_cols})", flush=True)
-        print(f"{'─'*70}", flush=True)
+        print(f"{'='*70}", flush=True)
         print(f"Bounds: [{tile_bounds[0]:.4f}, {tile_bounds[1]:.4f}, {tile_bounds[2]:.4f}, {tile_bounds[3]:.4f}]", flush=True)
         
         tile_path = output_dir / f"{region_id}_tile_{idx:02d}.tif"

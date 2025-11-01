@@ -58,10 +58,14 @@ def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
     """
     Determine minimum required source resolution based on visible pixel size.
     
+    We need proper oversampling for quality: each visible pixel should be composed
+    of multiple source pixels. Using fractional pixel aggregation (e.g., 1.5 source
+    pixels per visible pixel) causes aliasing and poor quality.
+    
     Quality requirement logic:
-    - If visible >= 180m: 90m source provides 2.0x+ oversampling (Nyquist safe)
-    - If visible >= 90m: 30m source required (90m would be marginal)
-    - If visible < 90m: 30m source required (users can zoom)
+    - If visible >= 180m: 90m source gives 2.0x oversampling (exactly 2.0 pixels per output)
+    - If visible >= 60m: 30m source required (90m would give <2.0x, risking quality issues)
+    - If visible < 60m: 30m source required (users can zoom in for detail)
     
     Args:
         visible_m_per_pixel: Average meters per pixel in final output
@@ -69,10 +73,21 @@ def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
     Returns:
         Minimum required resolution in meters (10, 30, or 90)
     """
-    if visible_m_per_pixel >= 180:
-        return 90  # 90m source is sufficient (2x oversampling)
+    # Calculate oversampling ratio for 90m source
+    oversampling_90m = visible_m_per_pixel / 90.0
+    
+    # We want at least 2.0x oversampling for proper quality
+    # (Each output pixel = 2+ source pixels = clean aggregation, not fractional)
+    if oversampling_90m >= 2.0:
+        # 90m source provides 2x+ oversampling (good integer multiple)
+        # Example: 180m visible / 90m source = 2.0x (exactly 2 pixels per output)
+        return 90
     else:
-        return 30  # 30m source required (better quality)
+        # 90m source would give <2.0x oversampling (fractional aggregation = poor quality)
+        # Example: 125m visible / 90m source = 1.39x (each output = 1.39 source pixels = bad!)
+        # Use 30m source instead for proper oversampling
+        # Example: 125m visible / 30m source = 4.17x (each output = ~4 source pixels = good)
+        return 30
 
 
 def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
@@ -132,6 +147,43 @@ def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], targ
         'real_world_width_km': width_m / 1000.0,
         'real_world_height_km': height_m / 1000.0
     }
+
+
+def estimate_raw_file_size_mb(bounds: Tuple[float, float, float, float], resolution_meters: int) -> float:
+    """
+    Estimate raw GeoTIFF file size in MB based on bounds and resolution.
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        resolution_meters: Source resolution in meters (10, 30, or 90)
+    
+    Returns:
+        Estimated file size in MB (approximate)
+    """
+    import math
+    west, south, east, north = bounds
+    width_deg = east - west
+    height_deg = north - south
+    
+    # Calculate real-world dimensions in meters
+    center_lat = (north + south) / 2.0
+    meters_per_deg_lat = 111_320
+    meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+    
+    width_m = width_deg * meters_per_deg_lon
+    height_m = height_deg * meters_per_deg_lat
+    
+    # Estimate pixels (accounting for actual resolution)
+    pixels_x = int(width_m / resolution_meters)
+    pixels_y = int(height_m / resolution_meters)
+    
+    # Estimate file size (float32 = 4 bytes per pixel, plus compression overhead)
+    # GeoTIFF compression typically achieves 50-70% reduction for elevation data
+    uncompressed_size_bytes = pixels_x * pixels_y * 4
+    # Estimate 60% compression ratio (typical for elevation GeoTIFFs)
+    estimated_size_bytes = uncompressed_size_bytes * 0.4
+    
+    return estimated_size_bytes / (1024 * 1024)
 
 
 def summarize_pipeline_status(region_id: str, region_type: str, region_info: dict) -> None:
@@ -622,7 +674,6 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         print(f"\n  Downloading {region_info['name']}...")
         print(f"  Real-world size: {visible['real_world_width_km']:.0f} x {visible['real_world_height_km']:.0f} km")
         print(f"  Target resolution: {target_pixels}px (max dimension)")
-        print(f"  Visible pixel size: ~{visible['avg_m_per_pixel']:.0f}m/pixel")
         
         # Determine base dataset by latitude first
         if north > 60.0 or south < -56.0:
@@ -638,30 +689,67 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         # Automatically select the smallest resolution that still meets quality requirements
         min_required = determine_min_required_resolution(visible['avg_m_per_pixel'])
         
+        print(f"\n  Resolution Selection Analysis:")
+        print(f"    Calculated visible pixel size: ~{visible['avg_m_per_pixel']:.0f} meters per pixel")
+        print(f"    (This is the pixel size users will see in the final visualization)")
+        
+        # Calculate oversampling ratios for both options
+        oversampling_90m = visible['avg_m_per_pixel'] / 90.0
+        oversampling_30m = visible['avg_m_per_pixel'] / 30.0
+        
         if min_required == 90:
             # 90m is sufficient for quality - use smallest that meets requirement
             dataset = base_dataset_90m
             dataset_name = f'{base_name} 90m'
             resolution = '90m'
-            print(f"\n  Quality requirement: minimum 90m resolution")
-            print(f"  Rationale: Visible pixels will be ~{visible['avg_m_per_pixel']:.0f}m each")
-            print(f"            90m input provides guaranteed quality (2.0x oversampling, Nyquist safe)")
-            print(f"  Auto-selected: 90m dataset (smallest that meets requirement)")
+            resolution_meters = 90
+            
+            print(f"\n    Quality analysis:")
+            print(f"      - Visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each")
+            print(f"      - With 90m source: {oversampling_90m:.2f}x oversampling")
+            print(f"        (Each visible pixel = {oversampling_90m:.2f} source pixels)")
+            print(f"      - With 30m source: {oversampling_30m:.2f}x oversampling")
+            print(f"        (Each visible pixel = {oversampling_30m:.2f} source pixels)")
+            print(f"\n    RESOLUTION SELECTED: 90m ({base_name} 90m)")
+            print(f"      Rationale: Visible pixels ({visible['avg_m_per_pixel']:.0f}m) are large enough")
+            print(f"                 that 90m source provides {oversampling_90m:.2f}x oversampling.")
+            if oversampling_90m >= 2.0:
+                print(f"                 This gives clean integer aggregation ({oversampling_90m:.1f} source pixels")
+                print(f"                 per visible pixel), avoiding fractional pixel composition.")
+            else:
+                print(f"                 While this is above the 2x threshold, it provides adequate quality.")
+            print(f"                 Using 30m would give {oversampling_30m:.1f}x oversampling but waste bandwidth")
+            print(f"                 and storage without providing visible benefit at this scale.")
         else:
             # 30m required for quality
             dataset = base_dataset_30m
             dataset_name = f'{base_name} 30m'
             resolution = '30m'
-            if visible['avg_m_per_pixel'] >= 90:
-                print(f"\n  Quality requirement: minimum 30m resolution")
-                print(f"  Rationale: Visible pixels will be ~{visible['avg_m_per_pixel']:.0f}m each")
-                print(f"            90m input would give marginal quality (1.0-2.0x oversampling)")
-                print(f"            30m input provides better quality and avoids artifacts")
-            else:
-                print(f"\n  Quality requirement: minimum 30m resolution")
-                print(f"  Rationale: Visible pixels will be ~{visible['avg_m_per_pixel']:.0f}m each")
-                print(f"            Detail matters - users can zoom in to see finer detail")
-            print(f"  Auto-selected: 30m dataset (smallest that meets requirement)")
+            resolution_meters = 30
+            
+            print(f"\n    Quality analysis:")
+            print(f"      - Visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each")
+            print(f"      - With 90m source: {oversampling_90m:.2f}x oversampling")
+            print(f"        (Each visible pixel = {oversampling_90m:.2f} source pixels)")
+            if oversampling_90m < 2.0:
+                print(f"        WARNING: This is <2.0x, causing fractional pixel aggregation!")
+                print(f"        Example: Each visible pixel would be composed of parts of only")
+                print(f"        {oversampling_90m:.2f} source pixels, leading to aliasing.")
+            print(f"      - With 30m source: {oversampling_30m:.2f}x oversampling")
+            print(f"        (Each visible pixel = {oversampling_30m:.2f} source pixels)")
+            print(f"\n    RESOLUTION SELECTED: 30m ({base_name} 30m)")
+            print(f"      Rationale: Visible pixels ({visible['avg_m_per_pixel']:.0f}m) require higher")
+            print(f"                 resolution source. Using 90m source would give only")
+            print(f"                 {oversampling_90m:.2f}x oversampling (<2.0x minimum), causing each")
+            print(f"                 visible pixel to be composed of fractional source pixels.")
+            print(f"                 This creates aliasing artifacts and poor quality.")
+            print(f"                 30m source provides {oversampling_30m:.2f}x oversampling, ensuring")
+            print(f"                 each visible pixel aggregates multiple complete source pixels")
+            print(f"                 for clean, artifact-free downsampling.")
+        
+        # Estimate file size for the selected resolution
+        estimated_size_mb = estimate_raw_file_size_mb((west, south, east, north), resolution_meters)
+        print(f"\n    Estimated raw file size: ~{estimated_size_mb:.1f} MB ({resolution} source)")
     else:
         # Override specified: use it
         dataset = dataset_override
@@ -669,19 +757,24 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         if dataset == 'COP30':
             dataset_name = 'Copernicus DEM 30m'
             resolution = '30m'
+            resolution_meters = 30
         elif dataset == 'COP90':
             dataset_name = 'Copernicus DEM 90m'
             resolution = '90m'
+            resolution_meters = 90
         elif dataset == 'SRTMGL1':
             dataset_name = 'SRTM 30m'
             resolution = '30m'
+            resolution_meters = 30
         elif dataset == 'SRTMGL3':
             dataset_name = 'SRTM 90m'
             resolution = '90m'
+            resolution_meters = 90
         else:
             # For other datasets (AW3D30, NASADEM, etc.), default to 30m
             dataset_name = dataset
             resolution = '30m'
+            resolution_meters = 30
         
         print(f"\n  Downloading {region_info['name']}...")
         print(f"  Source: OpenTopography ({dataset_name})")
@@ -689,6 +782,10 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         print(f"  Latitude range: {south:.1f}degN to {north:.1f}degN")
         if dataset == 'COP30':
             print(f"  Note: Using Copernicus DEM (SRTM doesn't cover >60degN)")
+        
+        # Estimate file size for the selected resolution
+        estimated_size_mb = estimate_raw_file_size_mb((west, south, east, north), resolution_meters)
+        print(f"  Estimated raw file size: ~{estimated_size_mb:.1f} MB ({resolution})")
 
     try:
         import requests
@@ -864,14 +961,32 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
     should_tile = (dataset == 'SRTMGL1') and (approx_area_km2 > 420_000 or width_deg > 4.0 or height_deg > 4.0)
 
     if should_tile:
-        print(f"  Region is large ({approx_area_km2:,.0f} km^2). Downloading in tiles...", flush=True)
+        print(f"\n  Region is large ({approx_area_km2:,.0f} km^2). Downloading in tiles...", flush=True)
         # Use conservative tile size in degrees to keep each tile under area and dimension limits
         tiles = calculate_tiles((west, south, east, north), tile_size=3.5)
+        
+        # Calculate tile size estimates
+        total_estimated_size = 0.0
+        tile_estimates = []
+        for tb in tiles:
+            tile_size_mb = estimate_raw_file_size_mb(tb, resolution_meters)
+            total_estimated_size += tile_size_mb
+            tile_estimates.append(tile_size_mb)
+        
+        print(f"  Tiling configuration:")
+        print(f"    Total tiles: {len(tiles)}")
+        print(f"    Tile size: ~3.5 deg x 3.5 deg (maximum)")
+        print(f"    Estimated per-tile size: ~{total_estimated_size / len(tiles):.1f} MB each")
+        print(f"    Total estimated size: ~{total_estimated_size:.1f} MB (before merge)")
+        print(f"    Resolution: {resolution}")
+        
         tiles_dir = Path(f"data/raw/srtm_30m/tiles/{region_id}")
         tiles_dir.mkdir(parents=True, exist_ok=True)
         tile_paths = []
         for idx, tb in enumerate(tiles):
-            print(f"\n  Tile {idx+1}/{len(tiles)} bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
+            estimated_tile_mb = tile_estimates[idx]
+            print(f"\n  Tile {idx+1}/{len(tiles)} (estimated ~{estimated_tile_mb:.1f} MB)", flush=True)
+            print(f"    Bounds: [{tb[0]:.4f}, {tb[1]:.4f}, {tb[2]:.4f}, {tb[3]:.4f}]", flush=True)
             tile_path = tiles_dir / f"{region_id}_tile_{idx:02d}.tif"
             if tile_path.exists():
                 # Strong validation: try to read data to catch partial/corrupt tiles
@@ -906,9 +1021,12 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                             else:
                                 try:
                                     size_mb = tile_path.stat().st_size / (1024 * 1024)
-                                    print(f"  Cached tile present (validated {resolution}): {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                                    estimated_mb = tile_estimates[idx]
+                                    diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
+                                    print(f"    Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
+                                    print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
                                 except Exception:
-                                    print(f"  Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
+                                    print(f"    Cached tile present (validated {resolution}): {tile_path.name}", flush=True)
                                 tile_paths.append(tile_path)
                                 continue
                     except Exception as e:
@@ -925,27 +1043,33 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
                     if _download_bbox(repaired_path, tb, dataset) and validate_geotiff(repaired_path, check_data=True):
                         try:
                             size_mb = repaired_path.stat().st_size / (1024 * 1024)
-                            print(f"  Using repaired tile: {repaired_path.name} ({size_mb:.1f} MB)", flush=True)
+                            estimated_mb = tile_estimates[idx]
+                            diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
+                            print(f"    Using repaired tile: {repaired_path.name}", flush=True)
+                            print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
                         except Exception:
-                            print(f"  Using repaired tile: {repaired_path.name}", flush=True)
+                            print(f"    Using repaired tile: {repaired_path.name}", flush=True)
                         tile_paths.append(repaired_path)
                         continue
                     else:
                         print(f"  Repaired download failed; will skip this tile", flush=True)
                         # fall through to skip
-            print(f"  Downloading tile...", flush=True)
+            print(f"    Downloading tile...", flush=True)
             if not _download_bbox(tile_path, tb, dataset):
-                print(f"  Tile download failed, skipping", flush=True)
+                print(f"    Tile download failed, skipping", flush=True)
                 continue
             if validate_geotiff(tile_path, check_data=True):
                 try:
                     size_mb = tile_path.stat().st_size / (1024 * 1024)
-                    print(f"  Downloaded tile OK: {tile_path.name} ({size_mb:.1f} MB)", flush=True)
+                    estimated_mb = tile_estimates[idx]
+                    diff_pct = ((size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
+                    print(f"    Downloaded tile OK: {tile_path.name}", flush=True)
+                    print(f"      Size: {size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)", flush=True)
                 except Exception:
-                    print(f"  Downloaded tile OK: {tile_path.name}", flush=True)
+                    print(f"    Downloaded tile OK: {tile_path.name}", flush=True)
                 tile_paths.append(tile_path)
             else:
-                print(f"  Invalid tile file, removing", flush=True)
+                print(f"    Invalid tile file, removing", flush=True)
                 try:
                     tile_path.unlink()
                 except Exception:
@@ -953,10 +1077,23 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         if not tile_paths:
             print(f"  No valid tiles downloaded", flush=True)
             return False
+        
+        # Calculate actual total size of tiles
+        actual_tile_total_mb = sum(p.stat().st_size / (1024 * 1024) for p in tile_paths if p.exists())
+        
+        print(f"\n  Download summary:", flush=True)
+        print(f"    Tiles downloaded: {len(tile_paths)}/{len(tiles)}", flush=True)
+        print(f"    Total tile size: {actual_tile_total_mb:.1f} MB (estimated: {total_estimated_size:.1f} MB)", flush=True)
+        
         print(f"\n  Merging {len(tile_paths)} tiles...", flush=True)
         if not merge_tiles(tile_paths, output_file):
             print(f"  Tile merge failed", flush=True)
             return False
+        
+        # Show final merged file size
+        if output_file.exists():
+            final_size_mb = output_file.stat().st_size / (1024 * 1024)
+            print(f"  Merged file size: {final_size_mb:.1f} MB", flush=True)
         # Save metadata for merged file
         try:
             from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
@@ -1171,7 +1308,9 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
 
         print()  # New line after progress
         file_size_mb = output_file.stat().st_size / (1024 * 1024)
-        print(f"  Downloaded successfully ({file_size_mb:.1f} MB)")
+        estimated_mb = estimate_raw_file_size_mb((west, south, east, north), resolution_meters)
+        diff_pct = ((file_size_mb - estimated_mb) / estimated_mb * 100) if estimated_mb > 0 else 0
+        print(f"  Downloaded successfully: {file_size_mb:.1f} MB (estimated: {estimated_mb:.1f} MB, {diff_pct:+.1f}%)")
         # Write raw metadata including bounds so future bound changes can auto-invalidate
         try:
             from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
