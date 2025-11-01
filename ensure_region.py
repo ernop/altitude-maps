@@ -54,7 +54,7 @@ def _path_exists(glob_pattern: str) -> bool:
     return any(glob.glob(glob_pattern, recursive=True))
 
 
-def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
+def determine_min_required_resolution(visible_m_per_pixel: float, allow_lower_quality: bool = False) -> int:
     """
     Determine minimum required source resolution based on visible pixel size.
     
@@ -78,13 +78,16 @@ def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
     
     Args:
         visible_m_per_pixel: Average meters per pixel in final output
+        allow_lower_quality: If True, return best available resolution (30m) even if it
+                            doesn't meet Nyquist requirement. If False, raise ValueError.
         
     Returns:
         Minimum required resolution in meters (10, 30, or 90)
         
     Raises:
         ValueError: If even 30m source doesn't meet the 2.0x Nyquist requirement
-                   (region too small - may need 10m or manual override)
+                   and allow_lower_quality is False (region too small - may need 10m
+                   or manual override)
     """
     # Calculate oversampling ratio for each available source resolution
     oversampling_90m = visible_m_per_pixel / 90.0
@@ -109,10 +112,16 @@ def determine_min_required_resolution(visible_m_per_pixel: float) -> int:
         # Example: 60m visible / 30m = 2.0x (meets minimum exactly)
         return 30
     
-    # Neither 90m nor 30m meets the requirement - error clearly
+    # Neither 90m nor 30m meets the requirement
     # This happens when visible pixels are very small (< 60m)
     # Example: 50m visible / 30m = 1.67x (< 2.0x minimum)
     # Example: 40m visible / 30m = 1.33x (< 2.0x minimum)
+    
+    if allow_lower_quality:
+        # User accepted lower quality - return best available (30m)
+        return 30
+    
+    # Raise error with clear message
     raise ValueError(
         f"Region requires higher resolution than available. "
         f"Visible pixels: {visible_m_per_pixel:.1f}m/pixel. "
@@ -1012,8 +1021,8 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
     km_per_deg_lon = 111.320 * math.cos(math.radians(mid_lat))
     approx_area_km2 = (width_deg * km_per_deg_lon) * (height_deg * km_per_deg_lat)
 
-    # OpenTopography SRTMGL1 has a 450,000 km^2 limit; tile proactively when over ~420k
-    should_tile = (dataset == 'SRTMGL1') and (approx_area_km2 > 420_000 or width_deg > 4.0 or height_deg > 4.0)
+    # OpenTopography SRTMGL1 and COP30 have a 450,000 km^2 limit; tile proactively when over ~420k
+    should_tile = (dataset in ['SRTMGL1', 'COP30']) and (approx_area_km2 > 420_000 or width_deg > 4.0 or height_deg > 4.0)
 
     if should_tile:
         print(f"\n  Region is large ({approx_area_km2:,.0f} km^2). Downloading in tiles...", flush=True)
@@ -1185,13 +1194,13 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         for pi, (bbox, demtype) in enumerate(sub_boxes):
             pw, ps, pe, pn = bbox
             print(f"  Part {pi+1}/{len(sub_boxes)} [{demtype}] bounds: [{pw:.4f}, {ps:.4f}, {pe:.4f}, {pn:.4f}]", flush=True)
-            # Decide tiling for SRTM only
+            # Decide tiling for SRTM and COP30 (both have 450,000 km^2 limit)
             width_deg_p = max(0.0, float(pe - pw))
             height_deg_p = max(0.0, float(pn - ps))
             mid_lat_p = (pn + ps) / 2.0
             km_per_deg_lon_p = 111.320 * math.cos(math.radians(mid_lat_p))
             approx_area_km2_p = (width_deg_p * km_per_deg_lon_p) * (height_deg_p * km_per_deg_lat)
-            tile_needed = (demtype == 'SRTMGL1') and (approx_area_km2_p > 420_000 or width_deg_p > 4.0 or height_deg_p > 4.0)
+            tile_needed = (demtype in ['SRTMGL1', 'COP30']) and (approx_area_km2_p > 420_000 or width_deg_p > 4.0 or height_deg_p > 4.0)
             if tile_needed:
                 tiles = calculate_tiles(bbox, tile_size=3.5)
                 tiles_dir_p = parts_dir / f"tiles_p{pi:02d}"
@@ -1264,7 +1273,7 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         if response.status_code != 200:
             # If area too large, transparently fall back to tiling
             resp_text = response.text or ""
-            if (dataset == 'SRTMGL1') and ("maximum area" in resp_text.lower() or response.status_code == 400):
+            if (dataset in ['SRTMGL1', 'COP30']) and ("maximum area" in resp_text.lower() or response.status_code == 400):
                 print(f" Server rejected single request due to size. Switching to tiled download...", flush=True)
                 # Trigger tiled path
                 # Recursively call this function but force tiling by adjusting threshold
@@ -2478,23 +2487,46 @@ This script will:
             except Exception:
                 return "[unknown]"
 
+        def _format_size(bounds: Tuple[float, float, float, float]) -> str:
+            """Format region size for display."""
+            import math
+            west, south, east, north = bounds
+            width_deg = east - west
+            height_deg = north - south
+            center_lat = (north + south) / 2.0
+            meters_per_deg_lat = 111_320
+            meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+            width_m = width_deg * meters_per_deg_lon
+            height_m = height_deg * meters_per_deg_lat
+            width_mi = width_m / 1609.344
+            height_mi = height_m / 1609.344
+            if width_mi < 0.1:
+                return f"{int(width_mi * 5280)}×{int(height_mi * 5280)} ft"
+            elif width_mi < 1:
+                return f"{width_mi:.2f}×{height_mi:.2f} mi"
+            else:
+                return f"{width_mi:.0f}×{height_mi:.0f} mi"
+
         print("\n  AVAILABLE REGIONS:")
         print("="*70)
         print("\n  US STATES:")
         for state_id in sorted(US_STATES.keys()):
             config = US_STATES[state_id]
             tag = _status_tag(state_id)
-            print(f"    - {state_id:20s} -> {config.name:30s} {tag}")
+            size = _format_size(config.bounds)
+            print(f"    - {state_id:20s} -> {config.name:30s} {size:15s} {tag}")
         print(f"\n  COUNTRIES:")
         for country_id in sorted(COUNTRIES.keys()):
             config = COUNTRIES[country_id]
             tag = _status_tag(country_id)
-            print(f"    - {country_id:20s} -> {config.name:30s} {tag}")
+            size = _format_size(config.bounds)
+            print(f"    - {country_id:20s} -> {config.name:30s} {size:15s} {tag}")
         print(f"\n  REGIONS:")
         for region_id in sorted(REGIONS.keys()):
             config = REGIONS[region_id]
             tag = _status_tag(region_id)
-            print(f"    - {region_id:20s} -> {config.name:30s} {tag}")
+            size = _format_size(config.bounds)
+            print(f"    - {region_id:20s} -> {config.name:30s} {size:15s} {tag}")
         print(f"\n{'='*70}")
         print("Legend: [ready] = appears in viewer manifest; [not ready] = not exported yet")
         print(f"Total: {len(US_STATES)} US states + {len(COUNTRIES)} countries + {len(REGIONS)} regions = {len(US_STATES) + len(COUNTRIES) + len(REGIONS)} total")
@@ -2549,9 +2581,37 @@ This script will:
     else:
         # International: calculate visible pixel size to determine requirement
         visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
-        min_required_resolution = determine_min_required_resolution(visible['avg_m_per_pixel'])
-        print(f"  Quality requirement: minimum {min_required_resolution}m resolution", flush=True)
-        print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
+        try:
+            min_required_resolution = determine_min_required_resolution(visible['avg_m_per_pixel'])
+            print(f"  Quality requirement: minimum {min_required_resolution}m resolution", flush=True)
+            print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
+        except ValueError as e:
+            # Region requires higher resolution than available - ask user if they'll accept lower quality
+            print(f"\n{'='*70}", flush=True)
+            print(f"  WARNING: Quality Issue", flush=True)
+            print(f"{'='*70}", flush=True)
+            print(f"\n  {str(e)}", flush=True)
+            print(f"\n  The best available source (30m) does not meet Nyquist quality standards.", flush=True)
+            print(f"  This may result in some aliasing artifacts in the visualization.", flush=True)
+            print(f"\n  Once we implement 10m downloading, things will improve somewhat!", flush=True)
+            print(f"\n  Do you want to proceed with lower quality data? (yes/no): ", end='', flush=True)
+            
+            try:
+                response = input().strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print("\n  Aborted by user.", flush=True)
+                return 1
+            
+            if response in ('yes', 'y'):
+                # User accepted lower quality - proceed with best available (30m)
+                min_required_resolution = determine_min_required_resolution(
+                    visible['avg_m_per_pixel'], 
+                    allow_lower_quality=True
+                )
+                print(f"\n  Proceeding with {min_required_resolution}m source (lower quality).", flush=True)
+            else:
+                print(f"\n  Aborted. To try again with lower quality, run the command again and accept.", flush=True)
+                return 1
     
     raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
 

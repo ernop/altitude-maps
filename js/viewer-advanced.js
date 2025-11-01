@@ -1,5 +1,5 @@
 // Version tracking
-const VIEWER_VERSION = '1.334';
+const VIEWER_VERSION = '1.335';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -1096,6 +1096,9 @@ function rebucketData() {
     const duration = (performance.now() - startTime).toFixed(2);
     const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
     appendActivityLog(`Bucketed to ${bucketedWidth}x${bucketedHeight} (${reduction}% reduction) in ${duration}ms`);
+
+    // Update Resolution header with footprint and rectangle count
+    updateResolutionInfo();
 }
 
 function createEdgeMarkers() {
@@ -2430,7 +2433,8 @@ function createBarsTerrain(width, height, elevation, scale) {
         material,
         barCount
     );
-    instancedMesh.frustumCulled = false; // Stable bounds; avoid per-frame recomputation cost
+    // Frustum culling enabled: Three.js will compute bounds once and skip off-screen instances
+    // This is more efficient than forcing rendering of all bars, especially when zoomed in
 
     // Set transform and color for each instance using typed mappings
     // Use Float32 colors for exact previous visual appearance (0..1 per channel)
@@ -3675,7 +3679,6 @@ function updateCursorHUD(clientX, clientY) {
     const elevEl = document.getElementById('hud-elev');
     const slopeEl = document.getElementById('hud-slope');
     const aspectEl = document.getElementById('hud-aspect');
-    const footprintEl = document.getElementById('hud-footprint');
     const distEl = document.getElementById('hud-dist');
     if (!elevEl || !processedData) return;
     const world = raycastToWorld(clientX, clientY);
@@ -3683,7 +3686,6 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (footprintEl) footprintEl.textContent = '--';
         if (distEl) distEl.textContent = '--';
         return;
     }
@@ -3692,7 +3694,6 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (footprintEl) footprintEl.textContent = '--';
         if (distEl) {
             const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
             distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
@@ -3708,7 +3709,6 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (footprintEl) footprintEl.textContent = '--';
         if (distEl) {
             const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
             distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
@@ -3723,12 +3723,6 @@ function updateCursorHUD(clientX, clientY) {
     elevEl.textContent = elevText;
     if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
     if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
-    if (footprintEl) {
-        const footprintMetersX = processedData.bucketSizeMetersX || 0;
-        const footprintMetersY = processedData.bucketSizeMetersY || 0;
-        const footprintText = formatFootprint(footprintMetersX, footprintMetersY, units);
-        footprintEl.textContent = footprintText;
-    }
     if (distEl) {
         const dMeters = computeDistanceToNearestBorderMetersGeo(world.x, world.z);
         distEl.textContent = (dMeters != null && isFinite(dMeters)) ? formatDistance(dMeters, units) : '--';
@@ -3741,10 +3735,10 @@ function loadHudSettings() {
         const parsed = raw ? JSON.parse(raw) : null;
         hudSettings = parsed || {
             units: 'metric', // 'metric'|'imperial'|'both'
-            show: { elevation: true, slope: true, aspect: true, footprint: true, distance: false }
+            show: { elevation: true, slope: true, aspect: true, distance: false }
         };
     } catch (_) {
-        hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, footprint: true, distance: false } };
+        hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, distance: false } };
     }
 }
 
@@ -3760,25 +3754,21 @@ function applyHudSettingsToUI() {
     const rowElev = document.getElementById('hud-row-elev');
     const rowSlope = document.getElementById('hud-row-slope');
     const rowAspect = document.getElementById('hud-row-aspect');
-    const rowFootprint = document.getElementById('hud-row-footprint');
     const rowDist = document.getElementById('hud-row-dist');
     const rowRelief = document.getElementById('hud-row-relief');
     if (rowElev) rowElev.style.display = hudSettings.show.elevation ? '' : 'none';
     if (rowSlope) rowSlope.style.display = hudSettings.show.slope ? '' : 'none';
     if (rowAspect) rowAspect.style.display = hudSettings.show.aspect ? '' : 'none';
-    if (rowFootprint) rowFootprint.style.display = hudSettings.show.footprint ? '' : 'none';
     if (rowDist) rowDist.style.display = hudSettings.show.distance ? '' : 'none';
     if (rowRelief) rowRelief.style.display = hudSettings.show.relief ? '' : 'none';
     const chkElev = document.getElementById('hud-show-elev');
     const chkSlope = document.getElementById('hud-show-slope');
     const chkAspect = document.getElementById('hud-show-aspect');
-    const chkFootprint = document.getElementById('hud-show-footprint');
     const chkDist = document.getElementById('hud-show-dist');
     const chkRelief = document.getElementById('hud-show-relief');
     if (chkElev) chkElev.checked = !!hudSettings.show.elevation;
     if (chkSlope) chkSlope.checked = !!hudSettings.show.slope;
     if (chkAspect) chkAspect.checked = !!hudSettings.show.aspect;
-    if (chkFootprint) chkFootprint.checked = !!hudSettings.show.footprint;
     if (chkDist) chkDist.checked = !!hudSettings.show.distance;
     if (chkRelief) chkRelief.checked = !!hudSettings.show.relief;
 }
@@ -3802,7 +3792,6 @@ function bindHudSettingsHandlers() {
         { id: 'hud-show-elev', key: 'elevation' },
         { id: 'hud-show-slope', key: 'slope' },
         { id: 'hud-show-aspect', key: 'aspect' },
-        { id: 'hud-show-footprint', key: 'footprint' },
         { id: 'hud-show-dist', key: 'distance' },
         { id: 'hud-show-relief', key: 'relief' }
     ];
@@ -3863,6 +3852,26 @@ function formatFootprint(metersX, metersY, units) {
         const fmtYi = miY < 0.5 ? `${Math.round(feetY)} ft` : `${miY.toFixed(2)} mi`;
         return `${fmtXm} × ${fmtYm} / ${fmtXi} × ${fmtYi}`;
     }
+}
+
+function updateResolutionInfo() {
+    const infoEl = document.getElementById('resolution-info');
+    if (!infoEl || !processedData) return;
+
+    const metersX = processedData.bucketSizeMetersX || 0;
+    const metersY = processedData.bucketSizeMetersY || 0;
+    const totalRectangles = processedData.width * processedData.height;
+
+    // Format footprint as "1box = 123x123m"
+    const roundedX = Math.round(metersX);
+    const roundedY = Math.round(metersY);
+    const footprintText = `1box = ${roundedX}x${roundedY}m`;
+
+    // Round total rectangles to nearest thousand
+    const roundedTotal = Math.round(totalRectangles / 1000);
+    const totalText = `${roundedTotal}k total`;
+
+    infoEl.textContent = `${footprintText} · ${totalText}`;
 }
 
 function getMetersScalePerWorldUnit() {

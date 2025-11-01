@@ -409,6 +409,15 @@ REGIONS: Dict[str, RegionConfig] = {
         category="region",
         clip_boundary=False,
     ),
+    "central_new_jersey": RegionConfig(
+        id="central_new_jersey",
+        name="Central New Jersey",
+        bounds=(-74.857, 40.152, -74.286, 40.587),
+        description="USA - Central New Jersey region, roughly square area starting ~6 miles NE of Piscataway and extending ~30 miles southwest",
+        category="region",
+        country="United States of America",
+        clip_boundary=False,
+    ),
     "arkhangelsk_area": RegionConfig(
         id="arkhangelsk_area",
         name="Arkhangelsk Area",

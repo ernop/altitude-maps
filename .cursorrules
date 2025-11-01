@@ -19,6 +19,18 @@ This rule applies to ALL files: .md, .py, .js, .html, .css, .txt, and any other 
 
 Take a moment to review with fresh perspective before moving on. Catch issues early!
 
+## VERSION BUMP REMINDER
+
+**After significant changes (features, bug fixes, UI updates), bump the version:**
+
+```bash
+python bump_version.py        # Patch increment (bug fixes, minor tweaks)
+python bump_version.py minor  # Minor increment (new features, improvements)  
+python bump_version.py major  # Major increment (breaking changes, redesigns)
+```
+
+This updates viewer version and cache busters. See "Version Bumping" section for details.
+
 ---
 
 ## Project Context
@@ -433,6 +445,7 @@ update() {
 - Never describe your own work as "stunning", "beautiful", "incredible" - don't be a braggart
 - Be humble about work you've done, not ostentatiously humble, just light and clear
 - Explain things as needed without self-praise
+- **Bump version before ending session** - Run `python bump_version.py` after user-facing changes
 
 **What "learnings" actually means:**
 - Learnings are about project-specific constraints, patterns, and gotchas discovered through experience
@@ -562,6 +575,11 @@ python border_utils.py --test your_data.tif  # Test borders on data
 # Production deployment
 .\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun  # test
 .\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy          # deploy
+
+# Version bumping (after significant changes)
+python bump_version.py        # Patch increment (default: 1.335 -> 1.335.1)
+python bump_version.py minor  # Minor increment (1.335 -> 1.336)
+python bump_version.py major  # Major increment (1.335 -> 2.0)
 ```
 
 ## Production Deployment
@@ -616,6 +634,27 @@ Scripts use `rsync` to:
 - Show progress
 
 See `DEPLOY_README.md` for detailed deployment documentation.
+
+### Version Bumping
+
+After significant changes, increment the viewer version to bust browser caches:
+
+```bash
+python bump_version.py        # Patch: 1.335 -> 1.335.1 (bug fixes, minor tweaks)
+python bump_version.py minor  # Minor: 1.335 -> 1.336 (new features, improvements)
+python bump_version.py major  # Major: 1.335 -> 2.0 (breaking changes, major redesigns)
+```
+
+**What it does:**
+1. Updates `VIEWER_VERSION` in `js/viewer-advanced.js`
+2. Automatically syncs HTML cache busters
+3. Ready to deploy
+
+**When to bump:**
+- User-facing changes (new features, bug fixes, UI changes)
+- Before deployment of significant work
+- After completing a development session
+- NOT needed for internal refactoring or documentation updates
 
 ## Automation Goals
 - Minimize manual steps

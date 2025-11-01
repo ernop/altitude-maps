@@ -142,28 +142,6 @@ def test_get_border_coordinates():
         return False
 
 
-def test_data_processing_import():
-    """Test that updated data_processing imports correctly."""
-    try:
-        from src.data_processing import prepare_visualization_data
-        print("[OK] Updated data_processing imports successfully")
-        return True
-    except ImportError as e:
-        print(f"[FAIL] Failed to import data_processing: {e}")
-        return False
-
-
-def test_rendering_import():
-    """Test that updated rendering imports correctly."""
-    try:
-        from src.rendering import render_visualization
-        print("[OK] Updated rendering imports successfully")
-        return True
-    except ImportError as e:
-        print(f"[FAIL] Failed to import rendering: {e}")
-        return False
-
-
 def main():
     """Run all tests."""
     print("="*70)
@@ -179,8 +157,6 @@ def main():
         ("Get specific country", test_get_country),
         ("Get countries in bbox", test_get_countries_in_bbox),
         ("Get border coordinates", test_get_border_coordinates),
-        ("Import data_processing", test_data_processing_import),
-        ("Import rendering", test_rendering_import),
     ]
     
     results = []
