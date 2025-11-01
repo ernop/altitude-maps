@@ -976,11 +976,9 @@ def run_pipeline(
 
     # [STAGE 8/10] Export to JSON (include resolution in filename for cache safety)
     print(f"\n[STAGE 8/10] Exporting to JSON for web viewer...")
-    # Generate abstract filename based on raw file bounds (no region_id)
-    from ensure_region import abstract_filename_from_raw
-    exported_filename = abstract_filename_from_raw(raw_tif_path, 'exported', source, target_pixels=target_pixels)
-    if exported_filename is None:
-        raise ValueError(f"Could not generate abstract filename for exported file - bounds extraction failed for {raw_tif_path}")
+    # Exported JSON files use region_id-based naming (viewer-specific, not reusable data)
+    # They're already clipped to specific boundaries and filtered for this viewer
+    exported_filename = f"{region_id}_{source}_{target_pixels}px_v2.json"
     exported_path = generated_dir / exported_filename
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths

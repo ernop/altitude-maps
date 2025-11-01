@@ -175,8 +175,11 @@ def abstract_filename_from_raw(raw_path: Path, stage: str, source: str,
         # Processed files: bounds + source + target_pixels
         return f"{base_part}_processed_{target_pixels}px_v2.tif"
     elif stage == 'exported':
-        # Exported files: bounds + source + target_pixels
-        return f"{base_part}_{target_pixels}px_v2.json"
+        # NOTE: Exported JSON files should NOT use abstract naming
+        # They use region_id-based naming because they're viewer-specific exports
+        # that are already clipped to specific boundaries and filtered for a particular viewer.
+        # Use f"{region_id}_{source}_{target_pixels}px_v2.json" instead.
+        raise ValueError("Exported JSON files use region_id-based naming, not abstract naming. Use explicit region_id in filename.")
     
     return None
 
@@ -2610,10 +2613,9 @@ def run_pipeline(
 
     # Stage 9: export JSON
     print(f"\n[STAGE 9/10] Exporting for web viewer...")
-    # Generate abstract filename based on raw file bounds (no region_id)
-    exported_filename = abstract_filename_from_raw(raw_tif_path, 'exported', source, target_pixels=target_pixels)
-    if exported_filename is None:
-        raise ValueError(f"Could not generate abstract filename for exported file - bounds extraction failed for {raw_tif_path}")
+    # Exported JSON files use region_id-based naming (viewer-specific, not reusable data)
+    # They're already clipped to specific boundaries and filtered for this viewer
+    exported_filename = f"{region_id}_{source}_{target_pixels}px_v2.json"
     exported_path = generated_dir / exported_filename
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths

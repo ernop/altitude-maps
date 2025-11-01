@@ -161,6 +161,37 @@ Session notes and development threads only:
 - Scalable to global datasets without filename collisions
 - Cache invalidation handled via dataset/resolution fields (not coordinate changes)
 
+#### File Naming Philosophy: Abstract vs Specific
+
+**Core Principle**: Use naming schemes that match the reusability and purpose of the data. The choice between abstract bounds-based naming and region_id-based naming should reflect whether the data is reusable global data or viewer-specific exports.
+
+**Abstract Bounds-Based Naming** (for reusable global data):
+- **Use for**: Raw downloads, processed GeoTIFFs, clipped data that could be shared across regions
+- **Format**: `bbox_{bounds}_{dataset}_{resolution}.tif` (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
+- **Why**: Enables content-based reuse - multiple regions can share same raw/processed files
+- **Examples**: 
+  - Raw bbox downloads: `data/raw/srtm_30m/bbox_{bounds}_{dataset}_{res}.tif`
+  - Processed GeoTIFFs: `data/processed/{source}/{base_part}_processed_{pixels}px_v2.tif`
+  - Clipped files: `data/clipped/{source}/{base_part}_clipped_{hash}_v1.tif`
+
+**Region-Specific Naming** (for viewer exports and filtered data):
+- **Use for**: Exported JSON files for web viewer, any data already filtered/clipped to specific boundaries
+- **Format**: `{region_id}_{source}_{pixels}px_v2.json` (e.g., `ohio_srtm_30m_2048px_v2.json`)
+- **Why**: These are viewer-specific exports that are already clipped to specific boundaries and filtered. They're not reusable across regions - each region has its own filtered/clipped export.
+- **Examples**:
+  - Viewer JSON exports: `generated/regions/{region_id}_{source}_{pixels}px_v2.json`
+  - Manifest references files by `region_id` → filename mapping
+
+**Decision Tree**:
+1. Is the data **reusable across multiple regions** (same bounds, same source)? → Use abstract naming
+2. Is the data **already filtered/clipped to specific boundaries** and viewer-specific? → Use region_id naming
+3. Is the data a **final export for a specific use case** (viewer, visualization)? → Use region_id naming
+
+**Data Hierarchy Understanding**:
+- **Raw files** (`data/raw/`): Source of truth - preserve exactly as downloaded. These enable regeneration of all downstream files. Use abstract naming for reuse potential.
+- **Processed files** (`data/clipped/`, `data/processed/`): Can regenerate from raw. Use abstract naming for reuse potential.
+- **Exported files** (`generated/regions/`): Final viewer exports - use region_id naming since they're viewer-specific and already filtered.
+
 #### Core Data Principles - CRITICAL
 
 **Principle 1: Preserve Real-World Proportions**

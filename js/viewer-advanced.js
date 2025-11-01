@@ -1298,6 +1298,27 @@ function benchmarkGPU(testRenderer, testGL) {
     };
 
     try {
+        // Create off-screen canvas for benchmark to avoid visual interference
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 256;
+        offscreenCanvas.height = 256;
+        const offscreenGL = offscreenCanvas.getContext('webgl', { preserveDrawingBuffer: false });
+
+        if (!offscreenGL) {
+            // Fallback: skip benchmark if off-screen context not available
+            return benchmark;
+        }
+
+        // Create off-screen renderer for benchmark
+        const offscreenRenderer = new THREE.WebGLRenderer({
+            canvas: offscreenCanvas,
+            context: offscreenGL,
+            antialias: false,
+            alpha: false
+        });
+        offscreenRenderer.setSize(256, 256);
+        offscreenRenderer.setPixelRatio(1);
+
         const testScene = new THREE.Scene();
         const testCamera = new THREE.PerspectiveCamera(60, 1, 1, 1000);
         testCamera.position.set(0, 0, 100);
@@ -1328,7 +1349,7 @@ function benchmarkGPU(testRenderer, testGL) {
         // Benchmark: 100 frames
         const startTime = performance.now();
         for (let i = 0; i < 100; i++) {
-            testRenderer.render(testScene, testCamera);
+            offscreenRenderer.render(testScene, testCamera);
         }
         const endTime = performance.now();
         const avgFrameTime = (endTime - startTime) / 100;
@@ -1343,6 +1364,7 @@ function benchmarkGPU(testRenderer, testGL) {
         material.dispose();
         mesh.dispose();
         light.dispose();
+        offscreenRenderer.dispose();
 
     } catch (e) {
         console.warn('GPU benchmark failed:', e);
