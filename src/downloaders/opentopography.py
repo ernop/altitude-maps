@@ -11,6 +11,11 @@ from tqdm import tqdm
 
 from load_settings import get_opentopography_api_key
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
+from src.downloaders.rate_limit import (
+    check_rate_limit,
+    record_rate_limit_hit,
+    record_successful_request
+)
 
 
 class OpenTopographyRateLimitError(Exception):
@@ -70,6 +75,13 @@ def download_srtm(
         'API_Key': api_key
     }
 
+    # Check shared rate limit state before attempting download
+    ok, reason = check_rate_limit()
+    if not ok:
+        print(f"\n  Rate limit active: {reason}", flush=True)
+        print(f"  Skipping download until rate limit clears", flush=True)
+        return False
+    
     print(f" Downloading from OpenTopography...", flush=True)
     print(f" Bounds: ({west:.2f}, {south:.2f}) to ({east:.2f}, {north:.2f})", flush=True)
     print(f" Size: {width:.2f}deg x {height:.2f}deg", flush=True)
@@ -79,9 +91,13 @@ def download_srtm(
         
         # Check for 401 (Unauthorized) - rate limit or quota exceeded
         if response.status_code == 401:
+            # Record rate limit hit in shared state file
+            record_rate_limit_hit(response.status_code)
+            
             print(f"\n ERROR: OpenTopography returned 401 Unauthorized", flush=True)
             print(f" This usually means rate limit or quota exceeded.", flush=True)
-            print(f" Please wait before trying again to let the API relax.", flush=True)
+            print(f" Rate limit recorded in shared state file.", flush=True)
+            print(f" All download processes will respect this limit.", flush=True)
             print(f" STOPPING all downloads to respect their limits.", flush=True)
             raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
         
@@ -99,6 +115,9 @@ def download_srtm(
 
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
         print(f" Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+
+        # Record successful request in shared state
+        record_successful_request()
 
         metadata = create_raw_metadata(
             tif_path=output_path,
@@ -176,6 +195,13 @@ def download_copernicus(
         'API_Key': api_key
     }
 
+    # Check shared rate limit state before attempting download
+    ok, reason = check_rate_limit()
+    if not ok:
+        print(f"\n  Rate limit active: {reason}", flush=True)
+        print(f"  Skipping download until rate limit clears", flush=True)
+        return False
+    
     print(f" Downloading Copernicus DEM ({resolution})...", flush=True)
 
     try:
@@ -183,9 +209,13 @@ def download_copernicus(
         
         # Check for 401 (Unauthorized) - rate limit or quota exceeded
         if response.status_code == 401:
+            # Record rate limit hit in shared state file
+            record_rate_limit_hit(response.status_code)
+            
             print(f"\n ERROR: OpenTopography returned 401 Unauthorized", flush=True)
             print(f" This usually means rate limit or quota exceeded.", flush=True)
-            print(f" Please wait before trying again to let the API relax.", flush=True)
+            print(f" Rate limit recorded in shared state file.", flush=True)
+            print(f" All download processes will respect this limit.", flush=True)
             print(f" STOPPING all downloads to respect their limits.", flush=True)
             raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
         
@@ -203,6 +233,9 @@ def download_copernicus(
 
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
         print(f" Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+
+        # Record successful request in shared state
+        record_successful_request()
 
         metadata = create_raw_metadata(
             tif_path=output_path,

@@ -16,7 +16,6 @@ IMPORTANT: This file is for REGION DEFINITIONS only.
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 from pathlib import Path
-import math
 
 from src.types import RegionType
 
@@ -647,6 +646,24 @@ REGIONS: Dict[str, RegionConfig] = {
         country="Mexico",
         clip_boundary=False,
         tiles=(2, 3),  # 7.7deg x 9.9deg -> 2x3 tiles for API friendliness
+    ),
+    "massanutten_mountain": RegionConfig(
+        id="massanutten_mountain",
+        name="Massanutten Mountain",
+        bounds=(-78.8, 38.6, -78.5, 38.9),
+        description="Virginia - Massanutten Mountain, distinctive ridgeline in Shenandoah Valley, ~50 miles long",
+        region_type=RegionType.REGION,
+        country="United States of America",
+        clip_boundary=False,
+    ),
+    "mount_washington": RegionConfig(
+        id="mount_washington",
+        name="Mount Washington",
+        bounds=(-71.4, 44.2, -71.2, 44.35),
+        description="New Hampshire - Mount Washington peak area, famous for extreme weather and 231 mph wind record",
+        region_type=RegionType.REGION,
+        country="United States of America",
+        clip_boundary=False,
     ),
 }
 

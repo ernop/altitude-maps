@@ -5,13 +5,18 @@
  * MODULAR ARCHITECTURE:
  * This file coordinates between specialized modules, each handling a specific domain:
  * 
- * - js/color-schemes.js        → Color palettes and descriptions
- * - js/camera-schemes.js       → Camera control implementations (Google Maps, Blender, etc.)
- * - js/ground-plane-camera.js  → Ground plane camera system (default)
- * - js/bucketing.js            → Data aggregation and downsampling
- * - js/gpu-info.js             → GPU detection and performance benchmarking
- * - js/geometry-utils.js       → Spatial calculations and coordinate conversions
- * - js/format-utils.js         → Data formatting (units, distances, file sizes)
+ * - color-schemes.js        → Color palettes and descriptions
+ * - camera-schemes.js       → Camera control implementations (Google Maps, Blender, etc.)
+ * - ground-plane-camera.js  → Ground plane camera system (default)
+ * - bucketing.js            → Data aggregation and downsampling
+ * - gpu-info.js             → GPU detection and performance benchmarking
+ * - geometry-utils.js       → Spatial calculations and coordinate conversions
+ * - format-utils.js         → Data formatting (units, distances, file sizes)
+ * - activity-log.js         → UI activity log (timestamped events, copy to clipboard)
+ * - edge-markers.js         → Directional markers (N/E/S/W labels at terrain edges)
+ * - ui-loading.js           → Loading screen and progress bar management
+ * - borders-contours.js     → Border lines and elevation contours rendering
+ * - resolution-controls.js  → Resolution slider, bucket size presets (MAX/DEFAULT)
  * 
  * This main file handles:
  * - Application initialization and lifecycle
@@ -45,6 +50,10 @@ let borderSegmentsMeters = []; // Flattened list of border line segments in mete
 let borderSegmentsGeo = []; // [{axLon, axLat, bxLon, bxLat}]
 let borderGeoIndex = null; // Map of cellKey -> array of segment indices
 let borderGeoCellSizeDeg = 0.25; // spatial hash cell size in degrees
+
+// Recent regions tracking (max 10 most recent)
+const MAX_RECENT_REGIONS = 10;
+let recentRegions = []; // Array of region IDs in order (most recent first)
 
 // Temporary color reused to avoid per-vertex allocations
 const __tmpColor = new THREE.Color();
@@ -95,38 +104,12 @@ function debounce(func, wait) {
     };
 }
 
-// UI activity log utilities
+// Activity log utilities now in js/activity-log.js
+// These are re-exported globally by the module, but keep wrapper for internal use
 function appendActivityLog(message) {
-    const logEls = document.querySelectorAll('#activityLog');
-    if (!logEls || logEls.length === 0) return;
-    const time = new Date().toLocaleTimeString();
-    const text = `[${time}] ${message}`;
-    logEls.forEach((logEl) => {
-        const row = document.createElement('div');
-        row.textContent = text;
-        logEl.appendChild(row);
-        // Natural auto-scroll to bottom
-        logEl.scrollTop = logEl.scrollHeight;
-    });
+    return window.ActivityLog.append(message);
 }
-
-// Significant event helper (policy: add genuinely meaningful events)
-window.logSignificant = function (message) {
-    try { appendActivityLog(`[IMPORTANT] ${message}`); } catch (_) { }
-};
-
-// Copy all log text from all activityLog containers to clipboard
-window.copyActivityLogs = async function () {
-    try {
-        const logEls = Array.from(document.querySelectorAll('#activityLog'));
-        const texts = logEls.map(el => el.innerText.trim()).filter(Boolean);
-        const combined = texts.join('\n');
-        await navigator.clipboard.writeText(combined);
-        appendActivityLog('Logs copied to clipboard.');
-    } catch (e) {
-        appendActivityLog(`Failed to copy logs: ${e && e.message ? e.message : e}`);
-    }
-};
+// window.logSignificant and window.copyActivityLogs are defined in activity-log.js
 
 function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
     let entry = null;
@@ -349,39 +332,11 @@ async function init() {
             hudMin.addEventListener('click', () => { hud.style.display = 'none'; hudExp.style.display = 'block'; });
             hudExp.addEventListener('click', () => { hud.style.display = ''; hudExp.style.display = 'none'; });
         }
-        // Ensure dropdown is filled for initial interaction
-        const dropdown = document.getElementById('regionDropdown');
-        if (dropdown && regionOptions.length) {
-            dropdown.innerHTML = '';
-            regionOptions.forEach((opt) => {
-                if (opt.id === '__divider__') {
-                    const div = document.createElement('div');
-                    div.setAttribute('data-divider', 'true');
-                    div.style.margin = '6px 0';
-                    div.style.borderTop = '1px solid rgba(85,136,204,0.35)';
-                    div.style.opacity = '0.8';
-                    dropdown.appendChild(div);
-                    return;
-                }
-                const row = document.createElement('div');
-                row.textContent = opt.name;
-                row.setAttribute('data-id', opt.id);
-                row.style.padding = '8px 10px';
-                row.style.cursor = 'pointer';
-                row.style.fontSize = '12px';
-                row.style.borderBottom = '1px solid rgba(85,136,204,0.12)';
-                row.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    if (opt.id && opt.id !== currentRegionId) {
-                        loadRegion(opt.id);
-                    }
-                    const input = document.getElementById('regionSelect');
-                    if (input) input.value = opt.name;
-                    dropdown.style.display = 'none';
-                });
-                dropdown.appendChild(row);
-            });
-        }
+        // Rebuild dropdown for initial interaction (uses rebuildRegionDropdown function)
+        rebuildRegionDropdown();
+
+        // Update navigation hints for initial region
+        updateRegionNavHints();
 
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
@@ -548,6 +503,157 @@ async function loadRegionsManifest() {
     }
 }
 
+// Recent regions management
+function loadRecentRegions() {
+    try {
+        const stored = localStorage.getItem('recentRegions');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                recentRegions = parsed.slice(0, MAX_RECENT_REGIONS);
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('Could not load recent regions:', e);
+    }
+    recentRegions = [];
+}
+
+function saveRecentRegions() {
+    try {
+        localStorage.setItem('recentRegions', JSON.stringify(recentRegions));
+    } catch (e) {
+        console.warn('Could not save recent regions:', e);
+    }
+}
+
+function addToRecentRegions(regionId) {
+    if (!regionId || regionId === 'default') return;
+
+    // Remove if already in list
+    recentRegions = recentRegions.filter(id => id !== regionId);
+
+    // Add to front
+    recentRegions.unshift(regionId);
+
+    // Trim to max size
+    if (recentRegions.length > MAX_RECENT_REGIONS) {
+        recentRegions = recentRegions.slice(0, MAX_RECENT_REGIONS);
+    }
+
+    saveRecentRegions();
+}
+
+function getValidRecentRegions() {
+    // Filter recent regions to only include those that still exist in manifest
+    if (!regionsManifest || !regionsManifest.regions) return [];
+    return recentRegions.filter(id => regionsManifest.regions[id]);
+}
+
+function rebuildRegionDropdown() {
+    // Rebuild regionOptions array with current recent regions
+    if (!regionsManifest || !regionsManifest.regions) return;
+
+    regionOptions = [];
+
+    // Build groups again
+    const internationalCountries = [];
+    const nonCountryRegions = [];
+    const unitedStates = [];
+
+    for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
+        const id = regionId;
+        const region_type = (regionInfo && regionInfo.region_type) ? String(regionInfo.region_type).toLowerCase() : null;
+        if (region_type === 'usa_state') {
+            unitedStates.push({ id, info: regionInfo });
+        } else if (region_type === 'country') {
+            internationalCountries.push({ id, info: regionInfo });
+        } else if (region_type === 'region') {
+            nonCountryRegions.push({ id, info: regionInfo });
+        } else {
+            nonCountryRegions.push({ id, info: regionInfo });
+        }
+    }
+
+    // 0) Recent regions (if any)
+    const validRecent = getValidRecentRegions();
+    if (validRecent.length > 0) {
+        for (const id of validRecent) {
+            const info = regionsManifest.regions[id];
+            if (info) {
+                regionOptions.push({ id, name: info.name, isRecent: true });
+            }
+        }
+        regionOptions.push({ id: '__divider__', name: '' });
+    }
+
+    // 1) Countries (alpha)
+    internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of internationalCountries) {
+        regionOptions.push({ id, name: info.name });
+    }
+    if (internationalCountries.length && (nonCountryRegions.length || unitedStates.length)) {
+        regionOptions.push({ id: '__divider__', name: '' });
+    }
+
+    // 2) Regions (alpha)
+    nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of nonCountryRegions) {
+        regionOptions.push({ id, name: info.name });
+    }
+    if (nonCountryRegions.length && unitedStates.length) {
+        regionOptions.push({ id: '__divider__', name: '' });
+    }
+
+    // 3) US states (alpha)
+    unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of unitedStates) {
+        regionOptions.push({ id, name: info.name });
+    }
+
+    // Rebuild the DOM dropdown
+    const dropdown = document.getElementById('regionDropdown');
+    if (dropdown) {
+        dropdown.innerHTML = '';
+        regionOptions.forEach((opt) => {
+            if (opt.id === '__divider__') {
+                const div = document.createElement('div');
+                div.setAttribute('data-divider', 'true');
+                div.style.margin = '6px 0';
+                div.style.borderTop = '1px solid rgba(85,136,204,0.35)';
+                div.style.opacity = '0.8';
+                dropdown.appendChild(div);
+                return;
+            }
+            const row = document.createElement('div');
+            row.textContent = opt.name;
+            row.setAttribute('data-id', opt.id);
+            row.style.padding = '8px 10px';
+            row.style.cursor = 'pointer';
+            row.style.fontSize = '12px';
+            row.style.borderBottom = '1px solid rgba(85,136,204,0.12)';
+
+            // Add visual indicator for recent regions
+            if (opt.isRecent) {
+                row.style.color = '#88ccff'; // Lighter blue for recent items
+                row.style.fontWeight = '500';
+            }
+
+            row.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                if (opt.id && opt.id !== currentRegionId) {
+                    loadRegion(opt.id);
+                }
+                const input = document.getElementById('regionSelect');
+                if (input) input.value = opt.name;
+                dropdown.style.display = 'none';
+            });
+            dropdown.appendChild(row);
+        });
+    }
+}
+
 async function populateRegionSelector() {
     const inputEl = document.getElementById('regionSelect');
     const listEl = document.getElementById('regionList');
@@ -570,59 +676,74 @@ async function populateRegionSelector() {
     // Check localStorage for last viewed region
     const lastRegion = localStorage.getItem('lastViewedRegion');
 
-    // Build maps and populate options for custom dropdown
+    // Load recent regions from localStorage
+    loadRecentRegions();
+
+    // Build maps first (needed for all regions)
     regionIdToName = {};
     regionNameToId = {};
+    for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
+        regionIdToName[regionId] = regionInfo.name;
+        regionNameToId[regionInfo.name.toLowerCase()] = regionId;
+    }
+
+    // Build options for custom dropdown
     regionOptions = [];
 
-    // Build three groups using manifest-provided categories:
-    // Desired order in dropdown: 1) US states, 2) Regions (non-country), 3) Countries (international)
+    // Build groups using manifest-provided region_type:
+    // Desired order in dropdown: 0) Recent, 1) Countries (international), 2) Regions (non-country), 3) US states
     const internationalCountries = [];
     const nonCountryRegions = [];
     const unitedStates = [];
 
     for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
         const id = regionId;
-        const category = (regionInfo && regionInfo.category) ? String(regionInfo.category).toLowerCase() : null;
-        if (category === 'usa_state') {
+        const region_type = (regionInfo && regionInfo.region_type) ? String(regionInfo.region_type).toLowerCase() : null;
+        if (region_type === 'usa_state') {
             unitedStates.push({ id, info: regionInfo });
-        } else if (category === 'country') {
+        } else if (region_type === 'country') {
             internationalCountries.push({ id, info: regionInfo });
-        } else if (category === 'region') {
+        } else if (region_type === 'region') {
             nonCountryRegions.push({ id, info: regionInfo });
         } else {
-            // Fallback: treat unknown categories as generic regions
+            // Fallback: treat unknown region_type as generic regions
             nonCountryRegions.push({ id, info: regionInfo });
         }
     }
 
-    // 1) US states (alpha)
-    unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of unitedStates) {
-        regionIdToName[id] = info.name;
-        regionNameToId[info.name.toLowerCase()] = id;
+    // 0) Recent regions (if any)
+    const validRecent = getValidRecentRegions();
+    if (validRecent.length > 0) {
+        for (const id of validRecent) {
+            const info = regionsManifest.regions[id];
+            if (info) {
+                regionOptions.push({ id, name: info.name, isRecent: true });
+            }
+        }
+        regionOptions.push({ id: '__divider__', name: '' });
+    }
+
+    // 1) Countries (alpha)
+    internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of internationalCountries) {
         regionOptions.push({ id, name: info.name });
     }
-    if (unitedStates.length && (nonCountryRegions.length || internationalCountries.length)) {
+    if (internationalCountries.length && (nonCountryRegions.length || unitedStates.length)) {
         regionOptions.push({ id: '__divider__', name: '' });
     }
 
     // 2) Regions (alpha)
     nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
     for (const { id, info } of nonCountryRegions) {
-        regionIdToName[id] = info.name;
-        regionNameToId[info.name.toLowerCase()] = id;
         regionOptions.push({ id, name: info.name });
     }
-    if (nonCountryRegions.length && internationalCountries.length) {
+    if (nonCountryRegions.length && unitedStates.length) {
         regionOptions.push({ id: '__divider__', name: '' });
     }
 
-    // 3) Countries (alpha)
-    internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of internationalCountries) {
-        regionIdToName[id] = info.name;
-        regionNameToId[info.name.toLowerCase()] = id;
+    // 3) US states (alpha)
+    unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
+    for (const { id, info } of unitedStates) {
         regionOptions.push({ id, name: info.name });
     }
 
@@ -732,6 +853,15 @@ async function loadRegion(regionId) {
         // Save to localStorage so we remember this region next time
         localStorage.setItem('lastViewedRegion', regionId);
 
+        // Add to recent regions list
+        addToRecentRegions(regionId);
+
+        // Rebuild dropdown to reflect updated recent regions
+        rebuildRegionDropdown();
+
+        // Update navigation hints
+        updateRegionNavHints();
+
         // Update URL parameter so the link is shareable
         updateURLParameter('region', regionId);
 
@@ -787,42 +917,22 @@ async function loadRegion(regionId) {
     }
 }
 
-function showLoading(message = 'Loading elevation data...') {
-    isCurrentlyLoading = true;
-    const loadingDiv = document.getElementById('loading');
-    loadingDiv.innerHTML = `
- <div style="text-align: center;">
- ${message}
- <div class="spinner"></div>
- <div id="progress-container" style="margin-top: 15px; width: 300px;">
- <div id="progress-bar-bg" style="width: 100%; height: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden;">
- <div id="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg,#4488cc,#5599dd); transition: width 0.3s ease;"></div>
- </div>
- <div id="progress-text" style="margin-top: 8px; font-size: 13px; color:#aaa;">Initializing...</div>
- </div>
- </div>
- `;
-    loadingDiv.style.display = 'flex';
+// UI loading states now in ui-loading.js
+function showLoading(message) {
+    return window.UILoading.show(message);
 }
 
 function updateLoadingProgress(percent, loaded, total) {
-    const progressFill = document.getElementById('progress-bar-fill');
-    const progressText = document.getElementById('progress-text');
+    return window.UILoading.updateProgress(percent, loaded, total);
+}
 
-    if (!progressFill || !progressText) return;
-
-    progressFill.style.width = `${Math.min(100, percent)}%`;
-    progressText.textContent = `${percent}% (${formatFileSize(loaded)} / ${formatFileSize(total)})`;
+function hideLoading() {
+    return window.UILoading.hide();
 }
 
 // Data formatting utilities now in js/format-utils.js
 function formatFileSize(bytes) {
     return window.FormatUtils.formatFileSize(bytes);
-}
-
-function hideLoading() {
-    isCurrentlyLoading = false;
-    document.getElementById('loading').style.display = 'none';
 }
 
 // Sync UI controls with current params
@@ -1026,282 +1136,26 @@ function rebucketData() {
     updateResolutionInfo();
 }
 
+// Edge markers now in edge-markers.js
 function createEdgeMarkers() {
-    // Remove old markers
-    edgeMarkers.forEach(marker => scene.remove(marker));
-    edgeMarkers = [];
-
-    if (!rawElevationData || !processedData) return;
-
-    const gridWidth = processedData.width;
-    const gridHeight = processedData.height;
-
-    // Position markers at ground level (y=0) so they sit on the terrain surface
-    // They stay at this fixed height regardless of vertical exaggeration changes
-    const markerHeight = 0;
-
-    // Calculate actual coordinate extents based on render mode
-    let xExtent, zExtent, avgSize;
-    if (params.renderMode === 'bars') {
-        // Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketMultiplier / 2;
-        zExtent = (gridHeight - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
-        avgSize = (xExtent + zExtent);
-    } else if (params.renderMode === 'points') {
-        // Points use uniform grid positioning, scaled by bucketSize
-        const bucketSize = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketSize / 2;
-        zExtent = (gridHeight - 1) * bucketSize / 2;
-        avgSize = (xExtent + zExtent);
-    } else {
-        // Surface uses uniform grid positioning (centered PlaneGeometry, scaled by bucketSize)
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth * bucketMultiplier) / 2;
-        zExtent = (gridHeight * bucketMultiplier) / 2;
-        avgSize = (gridWidth * bucketMultiplier + gridHeight * bucketMultiplier) / 2;
-    }
-
-    // Create text sprites for N, E, S, W at appropriate edges
-    const markers = [
-        { text: 'N', x: 0, z: -zExtent, color: 0xff4444 }, // North edge
-        { text: 'S', x: 0, z: zExtent, color: 0x4488ff }, // South edge
-        { text: 'E', x: xExtent, z: 0, color: 0x44ff44 }, // East edge
-        { text: 'W', x: -xExtent, z: 0, color: 0xffff44 } // West edge
-    ];
-
-    markers.forEach(markerData => {
-        const sprite = createTextSprite(markerData.text, markerData.color);
-        sprite.position.set(markerData.x, markerHeight, markerData.z);
-
-        // Scale based on terrain size
-        const baseScale = avgSize * 0.06; // 6% of average dimension (tripled from original 2%)
-        sprite.scale.set(baseScale, baseScale, baseScale);
-
-        scene.add(sprite);
-        edgeMarkers.push(sprite);
-    });
-
-    // Removed verbose edge marker creation log
+    return window.EdgeMarkers.create();
 }
 
 function createTextSprite(text, color) {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    canvas.width = 256;
-    canvas.height = 256;
-
-    // Draw background circle
-    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    context.beginPath();
-    context.arc(128, 128, 100, 0, 2 * Math.PI);
-    context.fill();
-
-    // Draw border
-    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 8;
-    context.beginPath();
-    context.arc(128, 128, 100, 0, 2 * Math.PI);
-    context.stroke();
-
-    // Draw text
-    context.font = 'Bold 140px Arial';
-    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(text, 128, 128);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const spriteMaterial = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        depthTest: false, // Always visible
-        depthWrite: false
-    });
-    const sprite = new THREE.Sprite(spriteMaterial);
-
-    return sprite;
+    return window.EdgeMarkers.createTextSprite(text, color);
 }
 
 function updateEdgeMarkers() {
-    if (!rawElevationData || !processedData || edgeMarkers.length === 0) return;
-
-    // Markers stay at fixed height - no update needed when vertical exaggeration changes
-    // This function is kept for compatibility but doesn't change marker heights
-    // The markers are positioned at a fixed height set in createEdgeMarkers()
+    return window.EdgeMarkers.update();
 }
 
-/**
- * Generate and display contour lines using marching squares algorithm
- */
+// Borders and contours now in borders-contours.js
 function createContourLines() {
-    // Remove old contour lines
-    contourMeshes.forEach(mesh => scene.remove(mesh));
-    contourMeshes = [];
-
-    if (!params.showContours || !processedData || !processedData.elevation) {
-        return;
-    }
-
-    const { width, height, elevation, stats } = processedData;
-    const interval = params.contourInterval;
-
-    if (!interval || interval <= 0) return;
-
-    // Calculate contour levels based on elevation range
-    const minElev = stats.min;
-    const maxElev = stats.max;
-    const firstLevel = Math.ceil(minElev / interval) * interval;
-    const levels = [];
-
-    for (let level = firstLevel; level <= maxElev; level += interval) {
-        levels.push(level);
-    }
-
-    console.log(`Generating ${levels.length} contour lines from ${minElev.toFixed(0)}m to ${maxElev.toFixed(0)}m at ${interval}m intervals`);
-
-    // For each contour level, trace lines
-    levels.forEach(level => {
-        const lines = traceContourLevel(elevation, width, height, level);
-
-        lines.forEach(linePoints => {
-            if (linePoints.length < 2) return;
-
-            // Convert grid coordinates to world coordinates
-            const worldPoints = linePoints.map(p => {
-                const bucketMultiplier = params.bucketSize;
-                let worldX, worldZ;
-
-                if (params.renderMode === 'bars') {
-                    worldX = p.x * bucketMultiplier - (width - 1) * bucketMultiplier / 2;
-                    worldZ = p.y * bucketMultiplier - (height - 1) * bucketMultiplier / 2;
-                } else if (params.renderMode === 'points') {
-                    const bucketSize = params.bucketSize;
-                    worldX = p.x * bucketSize - (width - 1) * bucketSize / 2;
-                    worldZ = p.y * bucketSize - (height - 1) * bucketSize / 2;
-                } else {
-                    // Surface mode
-                    worldX = (p.x / (width - 1) - 0.5) * width * bucketMultiplier;
-                    worldZ = (p.y / (height - 1) - 0.5) * height * bucketMultiplier;
-                }
-
-                return new THREE.Vector3(worldX, level * params.verticalExaggeration + 1, worldZ);
-            });
-
-            const geometry = new THREE.BufferGeometry().setFromPoints(worldPoints);
-            const material = new THREE.LineBasicMaterial({
-                color: 0xffaa00, // Orange/yellow for visibility
-                transparent: true,
-                opacity: 0.7,
-                linewidth: 1
-            });
-            const line = new THREE.Line(geometry, material);
-            scene.add(line);
-            contourMeshes.push(line);
-        });
-    });
-
-    console.log(`Created ${contourMeshes.length} contour line segments`);
+    return window.BordersContours.createContourLines();
 }
 
-/**
- * Trace a single contour level using marching squares
- * Returns array of line segments (each segment is array of {x, y} points)
- */
 function traceContourLevel(elevation, width, height, level) {
-    const lines = [];
-    const visited = new Set();
-
-    // Helper to get elevation at grid point
-    const getElev = (i, j) => {
-        if (i < 0 || i >= height || j < 0 || j >= width) return null;
-        const val = elevation[i] && elevation[i][j];
-        return (val === null || val === undefined) ? null : val;
-    };
-
-    // Marching squares: for each grid cell, check if contour crosses it
-    for (let i = 0; i < height - 1; i++) {
-        for (let j = 0; j < width - 1; j++) {
-            const key = `${i},${j}`;
-            if (visited.has(key)) continue;
-
-            // Get corner elevations
-            const nw = getElev(i, j);
-            const ne = getElev(i, j + 1);
-            const sw = getElev(i + 1, j);
-            const se = getElev(i + 1, j + 1);
-
-            if (nw === null || ne === null || sw === null || se === null) continue;
-
-            // Check if contour crosses this cell
-            const hasAbove = (nw >= level) || (ne >= level) || (sw >= level) || (se >= level);
-            const hasBelow = (nw < level) || (ne < level) || (sw < level) || (se < level);
-
-            if (!hasAbove || !hasBelow) continue; // Contour doesn't cross this cell
-
-            // Trace the contour line through this cell
-            const linePoints = [];
-            let currentI = i, currentJ = j;
-            let maxSteps = 10000; // Prevent infinite loops
-
-            while (maxSteps-- > 0) {
-                const cellKey = `${currentI},${currentJ}`;
-                if (visited.has(cellKey)) break;
-                visited.add(cellKey);
-
-                // Get corner values
-                const v00 = getElev(currentI, currentJ);
-                const v10 = getElev(currentI, currentJ + 1);
-                const v01 = getElev(currentI + 1, currentJ);
-                const v11 = getElev(currentI + 1, currentJ + 1);
-
-                if (v00 === null || v10 === null || v01 === null || v11 === null) break;
-
-                // Interpolate edge crossings
-                const edges = [];
-
-                // Top edge (between v00 and v10)
-                if ((v00 < level && v10 >= level) || (v00 >= level && v10 < level)) {
-                    const t = (level - v00) / (v10 - v00);
-                    edges.push({ x: currentJ + t, y: currentI, edge: 'top' });
-                }
-
-                // Right edge (between v10 and v11)
-                if ((v10 < level && v11 >= level) || (v10 >= level && v11 < level)) {
-                    const t = (level - v10) / (v11 - v10);
-                    edges.push({ x: currentJ + 1, y: currentI + t, edge: 'right' });
-                }
-
-                // Bottom edge (between v01 and v11)
-                if ((v01 < level && v11 >= level) || (v01 >= level && v11 < level)) {
-                    const t = (level - v01) / (v11 - v01);
-                    edges.push({ x: currentJ + t, y: currentI + 1, edge: 'bottom' });
-                }
-
-                // Left edge (between v00 and v01)
-                if ((v00 < level && v01 >= level) || (v00 >= level && v01 < level)) {
-                    const t = (level - v00) / (v01 - v00);
-                    edges.push({ x: currentJ, y: currentI + t, edge: 'left' });
-                }
-
-                if (edges.length === 0) break; // No crossing found
-
-                // Add point to line
-                if (edges.length > 0) {
-                    linePoints.push({ x: edges[0].x, y: edges[0].y });
-                }
-
-                // Move to next cell (simple: just stop after one cell for now)
-                break; // Simplified: just trace one cell per line segment
-            }
-
-            if (linePoints.length >= 2) {
-                lines.push(linePoints);
-            }
-        }
-    }
-
-    return lines;
+    return window.BordersContours.traceContourLevel(elevation, width, height, level);
 }
 
 /**
@@ -1710,6 +1564,20 @@ function setupControls() {
         });
     }
 
+    // Region navigation buttons
+    const regionPrevBtn = document.getElementById('region-prev');
+    const regionNextBtn = document.getElementById('region-next');
+    if (regionPrevBtn) {
+        regionPrevBtn.addEventListener('click', () => {
+            navigateRegions(-1);
+        });
+    }
+    if (regionNextBtn) {
+        regionNextBtn.addEventListener('click', () => {
+            navigateRegions(1);
+        });
+    }
+
     // Color scheme uses native select; no Select2 initialization
 
     // Update bucket size range label
@@ -1961,400 +1829,45 @@ function setupControls() {
 }
 
 // ===== RESOLUTION LOADING OVERLAY =====
+// Resolution controls now in resolution-controls.js
 function showResolutionLoading() {
-    const overlay = document.getElementById('resolution-loading-overlay');
-    if (overlay) {
-        overlay.classList.add('active');
-    }
+    return window.ResolutionControls.showLoading();
 }
 
 function hideResolutionLoading() {
-    const overlay = document.getElementById('resolution-loading-overlay');
-    if (overlay) {
-        overlay.classList.remove('active');
-    }
+    return window.ResolutionControls.hideLoading();
 }
 
-// ===== COMPACT RESOLUTION SCALE (logarithmic mapping) =====
 function bucketSizeToPercent(size) {
-    const clamped = Math.max(1, Math.min(500, parseInt(size)));
-    const maxLog = Math.log(500);
-    const valLog = Math.log(clamped);
-    return (valLog / maxLog) * 100; // 1..500 -> 0..100% in log domain
+    return window.ResolutionControls.bucketSizeToPercent(size);
 }
 
 function percentToBucketSize(percent) {
-    const p = Math.max(0, Math.min(100, percent));
-    const maxLog = Math.log(500);
-    const logVal = (p / 100) * maxLog;
-    const size = Math.round(Math.exp(logVal));
-    return Math.max(1, Math.min(500, size));
+    return window.ResolutionControls.percentToBucketSize(percent);
 }
 
 function updateResolutionScaleUI(size) {
-    const track = document.querySelector('#resolution-scale .resolution-scale-track');
-    const handle = document.getElementById('resolutionScaleHandle');
-    const fill = document.getElementById('resolutionScaleFill');
-    const tag = document.getElementById('resolutionScaleTag');
-    if (!track || !handle || !fill) return;
-    const pct = bucketSizeToPercent(size);
-    const rect = track.getBoundingClientRect();
-    const x = (pct / 100) * rect.width;
-    handle.style.left = `${x}px`;
-    fill.style.width = `${Math.max(0, Math.min(100, (x / rect.width) * 100))}%`;
-    if (tag) { tag.style.left = `${x}px`; tag.textContent = `${size}\u00D7`; }
+    return window.ResolutionControls.updateUI(size);
 }
 
 function initResolutionScale() {
-    const container = document.getElementById('resolution-scale');
-    const track = container && container.querySelector('.resolution-scale-track');
-    const maxBtn = document.getElementById('resolutionMaxLabel');
-    if (!container || !track) return;
-
-    let isDragging = false;
-    let lastSetSize = params.bucketSize;
-    let startX = 0;
-    let dragMoved = false;
-
-    // Build ticks with common meaningful steps
-    const ticks = [1, 2, 5, 10, 20, 50, 100, 200, 500];
-    const ticksEl = document.getElementById('resolutionScaleTicks');
-    if (ticksEl) {
-        ticksEl.innerHTML = '';
-        const trackRect = track.getBoundingClientRect();
-        const width = trackRect.width > 0 ? trackRect.width : 200; // fallback before layout
-        ticks.forEach((t) => {
-            const p = bucketSizeToPercent(t);
-            const tick = document.createElement('div');
-            tick.className = 'resolution-scale-tick';
-            tick.style.left = `${p}%`;
-            tick.innerHTML = `<div class="line"></div><div class="label">${t}\u00D7</div>`;
-            ticksEl.appendChild(tick);
-        });
-    }
-
-    const setFromClientX = (clientX, commit) => {
-        const rect = track.getBoundingClientRect();
-        const clampedX = Math.max(rect.left, Math.min(rect.right, clientX));
-        const pct = ((clampedX - rect.left) / rect.width) * 100;
-        const size = percentToBucketSize(pct);
-        if (size === lastSetSize && !commit) return;
-        lastSetSize = size;
-        params.bucketSize = size;
-        updateResolutionScaleUI(size);
-        // Debounced heavy work during drag
-        if (!commit) {
-            if (pendingBucketTimeout !== null) clearTimeout(pendingBucketTimeout);
-            showResolutionLoading();
-            pendingBucketTimeout = setTimeout(() => {
-                pendingBucketTimeout = null;
-                try {
-                    edgeMarkers.forEach(marker => scene.remove(marker));
-                    edgeMarkers = [];
-                    rebucketData();
-                    recreateTerrain();
-                    updateURLParameter('bucketSize', params.bucketSize);
-                } finally {
-                    hideResolutionLoading();
-                }
-            }, 120);
-        } else {
-            // Commit: immediate rebuild once
-            showResolutionLoading();
-            if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
-            setTimeout(() => {
-                try {
-                    edgeMarkers.forEach(marker => scene.remove(marker));
-                    edgeMarkers = [];
-                    rebucketData();
-                    recreateTerrain();
-                    updateURLParameter('bucketSize', params.bucketSize);
-                } finally {
-                    hideResolutionLoading();
-                }
-            }, 0);
-        }
-    };
-
-    const onPointerDown = (e) => {
-        isDragging = true;
-        startX = e.clientX;
-        dragMoved = false;
-        setFromClientX(e.clientX, false);
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp, { once: true });
-    };
-    const onPointerMove = (e) => {
-        if (!isDragging) return;
-        if (Math.abs(e.clientX - startX) > 6) dragMoved = true;
-        setFromClientX(e.clientX, false);
-    };
-    const onPointerUp = (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        if (!dragMoved) {
-            // Snap to nearest tick on simple click
-            const rect = track.getBoundingClientRect();
-            const clampedX = Math.max(rect.left, Math.min(rect.right, e.clientX));
-            const pct = ((clampedX - rect.left) / rect.width) * 100;
-            const rawSize = percentToBucketSize(pct);
-            const nearest = ticks.reduce((best, t) => Math.abs(t - rawSize) < Math.abs(best - rawSize) ? t : best, ticks[0]);
-            setImmediateToSize(nearest);
-        } else {
-            setFromClientX(e.clientX, true);
-        }
-        window.removeEventListener('pointermove', onPointerMove);
-    };
-
-    // Make the entire container clickable to jump (snap to nearest tick)
-    container.addEventListener('click', (e) => {
-        if (e.target === track || track.contains(e.target)) return; // track click already handled via pointer handlers
-        const rect = track.getBoundingClientRect();
-        const clampedX = Math.max(rect.left, Math.min(rect.right, e.clientX));
-        const pct = ((clampedX - rect.left) / rect.width) * 100;
-        const rawSize = percentToBucketSize(pct);
-        const nearest = ticks.reduce((best, t) => Math.abs(t - rawSize) < Math.abs(best - rawSize) ? t : best, ticks[0]);
-        setImmediateToSize(nearest);
-    });
-
-    track.addEventListener('pointerdown', onPointerDown);
-
-    // Helper: set immediately to a specific size (one rebuild)
-    const setImmediateToSize = (size) => {
-        const clamped = Math.max(1, Math.min(500, Math.round(size)));
-        if (clamped === params.bucketSize) return;
-        params.bucketSize = clamped;
-        updateResolutionScaleUI(clamped);
-        showResolutionLoading();
-        if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
-        setTimeout(() => {
-            try {
-                edgeMarkers.forEach(marker => scene.remove(marker));
-                edgeMarkers = [];
-                rebucketData();
-                recreateTerrain();
-                updateURLParameter('bucketSize', params.bucketSize);
-            } finally {
-                hideResolutionLoading();
-            }
-        }, 0);
-    };
-
-    // Sharp button: move to previous smaller tick (single step per click)
-    if (maxBtn) {
-        const doSharpStep = () => {
-            let prev = 1;
-            for (let i = 0; i < ticks.length; i++) {
-                if (ticks[i] >= params.bucketSize) { break; }
-                prev = ticks[i];
-            }
-            setImmediateToSize(prev);
-        };
-        maxBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doSharpStep(); });
-    }
-
-    // Helper: press-and-hold repeating for buttons
-    const setupHoldRepeat = (el, stepFn) => {
-        if (!el) return;
-        let holdTimeout = null;
-        let holdInterval = null;
-        const clearTimers = () => {
-            if (holdTimeout) { clearTimeout(holdTimeout); holdTimeout = null; }
-            if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
-        };
-        const start = (ev) => {
-            ev.preventDefault();
-            stepFn();
-            clearTimers();
-            holdTimeout = setTimeout(() => {
-                holdInterval = setInterval(stepFn, 100);
-            }, 350);
-        };
-        const end = () => clearTimers();
-        el.addEventListener('mousedown', start);
-        el.addEventListener('touchstart', start, { passive: false });
-        window.addEventListener('mouseup', end);
-        window.addEventListener('touchend', end);
-        el.addEventListener('mouseleave', end);
-    };
-
-    // Less/Blur button: move to next larger tick (single step per click)
-    const lessBtn = document.getElementById('resolutionLessButton');
-    if (lessBtn) {
-        const doBlurStep = () => {
-            let target = ticks.find(t => t > params.bucketSize) || 500;
-            setImmediateToSize(target);
-        };
-        lessBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doBlurStep(); });
-    }
-
-    // Initial position
-    updateResolutionScaleUI(params.bucketSize);
+    return window.ResolutionControls.init();
 }
 
 function adjustBucketSize(delta) {
-    if (!rawElevationData) {
-        console.warn('[WARN] No data loaded, cannot adjust bucket size');
-        return;
-    }
-
-    // Calculate new bucket size with clamping to valid range [1, 500]
-    let newSize = params.bucketSize + delta;
-    newSize = Math.max(1, Math.min(500, newSize));
-
-    // If size didn't actually change (already at limit), don't show loading UI
-    if (newSize === params.bucketSize) {
-        console.log(`[INFO] Already at ${newSize === 1 ? 'minimum' : 'maximum'} resolution (${newSize}x), no change needed`);
-        return;
-    }
-
-    // Show loading overlay
-    showResolutionLoading();
-
-    // Cancel any pending drag debounce and rebuild immediately
-    if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
-    setTimeout(() => {
-        try {
-
-            // Update params and UI
-            params.bucketSize = newSize;
-            try { updateResolutionScaleUI(newSize); } catch (_) { }
-            // tag UI updated via updateResolutionScaleUI
-
-            // Clear edge markers so they get recreated at new positions
-            edgeMarkers.forEach(marker => scene.remove(marker));
-            edgeMarkers = [];
-
-            // Rebucket and recreate terrain
-            rebucketData();
-            recreateTerrain();
-            updateStats();
-
-            console.log(`Bucket size adjusted by ${delta > 0 ? '+' : ''}${delta} -> ${newSize}x`);
-            try { updateURLParameter('bucketSize', newSize); } catch (_) { }
-        } finally {
-            // Hide loading overlay
-            hideResolutionLoading();
-        }
-    }, 50);
+    return window.ResolutionControls.adjust(delta);
 }
 
 function setMaxResolution() {
-    if (!rawElevationData) {
-        console.warn('[WARN] No data loaded, cannot set max resolution');
-        return;
-    }
-
-    // If already at max resolution, don't show loading UI
-    if (params.bucketSize === 1) {
-        console.log('[INFO] Already at maximum resolution (1x), no change needed');
-        return;
-    }
-
-    // Show loading overlay
-    showResolutionLoading();
-
-    // Use setTimeout to allow UI to update before heavy processing
-    setTimeout(() => {
-        try {
-            // Max resolution = bucket size of 1 (every pixel rendered)
-            params.bucketSize = 1;
-            try { updateResolutionScaleUI(1); } catch (_) { }
-            // tag UI updated via updateResolutionScaleUI
-
-            // Clear edge markers so they get recreated at new positions
-            edgeMarkers.forEach(marker => scene.remove(marker));
-            edgeMarkers = [];
-
-            // Rebucket and recreate terrain
-            rebucketData();
-            recreateTerrain();
-            updateStats();
-
-            console.log('Resolution set to MAX (bucket size = 1)');
-            try { updateURLParameter('bucketSize', 1); } catch (_) { }
-        } finally {
-            // Hide loading overlay
-            hideResolutionLoading();
-        }
-    }, 50);
+    return window.ResolutionControls.setMax();
 }
 
 function setDefaultResolution() {
-    if (!rawElevationData) {
-        console.warn('[WARN] No data loaded, cannot set default resolution');
-        return;
-    }
-
-    // Show loading overlay
-    showResolutionLoading();
-
-    // Use setTimeout to allow UI to update before heavy processing
-    setTimeout(() => {
-        try {
-            // Use the auto-adjust algorithm to find optimal default
-            autoAdjustBucketSize();
-
-            console.log('Resolution set to DEFAULT (auto-adjusted)');
-        } finally {
-            // Hide loading overlay
-            hideResolutionLoading();
-        }
-    }, 50);
+    return window.ResolutionControls.setDefault();
 }
 
 function autoAdjustBucketSize() {
-    if (!rawElevationData) {
-        console.warn('[WARN] No data loaded, cannot auto-adjust bucket size');
-        return;
-    }
-
-    const { width, height } = rawElevationData;
-    // Reduced from 10000 to ~3900 (60% larger bucket size means ~40% of original bucket count)
-    const TARGET_BUCKET_COUNT = 390000;
-
-    // Calculate optimal bucket size to stay within TARGET_BUCKET_COUNT constraint
-    // Start with direct calculation: bucketSize = ceil(sqrt(width* height / TARGET_BUCKET_COUNT))
-    let optimalSize = Math.ceil(Math.sqrt((width * height) / TARGET_BUCKET_COUNT));
-
-    // Verify and adjust if needed (in case of rounding edge cases)
-    let bucketedWidth = Math.floor(width / optimalSize);
-    let bucketedHeight = Math.floor(height / optimalSize);
-    let totalBuckets = bucketedWidth * bucketedHeight;
-
-    // If we're still over the limit, increment until we're under
-    while (totalBuckets > TARGET_BUCKET_COUNT && optimalSize < 500) {
-        optimalSize++;
-        bucketedWidth = Math.floor(width / optimalSize);
-        bucketedHeight = Math.floor(height / optimalSize);
-        totalBuckets = bucketedWidth * bucketedHeight;
-    }
-
-    // Clamp to valid range [1, 500]
-    optimalSize = Math.max(1, Math.min(500, optimalSize));
-
-    // Recalculate final bucket count with clamped size
-    bucketedWidth = Math.floor(width / optimalSize);
-    bucketedHeight = Math.floor(height / optimalSize);
-    totalBuckets = bucketedWidth * bucketedHeight;
-
-    appendActivityLog(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
-    appendActivityLog(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '' : ''} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
-
-    // Update params and UI (only increase small values; never reduce user-chosen larger values)
-    params.bucketSize = Math.max(params.bucketSize || 1, optimalSize);
-    try { updateResolutionScaleUI(optimalSize); } catch (_) { }
-    // tag UI updated via updateResolutionScaleUI
-
-    // Clear edge markers so they get recreated at new positions
-    edgeMarkers.forEach(marker => scene.remove(marker));
-    edgeMarkers = [];
-
-    // Rebucket and recreate terrain
-    rebucketData();
-    recreateTerrain();
-    updateStats();
-    try { updateURLParameter('bucketSize', optimalSize); } catch (_) { }
+    return window.ResolutionControls.autoAdjust();
 }
 
 function setupEventListeners() {
@@ -3311,145 +2824,7 @@ function getAspectDegrees(i, j) {
 }
 
 function recreateBorders() {
-    console.log('Creating borders...');
-
-    // Remove old borders
-    borderMeshes.forEach(mesh => scene.remove(mesh));
-    borderMeshes = [];
-    borderSegmentsMeters = [];
-    borderSegmentsGeo = [];
-    borderGeoIndex = new Map();
-
-    if (!borderData || (!borderData.countries && !borderData.states)) {
-        console.log('[INFO] No border data available');
-        return;
-    }
-
-    if (!params.showBorders) {
-        console.log('[INFO] Borders hidden by user setting');
-        return;
-    }
-
-    const { width, height, bounds: elevBounds } = rawElevationData;
-    const { bounds } = borderData;
-
-    // Calculate real-world scale
-    const scale = calculateRealWorldScale();
-
-    // Set borders at a fixed height that doesn't change with vertical exaggeration
-    // Use a small constant height just above ground level
-    const borderHeight = 100; // Fixed at 100 meters above ground
-
-    let totalSegments = 0;
-
-    // Combine countries and states into a single array for processing
-    const allBorders = [
-        ...(borderData.countries || []),
-        ...(borderData.states || [])
-    ];
-
-    const { mx, mz } = getMetersScalePerWorldUnit();
-    allBorders.forEach((entity) => {
-        entity.segments.forEach((segment) => {
-            const points = [];
-
-            // Convert lon/lat to coordinates matching the render mode
-            for (let i = 0; i < segment.lon.length; i++) {
-                const lon = segment.lon[i];
-                const lat = segment.lat[i];
-
-                // Map geographic coords to normalized [0,1] range
-                const colNormalized = (lon - elevBounds.left) / (elevBounds.right - elevBounds.left);
-                const rowNormalized = (elevBounds.top - lat) / (elevBounds.top - elevBounds.bottom);
-
-                let xCoord, zCoord;
-                if (params.renderMode === 'bars') {
-                    // Bars use grid-based positioning: 0 to (width-1)*bucketSize
-                    const bucketMultiplier = params.bucketSize;
-                    const bWidth = processedData.width;
-                    const bHeight = processedData.height;
-                    xCoord = colNormalized * (bWidth - 1) * bucketMultiplier;
-                    zCoord = rowNormalized * (bHeight - 1) * bucketMultiplier;
-                    // Apply same centering offset as terrain
-                    xCoord -= (bWidth - 1) * bucketMultiplier / 2;
-                    zCoord -= (bHeight - 1) * bucketMultiplier / 2;
-                } else if (params.renderMode === 'points') {
-                    // Points use uniform grid positioning, scaled by bucketSize
-                    const bucketSize = params.bucketSize;
-                    const bWidth = processedData.width;
-                    const bHeight = processedData.height;
-                    xCoord = colNormalized * (bWidth - 1) * bucketSize;
-                    zCoord = rowNormalized * (bHeight - 1) * bucketSize;
-                    // Apply same centering offset as terrain
-                    xCoord -= (bWidth - 1) * bucketSize / 2;
-                    zCoord -= (bHeight - 1) * bucketSize / 2;
-                } else {
-                    // Surface uses uniform grid positioning (PlaneGeometry centered at origin, scaled by bucketSize)
-                    const bucketMultiplier = params.bucketSize;
-                    const bWidth = processedData.width;
-                    const bHeight = processedData.height;
-                    xCoord = (colNormalized - 0.5) * bWidth * bucketMultiplier;
-                    zCoord = (rowNormalized - 0.5) * bHeight * bucketMultiplier;
-                }
-
-                // Three.js: x=East, z=South, y=elevation
-                points.push(new THREE.Vector3(xCoord, borderHeight, zCoord));
-            }
-
-            if (points.length > 1) {
-                const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                const material = new THREE.LineBasicMaterial({
-                    color: 0xFFFF00, // YELLOW - highly visible!
-                    linewidth: 2,
-                    transparent: true,
-                    opacity: 0.9
-                });
-                const line = new THREE.Line(geometry, material);
-                scene.add(line);
-                borderMeshes.push(line);
-                totalSegments++;
-                // Capture as meter-scaled 2D segments for HUD distance queries
-                for (let p = 0; p < points.length - 1; p++) {
-                    const a = points[p];
-                    const b = points[p + 1];
-                    borderSegmentsMeters.push({
-                        ax: a.x * mx,
-                        az: a.z * mz,
-                        bx: b.x * mx,
-                        bz: b.z * mz
-                    });
-                    // Also store geographic segment and index it
-                    const aLon = segment.lon[p];
-                    const aLat = segment.lat[p];
-                    const bLon = segment.lon[p + 1];
-                    const bLat = segment.lat[p + 1];
-                    const geoIndex = borderSegmentsGeo.length;
-                    borderSegmentsGeo.push({ axLon: aLon, axLat: aLat, bxLon: bLon, bxLat: bLat });
-                    // Compute covered cells and insert id
-                    const minLon = Math.min(aLon, bLon);
-                    const maxLon = Math.max(aLon, bLon);
-                    const minLat = Math.min(aLat, bLat);
-                    const maxLat = Math.max(aLat, bLat);
-                    const ix0 = Math.floor(minLon / borderGeoCellSizeDeg);
-                    const ix1 = Math.floor(maxLon / borderGeoCellSizeDeg);
-                    const iy0 = Math.floor(minLat / borderGeoCellSizeDeg);
-                    const iy1 = Math.floor(maxLat / borderGeoCellSizeDeg);
-                    for (let ix = ix0; ix <= ix1; ix++) {
-                        for (let iy = iy0; iy <= iy1; iy++) {
-                            const key = `${ix},${iy}`;
-                            let arr = borderGeoIndex.get(key);
-                            if (!arr) { arr = []; borderGeoIndex.set(key, arr); }
-                            arr.push(geoIndex);
-                        }
-                    }
-                }
-            }
-        });
-    });
-
-    const entityCount = allBorders.length;
-    const entityType = borderData.states ? 'states' : 'countries';
-    console.log(`Created ${totalSegments} border segments for ${entityCount} ${entityType}`);
+    return window.BordersContours.recreateBorders();
 }
 
 function updateStats() {
@@ -3708,6 +3083,87 @@ function switchCameraScheme(schemeName) {
     }
 }
 
+// Navigate between regions using arrow keys or buttons
+function navigateRegions(direction) {
+    if (!regionOptions || regionOptions.length === 0 || !currentRegionId) {
+        return;
+    }
+
+    // Get all non-divider regions
+    const validOptions = regionOptions.filter(opt => opt.id !== '__divider__');
+    if (validOptions.length === 0) return;
+
+    // Find current region index
+    const currentIndex = validOptions.findIndex(opt => opt.id === currentRegionId);
+    if (currentIndex === -1) {
+        // Current region not found, load first region
+        loadRegion(validOptions[0].id);
+        return;
+    }
+
+    // Calculate next index with wrapping
+    let nextIndex = currentIndex + direction;
+    if (nextIndex < 0) {
+        nextIndex = validOptions.length - 1; // Wrap to end
+    } else if (nextIndex >= validOptions.length) {
+        nextIndex = 0; // Wrap to beginning
+    }
+
+    const nextRegion = validOptions[nextIndex];
+    if (nextRegion && nextRegion.id) {
+        const directionText = direction > 0 ? 'next' : 'previous';
+        console.log(`Navigation: ${directionText} region → ${nextRegion.name}`);
+        appendActivityLog(`Navigation: ${nextRegion.name}`);
+        loadRegion(nextRegion.id);
+    }
+}
+
+// Get the name of the region that would be navigated to
+function getNavigationTarget(direction) {
+    if (!regionOptions || regionOptions.length === 0 || !currentRegionId) {
+        return null;
+    }
+
+    const validOptions = regionOptions.filter(opt => opt.id !== '__divider__');
+    if (validOptions.length === 0) return null;
+
+    const currentIndex = validOptions.findIndex(opt => opt.id === currentRegionId);
+    if (currentIndex === -1) return validOptions[0]?.name || null;
+
+    let nextIndex = currentIndex + direction;
+    if (nextIndex < 0) {
+        nextIndex = validOptions.length - 1;
+    } else if (nextIndex >= validOptions.length) {
+        nextIndex = 0;
+    }
+
+    return validOptions[nextIndex]?.name || null;
+}
+
+// Update the region navigation hints
+function updateRegionNavHints() {
+    const prevHint = document.getElementById('region-prev-hint');
+    const nextHint = document.getElementById('region-next-hint');
+    const currentDisplay = document.getElementById('region-nav-current');
+
+    if (currentDisplay && currentRegionId) {
+        const currentName = regionIdToName[currentRegionId] || currentRegionId;
+        currentDisplay.textContent = currentName;
+    }
+
+    if (prevHint) {
+        const prevName = getNavigationTarget(-1);
+        prevHint.textContent = prevName || '';
+        prevHint.title = prevName ? `Previous: ${prevName}` : '';
+    }
+
+    if (nextHint) {
+        const nextName = getNavigationTarget(1);
+        nextHint.textContent = nextName || '';
+        nextHint.title = nextName ? `Next: ${nextName}` : '';
+    }
+}
+
 function onKeyDown(event) {
     // Don't process keyboard shortcuts if user is typing in an input field
     const activeElement = document.activeElement;
@@ -3744,6 +3200,12 @@ function onKeyDown(event) {
         resetCamera();
     }
     // F key: Handled by camera scheme (reframeView), don't duplicate here
+
+    // Arrow keys: Navigate between regions (up = previous, down = next)
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault(); // Prevent page scrolling
+        navigateRegions(event.key === 'ArrowDown' ? 1 : -1);
+    }
 }
 
 function onKeyUp(event) {

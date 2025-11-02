@@ -34,8 +34,12 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                 
                 # Extract region_id: prefer from JSON, else infer from filename
                 stem = json_file.stem
-                # Known suffixes to strip
-                for suffix in ['_srtm_30m_4000px_v2', '_srtm_30m_800px_v2', '_srtm_30m_v2', '_bbox_30m']:
+                # Known suffixes to strip (order matters - check longer patterns first)
+                for suffix in [
+                    '_srtm_30m_4000px_v2', '_srtm_30m_2048px_v2', '_srtm_30m_800px_v2',
+                    '_srtm_90m_2048px_v2', '_usa_3dep_2048px_v2',
+                    '_srtm_30m_v2', '_bbox_30m'
+                ]:
                     if stem.endswith(suffix):
                         stem = stem[:-len(suffix)]
                         break
@@ -57,12 +61,13 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                     "stats": data.get("stats", {})
                 }
 
-                # Attach and REQUIRE category
-                category_value = getattr(cfg, 'category', None)
-                if not category_value:
-                    print(f"      [SKIP] Region missing category in regions_config: {region_id}", flush=True)
+                # Attach and REQUIRE region_type
+                region_type = getattr(cfg, 'region_type', None)
+                if not region_type:
+                    print(f"      [SKIP] Region missing region_type in regions_config: {region_id}", flush=True)
                     continue
-                entry["category"] = category_value
+                # Convert enum to string value for JSON
+                entry["region_type"] = str(region_type)
 
                 manifest["regions"][region_id] = entry
             except Exception as e:

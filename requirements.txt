@@ -10,6 +10,7 @@ seaborn==0.13.2
 # Data acquisition
 requests==2.32.3
 beautifulsoup4==4.12.3
+filelock==3.13.1  # Thread-safe file locking for rate limit coordination
 
 # Geospatial data (lighter weight, Windows-compatible)
 xarray==2024.10.0

@@ -1,37 +1,13 @@
 # Altitude Maps - Cursor Rules
 
 **ABSOLUTE RULE: NEVER use emojis in documentation files, code comments, print statements, or any text content.**
+**ABSOLUTE RULE: NEVER use phrases like "code smell", "bloat" etc.
+1. **NO EMOJIS IN RESPONSES**: Never use emojis when responding to the user. Keep all communication plain text.
+2. **NO COMPLIMENTS OR PRAISE**: Never compliment the user or their ideas:
+   - NO: "Great idea!", "Brilliant question!"
 
 This rule applies to ALL files: .md, .py, .js, .html, .css, .txt, and any other text-based files.
 
-### Console Output and Unicode Handling
-- **AVOID output redirection** when working with Unicode/emoji content - pipelines often fail with encoding errors on Windows
-- For debugging with Unicode content, use temporary files or one-off Python scripts instead of command-line redirection
-- Windows console (PowerShell/CMD) has encoding limitations - handle Unicode carefully in scripts
-- Prefer writing debug output to files when dealing with emojis or non-ASCII text
-- Use Unicode code point notation (U+XXXX) instead of actual emoji characters in console output
-
-## CODE REVIEW REMINDER - READ THIS FIRST
-
-**After writing or modifying ANY code, ALWAYS do this:**
-
-"Great, now I want you to carefully read over all of the new code you just wrote and other existing code you just modified with 'fresh eyes' looking super carefully for any obvious bugs, errors, problems, issues, confusion, etc."
-
-Take a moment to review with fresh perspective before moving on. Catch issues early!
-
-## VERSION BUMP REMINDER
-
-**After significant changes (features, bug fixes, UI updates), bump the version:**
-
-```bash
-python bump_version.py        # Patch increment (bug fixes, minor tweaks)
-python bump_version.py minor  # Minor increment (new features, improvements)  
-python bump_version.py major  # Major increment (breaking changes, redesigns)
-```
-
-This updates viewer version and cache busters. See "Version Bumping" section for details.
-
----
 
 ## Project Context
 This is a landscape visualization project focused on showing altitude of various regions across the globe.
@@ -602,6 +578,37 @@ Priority order for any country:
    - Copernicus DEM (30m/90m, global, newest 2021)
    - ASTER GDEM (30m, 83°N to 83°S)
    - ALOS World 3D (30m free, 5m paid)
+
+### OpenTopography Rate Limit Coordination (CRITICAL)
+
+**All download processes MUST check shared rate limit state before downloading.**
+
+- **Shared state file**: `data/.opentopography_rate_limit.json`
+- **Automatic coordination**: All downloaders check this file before requests
+- **Conservative backoff**: 1 hour initial, exponential up to 24 hours
+- **Multi-process safe**: Thread-safe file locking prevents race conditions
+
+**Implementation** (already integrated in all OpenTopography downloaders):
+```python
+from src.downloaders.rate_limit import check_rate_limit, record_rate_limit_hit, record_successful_request
+
+# Before download
+ok, reason = check_rate_limit()
+if not ok:
+    return False  # Rate limited
+
+# After 401
+if response.status_code == 401:
+    record_rate_limit_hit(response.status_code)
+    raise OpenTopographyRateLimitError()
+
+# After success
+record_successful_request()
+```
+
+**CLI utility**: `python check_rate_limit.py` - Check status, clear limits, wait for clearance
+
+**See**: `tech/RATE_LIMIT_COORDINATION.md` for complete documentation
 
 ### Other Data Sources
 - **ERA5 Climate Reanalysis**: Comprehensive global climate data

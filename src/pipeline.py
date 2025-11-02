@@ -831,12 +831,12 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                     "stats": data.get("stats", {})
                 }
 
-                # Attach category from centralized config if available
+                # Attach region_type from centralized config if available
                 try:
                     from src.regions_config import get_region  # local import
                     cfg = get_region(region_id) if callable(get_region) else None
-                    if cfg and getattr(cfg, 'category', None):
-                        entry["category"] = getattr(cfg, 'category')
+                    if cfg and getattr(cfg, 'region_type', None):
+                        entry["region_type"] = str(getattr(cfg, 'region_type'))
                 except Exception:
                     pass
 
