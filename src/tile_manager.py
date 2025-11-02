@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Tuple, List
 
 from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds, merged_filename_from_region
-from src.downloaders.opentopography import download_srtm
+from src.downloaders.opentopography import download_srtm, OpenTopographyRateLimitError
 
 
 def download_and_merge_tiles(
@@ -56,26 +56,30 @@ def download_and_merge_tiles(
     tiles_dir.mkdir(parents=True, exist_ok=True)
     
     tile_paths = []
-    for tile_bounds in tiles:
-        tile_filename = tile_filename_from_bounds(tile_bounds, resolution)
-        tile_path = tiles_dir / tile_filename
-        
-        # Download if not cached
-        if not tile_path.exists():
-            print(f"  Downloading {tile_filename}...", flush=True)
-            success = download_srtm(
-                f"tile_{tile_filename[:-4]}",
-                tile_bounds,
-                tile_path,
-                api_key
-            )
-            if not success:
-                print(f"  Failed to download {tile_filename}", flush=True)
-                continue
-        else:
-            print(f"  Using cached {tile_filename}", flush=True)
-        
-        tile_paths.append(tile_path)
+    try:
+        for tile_bounds in tiles:
+            tile_filename = tile_filename_from_bounds(tile_bounds, resolution)
+            tile_path = tiles_dir / tile_filename
+            
+            # Download if not cached
+            if not tile_path.exists():
+                print(f"  Downloading {tile_filename}...", flush=True)
+                success = download_srtm(
+                    f"tile_{tile_filename[:-4]}",
+                    tile_bounds,
+                    tile_path,
+                    api_key
+                )
+                if not success:
+                    print(f"  Failed to download {tile_filename}", flush=True)
+                    continue
+            else:
+                print(f"  Using cached {tile_filename}", flush=True)
+            
+            tile_paths.append(tile_path)
+    except OpenTopographyRateLimitError:
+        # Re-raise to stop all downloads
+        raise
     
     if not tile_paths:
         print(f"ERROR: No tiles downloaded successfully", flush=True)

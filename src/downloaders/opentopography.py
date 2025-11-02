@@ -13,6 +13,11 @@ from load_settings import get_opentopography_api_key
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
 
 
+class OpenTopographyRateLimitError(Exception):
+    """Raised when OpenTopography returns 401 Unauthorized (rate limit or quota exceeded)."""
+    pass
+
+
 def download_srtm(
     region_id: str,
     bounds: Tuple[float, float, float, float],
@@ -71,6 +76,15 @@ def download_srtm(
 
     try:
         response = requests.get(url, params=params, stream=True, timeout=300)
+        
+        # Check for 401 (Unauthorized) - rate limit or quota exceeded
+        if response.status_code == 401:
+            print(f"\n ERROR: OpenTopography returned 401 Unauthorized", flush=True)
+            print(f" This usually means rate limit or quota exceeded.", flush=True)
+            print(f" Please wait before trying again to let the API relax.", flush=True)
+            print(f" STOPPING all downloads to respect their limits.", flush=True)
+            raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
+        
         response.raise_for_status()
 
         total_size = int(response.headers.get('content-length', 0))
@@ -97,6 +111,9 @@ def download_srtm(
 
         return True
 
+    except OpenTopographyRateLimitError:
+        # Re-raise to stop all downloads
+        raise
     except requests.exceptions.Timeout:
         print(f" ERROR: Download timed out (region may be too large)", flush=True)
         if output_path.exists():
@@ -163,6 +180,15 @@ def download_copernicus(
 
     try:
         response = requests.get(url, params=params, stream=True, timeout=300)
+        
+        # Check for 401 (Unauthorized) - rate limit or quota exceeded
+        if response.status_code == 401:
+            print(f"\n ERROR: OpenTopography returned 401 Unauthorized", flush=True)
+            print(f" This usually means rate limit or quota exceeded.", flush=True)
+            print(f" Please wait before trying again to let the API relax.", flush=True)
+            print(f" STOPPING all downloads to respect their limits.", flush=True)
+            raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
+        
         response.raise_for_status()
 
         total_size = int(response.headers.get('content-length', 0))
@@ -189,6 +215,9 @@ def download_copernicus(
 
         return True
 
+    except OpenTopographyRateLimitError:
+        # Re-raise to stop all downloads
+        raise
     except Exception as e:
         print(f" ERROR: Download failed: {e}", flush=True)
         if output_path.exists():

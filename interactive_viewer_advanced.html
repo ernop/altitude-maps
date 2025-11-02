@@ -7,7 +7,7 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.340">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.341">
 </head>
 
 <body>
@@ -83,6 +83,27 @@
 			</div>
 
 			<h2>Region</h2>
+
+			<!-- Region Navigation -->
+			<div class="region-nav-container">
+				<button id="region-prev" class="region-nav-btn region-nav-prev" title="Previous region">
+					<span class="nav-arrow">&lt;</span>
+					<span class="nav-hint" id="region-prev-hint"></span>
+				</button>
+				<div class="region-nav-current" id="region-nav-current">Select a region</div>
+				<button id="region-next" class="region-nav-btn region-nav-next" title="Next region">
+					<span class="nav-hint" id="region-next-hint"></span>
+					<span class="nav-arrow">&gt;</span>
+				</button>
+			</div>
+
+			<!-- Recently Opened Regions -->
+			<div id="recent-regions-container" style="display: none;">
+				<div class="recent-regions-header">Recently Opened</div>
+				<div id="recent-regions-list" class="recent-regions-list"></div>
+			</div>
+
+			<!-- Region Selector Dropdown -->
 			<div class="control-group" style="position: relative;">
 				<input id="regionSelect" placeholder="Type or pick a region"
 					style="width: 100%; padding: 10px; background:#1a1a1a; border: 1px solid#555; color:#fff; border-radius: 5px; font-size: 13px;" />
@@ -278,27 +299,39 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.340"></script>
-	<script src="js/ground-plane-camera.js?v=1.340"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.340"></script>
+	<script src="camera-schemes.js?v=1.340"></script>
+	<script src="ground-plane-camera.js?v=1.340"></script>
+	<script src="ground-plane-google-earth.js?v=1.340"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.340"></script>
+	<script src="color-schemes.js?v=1.340"></script>
 
 	<!-- GPU detection and benchmarking -->
-	<script src="js/gpu-info.js?v=1.340"></script>
+	<script src="gpu-info.js?v=1.340"></script>
 
 	<!-- Geometry and spatial utilities -->
-	<script src="js/geometry-utils.js?v=1.340"></script>
+	<script src="geometry-utils.js?v=1.340"></script>
 
 	<!-- Data formatting utilities -->
-	<script src="js/format-utils.js?v=1.340"></script>
+	<script src="format-utils.js?v=1.340"></script>
+
+	<!-- Activity log utilities -->
+	<script src="activity-log.js?v=1.340"></script>
+
+	<!-- Edge markers (N/E/S/W directional labels) -->
+	<script src="edge-markers.js?v=1.340"></script>
+
+	<!-- UI loading states (loading screen and progress bar) -->
+	<script src="ui-loading.js?v=1.340"></script>
+
+	<!-- Borders and contours (border lines and elevation contours) -->
+	<script src="borders-contours.js?v=1.340"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.340"></script>
+	<script src="viewer-advanced.js?v=1.340"></script>
 </body>
 
 </html>

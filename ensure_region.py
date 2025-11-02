@@ -50,6 +50,7 @@ from src.downloaders.orchestrator import (
     determine_min_required_resolution,
     format_pixel_size
 )
+from src.downloaders.opentopography import OpenTopographyRateLimitError
 from src.downloaders.data_source_resolution import determine_data_source
 from src.validation import (
     validate_geotiff,
@@ -287,7 +288,9 @@ This script will:
             return 1
         print("\nRUNNING FOR ALL REGIONS\n" + "="*70)
         problems: list[tuple[str, str]] = []
+        processed_count = 0
         for rid in all_ids:
+            processed_count += 1
             # Summary line per region
             has_valid = check_pipeline_complete(rid)
             version_ok, found_v, expected_v = check_export_version(rid)
@@ -321,9 +324,22 @@ This script will:
                 raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
                 if not raw_path:
                     dataset_override = determine_dataset_override(rid, region_type, region_info)
-                    if not download_region(rid, region_type, region_info, dataset_override, args.target_pixels):
-                        print(f"  Download failed for {rid}")
-                        continue
+                    try:
+                        if not download_region(rid, region_type, region_info, dataset_override, args.target_pixels):
+                            print(f"  Download failed for {rid}")
+                            continue
+                    except OpenTopographyRateLimitError as e:
+                        print(f"\n{'='*70}")
+                        print(f"  RATE LIMIT ERROR: Stopping batch download")
+                        print(f"{'='*70}")
+                        print(f"  OpenTopography returned 401 Unauthorized")
+                        print(f"  Processed {processed_count} regions before hitting limit")
+                        print(f"\n  What to do:")
+                        print(f"  - Wait 15-30 minutes and run the same command again")
+                        print(f"  - Already downloaded regions are cached and won't re-download")
+                        print(f"  - The script will resume where it left off")
+                        print(f"{'='*70}\n")
+                        break  # Stop processing more regions
                     raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
                     if not raw_path:
                         print(f"  Validation failed after download for {rid}")
@@ -530,8 +546,24 @@ This script will:
 
         # Download raw data
         print(f"[STAGE 4/10] Downloading...", flush=True)
-        if not download_region(region_id, region_type, region_info, dataset_override, args.target_pixels):
-            print(f"  Download failed!", flush=True)
+        try:
+            if not download_region(region_id, region_type, region_info, dataset_override, args.target_pixels):
+                print(f"  Download failed!", flush=True)
+                return 1
+        except OpenTopographyRateLimitError as e:
+            print(f"\n{'='*70}")
+            print(f"  RATE LIMIT ERROR: OpenTopography returned 401 Unauthorized")
+            print(f"{'='*70}")
+            print(f"  {str(e)}")
+            print(f"\n  What this means:")
+            print(f"  - You've hit OpenTopography's rate limit or daily quota")
+            print(f"  - This is normal when downloading many regions")
+            print(f"\n  What to do:")
+            print(f"  - Wait 15-30 minutes before trying again")
+            print(f"  - Or try again tomorrow if you've hit daily limit")
+            print(f"  - The API will work again once the limit resets")
+            print(f"\n  Your progress is saved - tiles already downloaded are cached.")
+            print(f"{'='*70}\n")
             return 1
 
         # Re-validate the downloaded file

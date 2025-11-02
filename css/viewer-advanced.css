@@ -751,3 +751,118 @@ input[type="checkbox"] {
     font-size: 9px;
     color: #aaa;
 }
+
+/* Region Navigation */
+.region-nav-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    background: rgba(26, 26, 26, 0.8);
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+.region-nav-btn {
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #5588cc, #4477bb);
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    cursor: pointer;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(85, 136, 204, 0.2);
+}
+
+.region-nav-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #6699dd, #5588cc);
+    box-shadow: 0 4px 12px rgba(85, 136, 204, 0.4);
+    transform: translateY(-1px);
+}
+
+.region-nav-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(85, 136, 204, 0.3);
+}
+
+.region-nav-btn:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.region-nav-btn .nav-arrow {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.region-nav-btn .nav-hint {
+    font-size: 10px;
+    opacity: 0.8;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.region-nav-current {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    padding: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Recently Opened Regions */
+.recent-regions-header {
+    font-size: 11px;
+    color: #88bbff;
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.recent-regions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.recent-region-item {
+    background: rgba(85, 136, 204, 0.15);
+    border: 1px solid rgba(85, 136, 204, 0.3);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.recent-region-item:hover {
+    background: rgba(85, 136, 204, 0.3);
+    border-color: rgba(85, 136, 204, 0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(85, 136, 204, 0.2);
+}
+
+.recent-region-item.active {
+    background: rgba(85, 136, 204, 0.4);
+    border-color: #5588cc;
+    font-weight: 600;
+}

@@ -30,6 +30,7 @@ from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds
 from src.pipeline import merge_tiles
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
 from load_settings import get_opentopography_api_key
+from src.downloaders.opentopography import OpenTopographyRateLimitError
 
 
 def download_single_tile_90m(
@@ -69,6 +70,14 @@ def download_single_tile_90m(
     try:
         response = requests.get(url, params=params, stream=True, timeout=300)
         
+        # Check for 401 (Unauthorized) - rate limit or quota exceeded
+        if response.status_code == 401:
+            print(f"\n    ERROR: OpenTopography returned 401 Unauthorized", flush=True)
+            print(f"    This usually means rate limit or quota exceeded.", flush=True)
+            print(f"    Please wait before trying again to let the API relax.", flush=True)
+            print(f"    STOPPING all tile downloads to respect their limits.", flush=True)
+            raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
+        
         if response.status_code != 200:
             print(f"    API Error {response.status_code}: {response.text[:200]}")
             return False
@@ -97,6 +106,10 @@ def download_single_tile_90m(
                         pbar.update(len(chunk))
         
         return True
+    
+    except OpenTopographyRateLimitError:
+        # Re-raise to stop all tile downloads immediately
+        raise
         
     except requests.exceptions.Timeout:
         print(f"    ERROR: Download timed out for tile")
@@ -326,6 +339,15 @@ def download_srtm_90m_single(
     
     try:
         response = requests.get(url, params=params, stream=True, timeout=300)
+        
+        # Check for 401 (Unauthorized) - rate limit or quota exceeded
+        if response.status_code == 401:
+            print(f"\n  ERROR: OpenTopography returned 401 Unauthorized", flush=True)
+            print(f"  This usually means rate limit or quota exceeded.", flush=True)
+            print(f"  Please wait before trying again to let the API relax.", flush=True)
+            print(f"  STOPPING download to respect their limits.", flush=True)
+            raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
+        
         response.raise_for_status()
         
         total_size = int(response.headers.get('content-length', 0))
@@ -358,6 +380,10 @@ def download_srtm_90m_single(
         save_metadata(metadata, get_metadata_path(output_path))
         
         return True
+    
+    except OpenTopographyRateLimitError:
+        # Re-raise to stop all downloads
+        raise
         
     except Exception as e:
         print(f"  ERROR: Download failed: {e}")

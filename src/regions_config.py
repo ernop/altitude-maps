@@ -638,6 +638,16 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "baja_california": RegionConfig(
+        id="baja_california",
+        name="Baja California Peninsula",
+        bounds=(-117.1, 22.8, -109.4, 32.7),
+        description="Mexico - Baja California Peninsula (Baja California and Baja California Sur)",
+        region_type=RegionType.REGION,
+        country="Mexico",
+        clip_boundary=False,
+        tiles=(2, 3),  # 7.7deg x 9.9deg -> 2x3 tiles for API friendliness
+    ),
 }
 
 
