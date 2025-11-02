@@ -8,7 +8,7 @@ class CameraScheme {
         this.enabled = false;
         this.state = {};
     }
-    
+
     activate(camera, controls, renderer) {
         this.camera = camera;
         this.controls = controls;
@@ -16,22 +16,22 @@ class CameraScheme {
         this.enabled = true;
         this.reset();
     }
-    
+
     deactivate() {
         this.enabled = false;
         this.cleanup();
     }
-    
+
     reset() {
         this.state = {};
     }
-    
-    cleanup() {}
-    onMouseDown(event) {}
-    onMouseMove(event) {}
-    onMouseUp(event) {}
-    onWheel(event) {}
-    update() {}
+
+    cleanup() { }
+    onMouseDown(event) { }
+    onMouseMove(event) { }
+    onMouseUp(event) { }
+    onWheel(event) { }
+    update() { }
 }
 
 // ==================== GOOGLE MAPS STYLE ====================
@@ -41,18 +41,18 @@ class GoogleMapsScheme extends CameraScheme {
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.raycaster = new THREE.Raycaster();
     }
-    
+
     raycast(x, y) {
         const rect = this.renderer.domElement.getBoundingClientRect();
         const ndcX = ((x - rect.left) / rect.width) * 2 - 1;
         const ndcY = -((y - rect.top) / rect.height) * 2 + 1;
-        
+
         this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
         const point = new THREE.Vector3();
         this.raycaster.ray.intersectPlane(this.groundPlane, point);
         return point;
     }
-    
+
     onMouseDown(event) {
         if (event.button === 0) { // Left = pan
             this.state.panning = true;
@@ -66,7 +66,7 @@ class GoogleMapsScheme extends CameraScheme {
             this.state.targetStart = this.controls.target.clone();
         }
     }
-    
+
     onMouseMove(event) {
         if (this.state.panning && this.state.panStart) {
             const current = this.raycast(event.clientX, event.clientY);
@@ -76,46 +76,46 @@ class GoogleMapsScheme extends CameraScheme {
                 this.controls.target.copy(this.state.targetStart).add(delta);
             }
         }
-        
+
         if (this.state.rotating && this.state.rotateStart) {
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
-            
+
             const offset = new THREE.Vector3().subVectors(this.state.cameraStart, this.state.targetStart);
             const radius = offset.length();
-            
+
             // Horizontal rotation
             const theta = -deltaX * 0.005;
             const phi = -deltaY * 0.005;
-            
+
             const spherical = new THREE.Spherical().setFromVector3(offset);
             spherical.theta += theta;
             spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + phi));
-            
+
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.state.targetStart).add(offset);
             this.camera.lookAt(this.controls.target);
         }
     }
-    
+
     onMouseUp(event) {
         this.state.panning = false;
         this.state.rotating = false;
     }
-    
+
     onWheel(event) {
         // Zoom to cursor
         const point = this.raycast(event.clientX, event.clientY);
         if (!point) return;
-        
+
         const distance = this.camera.position.distanceTo(point);
         const zoomSpeed = 0.1;
         // STANDARD: Scroll UP (negative delta) = zoom IN, Scroll DOWN (positive) = zoom OUT
         const factor = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-        
+
         const newDist = distance * factor;
         if (newDist < 1) return;
-        
+
         const direction = new THREE.Vector3().subVectors(point, this.camera.position).normalize();
         const move = distance * (1 - factor);
         this.camera.position.addScaledVector(direction, move);
@@ -129,18 +129,18 @@ class GoogleEarthScheme extends CameraScheme {
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.raycaster = new THREE.Raycaster();
     }
-    
+
     raycast(x, y) {
         const rect = this.renderer.domElement.getBoundingClientRect();
         const ndcX = ((x - rect.left) / rect.width) * 2 - 1;
         const ndcY = -((y - rect.top) / rect.height) * 2 + 1;
-        
+
         this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
         const point = new THREE.Vector3();
         this.raycaster.ray.intersectPlane(this.groundPlane, point);
         return point;
     }
-    
+
     onMouseDown(event) {
         if (event.button === 0 && event.ctrlKey) { // Ctrl+Left = pan
             this.state.panning = true;
@@ -157,64 +157,64 @@ class GoogleEarthScheme extends CameraScheme {
             }
         }
     }
-    
+
     onMouseMove(event) {
         if (this.state.panning && this.state.panStart) {
             // Use screen-space panning (smooth like Roblox)
             const deltaX = event.clientX - this.state.panStart.x;
             const deltaY = event.clientY - this.state.panStart.y;
-            
+
             const right = new THREE.Vector3();
             this.camera.getWorldDirection(right);
             right.cross(this.camera.up).normalize();
-            
+
             const up = new THREE.Vector3(0, 1, 0);
-            
+
             const distance = this.camera.position.distanceTo(this.controls.target);
             const moveSpeed = distance * 0.001;
-            
+
             const movement = new THREE.Vector3();
             movement.addScaledVector(right, -deltaX * moveSpeed);
             movement.addScaledVector(up, deltaY * moveSpeed);
-            
+
             this.camera.position.copy(this.state.cameraStart).add(movement);
             this.controls.target.copy(this.state.targetStart).add(movement);
         }
-        
+
         if (this.state.rotating && this.state.pivot) {
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
-            
+
             const offset = new THREE.Vector3().subVectors(this.state.cameraStart, this.state.pivot);
-            
+
             const theta = -deltaX * 0.005;
             const phi = -deltaY * 0.005;
-            
+
             const spherical = new THREE.Spherical().setFromVector3(offset);
             spherical.theta += theta;
             spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + phi));
-            
+
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.state.pivot).add(offset);
             this.camera.lookAt(this.state.pivot);
             this.controls.target.copy(this.state.pivot);
         }
     }
-    
+
     onMouseUp(event) {
         this.state.panning = false;
         this.state.rotating = false;
     }
-    
+
     onWheel(event) {
         const point = this.raycast(event.clientX, event.clientY);
         if (!point) return;
-        
+
         const distance = this.camera.position.distanceTo(point);
         const zoomSpeed = 0.1;
         // STANDARD: Scroll UP (negative delta) = zoom IN
         const factor = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-        
+
         const direction = new THREE.Vector3().subVectors(point, this.camera.position).normalize();
         const move = distance * (1 - factor);
         this.camera.position.addScaledVector(direction, move);
@@ -228,18 +228,18 @@ class BlenderScheme extends CameraScheme {
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.raycaster = new THREE.Raycaster();
     }
-    
+
     raycast(x, y) {
         const rect = this.renderer.domElement.getBoundingClientRect();
         const ndcX = ((x - rect.left) / rect.width) * 2 - 1;
         const ndcY = -((y - rect.top) / rect.height) * 2 + 1;
-        
+
         this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
         const point = new THREE.Vector3();
         this.raycaster.ray.intersectPlane(this.groundPlane, point);
         return point;
     }
-    
+
     onMouseDown(event) {
         if (event.button === 1 && event.shiftKey) { // Shift+Middle = pan
             this.state.panning = true;
@@ -252,54 +252,54 @@ class BlenderScheme extends CameraScheme {
             this.state.cameraStart = this.camera.position.clone();
         }
     }
-    
+
     onMouseMove(event) {
         if (this.state.panning && this.state.panStart) {
             // Use screen-space panning (smooth like Roblox)
             const deltaX = event.clientX - this.state.panStart.x;
             const deltaY = event.clientY - this.state.panStart.y;
-            
+
             const right = new THREE.Vector3();
             this.camera.getWorldDirection(right);
             right.cross(this.camera.up).normalize();
-            
+
             const up = new THREE.Vector3(0, 1, 0);
-            
+
             const distance = this.camera.position.distanceTo(this.controls.target);
             const moveSpeed = distance * 0.001;
-            
+
             const movement = new THREE.Vector3();
             movement.addScaledVector(right, -deltaX * moveSpeed);
             movement.addScaledVector(up, deltaY * moveSpeed);
-            
+
             this.camera.position.copy(this.state.cameraStart).add(movement);
             this.controls.target.copy(this.state.targetStart).add(movement);
         }
-        
+
         if (this.state.rotating) {
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
-            
+
             const offset = new THREE.Vector3().subVectors(this.state.cameraStart, this.controls.target);
-            
+
             const theta = -deltaX * 0.005;
             const phi = -deltaY * 0.005;
-            
+
             const spherical = new THREE.Spherical().setFromVector3(offset);
             spherical.theta += theta;
             spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + phi));
-            
+
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.controls.target).add(offset);
             this.camera.lookAt(this.controls.target);
         }
     }
-    
+
     onMouseUp(event) {
         this.state.panning = false;
         this.state.rotating = false;
     }
-    
+
     onWheel(event) {
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward);
@@ -316,7 +316,7 @@ class RobloxScheme extends CameraScheme {
         super('Roblox Studio', 'Right drag = rotate, Middle drag = pan, WASD = move, QE = up/down');
         this.keys = {};
     }
-    
+
     activate(camera, controls, renderer) {
         super.activate(camera, controls, renderer);
         this.keydownHandler = (e) => this.onKeyDown(e);
@@ -324,20 +324,20 @@ class RobloxScheme extends CameraScheme {
         window.addEventListener('keydown', this.keydownHandler);
         window.addEventListener('keyup', this.keyupHandler);
     }
-    
+
     cleanup() {
         window.removeEventListener('keydown', this.keydownHandler);
         window.removeEventListener('keyup', this.keyupHandler);
     }
-    
+
     onKeyDown(event) {
         this.keys[event.key.toLowerCase()] = true;
     }
-    
+
     onKeyUp(event) {
         this.keys[event.key.toLowerCase()] = false;
     }
-    
+
     onMouseDown(event) {
         if (event.button === 2) { // Right = rotate
             this.state.rotating = true;
@@ -350,51 +350,51 @@ class RobloxScheme extends CameraScheme {
             this.state.targetStart = this.controls.target.clone();
         }
     }
-    
+
     onMouseMove(event) {
         if (this.state.rotating) {
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
-            
+
             const offset = new THREE.Vector3().subVectors(this.state.cameraStart, this.controls.target);
-            
+
             const theta = -deltaX * 0.005;
             const phi = -deltaY * 0.005;
-            
+
             const spherical = new THREE.Spherical().setFromVector3(offset);
             spherical.theta += theta;
             spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + phi));
-            
+
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.controls.target).add(offset);
             this.camera.lookAt(this.controls.target);
         }
-        
+
         if (this.state.panning) {
             const deltaX = event.clientX - this.state.panStart.x;
             const deltaY = event.clientY - this.state.panStart.y;
-            
+
             const right = new THREE.Vector3();
             this.camera.getWorldDirection(right);
             right.cross(this.camera.up).normalize();
-            
+
             const up = new THREE.Vector3(0, 1, 0);
-            
+
             const moveSpeed = 0.5;
             const movement = new THREE.Vector3();
             movement.addScaledVector(right, -deltaX * moveSpeed);
             movement.addScaledVector(up, deltaY * moveSpeed);
-            
+
             this.camera.position.copy(this.state.cameraStart).add(movement);
             this.controls.target.copy(this.state.targetStart).add(movement);
         }
     }
-    
+
     onMouseUp(event) {
         this.state.rotating = false;
         this.state.panning = false;
     }
-    
+
     onWheel(event) {
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward);
@@ -403,27 +403,27 @@ class RobloxScheme extends CameraScheme {
         this.camera.position.addScaledVector(forward, moveAmount);
         this.controls.target.addScaledVector(forward, moveAmount);
     }
-    
+
     update() {
         if (!this.enabled) return;
-        
+
         const moveSpeed = 2.0;
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward);
         forward.normalize();
-        
+
         const right = new THREE.Vector3();
         right.crossVectors(forward, this.camera.up).normalize();
-        
+
         const delta = new THREE.Vector3();
-        
+
         if (this.keys['w']) delta.addScaledVector(forward, moveSpeed);
         if (this.keys['s']) delta.addScaledVector(forward, -moveSpeed);
         if (this.keys['a']) delta.addScaledVector(right, -moveSpeed);
         if (this.keys['d']) delta.addScaledVector(right, moveSpeed);
         if (this.keys['e']) delta.y += moveSpeed;
         if (this.keys['q']) delta.y -= moveSpeed;
-        
+
         if (delta.lengthSq() > 0) {
             this.camera.position.add(delta);
             this.controls.target.add(delta);
@@ -436,7 +436,7 @@ class UnityScheme extends CameraScheme {
     constructor() {
         super('Unity Editor', 'Alt+Left = orbit, Alt+Middle = pan, Alt+Right = zoom, Scroll = zoom');
     }
-    
+
     onMouseDown(event) {
         if (event.altKey && event.button === 0) { // Alt+Left = orbit
             this.state.orbiting = true;
@@ -453,45 +453,45 @@ class UnityScheme extends CameraScheme {
             this.state.cameraStart = this.camera.position.clone();
         }
     }
-    
+
     onMouseMove(event) {
         if (this.state.orbiting) {
             const deltaX = event.clientX - this.state.orbitStart.x;
             const deltaY = event.clientY - this.state.orbitStart.y;
-            
+
             const offset = new THREE.Vector3().subVectors(this.state.cameraStart, this.controls.target);
-            
+
             const theta = -deltaX * 0.005;
             const phi = -deltaY * 0.005;
-            
+
             const spherical = new THREE.Spherical().setFromVector3(offset);
             spherical.theta += theta;
             spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + phi));
-            
+
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.controls.target).add(offset);
             this.camera.lookAt(this.controls.target);
         }
-        
+
         if (this.state.panning) {
             const deltaX = event.clientX - this.state.panStart.x;
             const deltaY = event.clientY - this.state.panStart.y;
-            
+
             const right = new THREE.Vector3();
             this.camera.getWorldDirection(right);
             right.cross(this.camera.up).normalize();
-            
+
             const up = new THREE.Vector3(0, 1, 0);
-            
+
             const moveSpeed = 0.5;
             const movement = new THREE.Vector3();
             movement.addScaledVector(right, -deltaX * moveSpeed);
             movement.addScaledVector(up, deltaY * moveSpeed);
-            
+
             this.camera.position.copy(this.state.cameraStart).add(movement);
             this.controls.target.copy(this.state.targetStart).add(movement);
         }
-        
+
         if (this.state.zooming) {
             const deltaY = event.clientY - this.state.zoomStart;
             const forward = new THREE.Vector3();
@@ -499,13 +499,13 @@ class UnityScheme extends CameraScheme {
             this.camera.position.copy(this.state.cameraStart).addScaledVector(forward, -deltaY * 0.5);
         }
     }
-    
+
     onMouseUp(event) {
         this.state.orbiting = false;
         this.state.panning = false;
         this.state.zooming = false;
     }
-    
+
     onWheel(event) {
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward);
@@ -516,12 +516,404 @@ class UnityScheme extends CameraScheme {
     }
 }
 
+// ==================== FLYING MODE (Space Simulator Style) ====================
+class FlyingScheme extends CameraScheme {
+    constructor() {
+        super('Flying', 'Mouse = look around, WASD = move, QE = up/down, Shift = speed boost');
+        this.keys = {};
+        this.mouseSensitivity = 0.002;
+        this.moveSpeed = 5.0;
+        this.fastMoveSpeed = 15.0;
+        this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    }
+
+    activate(camera, controls, renderer) {
+        super.activate(camera, controls, renderer);
+
+        // Store initial camera orientation
+        this.euler.setFromQuaternion(camera.quaternion);
+
+        // Set up event listeners
+        this.keydownHandler = (e) => this.onKeyDown(e);
+        this.keyupHandler = (e) => this.onKeyUp(e);
+        this.mouseMoveHandler = (e) => this.onMouseMoveFlying(e);
+        this.clickHandler = (e) => this.onClickFlying(e);
+
+        window.addEventListener('keydown', this.keydownHandler);
+        window.addEventListener('keyup', this.keyupHandler);
+        renderer.domElement.addEventListener('mousemove', this.mouseMoveHandler);
+        renderer.domElement.addEventListener('click', this.clickHandler);
+
+        // Disable OrbitControls
+        if (controls) {
+            this._controlsPrev = {
+                enabled: controls.enabled,
+                enableRotate: controls.enableRotate,
+                enablePan: controls.enablePan,
+                enableZoom: controls.enableZoom
+            };
+            controls.enabled = false;
+        }
+
+        // Instructions for pointer lock
+        appendActivityLog('Flying mode: Click canvas to look around with mouse. ESC to release.');
+    }
+
+    cleanup() {
+        window.removeEventListener('keydown', this.keydownHandler);
+        window.removeEventListener('keyup', this.keyupHandler);
+        this.renderer.domElement.removeEventListener('mousemove', this.mouseMoveHandler);
+        this.renderer.domElement.removeEventListener('click', this.clickHandler);
+
+        // Restore controls
+        if (this.controls && this._controlsPrev) {
+            this.controls.enabled = this._controlsPrev.enabled;
+            this.controls.enableRotate = this._controlsPrev.enableRotate;
+            this.controls.enablePan = this._controlsPrev.enablePan;
+            this.controls.enableZoom = this._controlsPrev.enableZoom;
+        }
+
+        // Exit pointer lock if active
+        if (document.pointerLockElement === this.renderer.domElement) {
+            document.exitPointerLock();
+        }
+    }
+
+    onKeyDown(event) {
+        // Don't process keys if user is typing
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'SELECT' ||
+            activeElement.isContentEditable
+        );
+        if (isTyping) return;
+
+        this.keys[event.key.toLowerCase()] = true;
+    }
+
+    onKeyUp(event) {
+        this.keys[event.key.toLowerCase()] = false;
+    }
+
+    onClickFlying(event) {
+        // Request pointer lock for smooth mouse look
+        if (document.pointerLockElement !== this.renderer.domElement) {
+            this.renderer.domElement.requestPointerLock();
+        }
+    }
+
+    onMouseMoveFlying(event) {
+        // Only handle mouse movement when pointer is locked
+        if (document.pointerLockElement !== this.renderer.domElement) return;
+
+        const movementX = event.movementX || 0;
+        const movementY = event.movementY || 0;
+
+        // Update euler angles for smooth FPS-style look
+        this.euler.setFromQuaternion(this.camera.quaternion);
+        this.euler.y -= movementX * this.mouseSensitivity;
+        this.euler.x -= movementY * this.mouseSensitivity;
+
+        // Clamp vertical rotation to prevent flipping
+        this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
+
+        this.camera.quaternion.setFromEuler(this.euler);
+    }
+
+    update() {
+        if (!this.enabled) return;
+
+        const speed = this.keys['shift'] ? this.fastMoveSpeed : this.moveSpeed;
+
+        const forward = new THREE.Vector3();
+        this.camera.getWorldDirection(forward);
+        forward.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(forward, this.camera.up).normalize();
+
+        const delta = new THREE.Vector3();
+
+        if (this.keys['w']) delta.addScaledVector(forward, speed);
+        if (this.keys['s']) delta.addScaledVector(forward, -speed);
+        if (this.keys['a']) delta.addScaledVector(right, -speed);
+        if (this.keys['d']) delta.addScaledVector(right, speed);
+        if (this.keys['e']) delta.y += speed;
+        if (this.keys['q']) delta.y -= speed;
+
+        if (delta.lengthSq() > 0) {
+            this.camera.position.add(delta);
+        }
+
+        // Update controls target to be in front of camera
+        if (this.controls) {
+            this.controls.target.copy(this.camera.position).add(forward.multiplyScalar(100));
+        }
+    }
+}
+
+// ==================== JUMPING MODE (Third-Person Character) ====================
+class JumpingScheme extends CameraScheme {
+    constructor() {
+        super('Jumping (Map-Grandpa)', 'WASD = move, Space = jump, Mouse = look around, Shift = run');
+        this.keys = {};
+        this.character = {
+            position: new THREE.Vector3(0, 50, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            onGround: false,
+            radius: 5,
+            height: 10
+        };
+        this.mouseSensitivity = 0.003;
+        this.walkSpeed = 3.0;
+        this.runSpeed = 8.0;
+        this.jumpForce = 15.0;
+        this.gravity = -30.0;
+
+        // Camera offset from character (third-person view)
+        this.cameraDistance = 30;
+        this.cameraHeight = 15;
+        this.cameraAngle = { theta: 0, phi: Math.PI / 6 }; // Horizontal and vertical angles
+
+        this.terrainData = null; // Will be set by viewer
+    }
+
+    activate(camera, controls, renderer) {
+        super.activate(camera, controls, renderer);
+
+        // Initialize character at camera position
+        this.character.position.copy(camera.position);
+        this.character.position.y = Math.max(50, camera.position.y);
+
+        // Set up event listeners
+        this.keydownHandler = (e) => this.onKeyDown(e);
+        this.keyupHandler = (e) => this.onKeyUp(e);
+        this.mouseMoveHandler = (e) => this.onMouseMoveJumping(e);
+        this.mouseDownHandler = (e) => this.onMouseDownJumping(e);
+
+        window.addEventListener('keydown', this.keydownHandler);
+        window.addEventListener('keyup', this.keyupHandler);
+        renderer.domElement.addEventListener('mousemove', this.mouseMoveHandler);
+        renderer.domElement.addEventListener('mousedown', this.mouseDownHandler);
+
+        // Disable OrbitControls
+        if (controls) {
+            this._controlsPrev = {
+                enabled: controls.enabled,
+                enableRotate: controls.enableRotate,
+                enablePan: controls.enablePan,
+                enableZoom: controls.enableZoom
+            };
+            controls.enabled = false;
+        }
+
+        // Create character mesh (simple cube for Map-Grandpa)
+        this.createCharacterMesh();
+
+        appendActivityLog('Jumping mode: Meet Map-Grandpa! WASD to move, Space to jump, right-click drag to look around.');
+    }
+
+    cleanup() {
+        window.removeEventListener('keydown', this.keydownHandler);
+        window.removeEventListener('keyup', this.keyupHandler);
+        this.renderer.domElement.removeEventListener('mousemove', this.mouseMoveHandler);
+        this.renderer.domElement.removeEventListener('mousedown', this.mouseDownHandler);
+
+        // Remove character mesh
+        if (this.characterMesh && scene) {
+            scene.remove(this.characterMesh);
+            this.characterMesh.geometry.dispose();
+            this.characterMesh.material.dispose();
+            this.characterMesh = null;
+        }
+
+        // Restore controls
+        if (this.controls && this._controlsPrev) {
+            this.controls.enabled = this._controlsPrev.enabled;
+            this.controls.enableRotate = this._controlsPrev.enableRotate;
+            this.controls.enablePan = this._controlsPrev.enablePan;
+            this.controls.enableZoom = this._controlsPrev.enableZoom;
+        }
+
+        if (document.pointerLockElement === this.renderer.domElement) {
+            document.exitPointerLock();
+        }
+    }
+
+    createCharacterMesh() {
+        // Simple cube representing Map-Grandpa
+        const geometry = new THREE.BoxGeometry(
+            this.character.radius * 2,
+            this.character.height,
+            this.character.radius * 2
+        );
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xff6600,
+            metalness: 0.2,
+            roughness: 0.7
+        });
+        this.characterMesh = new THREE.Mesh(geometry, material);
+
+        // Add to scene (need to access global scene)
+        if (typeof scene !== 'undefined' && scene) {
+            scene.add(this.characterMesh);
+        }
+    }
+
+    onKeyDown(event) {
+        // Don't process keys if user is typing
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'SELECT' ||
+            activeElement.isContentEditable
+        );
+        if (isTyping) return;
+
+        this.keys[event.key.toLowerCase()] = true;
+
+        // Jump
+        if (event.key === ' ' && this.character.onGround) {
+            this.character.velocity.y = this.jumpForce;
+            this.character.onGround = false;
+        }
+    }
+
+    onKeyUp(event) {
+        this.keys[event.key.toLowerCase()] = false;
+    }
+
+    onMouseDownJumping(event) {
+        if (event.button === 2) { // Right click
+            this.state.rotating = true;
+            this.state.rotateStart = { x: event.clientX, y: event.clientY };
+        }
+    }
+
+    onMouseMoveJumping(event) {
+        if (this.state.rotating && this.state.rotateStart) {
+            const deltaX = event.clientX - this.state.rotateStart.x;
+            const deltaY = event.clientY - this.state.rotateStart.y;
+
+            this.cameraAngle.theta -= deltaX * this.mouseSensitivity;
+            this.cameraAngle.phi += deltaY * this.mouseSensitivity;
+
+            // Clamp vertical angle
+            this.cameraAngle.phi = Math.max(0.1, Math.min(Math.PI / 2, this.cameraAngle.phi));
+
+            this.state.rotateStart = { x: event.clientX, y: event.clientY };
+        }
+    }
+
+    onMouseUp(event) {
+        if (event.button === 2) {
+            this.state.rotating = false;
+        }
+    }
+
+    getTerrainHeight(x, z) {
+        // Simple terrain collision - get height at character position
+        // This is a placeholder - would need access to actual terrain data
+        if (!rawElevationData || !rawElevationData.bounds) return 0;
+
+        const bounds = rawElevationData.bounds;
+        const width = rawElevationData.width;
+        const height = rawElevationData.height;
+        const data = rawElevationData.data;
+
+        // Convert world position to data coordinates
+        const normalizedX = (x - bounds.minX) / (bounds.maxX - bounds.minX);
+        const normalizedZ = (z - bounds.minZ) / (bounds.maxZ - bounds.minZ);
+
+        const col = Math.floor(normalizedX * width);
+        const row = Math.floor((1 - normalizedZ) * height); // Flip Z
+
+        if (col >= 0 && col < width && row >= 0 && row < height) {
+            const elevation = data[row * width + col];
+            return elevation !== null ? elevation : 0;
+        }
+
+        return 0;
+    }
+
+    update() {
+        if (!this.enabled) return;
+
+        const deltaTime = 1 / 60; // Assume 60fps for physics
+
+        // Movement input
+        const speed = this.keys['shift'] ? this.runSpeed : this.walkSpeed;
+
+        // Get camera-relative movement direction
+        const forward = new THREE.Vector3(
+            Math.sin(this.cameraAngle.theta),
+            0,
+            Math.cos(this.cameraAngle.theta)
+        ).normalize();
+
+        const right = new THREE.Vector3(
+            Math.cos(this.cameraAngle.theta),
+            0,
+            -Math.sin(this.cameraAngle.theta)
+        ).normalize();
+
+        const movement = new THREE.Vector3();
+        if (this.keys['w']) movement.addScaledVector(forward, speed);
+        if (this.keys['s']) movement.addScaledVector(forward, -speed);
+        if (this.keys['a']) movement.addScaledVector(right, -speed);
+        if (this.keys['d']) movement.addScaledVector(right, speed);
+
+        // Apply movement
+        this.character.position.x += movement.x * deltaTime;
+        this.character.position.z += movement.z * deltaTime;
+
+        // Apply gravity
+        this.character.velocity.y += this.gravity * deltaTime;
+        this.character.position.y += this.character.velocity.y * deltaTime;
+
+        // Terrain collision
+        const terrainHeight = this.getTerrainHeight(this.character.position.x, this.character.position.z);
+        const groundLevel = terrainHeight + this.character.height / 2;
+
+        if (this.character.position.y <= groundLevel) {
+            this.character.position.y = groundLevel;
+            this.character.velocity.y = 0;
+            this.character.onGround = true;
+        } else {
+            this.character.onGround = false;
+        }
+
+        // Update character mesh
+        if (this.characterMesh) {
+            this.characterMesh.position.copy(this.character.position);
+        }
+
+        // Update camera position (third-person)
+        const camX = this.character.position.x - Math.sin(this.cameraAngle.theta) * this.cameraDistance * Math.cos(this.cameraAngle.phi);
+        const camY = this.character.position.y + this.cameraDistance * Math.sin(this.cameraAngle.phi) + this.cameraHeight;
+        const camZ = this.character.position.z - Math.cos(this.cameraAngle.theta) * this.cameraDistance * Math.cos(this.cameraAngle.phi);
+
+        this.camera.position.set(camX, camY, camZ);
+        this.camera.lookAt(this.character.position);
+
+        // Update controls target
+        if (this.controls) {
+            this.controls.target.copy(this.character.position);
+        }
+    }
+}
+
 // Export schemes
 window.CameraSchemes = {
     'google-maps': new GoogleMapsScheme(),
     'google-earth': new GoogleEarthScheme(),
     'blender': new BlenderScheme(),
     'roblox': new RobloxScheme(),
-    'unity': new UnityScheme()
+    'unity': new UnityScheme(),
+    'flying': new FlyingScheme(),
+    'jumping': new JumpingScheme()
 };
 

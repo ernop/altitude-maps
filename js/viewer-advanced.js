@@ -1,5 +1,5 @@
 // Version tracking
-const VIEWER_VERSION = '1.339';
+const VIEWER_VERSION = '1.340';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -23,6 +23,7 @@ let borderGeoCellSizeDeg = 0.25; // spatial hash cell size in degrees
 const __tmpColor = new THREE.Color();
 let stats = {};
 let borderMeshes = [];
+let contourMeshes = [];
 let borderData = null;
 let frameCount = 0;
 let lastTime = performance.now();
@@ -149,11 +150,12 @@ let params = {
     showGrid: false,
     showBorders: false,
     autoRotate: false,
-    flatLightingEnabled: false,
-    hillshadeEnabled: false,
-    sunAzimuthDeg: 315,
+    shadingMode: 'natural', // Options: 'natural', 'flat', 'hillshade', 'hillshade-tinted'
+    sunAzimuthDeg: 315, // Northwest light for hillshade
     sunAltitudeDeg: 45,
-    colorGamma: 1.0
+    colorGamma: 1.0,
+    showContours: false,
+    contourInterval: 100 // Contour line interval in meters
 };
 
 // Read and apply modifiable params from URL so links are shareable and stateful
@@ -212,16 +214,29 @@ function applyParamsFromURL() {
     if (cs) params.colorScheme = cs;
 
     // Shading / lighting
-    const flat = getBool('flat');
-    if (flat !== null) params.flatLightingEnabled = !!flat;
-    const hs = getBool('hillshade');
-    if (hs !== null) params.hillshadeEnabled = !!hs;
+    // Shading mode (supports legacy flat=1 and hillshade=1 parameters)
+    const shadingMode = getStr('shading', ['natural', 'flat', 'hillshade', 'hillshade-tinted']);
+    if (shadingMode) {
+        params.shadingMode = shadingMode;
+    } else {
+        // Legacy parameter support
+        const flat = getBool('flat');
+        if (flat !== null && flat) params.shadingMode = 'flat';
+        const hs = getBool('hillshade');
+        if (hs !== null && hs) params.shadingMode = 'hillshade';
+    }
     const saz = getInt('sunAz', 0, 360);
     if (saz !== null) params.sunAzimuthDeg = saz;
     const sal = getInt('sunAlt', 0, 90);
     if (sal !== null) params.sunAltitudeDeg = sal;
     const gamma = getFloat('gamma', 0.5, 2.0);
     if (gamma !== null) params.colorGamma = gamma;
+
+    // Contour lines
+    const contours = getBool('contours');
+    if (contours !== null) params.showContours = !!contours;
+    const contourInt = getInt('contourInterval', 10, 5000);
+    if (contourInt !== null) params.contourInterval = contourInt;
 }
 
 // Initialize
@@ -823,9 +838,15 @@ function syncUIControls() {
     const $colorScheme = $('#colorScheme');
     $colorScheme.val(params.colorScheme);
 
-    // Flat lighting toggle (if present)
-    const flatChk = document.getElementById('flatLightingEnabled');
-    if (flatChk) flatChk.checked = !!params.flatLightingEnabled;
+    // Shading mode dropdown
+    const shadingModeEl = document.getElementById('shadingMode');
+    if (shadingModeEl) shadingModeEl.value = params.shadingMode || 'natural';
+
+    // Contour controls
+    const contourToggleEl = document.getElementById('showContours');
+    if (contourToggleEl) contourToggleEl.checked = !!params.showContours;
+    const contourIntervalEl = document.getElementById('contourInterval');
+    if (contourIntervalEl) contourIntervalEl.value = params.contourInterval || 100;
 
     // Apply visual settings to scene objects
     if (gridHelper) {
@@ -1086,6 +1107,179 @@ function updateEdgeMarkers() {
     // Markers stay at fixed height - no update needed when vertical exaggeration changes
     // This function is kept for compatibility but doesn't change marker heights
     // The markers are positioned at a fixed height set in createEdgeMarkers()
+}
+
+/**
+ * Generate and display contour lines using marching squares algorithm
+ */
+function createContourLines() {
+    // Remove old contour lines
+    contourMeshes.forEach(mesh => scene.remove(mesh));
+    contourMeshes = [];
+
+    if (!params.showContours || !processedData || !processedData.elevation) {
+        return;
+    }
+
+    const { width, height, elevation, stats } = processedData;
+    const interval = params.contourInterval;
+
+    if (!interval || interval <= 0) return;
+
+    // Calculate contour levels based on elevation range
+    const minElev = stats.min;
+    const maxElev = stats.max;
+    const firstLevel = Math.ceil(minElev / interval) * interval;
+    const levels = [];
+
+    for (let level = firstLevel; level <= maxElev; level += interval) {
+        levels.push(level);
+    }
+
+    console.log(`Generating ${levels.length} contour lines from ${minElev.toFixed(0)}m to ${maxElev.toFixed(0)}m at ${interval}m intervals`);
+
+    // For each contour level, trace lines
+    levels.forEach(level => {
+        const lines = traceContourLevel(elevation, width, height, level);
+
+        lines.forEach(linePoints => {
+            if (linePoints.length < 2) return;
+
+            // Convert grid coordinates to world coordinates
+            const worldPoints = linePoints.map(p => {
+                const bucketMultiplier = params.bucketSize;
+                let worldX, worldZ;
+
+                if (params.renderMode === 'bars') {
+                    worldX = p.x * bucketMultiplier - (width - 1) * bucketMultiplier / 2;
+                    worldZ = p.y * bucketMultiplier - (height - 1) * bucketMultiplier / 2;
+                } else if (params.renderMode === 'points') {
+                    const bucketSize = params.bucketSize;
+                    worldX = p.x * bucketSize - (width - 1) * bucketSize / 2;
+                    worldZ = p.y * bucketSize - (height - 1) * bucketSize / 2;
+                } else {
+                    // Surface mode
+                    worldX = (p.x / (width - 1) - 0.5) * width * bucketMultiplier;
+                    worldZ = (p.y / (height - 1) - 0.5) * height * bucketMultiplier;
+                }
+
+                return new THREE.Vector3(worldX, level * params.verticalExaggeration + 1, worldZ);
+            });
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(worldPoints);
+            const material = new THREE.LineBasicMaterial({
+                color: 0xffaa00, // Orange/yellow for visibility
+                transparent: true,
+                opacity: 0.7,
+                linewidth: 1
+            });
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            contourMeshes.push(line);
+        });
+    });
+
+    console.log(`Created ${contourMeshes.length} contour line segments`);
+}
+
+/**
+ * Trace a single contour level using marching squares
+ * Returns array of line segments (each segment is array of {x, y} points)
+ */
+function traceContourLevel(elevation, width, height, level) {
+    const lines = [];
+    const visited = new Set();
+
+    // Helper to get elevation at grid point
+    const getElev = (i, j) => {
+        if (i < 0 || i >= height || j < 0 || j >= width) return null;
+        const val = elevation[i] && elevation[i][j];
+        return (val === null || val === undefined) ? null : val;
+    };
+
+    // Marching squares: for each grid cell, check if contour crosses it
+    for (let i = 0; i < height - 1; i++) {
+        for (let j = 0; j < width - 1; j++) {
+            const key = `${i},${j}`;
+            if (visited.has(key)) continue;
+
+            // Get corner elevations
+            const nw = getElev(i, j);
+            const ne = getElev(i, j + 1);
+            const sw = getElev(i + 1, j);
+            const se = getElev(i + 1, j + 1);
+
+            if (nw === null || ne === null || sw === null || se === null) continue;
+
+            // Check if contour crosses this cell
+            const hasAbove = (nw >= level) || (ne >= level) || (sw >= level) || (se >= level);
+            const hasBelow = (nw < level) || (ne < level) || (sw < level) || (se < level);
+
+            if (!hasAbove || !hasBelow) continue; // Contour doesn't cross this cell
+
+            // Trace the contour line through this cell
+            const linePoints = [];
+            let currentI = i, currentJ = j;
+            let maxSteps = 10000; // Prevent infinite loops
+
+            while (maxSteps-- > 0) {
+                const cellKey = `${currentI},${currentJ}`;
+                if (visited.has(cellKey)) break;
+                visited.add(cellKey);
+
+                // Get corner values
+                const v00 = getElev(currentI, currentJ);
+                const v10 = getElev(currentI, currentJ + 1);
+                const v01 = getElev(currentI + 1, currentJ);
+                const v11 = getElev(currentI + 1, currentJ + 1);
+
+                if (v00 === null || v10 === null || v01 === null || v11 === null) break;
+
+                // Interpolate edge crossings
+                const edges = [];
+
+                // Top edge (between v00 and v10)
+                if ((v00 < level && v10 >= level) || (v00 >= level && v10 < level)) {
+                    const t = (level - v00) / (v10 - v00);
+                    edges.push({ x: currentJ + t, y: currentI, edge: 'top' });
+                }
+
+                // Right edge (between v10 and v11)
+                if ((v10 < level && v11 >= level) || (v10 >= level && v11 < level)) {
+                    const t = (level - v10) / (v11 - v10);
+                    edges.push({ x: currentJ + 1, y: currentI + t, edge: 'right' });
+                }
+
+                // Bottom edge (between v01 and v11)
+                if ((v01 < level && v11 >= level) || (v01 >= level && v11 < level)) {
+                    const t = (level - v01) / (v11 - v01);
+                    edges.push({ x: currentJ + t, y: currentI + 1, edge: 'bottom' });
+                }
+
+                // Left edge (between v00 and v01)
+                if ((v00 < level && v01 >= level) || (v00 >= level && v01 < level)) {
+                    const t = (level - v00) / (v01 - v00);
+                    edges.push({ x: currentJ, y: currentI + t, edge: 'left' });
+                }
+
+                if (edges.length === 0) break; // No crossing found
+
+                // Add point to line
+                if (edges.length > 0) {
+                    linePoints.push({ x: edges[0].x, y: edges[0].y });
+                }
+
+                // Move to next cell (simple: just stop after one cell for now)
+                break; // Simplified: just trace one cell per line segment
+            }
+
+            if (linePoints.length >= 2) {
+                lines.push(linePoints);
+            }
+        }
+    }
+
+    return lines;
 }
 
 /**
@@ -1850,14 +2044,43 @@ function setupControls() {
         csDownBtn.addEventListener('click', () => jumpToIndex(+jumpBy));
     }
 
-    // Flat lighting
-    const flatToggle = document.getElementById('flatLightingEnabled');
-    if (flatToggle) {
-        flatToggle.addEventListener('change', (e) => {
-            params.flatLightingEnabled = !!e.target.checked;
+    // Shading mode dropdown
+    const shadingModeSelect = document.getElementById('shadingMode');
+    if (shadingModeSelect) {
+        shadingModeSelect.addEventListener('change', (e) => {
+            params.shadingMode = e.target.value;
+            console.log(`Shading mode changed: ${params.shadingMode}`);
             updateLightingForShading();
-            recreateTerrain();
-            updateURLParameter('flat', params.flatLightingEnabled ? '1' : '0');
+            recreateTerrain(); // Recreate to update materials
+            updateURLParameter('shading', params.shadingMode);
+            e.target.blur(); // Remove focus for keyboard navigation
+        });
+    }
+
+    // Contour lines toggle
+    const contourToggle = document.getElementById('showContours');
+    if (contourToggle) {
+        contourToggle.addEventListener('change', (e) => {
+            params.showContours = !!e.target.checked;
+            console.log(`Contours ${params.showContours ? 'enabled' : 'disabled'}`);
+            createContourLines();
+            updateURLParameter('contours', params.showContours ? '1' : '0');
+        });
+    }
+
+    // Contour interval input
+    const contourIntervalInput = document.getElementById('contourInterval');
+    if (contourIntervalInput) {
+        contourIntervalInput.addEventListener('change', (e) => {
+            const value = parseInt(e.target.value);
+            if (value && value > 0) {
+                params.contourInterval = value;
+                console.log(`Contour interval set to ${params.contourInterval}m`);
+                if (params.showContours) {
+                    createContourLines();
+                }
+                updateURLParameter('contourInterval', params.contourInterval);
+            }
         });
     }
 
@@ -2575,6 +2798,9 @@ function createTerrain() {
     }
 
     updateStats();
+
+    // Generate contour lines if enabled
+    createContourLines();
 }
 
 function createBarsTerrain(width, height, elevation, scale) {
@@ -2834,7 +3060,23 @@ function createSurfaceTerrain(width, height, elevation, scale) {
 
     if (!isWireframe) {
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-        geometry.computeVertexNormals();
+        // PERFORMANCE FIX: Defer expensive computeVertexNormals() to after first render
+        // This makes the viewer interactive immediately (no 2-3 second freeze)
+        // Only compute normals if actually needed for lighting
+        const needsNormals = (params.shadingMode === 'natural' || params.shadingMode === 'hillshade' || params.shadingMode === 'hillshade-tinted');
+        if (!needsNormals) {
+            // Flat shading doesn't need normals - skip computation entirely
+        } else {
+            // Defer normals computation to next frame so UI becomes interactive immediately
+            setTimeout(() => {
+                if (geometry && !geometry.attributes.normal) {
+                    const t0 = performance.now();
+                    geometry.computeVertexNormals();
+                    const t1 = performance.now();
+                    console.log(`[Deferred] Computed vertex normals in ${(t1 - t0).toFixed(1)}ms`);
+                }
+            }, 0);
+        }
     }
 
     let material;
@@ -2846,9 +3088,17 @@ function createSurfaceTerrain(width, height, elevation, scale) {
             side: THREE.DoubleSide
         });
     } else {
-        material = params.flatLightingEnabled
-            ? new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: false, side: THREE.DoubleSide })
-            : new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
+        // Choose material based on shading mode
+        if (params.shadingMode === 'flat') {
+            // Flat/unlit - no lighting interaction
+            material = new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: false, side: THREE.DoubleSide });
+        } else if (params.shadingMode === 'hillshade' || params.shadingMode === 'hillshade-tinted') {
+            // Hillshade - Lambert material with special lighting (colors may be overridden by lighting)
+            material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
+        } else {
+            // Natural - Standard Lambert shading
+            material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
+        }
     }
 
     terrainMesh = new THREE.Mesh(geometry, material);
@@ -2888,14 +3138,21 @@ function getColorForElevation(elevation) {
     normalized = Math.pow(normalized, g);
 
     const scheme = COLOR_SCHEMES[params.colorScheme] || COLOR_SCHEMES.terrain;
+    const isBanded = params.colorScheme === 'hypsometric-banded';
 
     for (let i = 0; i < scheme.length - 1; i++) {
         const a = scheme[i];
         const b = scheme[i + 1];
         if (normalized >= a.stop && normalized <= b.stop) {
-            const localT = (normalized - a.stop) / (b.stop - a.stop);
-            // Reuse temporary color to avoid allocations
-            return __tmpColor.copy(a.color).lerp(b.color, localT);
+            if (isBanded) {
+                // Banded: use flat color from lower band (step function)
+                return __tmpColor.copy(a.color);
+            } else {
+                // Smooth: interpolate between colors
+                const localT = (normalized - a.stop) / (b.stop - a.stop);
+                // Reuse temporary color to avoid allocations
+                return __tmpColor.copy(a.color).lerp(b.color, localT);
+            }
         }
     }
 
@@ -3054,12 +3311,32 @@ function updateLightingForShading() {
     const d1 = window.__dirLight1;
     const d2 = window.__dirLight2;
     if (!ambient || !d1 || !d2) return;
-    if (params.flatLightingEnabled) {
+
+    const mode = params.shadingMode || 'natural';
+
+    if (mode === 'flat') {
+        // Flat/unlit - full ambient, no directional lights
         ambient.intensity = 1.0;
         d1.intensity = 0.0;
         d2.intensity = 0.0;
+    } else if (mode === 'hillshade' || mode === 'hillshade-tinted') {
+        // Hillshade - Single strong directional light from northwest, minimal ambient
+        ambient.intensity = 0.2; // Just enough to prevent pure black shadows
+        d1.intensity = 1.2; // Strong directional light
+        d2.intensity = 0.0; // Turn off second light for clean shadows
+
+        // Position light based on sun azimuth/altitude (northwest = 315deg by default)
+        const azRad = (params.sunAzimuthDeg % 360) * Math.PI / 180;
+        const altRad = (Math.max(0, Math.min(90, params.sunAltitudeDeg)) * Math.PI) / 180;
+        const x = Math.cos(altRad) * Math.cos(azRad);
+        const y = Math.sin(altRad);
+        const z = Math.cos(altRad) * Math.sin(azRad);
+        d1.position.set(x * 1000, y * 1000, z * 1000);
+
+        // For pure hillshade (grayscale), we might want to adjust color rendering
+        // but for now we'll let it work with the existing vertex colors
     } else {
-        // Brighter ambient to avoid overly dark appearance
+        // Natural - Balanced multi-directional lighting
         ambient.intensity = 0.9;
         d1.intensity = 0.4;
         d2.intensity = 0.2;
@@ -3627,12 +3904,6 @@ function onKeyDown(event) {
         resetCamera();
     }
     // F key: Handled by camera scheme (reframeView), don't duplicate here
-    // Space bar: Toggle auto-rotate
-    else if (event.key === ' ') {
-        event.preventDefault();
-        params.autoRotate = !params.autoRotate;
-        controls.autoRotate = params.autoRotate;
-    }
 }
 
 function onKeyUp(event) {

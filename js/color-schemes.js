@@ -87,6 +87,17 @@ const COLOR_SCHEMES = {
         { stop: 0.80, color: new THREE.Color(0x8b5e34) }, // brown highlands
         { stop: 0.92, color: new THREE.Color(0xdedede) }, // light grey
         { stop: 1.00, color: new THREE.Color(0xffffff) } // white peaks
+    ],
+    'hypsometric-banded': [
+        // Discrete elevation bands (will be rendered with step function)
+        { stop: 0.00, color: new THREE.Color(0x0a4f2c) }, // deep green (0-15%)
+        { stop: 0.15, color: new THREE.Color(0x2f7d32) }, // green (15-30%)
+        { stop: 0.30, color: new THREE.Color(0x7da850) }, // yellow-green (30-45%)
+        { stop: 0.45, color: new THREE.Color(0xb8a665) }, // tan (45-60%)
+        { stop: 0.60, color: new THREE.Color(0xa87d50) }, // brown (60-75%)
+        { stop: 0.75, color: new THREE.Color(0x8b5e34) }, // dark brown (75-90%)
+        { stop: 0.90, color: new THREE.Color(0xc8c8c8) }, // grey (90-95%)
+        { stop: 0.95, color: new THREE.Color(0xffffff) } // white peaks (95-100%)
     ]
 };
 
@@ -105,7 +116,8 @@ const COLOR_SCHEME_DESCRIPTIONS = {
     'relief-emphasis': 'Color ramp tuned to emphasize relief with gentle chroma.',
     'diverging-elevation': 'Diverges around mid-elevation to reveal relative high/low areas.',
     'hypsometric': 'Perceptual hypsometric tint for terrain form.',
-    'hypsometric-natural': 'Hypsometric with naturalistic greens-tans-browns-snow for peaks.'
+    'hypsometric-natural': 'Hypsometric with naturalistic greens-tans-browns-snow for peaks.',
+    'hypsometric-banded': 'Discrete elevation zones - classic topographic map style.'
 };
 
 function updateColorSchemeDescription() {

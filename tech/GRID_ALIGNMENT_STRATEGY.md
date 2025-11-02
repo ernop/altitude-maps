@@ -66,13 +66,23 @@
 
 ### Tile Size Estimates
 
+**At various latitudes (10m resolution):**
+- Equator: ~190 MB per tile
+- 40degN: ~150 MB per tile
+- 65degN: ~80 MB per tile
+
 **At various latitudes (30m resolution):**
 - Equator: ~21 MB per tile
 - 40degN: ~16 MB per tile
 - 65degN: ~8.7 MB per tile
 
 **At various latitudes (90m resolution):**
+- Equator: ~2.3 MB per tile
 - 40degN: ~1.8 MB per tile
+- 65degN: ~1.0 MB per tile
+
+**Note**: 10m tiles are ~9x larger than 30m tiles (3^2 = 9x more pixels at same area).
+30m tiles are ~9x larger than 90m tiles. Compression ratios vary with terrain complexity.
 
 ---
 
@@ -147,9 +157,10 @@
 - **1-degree tiles**: Always safe
 
 ### USGS 3DEP (10m, USA only)
-- **Maximum area**: ~1,000,000 km²
-- **Maximum dimension**: ~5-6 degrees
-- **1-degree tiles**: Always safe
+- **Maximum area**: ~1,000,000 km² (varies by region)
+- **Maximum dimension**: ~5-10 degrees (API dependent)
+- **1-degree tiles**: Always safe (~123,000 km² at equator, ~94,000 km² at 40°N)
+- **Note**: Large tiles (150+ MB) take longer to download but API handles them well
 
 **Conclusion**: 1-degree tiles work with all providers!
 

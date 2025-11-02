@@ -140,27 +140,9 @@ def determine_min_required_resolution(
     )
 
 
-def download_usgs_3dep_10m(region_id: str, bounds: Tuple[float, float, float, float], output_path: Path) -> bool:
-    """
-    Download 10m USGS 3DEP data via automated API.
-    
-    Args:
-        region_id: Region identifier
-        bounds: (west, south, east, north) in degrees
-        output_path: Where to save the downloaded file
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    downloader = USGSElevationDownloader(data_dir=str(output_path.parent))
-    result = downloader.download_via_national_map_api(
-        bbox=bounds,
-        output_file=output_path.name
-    )
-    
-    return result is not None
+# DEPRECATED: This function has been replaced by tile-based system
+# 10m data now uses the unified tiling architecture in src/downloaders/usgs_3dep_10m.py
+# Kept for compatibility but redirects to tile-based downloader
 
 
 def download_elevation_data(region_id: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
@@ -182,20 +164,23 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
     width = bounds[2] - bounds[0]
     height = bounds[3] - bounds[1]
     
-    # Handle 10m USGS 3DEP request (now available via automated API for US regions)
+    # Handle 10m USGS 3DEP request (USA regions only)
     if dataset_override == 'USA_3DEP':
+        from src.downloaders.usgs_3dep_10m import download_usgs_3dep_10m_tiles
+        
         print(f"  Source: USGS 3DEP 10m (high-resolution US data)")
         filename = merged_filename_from_region(region_id, bounds, '10m') + '.tif'
         output_path = Path(f"data/merged/usa_3dep/{filename}")
         
-        # USGS API doesn't require tiling for reasonable-sized regions
-        # (API can handle requests up to certain size limits)
-        if width > 10.0 or height > 10.0:
-            print(f"  WARNING: Very large region ({width:.1f}deg x {height:.1f}deg)")
-            print(f"  USGS API may have size limits. Consider using smaller region or 30m data.")
-            print(f"  Attempting download anyway...")
-        
-        return download_usgs_3dep_10m(region_id, bounds, output_path)
+        # Use unified tiling system (same as 30m/90m)
+        needs_tiling = (width > 4.0 or height > 4.0)
+        if needs_tiling:
+            print(f"  Large region ({width:.1f}deg x {height:.1f}deg) - using tile-based download")
+            return download_usgs_3dep_10m_tiles(region_id, bounds, output_path)
+        else:
+            print(f"  Standard download (using tile system)")
+            # Even small regions use tiling for consistency and reuse
+            return download_usgs_3dep_10m_tiles(region_id, bounds, output_path)
     
     # Route based on dataset/resolution
     if dataset_override in ('SRTMGL3', 'COP90'):

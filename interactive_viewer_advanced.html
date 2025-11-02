@@ -7,7 +7,7 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.341">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.340">
 </head>
 
 <body>
@@ -183,9 +183,10 @@
 					<option value="terrain">Terrain (Natural)</option>
 					<option value="test">High-Contrast (Intense)</option>
 					<option value="hypsometric">Hypsometric (Perceptual)</option>
+					<option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
+					<option value="hypsometric-banded">Hypsometric (Banded)</option>
 					<option value="slope">Slope (Degrees)</option>
 					<option value="aspect">Aspect (Compass)</option>
-					<option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
 					<option value="auto-stretch">Auto-Stretch (Dynamic)</option>
 					<option value="elevation">Elevation (Blue-Red)</option>
 					<option value="grayscale">Grayscale</option>
@@ -203,10 +204,28 @@
 				<div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff;"></div>
 			</div>
 
+			<h2>Shading & Lighting</h2>
+
 			<div class="control-group">
+				<select id="shadingMode">
+					<option value="natural">Natural (Lambert)</option>
+					<option value="flat">Flat (Unlit)</option>
+					<option value="hillshade">Hillshade (Grayscale)</option>
+					<option value="hillshade-tinted">Hillshade (Color Tinted)</option>
+				</select>
+			</div>
+
+			<h2>Overlays</h2>
+
+			<div class="control-group">
+				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+					<input type="checkbox" id="showContours" />
+					<label for="showContours" style="margin: 0;">Contour Lines</label>
+				</div>
 				<div style="display: flex; align-items: center; gap: 8px;">
-					<input type="checkbox" id="flatLightingEnabled" />
-					<label for="flatLightingEnabled" style="margin: 0;">Flat lighting (no shading)</label>
+					<label for="contourInterval" style="min-width: 100px;">Interval (m):</label>
+					<input type="number" id="contourInterval" min="10" max="1000" step="10" value="100"
+						style="width: 80px; padding: 4px; font-size: 12px;" />
 				</div>
 			</div>
 
@@ -217,6 +236,8 @@
 					<option value="google-earth-plane">Google Earth (Ground Plane)</option>
 					<option value="ground-plane" selected>Google Maps (Ground Plane)</option>
 					<option value="roblox">Roblox Studio</option>
+					<option value="flying">Flying</option>
+					<option value="jumping">Jumping (Map-Grandpa)</option>
 					<option value="google-maps">Google Maps (Old)</option>
 					<option value="google-earth">Google Earth (Old)</option>
 					<option value="blender">Blender</option>
@@ -257,18 +278,21 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.341"></script>
-	<script src="js/ground-plane-camera.js?v=1.341"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.341"></script>
+	<script src="js/camera-schemes.js?v=1.340"></script>
+	<script src="js/ground-plane-camera.js?v=1.340"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.340"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.341"></script>
+	<script src="js/color-schemes.js?v=1.340"></script>
+
+	<!-- GPU detection and benchmarking -->
+	<script src="js/gpu-info.js?v=1.340"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.341"></script>
+	<script src="js/viewer-advanced.js?v=1.340"></script>
 </body>
 
 </html>
