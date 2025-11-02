@@ -13,7 +13,7 @@ consistent grid alignment and tile reuse.
 """
 
 import math
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 from pathlib import Path
 
 
@@ -247,3 +247,153 @@ def abstract_filename_from_raw(raw_path: Path, stage: str, source: str,
     
     return None
 
+def determine_min_required_resolution(visible_m_per_pixel: float, allow_lower_quality: bool = False) -> int:
+    """
+    Determine minimum required source resolution based on visible pixel size.
+    
+    NYQUIST SAMPLING RULE (from Shannon-Nyquist theorem):
+    To avoid aliasing when downsampling, we need at least 2.0x oversampling.
+    
+    Mathematical rule:
+      oversampling = visible_pixel_size / source_resolution >= 2.0
+      Therefore: source_resolution <= visible_pixel_size / 2.0
+    
+    For a given output pixel size N, we need:
+      - Source pixels must be <= N/2.0 meters
+      - Each output pixel must aggregate >= 2.0 source pixels
+      - This ensures each output pixel is composed of multiple complete source pixels,
+        not fractional parts, avoiding aliasing artifacts
+    
+    Available source resolutions:
+      - 90m: Sufficient if visible >= 180m (180/90 = 2.0x minimum)
+      - 30m: Sufficient if visible >= 60m (60/30 = 2.0x minimum)
+      - 10m: Sufficient if visible >= 20m (20/10 = 2.0x minimum) - if available
+    
+    Args:
+        visible_m_per_pixel: Average meters per pixel in final output
+        allow_lower_quality: If True, return best available resolution (30m) even if it
+                            doesn't meet Nyquist requirement. If False, raise ValueError.
+        
+    Returns:
+        Minimum required resolution in meters (10, 30, or 90)
+        
+    Raises:
+        ValueError: If even 30m source doesn't meet the 2.0x Nyquist requirement
+                   and allow_lower_quality is False (region too small - may need 10m
+                   or manual override)
+    """
+    # Calculate oversampling ratio for each available source resolution
+    oversampling_90m = visible_m_per_pixel / 90.0
+    oversampling_30m = visible_m_per_pixel / 30.0
+    oversampling_10m = visible_m_per_pixel / 10.0  # For future use
+    
+    # Check each resolution explicitly (no fall-throughs)
+    # Minimum requirement: 2.0x oversampling (Nyquist criterion)
+    MIN_OVERSAMPLING = 2.0
+    
+    # Check 90m source
+    if oversampling_90m >= MIN_OVERSAMPLING:
+        # 90m source provides sufficient oversampling
+        # Example: 180m visible / 90m = 2.0x (meets minimum exactly)
+        # Example: 200m visible / 90m = 2.22x (above minimum)
+        return 90
+    
+    # Check 30m source (90m was insufficient)
+    if oversampling_30m >= MIN_OVERSAMPLING:
+        # 30m source provides sufficient oversampling
+        # Example: 125m visible / 30m = 4.17x (well above minimum)
+        # Example: 60m visible / 30m = 2.0x (meets minimum exactly)
+        return 30
+    
+    # Neither 90m nor 30m meets the requirement
+    # This happens when visible pixels are very small (< 60m)
+    # Example: 50m visible / 30m = 1.67x (< 2.0x minimum)
+    # Example: 40m visible / 30m = 1.33x (< 2.0x minimum)
+    
+    if allow_lower_quality:
+        # User accepted lower quality - return best available (30m)
+        return 30
+    
+    # Raise error with clear message
+    raise ValueError(
+        f"Region requires higher resolution than available. "
+        f"Visible pixels: {format_pixel_size(visible_m_per_pixel)}/pixel. "
+        f"30m source gives only {oversampling_30m:.2f}x oversampling (need >={MIN_OVERSAMPLING}x for Nyquist). "
+        f"10m source would give {oversampling_10m:.2f}x oversampling. "
+        f"Consider using a higher target_pixels value (fewer output pixels = larger visible pixels) "
+        f"or manually override with --dataset to use a higher resolution source if available."
+    )
+
+
+def format_pixel_size(meters: float) -> str:
+    """Format pixel size with km if >1000m, one decimal point only.
+    
+    Args:
+        meters: Pixel size in meters
+        
+    Returns:
+        Formatted string like "123.4m" or "1.2km"
+    """
+    if meters >= 1000:
+        return f"{meters / 1000:.1f}km"
+    else:
+        return f"{meters:.1f}m"
+
+
+def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
+    """Calculate final visible pixel size in meters after downsampling to target_pixels.
+    
+    This helps determine if 30m or 90m source data is appropriate:
+    - If visible pixels will be >90m, 90m source data is sufficient
+    - If visible pixels will be <90m, 30m source data provides better detail
+    
+    Args:
+        bounds: (west, south, east, north) in degrees
+        target_pixels: Target output dimension (e.g., 2048)
+    
+    Returns:
+        dict with keys:
+        - 'width_m_per_pixel': meters per pixel horizontally
+        - 'height_m_per_pixel': meters per pixel vertically
+        - 'avg_m_per_pixel': average meters per pixel (recommended for decision making)
+        - 'output_width_px': calculated output width in pixels
+        - 'output_height_px': calculated output height in pixels
+        - 'real_world_width_km': width in kilometers
+        - 'real_world_height_km': height in kilometers
+    """
+    west, south, east, north = bounds
+    width_deg = east - west
+    height_deg = north - south
+    
+    # Calculate real-world dimensions in meters
+    import math
+    center_lat = (north + south) / 2.0
+    meters_per_deg_lat = 111_320  # constant
+    meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+    
+    width_m = width_deg * meters_per_deg_lon
+    height_m = height_deg * meters_per_deg_lat
+    
+    # Calculate output pixels preserving aspect ratio (same logic as downsampling code)
+    aspect = width_deg / height_deg if height_deg > 0 else 1.0
+    if width_deg >= height_deg:
+        output_width = target_pixels
+        output_height = max(1, int(round(target_pixels / aspect)))
+    else:
+        output_height = target_pixels
+        output_width = max(1, int(round(target_pixels * aspect)))
+    
+    # Calculate meters per pixel in final output
+    m_per_pixel_x = width_m / output_width
+    m_per_pixel_y = height_m / output_height
+    avg_m_per_pixel = (m_per_pixel_x + m_per_pixel_y) / 2.0
+    
+    return {
+        'width_m_per_pixel': m_per_pixel_x,
+        'height_m_per_pixel': m_per_pixel_y,
+        'avg_m_per_pixel': avg_m_per_pixel,
+        'output_width_px': output_width,
+        'output_height_px': output_height,
+        'real_world_width_km': width_m / 1000.0,
+        'real_world_height_km': height_m / 1000.0
+    }

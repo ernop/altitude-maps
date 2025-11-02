@@ -28,5 +28,5 @@ RAW_DATA_DIRS = [
 CLIPPED_DATA_DIR = "data/clipped"
 PROCESSED_DATA_DIR = "data/processed"
 GENERATED_DATA_DIR = "generated/regions"
-CACHE_DIR = "data/.cache"
+BORDERS_CACHE_DIR = "data/borders"  # Natural Earth border data (canonical, rarely changes)
 

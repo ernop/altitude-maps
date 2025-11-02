@@ -47,6 +47,23 @@ Vertical exaggeration now uses**intuitive meter-based scale**:
 -**Auto-caching** - Borders download once and reuse automatically
 - Export with: `python export_for_web_viewer.py data/usa.tif --export-borders`
 
+## Smart Resolution Selection
+
+The system automatically selects optimal data resolution based on region size:
+
+- **Large regions** (e.g., China, Russia, Brazil): Automatically uses SRTM 90m data
+  - Downloads via tile-by-tile system (1-degree tiles)
+  - Efficient caching with content-based naming
+  - Example: N40_W111_90m.tif stored in `data/raw/srtm_90m/tiles/`
+  
+- **Small regions** (e.g., Iceland, Costa Rica): Uses SRTM 30m data
+  - Higher detail for smaller areas
+  - Same tile-based architecture
+
+**Why this matters**: For a large country at 2048px output, visible pixels might be 400m each. Using 90m source data gives 4.4x oversampling (optimal), while 30m would give 13.3x oversampling (wasteful with no visual benefit). The Nyquist sampling rule ensures clean downsampling without aliasing.
+
+See `tech/SRTM_90M_DOWNLOADER.md` for technical details.
+
 ## What Can You Do With It?
 
 ### 1. Create Static Visualizations

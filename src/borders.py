@@ -23,12 +23,12 @@ class BorderManager:
     Provides caching, querying, and visualization utilities.
     """
     
-    def __init__(self, cache_dir: str = "data/.cache/borders"):
+    def __init__(self, cache_dir: str = "data/borders"):
         """
         Initialize the border manager.
         
         Args:
-            cache_dir: Directory to cache downloaded border data
+            cache_dir: Directory for cached Natural Earth border data (canonical reference data)
         """
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)

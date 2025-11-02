@@ -17,19 +17,10 @@ except ImportError as e:
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from downloaders.usa_3dep import download_opentopography_srtm  # Reuse SRTM downloader
+from src.downloaders.opentopography import download_srtm
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
 from src.pipeline import run_pipeline
-
-# Japan regions
-JAPAN_REGIONS = {
- "japan": {"bounds": (129.0, 30.0, 146.0, 46.0), "name": "Japan (Full)"},
- "honshu": {"bounds": (129.8, 33.7, 141.9, 41.5), "name": "Honshu Island"},
- "hokkaido": {"bounds": (139.3, 41.4, 145.8, 45.5), "name": "Hokkaido Island"},
- "kyushu": {"bounds": (129.5, 31.0, 131.9, 34.0), "name": "Kyushu Island"},
-    "shikoku": {"bounds": (131.8905, 32.51625, 134.8, 34.5), "name": "Shikoku Island"},
- "kochi": {"bounds": (132.7, 32.7, 134.3, 33.9), "name": "Kochi Prefecture"},
-}
+from src.regions_config import ALL_REGIONS, get_region
 
 
 def print_manual_instructions(region_id: str, bounds: Tuple[float, float, float, float]) -> None:
@@ -152,7 +143,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
  return 0
  elif args.auto:
  output_path = Path(args.output_dir) / f"{region_id}_bbox_30m.tif"
- success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
+        success = download_srtm(region_id, bounds, output_path, args.api_key)
 
  if success:
  print(f"\n Download complete!")

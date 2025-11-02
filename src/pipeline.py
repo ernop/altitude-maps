@@ -34,6 +34,12 @@ from src.tile_geometry import abstract_filename_from_raw, tile_filename_from_bou
 from src.versioning import get_current_version
 from src.borders import get_border_manager
 
+try:
+    from rasterio.merge import merge
+    from rasterio.windows import Window
+except ImportError:
+    pass
+
 # Alias for backward compatibility
 bbox_filename_from_bounds = tile_filename_from_bounds
 
@@ -41,6 +47,97 @@ bbox_filename_from_bounds = tile_filename_from_bounds
 class PipelineError(Exception):
     """Raised when pipeline step fails."""
     pass
+
+
+def merge_tiles(tile_paths: list[Path], output_path: Path) -> bool:
+    """
+    Merge multiple GeoTIFF tiles into a single file.
+    
+    Args:
+        tile_paths: List of tile file paths to merge
+        output_path: Output merged file path
+        
+    Returns:
+        True if successful
+    """
+    import time
+    
+    if output_path.exists():
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        print(f"Already merged: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+        return True
+    
+    print(f"Merging {len(tile_paths)} tiles...", flush=True)
+    merge_start = time.time()
+    
+    src_files = []
+    try:
+        for p in tile_paths:
+            try:
+                src = rasterio.open(p)
+                if src.width > 0 and src.height > 0:
+                    src_files.append(src)
+                else:
+                    src.close()
+            except Exception as e:
+                print(f"  Warning: Cannot open tile {p.name}: {e}", flush=True)
+
+        if not src_files:
+            print(f"ERROR: No valid tiles to merge!", flush=True)
+            return False
+
+        # Determine output dtype and nodata
+        out_dtype = 'float32'
+        nodata_values = [s.nodata for s in src_files if s.nodata is not None]
+        out_nodata = nodata_values[0] if nodata_values else -9999.0
+
+        # Merge tiles
+        mosaic, out_transform = merge(
+            src_files,
+            nodata=out_nodata,
+            dtype=out_dtype,
+            method='first'
+        )
+
+        # Handle masked arrays
+        if np.ma.isMaskedArray(mosaic):
+            mosaic = mosaic.filled(out_nodata)
+
+        # Get metadata from first tile
+        out_meta = src_files[0].meta.copy()
+        out_meta.update({
+            "driver": "GTiff",
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": out_transform,
+            "dtype": out_dtype,
+            "count": mosaic.shape[0],
+            "nodata": out_nodata
+        })
+
+        # Write merged file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with rasterio.open(output_path, "w", **out_meta) as dest:
+            dest.write(mosaic)
+
+        merge_time = time.time() - merge_start
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        print(f"Merged: {output_path.name} ({file_size_mb:.1f} MB, {merge_time:.1f}s)", flush=True)
+
+        return True
+
+    except Exception as e:
+        print(f"Merge FAILED: {e}")
+        if output_path.exists():
+            output_path.unlink()
+        return False
+    finally:
+        for src in src_files:
+            try:
+                src.close()
+            except Exception:
+                pass
+
 
 def clip_to_boundary(
     raw_tif_path: Path,
@@ -832,7 +929,9 @@ def run_pipeline(
     if reprojected_filename is None:
         raise ValueError(f"Could not generate abstract filename for reprojected file - bounds extraction failed for {raw_tif_path}")
     # Replace processed suffix with reproj suffix
-    reprojected_filename = reprojected_filename.replace('_processed_', '_reproj_').replace(f'_{target_pixels}px_v2.tif', '_reproj.tif')
+    # Example: bbox_N041p00_N040p00_W111p00_W112p00_processed_2048px_v2.tif
+    #       -> bbox_N041p00_N040p00_W111p00_W112p00_reproj.tif
+    reprojected_filename = reprojected_filename.replace('_processed_', '_reproj_').replace(f'_{target_pixels}px_v2.tif', '.tif')
     reprojected_path = processed_dir / reprojected_filename
     
     print(f"\n[STAGE 7/10] Reprojecting to metric CRS...")

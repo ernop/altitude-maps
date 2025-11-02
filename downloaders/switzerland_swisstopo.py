@@ -17,7 +17,7 @@ except ImportError as e:
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from downloaders.usa_3dep import download_opentopography_srtm  # Reuse SRTM downloader
+from src.downloaders.opentopography import download_srtm
 from src.regions_config import ALL_REGIONS
 
 # Regions now come from centralized config in src/regions_config.py
@@ -145,7 +145,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
  return 0
  elif args.auto:
  output_path = Path(args.output_dir) / f"{region_id}_bbox_30m.tif"
- success = download_opentopography_srtm(region_id, bounds, output_path, args.api_key)
+        success = download_srtm(region_id, bounds, output_path, args.api_key)
 
  if success:
  print(f"\n Success! Data saved to: {output_path}")

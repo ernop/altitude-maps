@@ -26,6 +26,10 @@ class GroundPlaneCamera extends CameraScheme {
 
         // WASD keyboard movement state
         this.keysPressed = {};
+        this.baseMoveSpeed = 4.0; // Base movement speed (doubled from 2.0)
+        this.currentMoveSpeed = 4.0; // Current speed with acceleration
+        this.maxMoveSpeed = 8.0; // Maximum speed (2x base)
+        this.acceleration = 0.05; // Speed increase per frame (gradual)
 
         // Touch/trackpad gesture state
         this.touches = {};
@@ -582,8 +586,6 @@ class GroundPlaneCamera extends CameraScheme {
     update() {
         // WASD/QE keyboard movement (always active)
         if (this.enabled) {
-            const moveSpeed = 2.0; // Units per frame
-
             // Get camera vectors
             const forward = new THREE.Vector3();
             this.camera.getWorldDirection(forward);
@@ -593,20 +595,33 @@ class GroundPlaneCamera extends CameraScheme {
 
             const movement = new THREE.Vector3();
 
-            // WASD/QE movement
-            if (this.keysPressed['w']) movement.addScaledVector(forward, moveSpeed);
-            if (this.keysPressed['s']) movement.addScaledVector(forward, -moveSpeed);
-            if (this.keysPressed['a']) movement.addScaledVector(right, -moveSpeed);
-            if (this.keysPressed['d']) movement.addScaledVector(right, moveSpeed);
-            if (this.keysPressed['q']) movement.y -= moveSpeed;  // Down
-            if (this.keysPressed['e']) movement.y += moveSpeed;  // Up
+            // Check if any movement keys are pressed
+            const isMoving = this.keysPressed['w'] || this.keysPressed['s'] || 
+                           this.keysPressed['a'] || this.keysPressed['d'] ||
+                           this.keysPressed['q'] || this.keysPressed['e'];
 
-            // Apply movement
-            if (movement.length() > 0) {
-                this.camera.position.add(movement);
-                this.focusPoint.add(movement);
-                this.focusPoint.y = 0; // Keep focus on ground plane
-                this.controls.target.copy(this.focusPoint);
+            if (isMoving) {
+                // Gradually increase speed while moving
+                this.currentMoveSpeed = Math.min(this.currentMoveSpeed + this.acceleration, this.maxMoveSpeed);
+
+                // WASD/QE movement using current speed
+                if (this.keysPressed['w']) movement.addScaledVector(forward, this.currentMoveSpeed);
+                if (this.keysPressed['s']) movement.addScaledVector(forward, -this.currentMoveSpeed);
+                if (this.keysPressed['a']) movement.addScaledVector(right, -this.currentMoveSpeed);
+                if (this.keysPressed['d']) movement.addScaledVector(right, this.currentMoveSpeed);
+                if (this.keysPressed['q']) movement.y -= this.currentMoveSpeed;  // Down
+                if (this.keysPressed['e']) movement.y += this.currentMoveSpeed;  // Up
+
+                // Apply movement
+                if (movement.length() > 0) {
+                    this.camera.position.add(movement);
+                    this.focusPoint.add(movement);
+                    this.focusPoint.y = 0; // Keep focus on ground plane
+                    this.controls.target.copy(this.focusPoint);
+                }
+            } else {
+                // Immediately reset speed when movement stops
+                this.currentMoveSpeed = this.baseMoveSpeed;
             }
         }
 

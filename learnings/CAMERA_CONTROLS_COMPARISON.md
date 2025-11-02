@@ -1193,7 +1193,7 @@ Altitude Maps occupies a unique position in the 3D navigation software landscape
 #### 3. Focused Scope
 - Terrain elevation only (not trying to be everything)
 - Clean, simple controls (easy to learn)
-- No feature bloat (stays maintainable)
+- Focused feature set (stays maintainable)
 
 #### 4. Accessible Yet Precise
 - Browser-based (no installation)

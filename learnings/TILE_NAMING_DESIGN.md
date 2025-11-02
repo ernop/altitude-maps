@@ -242,7 +242,7 @@ The Open Geospatial Consortium defines tile matrix sets with hierarchical zoom l
 
 ### Potential Pitfalls (Avoided)
 
-1. **Over-precision**: Floating points would create filename bloat
+1. **Over-precision**: Floating points would create unnecessarily long filenames
 2. **Over-abstraction**: Hashes hide useful geographic info
 3. **Over-isolation**: Per-region dirs break reuse patterns
 
