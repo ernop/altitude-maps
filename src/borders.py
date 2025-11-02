@@ -8,13 +8,8 @@ from typing import Optional, Union, List, Tuple
 import numpy as np
 import rasterio
 from rasterio.mask import mask as rasterio_mask
-
-try:
-    import geopandas as gpd
-    from shapely.geometry import mapping
-    HAS_GEOPANDAS = True
-except ImportError:
-    HAS_GEOPANDAS = False
+import geopandas as gpd
+from shapely.geometry import mapping
 
 
 class BorderManager:
@@ -51,9 +46,6 @@ class BorderManager:
         Returns:
             GeoDataFrame with country borders
         """
-        if not HAS_GEOPANDAS:
-            raise ImportError("geopandas is required for border operations. Install with: pip install geopandas")
-        
         cache_file = self.cache_dir / f"ne_{resolution}_countries.pkl"
         
         # Return cached data if available and not forcing reload
@@ -268,9 +260,6 @@ class BorderManager:
         Returns:
             GeoDataFrame with state/province borders
         """
-        if not HAS_GEOPANDAS:
-            raise ImportError("geopandas is required for border operations. Install with: pip install geopandas")
-        
         cache_file = self.cache_dir / f"ne_{resolution}_admin_1.pkl"
         
         # Return cached data if available and not forcing reload

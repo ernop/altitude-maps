@@ -20,8 +20,6 @@ from tqdm import tqdm
 from src.regions_config import ALL_REGIONS
 from src.tile_geometry import (
     calculate_visible_pixel_size,
-    determine_min_required_resolution,
-    format_pixel_size,
     estimate_raw_file_size_mb,
     calculate_1degree_tiles,
     tile_filename_from_bounds
@@ -33,10 +31,103 @@ from src.pipeline import merge_tiles
 from load_settings import get_api_key
 
 
+def format_pixel_size(meters: float) -> str:
+    """Format pixel size with km if >1000m, one decimal point only.
+    
+    Args:
+        meters: Pixel size in meters
+        
+    Returns:
+        Formatted string like "123.4m" or "1.2km"
+    """
+    if meters >= 1000:
+        return f"{meters / 1000:.1f}km"
+    else:
+        return f"{meters:.1f}m"
+
+
+def determine_min_required_resolution(
+    visible_m_per_pixel: float, 
+    available_resolutions: list[int] = None,
+    allow_lower_quality: bool = False
+) -> int:
+    """
+    Determine minimum required source resolution based on visible pixel size.
+    
+    NYQUIST SAMPLING RULE (from Shannon-Nyquist theorem):
+    To avoid aliasing when downsampling, we need at least 2.0x oversampling.
+    
+    Mathematical rule:
+      oversampling = visible_pixel_size / source_resolution >= 2.0
+      Therefore: source_resolution <= visible_pixel_size / 2.0
+    
+    For a given output pixel size N, we need:
+      - Source pixels must be <= N/2.0 meters
+      - Each output pixel must aggregate >= 2.0 source pixels
+      - This ensures each output pixel is composed of multiple complete source pixels,
+        not fractional parts, avoiding aliasing artifacts
+    
+    Args:
+        visible_m_per_pixel: Average meters per pixel in final output
+        available_resolutions: List of available resolutions in meters (e.g., [10, 30, 90])
+                              If None, defaults to [30, 90] (international standard)
+        allow_lower_quality: If True, return best available resolution even if it
+                            doesn't meet Nyquist requirement. If False, raise ValueError.
+        
+    Returns:
+        Minimum required resolution in meters that meets Nyquist rule
+        
+    Raises:
+        ValueError: If no resolution meets the 2.0x Nyquist requirement
+                   and allow_lower_quality is False
+    """
+    # Default to international resolutions if not specified
+    if available_resolutions is None:
+        available_resolutions = [30, 90]
+    
+    # Sort resolutions from finest to coarsest
+    available_resolutions = sorted(available_resolutions)
+    
+    # Minimum requirement: 2.0x oversampling (Nyquist criterion)
+    MIN_OVERSAMPLING = 2.0
+    
+    # Check each resolution from coarsest to finest
+    # We want the coarsest resolution that still meets requirements (minimizes download size)
+    for resolution in reversed(available_resolutions):
+        oversampling = visible_m_per_pixel / resolution
+        if oversampling >= MIN_OVERSAMPLING:
+            # This resolution provides sufficient oversampling
+            return resolution
+    
+    # No resolution meets the Nyquist requirement
+    # Calculate what each would provide
+    oversampling_info = {res: visible_m_per_pixel / res for res in available_resolutions}
+    best_resolution = min(available_resolutions)  # Finest available
+    best_oversampling = oversampling_info[best_resolution]
+    
+    if allow_lower_quality:
+        # User accepted lower quality - return finest available
+        return best_resolution
+    
+    # Build helpful error message
+    oversampling_str = ", ".join(
+        f"{res}m gives {oversampling_info[res]:.2f}x" 
+        for res in available_resolutions
+    )
+    
+    raise ValueError(
+        f"Region requires higher resolution than available. "
+        f"Visible pixels: {format_pixel_size(visible_m_per_pixel)}/pixel. "
+        f"Available sources: {oversampling_str} "
+        f"(need >={MIN_OVERSAMPLING}x for Nyquist). "
+        f"Consider using a higher target_pixels value (fewer output pixels = larger visible pixels)."
+    )
+
+
 def download_us_state(region_id: str, state_info: Dict) -> bool:
-    """Download raw data for a US state."""
+    """Download raw data for a US region (state, valley, mountain, etc.)."""
     print(f"\n  Downloading {state_info['name']}...")
-    print(f"  Source: USGS 3DEP preferred; automated path uses OpenTopography SRTM 30m")
+    print(f"  Source: USGS 3DEP preferred (10m); automated path uses OpenTopography SRTM 30m")
     
     bounds = state_info['bounds']
     output_path = Path(f"data/merged/srtm_30m/{region_id}_merged_30m.tif")
@@ -422,8 +513,9 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
 
 
 def download_region(region_id: str, region_type: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
-    """Route to appropriate downloader based on region type."""
-    if region_type == 'us_state':
+    """Route to appropriate downloader based on region location."""
+    if region_type == 'us_region':
+        # All US regions (states, valleys, mountains, etc.) use USGS 3DEP 10m
         return download_us_state(region_id, region_info)
     elif region_type == 'international':
         return download_international_region(region_id, region_info, dataset_override, target_pixels)
@@ -435,15 +527,15 @@ def download_region(region_id: str, region_type: str, region_info: Dict, dataset
 def determine_dataset_override(region_id: str, region_type: str, region_info: dict, target_pixels: int = 2048) -> str | None:
     """
     Stage 2/3: Determine dataset to use for download (including resolution).
-    - US states: USGS 3DEP (implicit in downloader) -> return 'USA_3DEP'
+    - US regions (all): USGS 3DEP 10m (best available for USA) -> return 'USA_3DEP'
     - International: Choose by latitude AND resolution requirements:
         * Calculates minimum required resolution (Nyquist rule)
         * Returns SRTMGL3/COP90 if 90m is sufficient
         * Returns SRTMGL1/COP30 if 30m is required
     Returns a short code: 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', or 'USA_3DEP'.
     """
-    if region_type == 'us_state':
-        print("[STAGE 2/10] Dataset: USGS 3DEP 10m (US State)")
+    if region_type == 'us_region':
+        print("[STAGE 2/10] Dataset: USGS 3DEP 10m (US Region)")
         return 'USA_3DEP'
 
     # International regions - check for explicit override first

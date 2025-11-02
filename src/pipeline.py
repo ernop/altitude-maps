@@ -18,6 +18,8 @@ import json
 try:
     import rasterio
     from rasterio.mask import mask as rasterio_mask
+    from rasterio.merge import merge
+    from rasterio.windows import Window
     import numpy as np
     from shapely.ops import unary_union
     from shapely.geometry import mapping as shapely_mapping
@@ -33,12 +35,6 @@ from src.metadata import (
 from src.tile_geometry import abstract_filename_from_raw, tile_filename_from_bounds, get_bounds_from_raw_file
 from src.versioning import get_current_version
 from src.borders import get_border_manager
-
-try:
-    from rasterio.merge import merge
-    from rasterio.windows import Window
-except ImportError:
-    pass
 
 # Alias for backward compatibility
 bbox_filename_from_bounds = tile_filename_from_bounds

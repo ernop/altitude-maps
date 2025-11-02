@@ -1012,8 +1012,8 @@ function createEdgeMarkers() {
         zExtent = (gridHeight - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
         avgSize = (xExtent + zExtent);
     } else if (params.renderMode === 'points') {
-        // Points use uniform grid positioning
-        const bucketSize = 1;
+        // Points use uniform grid positioning, scaled by bucketSize
+        const bucketSize = params.bucketSize;
         xExtent = (gridWidth - 1) * bucketSize / 2;
         zExtent = (gridHeight - 1) * bucketSize / 2;
         avgSize = (xExtent + zExtent);
@@ -2534,11 +2534,11 @@ function createTerrain() {
             terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
             console.log(`Bars centered: uniform grid ${width}x${height}, tile size ${bucketMultiplier}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
         } else if (params.renderMode === 'points') {
-            // Points use uniform grid positioning
-            const bucketSize = 1;
+            // Points use uniform grid positioning, scaled by bucketSize
+            const bucketSize = params.bucketSize;
             terrainMesh.position.x = -(width - 1) * bucketSize / 2;
             terrainMesh.position.z = -(height - 1) * bucketSize / 2;
-            console.log(`Points centered: uniform grid ${width}x${height}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
+            console.log(`Points centered: uniform grid ${width}x${height}, bucket size ${bucketSize}, offset (${terrainMesh.position.x.toFixed(1)}, ${terrainMesh.position.z.toFixed(1)})`);
         } else {
             // Surface mode: PlaneGeometry is already centered, but position it at origin
             terrainMesh.position.set(0, 0, 0);
@@ -2561,8 +2561,9 @@ function createTerrain() {
             const halfDepth = (height - 1) * bucketMultiplier / 2;
             controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         } else if (params.renderMode === 'points') {
-            const halfWidth = (width - 1) / 2;
-            const halfDepth = (height - 1) / 2;
+            const bucketSize = params.bucketSize;
+            const halfWidth = (width - 1) * bucketSize / 2;
+            const halfDepth = (height - 1) * bucketSize / 2;
             controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         } else {
             // Surface mode - use geometry grid extents (uniform grid, scaled by bucketSize)
@@ -2753,8 +2754,8 @@ function createPointCloudTerrain(width, height, elevation, scale) {
     const positions = [];
     const colors = [];
 
-    // Uniform grid spacing - treat as simple 2D grid
-    const bucketSize = 1; // Uniform spacing
+    // Uniform grid spacing - treat as simple 2D grid, scaled by bucketSize
+    const bucketSize = params.bucketSize; // Match bars mode spacing
 
     // GeoTIFF: elevation[row][col] where row=North->South (i), col=West->East (j)
     for (let i = 0; i < height; i++) { // row (North to South)
@@ -3262,14 +3263,15 @@ function recreateBorders() {
                     xCoord -= (bWidth - 1) * bucketMultiplier / 2;
                     zCoord -= (bHeight - 1) * bucketMultiplier / 2;
                 } else if (params.renderMode === 'points') {
-                    // Points use uniform grid positioning
+                    // Points use uniform grid positioning, scaled by bucketSize
+                    const bucketSize = params.bucketSize;
                     const bWidth = processedData.width;
                     const bHeight = processedData.height;
-                    xCoord = colNormalized * (bWidth - 1);
-                    zCoord = rowNormalized * (bHeight - 1);
+                    xCoord = colNormalized * (bWidth - 1) * bucketSize;
+                    zCoord = rowNormalized * (bHeight - 1) * bucketSize;
                     // Apply same centering offset as terrain
-                    xCoord -= (bWidth - 1) / 2;
-                    zCoord -= (bHeight - 1) / 2;
+                    xCoord -= (bWidth - 1) * bucketSize / 2;
+                    zCoord -= (bHeight - 1) * bucketSize / 2;
                 } else {
                     // Surface uses uniform grid positioning (PlaneGeometry centered at origin, scaled by bucketSize)
                     const bucketMultiplier = params.bucketSize;
@@ -3395,7 +3397,7 @@ function setView(preset) {
         xExtent = (gridWidth - 1) * bucketMultiplier;
         zExtent = (gridHeight - 1) * bucketMultiplier;
     } else if (params.renderMode === 'points') {
-        const bucketSize = 1;
+        const bucketSize = params.bucketSize;
         xExtent = (gridWidth - 1) * bucketSize;
         zExtent = (gridHeight - 1) * bucketSize;
     } else {
