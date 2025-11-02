@@ -96,6 +96,29 @@ Session notes and development threads only:
 - Document complex data transformations with inline comments
 - Use meaningful variable names (prefer `elevation_data` over `ed`)
 
+### Type Safety and Enums
+- **Use enums for closed sets**: When you have a fixed set of string values (types, categories, states), use `enum.Enum`
+- **String enums for serialization**: Inherit from `str` for JSON compatibility: `class MyEnum(str, Enum)`
+- **Centralized location**: Place project-wide enums in `src/types.py`
+- **When NOT to use enums**: Open-ended values (resolutions: 10m, 30m, future 5m), dual-nature fields (string for files, int for math)
+- **Alternative**: Use `typing.Literal['value1', 'value2']` for type hints without runtime overhead
+- **Example**: `RegionType` enum with USA_STATE, COUNTRY, REGION values
+
+### Terminology Consistency
+- **One term per concept**: Never use synonyms for the same thing (e.g., not both "category" and "region_type")
+- **Unify immediately**: When you notice dual terminology, refactor to single term before it spreads - IF you are sure it really is the same thing! If in doubt, check or ask
+
+### Import Safety
+- **Never use defensive imports for internal code**: No `try/except ImportError` for your own modules. Just fix upstream. This applies 
+even to NOT our own modules, too; if we need a certain raster library,
+then install it and if it's not there, just fail.
+**Let imports fail hard**: If an internal import fails, fix the underlying issue, don't add fallbacks
+- **After refactoring**: Use grep to find ALL import statements of moved functions:
+  ```bash
+  grep -r "from src.module import function_name" .
+  ```
+- **Why**: Defensive imports hide real errors and allow duplicate implementations to proliferate
+
 ### Frontend/Web Viewer
 - **jQuery**: Keep it. jQuery is widely cached and makes code more readable. Avoid Select2; use native or custom dropdowns matching the region selector pattern.
 - **CSS styling**: Avoid inline styles. Use rationally-named CSS classes instead.
@@ -116,6 +139,24 @@ Session notes and development threads only:
 - Always validate data ranges and handle missing values
 - GeoTIFF data uses natural orientation (North up, East right) - no transformations needed
 - Use geopandas for geographic borders and masking operations
+
+#### Data Flow Directories
+- **`data/raw/{source}/tiles/`** - Pure reusable 1×1 degree tiles (never region-specific)
+- **`data/merged/{source}/`** - Region-specific merged files (intermediate output from tile merging)
+- **`data/processed/{source}/`** - Clipped/reprojected files (pipeline intermediate stage)
+- **`data/borders/`** - Natural Earth border data (canonical, stable, not cache)
+- **`generated/regions/`** - Final JSON exports for web viewer
+- **Why separate directories**: Prevents mixing reusable upstream data with region-specific intermediate files
+
+#### Resolution Requirements (CRITICAL)
+- **Universal rule**: ALL regions use Nyquist sampling rule based on visible pixel size
+- **No type-based exceptions**: Region type (USA_STATE/COUNTRY/REGION) does NOT dictate quality requirements
+- **Region type is for**:
+  - Download routing (which API/source to use)
+  - UI organization (dropdown grouping in viewer)
+- **Region type is NOT for**:
+  - Quality requirements (universal rules apply)
+  - Resolution selection (based on actual data needs)
 
 #### Border Resolution (CRITICAL)
 - **Always use 10m resolution borders** for accurate clipping (Natural Earth 10m dataset)

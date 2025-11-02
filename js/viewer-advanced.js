@@ -1018,10 +1018,11 @@ function createEdgeMarkers() {
         zExtent = (gridHeight - 1) * bucketSize / 2;
         avgSize = (xExtent + zExtent);
     } else {
-        // Surface uses uniform grid positioning (centered PlaneGeometry)
-        xExtent = gridWidth / 2;
-        zExtent = gridHeight / 2;
-        avgSize = (gridWidth + gridHeight) / 2;
+        // Surface uses uniform grid positioning (centered PlaneGeometry, scaled by bucketSize)
+        const bucketMultiplier = params.bucketSize;
+        xExtent = (gridWidth * bucketMultiplier) / 2;
+        zExtent = (gridHeight * bucketMultiplier) / 2;
+        avgSize = (gridWidth * bucketMultiplier + gridHeight * bucketMultiplier) / 2;
     }
 
     // Create text sprites for N, E, S, W at appropriate edges
@@ -2564,9 +2565,10 @@ function createTerrain() {
             const halfDepth = (height - 1) / 2;
             controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         } else {
-            // Surface mode - use geometry grid extents (uniform grid)
-            const halfWidth = width / 2;
-            const halfDepth = height / 2;
+            // Surface mode - use geometry grid extents (uniform grid, scaled by bucketSize)
+            const bucketMultiplier = params.bucketSize;
+            const halfWidth = (width * bucketMultiplier) / 2;
+            const halfDepth = (height * bucketMultiplier) / 2;
             controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         }
     }
@@ -2808,8 +2810,10 @@ function createPointCloudTerrain(width, height, elevation, scale) {
 function createSurfaceTerrain(width, height, elevation, scale) {
     // Create uniform 2D grid - no geographic corrections
     // Treat data as simple evenly-spaced grid points
+    // Scale by bucketSize to match bars mode extent
+    const bucketMultiplier = params.bucketSize;
     const geometry = new THREE.PlaneGeometry(
-        width, height, width - 1, height - 1
+        width * bucketMultiplier, height * bucketMultiplier, width - 1, height - 1
     );
 
     const isWireframe = (params.renderMode === 'wireframe');
@@ -3267,11 +3271,12 @@ function recreateBorders() {
                     xCoord -= (bWidth - 1) / 2;
                     zCoord -= (bHeight - 1) / 2;
                 } else {
-                    // Surface uses uniform grid positioning (PlaneGeometry centered at origin)
+                    // Surface uses uniform grid positioning (PlaneGeometry centered at origin, scaled by bucketSize)
+                    const bucketMultiplier = params.bucketSize;
                     const bWidth = processedData.width;
                     const bHeight = processedData.height;
-                    xCoord = (colNormalized - 0.5) * bWidth;
-                    zCoord = (rowNormalized - 0.5) * bHeight;
+                    xCoord = (colNormalized - 0.5) * bWidth * bucketMultiplier;
+                    zCoord = (rowNormalized - 0.5) * bHeight * bucketMultiplier;
                 }
 
                 // Three.js: x=East, z=South, y=elevation
@@ -3394,9 +3399,10 @@ function setView(preset) {
         xExtent = (gridWidth - 1) * bucketSize;
         zExtent = (gridHeight - 1) * bucketSize;
     } else {
-        // Surface: PlaneGeometry is centered; treat width/height directly
-        xExtent = gridWidth;
-        zExtent = gridHeight;
+        // Surface: PlaneGeometry is centered and scaled by bucketSize
+        const bucketMultiplier = params.bucketSize;
+        xExtent = gridWidth * bucketMultiplier;
+        zExtent = gridHeight * bucketMultiplier;
     }
 
     const maxDim = Math.max(xExtent, zExtent);

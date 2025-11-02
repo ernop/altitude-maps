@@ -596,28 +596,34 @@ class GroundPlaneCamera extends CameraScheme {
             const movement = new THREE.Vector3();
 
             // Check if any movement keys are pressed
-            const isMoving = this.keysPressed['w'] || this.keysPressed['s'] || 
-                           this.keysPressed['a'] || this.keysPressed['d'] ||
-                           this.keysPressed['q'] || this.keysPressed['e'];
+            const isMoving = this.keysPressed['w'] || this.keysPressed['s'] ||
+                this.keysPressed['a'] || this.keysPressed['d'] ||
+                this.keysPressed['q'] || this.keysPressed['e'];
 
             if (isMoving) {
                 // Gradually increase speed while moving
                 this.currentMoveSpeed = Math.min(this.currentMoveSpeed + this.acceleration, this.maxMoveSpeed);
 
-                // WASD/QE movement using current speed
+                // WASD movement (horizontal and forward/back) - moves camera and focus together
                 if (this.keysPressed['w']) movement.addScaledVector(forward, this.currentMoveSpeed);
                 if (this.keysPressed['s']) movement.addScaledVector(forward, -this.currentMoveSpeed);
                 if (this.keysPressed['a']) movement.addScaledVector(right, -this.currentMoveSpeed);
                 if (this.keysPressed['d']) movement.addScaledVector(right, this.currentMoveSpeed);
-                if (this.keysPressed['q']) movement.y -= this.currentMoveSpeed;  // Down
-                if (this.keysPressed['e']) movement.y += this.currentMoveSpeed;  // Up
 
-                // Apply movement
+                // Apply WASD movement to both camera and focus point
                 if (movement.length() > 0) {
                     this.camera.position.add(movement);
                     this.focusPoint.add(movement);
                     this.focusPoint.y = 0; // Keep focus on ground plane
                     this.controls.target.copy(this.focusPoint);
+                }
+
+                // QE movement (vertical only) - moves camera only, keeps viewing angle
+                if (this.keysPressed['q']) {
+                    this.camera.position.y -= this.currentMoveSpeed;  // Down
+                }
+                if (this.keysPressed['e']) {
+                    this.camera.position.y += this.currentMoveSpeed;  // Up
                 }
             } else {
                 // Immediately reset speed when movement stops
