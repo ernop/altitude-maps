@@ -6,8 +6,7 @@ for USA regions. Follows the unified 1-degree grid system for maximum tile reuse
 """
 
 from pathlib import Path
-from typing import Tuple, Optional, List
-from tqdm import tqdm
+from typing import Tuple, Optional
 
 from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds
 
@@ -120,7 +119,7 @@ def download_usgs_3dep_10m_tiles(
     tiles_dir = Path("data/raw/usa_3dep/tiles")
     tiles_dir.mkdir(parents=True, exist_ok=True)
     
-    tile_paths = []
+    tile_paths: list[Path] = []
     
     # Download each tile (or use existing)
     for i, tile_bounds in enumerate(tiles, 1):
@@ -149,7 +148,7 @@ def download_usgs_3dep_10m_tiles(
     print(f"\n  Merging {len(tile_paths)} tiles...", flush=True)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    success = merge_tiles(tile_paths, output_path, bounds)
+    success = merge_tiles(tile_paths, output_path)
     
     if success:
         merged_size_mb = output_path.stat().st_size / (1024 * 1024)

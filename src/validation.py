@@ -50,10 +50,13 @@ def validate_elevation_range(
     max_elev = float(np.max(valid_data))
     elev_range = max_elev - min_elev
     
-    is_valid = elev_range >= min_sensible_range
+    # Note: Some coastal cities and flat regions have small elevation ranges (e.g., Helsinki ~49m)
+    # Use 20m as absolute minimum to catch data errors while allowing realistic flat regions
+    actual_min_range = min(min_sensible_range, 20.0)
+    is_valid = elev_range >= actual_min_range
     
     if not is_valid:
-        msg = f"Elevation range too small: {elev_range:.1f}m (min: {min_sensible_range}m)"
+        msg = f"Elevation range too small: {elev_range:.1f}m (min: {actual_min_range:.1f}m)"
         if warn_only:
             print(f"  WARNING: {msg}")
         else:

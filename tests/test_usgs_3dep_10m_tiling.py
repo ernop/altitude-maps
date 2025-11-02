@@ -7,9 +7,8 @@ exactly like 30m and 90m data.
 Run with: pytest tests/test_usgs_3dep_10m_tiling.py -v
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds
 
 
@@ -136,7 +135,7 @@ class TestUSGS3DEP10mTiling:
              patch.object(Path, 'mkdir'):
             mock_stat.return_value.st_size = 150 * 1024 * 1024  # 150 MB
             
-            result = download_single_tile_10m(tile_bounds, output_path)
+            _result = download_single_tile_10m(tile_bounds, output_path)
         
         # Verify download was called with correct bounds
         mock_downloader.download_via_national_map_api.assert_called_once()
@@ -193,7 +192,7 @@ class TestIntegrationWith30mAnd90m:
         }
         
         # Verify pattern consistency
-        for res, path in expected_paths.items():
+        for _res, path in expected_paths.items():
             assert path.parts[-1] == "tiles"
             assert "data" in path.parts
             assert "raw" in path.parts

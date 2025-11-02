@@ -1,7 +1,22 @@
 /**
-* Data bucketing/aggregation module
-* Combines raw elevation pixels into larger buckets for performance
-*/
+ * Data Bucketing/Aggregation Module
+ * 
+ * PURPOSE:
+ * Combines raw elevation pixels into larger "buckets" for performance optimization.
+ * Instead of rendering every pixel as a separate 3D bar, this groups NxN pixels into
+ * one bucket and applies an aggregation method (MAX, AVERAGE, MIN, MEDIAN).
+ * 
+ * PERFORMANCE IMPACT:
+ * - Bucket size 1x = full resolution (slowest, highest detail)
+ * - Bucket size 10x = 100x fewer objects to render (much faster)
+ * 
+ * USAGE:
+ * Called automatically during terrain creation and resolution changes.
+ * The bucketing parameters are stored in global `params` object.
+ * 
+ * NOTE: This module depends on global variables (rawElevationData, params) for performance.
+ * This is intentional to avoid excessive parameter passing in hot paths.
+ */
 
 /**
 * Rebucket raw elevation data

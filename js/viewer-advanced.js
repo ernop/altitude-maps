@@ -1,3 +1,30 @@
+/**
+ * Altitude Maps - Advanced 3D Elevation Viewer
+ * Main application orchestrator
+ * 
+ * MODULAR ARCHITECTURE:
+ * This file coordinates between specialized modules, each handling a specific domain:
+ * 
+ * - js/color-schemes.js        → Color palettes and descriptions
+ * - js/camera-schemes.js       → Camera control implementations (Google Maps, Blender, etc.)
+ * - js/ground-plane-camera.js  → Ground plane camera system (default)
+ * - js/bucketing.js            → Data aggregation and downsampling
+ * - js/gpu-info.js             → GPU detection and performance benchmarking
+ * - js/geometry-utils.js       → Spatial calculations and coordinate conversions
+ * - js/format-utils.js         → Data formatting (units, distances, file sizes)
+ * 
+ * This main file handles:
+ * - Application initialization and lifecycle
+ * - Scene setup (Three.js renderer, camera, lights)
+ * - Terrain rendering (bars, surface, points)
+ * - UI event handling and state management
+ * - Region loading and data processing
+ * - HUD updates and user interactions
+ * 
+ * Design principle: Keep thin wrapper functions here that delegate to modules.
+ * Avoid duplication - each function should have a single source of truth.
+ */
+
 // Version tracking
 const VIEWER_VERSION = '1.340';
 
@@ -788,14 +815,9 @@ function updateLoadingProgress(percent, loaded, total) {
     progressText.textContent = `${percent}% (${formatFileSize(loaded)} / ${formatFileSize(total)})`;
 }
 
+// Data formatting utilities now in js/format-utils.js
 function formatFileSize(bytes) {
-    if (bytes < 1024) {
-        return `${bytes} B`;
-    } else if (bytes < 1024 * 1024) {
-        return `${(bytes / 1024).toFixed(1)} KB`;
-    } else {
-        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-    }
+    return window.FormatUtils.formatFileSize(bytes);
 }
 
 function hideLoading() {
@@ -1286,168 +1308,14 @@ function traceContourLevel(elevation, width, height, level) {
  * Detect GPU capabilities and benchmark performance tier
  * @returns {Object|null} GPU info with vendor, renderer, tier, and benchmark results
  */
-function detectGPU() {
-    // Use the renderer's GL context if available
-    let gl = null;
-    if (renderer && renderer.getContext) {
-        gl = renderer.getContext();
-    } else {
-        // Fallback: create temporary context
-        gl = document.createElement('canvas').getContext('webgl') ||
-            document.createElement('canvas').getContext('experimental-webgl');
-    }
-
-    if (!gl) {
-        console.error('WebGL not supported! This viewer requires WebGL.');
-        return null;
-    }
-
-    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-    const gpuInfo = {
-        renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
-        vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
-        tier: 'medium', // Default tier
-        benchmark: null
-    };
-
-    // Identify known GPU vendor strings
-    const rendererLower = gpuInfo.renderer.toLowerCase();
-    const vendorLower = gpuInfo.vendor.toLowerCase();
-
-    // Detect vendor
-    if (vendorLower.includes('intel') || rendererLower.includes('intel')) {
-        gpuInfo.vendor = 'Intel';
-        // Intel integrated graphics - tier depends on generation
-        if (rendererLower.includes('iris') || rendererLower.includes('uhd 770') || rendererLower.includes('uhd 750')) {
-            gpuInfo.tier = 'medium'; // Modern Intel Xe Graphics
-        } else {
-            gpuInfo.tier = 'low'; // Older Intel HD Graphics
-        }
-    } else if (vendorLower.includes('nvidia') || rendererLower.includes('nvidia')) {
-        gpuInfo.vendor = 'NVIDIA';
-        gpuInfo.tier = 'high'; // Most NVIDIA GPUs are discrete and powerful
-    } else if (vendorLower.includes('amd') || rendererLower.includes('amd') || rendererLower.includes('radeon')) {
-        gpuInfo.vendor = 'AMD';
-        if (rendererLower.includes('integrated')) {
-            gpuInfo.tier = 'low'; // AMD integrated graphics
-        } else {
-            gpuInfo.tier = 'high'; // AMD discrete GPUs
-        }
-    } else if (vendorLower.includes('apple') || rendererLower.includes('apple')) {
-        gpuInfo.vendor = 'Apple';
-        // Apple Silicon vs older Macs
-        if (rendererLower.includes('apple gpu') || rendererLower.includes('apple m1') || rendererLower.includes('apple m2')) {
-            gpuInfo.tier = 'high'; // Apple Silicon GPUs are powerful
-        } else {
-            gpuInfo.tier = 'medium'; // Older Intel Mac GPUs
-        }
-    } else if (vendorLower.includes('adreno') || rendererLower.includes('adreno')) {
-        gpuInfo.vendor = 'Qualcomm';
-        gpuInfo.tier = 'low'; // Mobile GPUs
-    } else if (vendorLower.includes('mali') || rendererLower.includes('mali')) {
-        gpuInfo.vendor = 'ARM';
-        gpuInfo.tier = 'low'; // Mobile GPUs
-    } else {
-        gpuInfo.vendor = 'Unknown';
-        gpuInfo.tier = 'medium'; // Conservative default
-    }
-
-    // Run simple performance benchmark if renderer is available
-    if (renderer) {
-        gpuInfo.benchmark = benchmarkGPU(renderer, gl);
-    }
-
-    return gpuInfo;
+// GPU detection and benchmarking now in js/gpu-info.js
+// Wrapper functions for backward compatibility
+function detectGPU(renderer) {
+    return window.GPUInfo.detectGPU(renderer);
 }
 
-/**
- * Benchmark GPU fill rate and geometry performance
- * @param {THREE.WebGLRenderer} testRenderer - Renderer to test with
- * @param {WebGLRenderingContext} testGL - WebGL context to test with
- * @returns {Object} Benchmark results
- */
 function benchmarkGPU(testRenderer, testGL) {
-    const benchmark = {
-        fillRate: 0,
-        geometry: 0,
-        combined: 0,
-        timestamp: Date.now()
-    };
-
-    try {
-        // Create off-screen canvas for benchmark to avoid visual interference
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = 256;
-        offscreenCanvas.height = 256;
-        const offscreenGL = offscreenCanvas.getContext('webgl', { preserveDrawingBuffer: false });
-
-        if (!offscreenGL) {
-            // Fallback: skip benchmark if off-screen context not available
-            return benchmark;
-        }
-
-        // Create off-screen renderer for benchmark
-        const offscreenRenderer = new THREE.WebGLRenderer({
-            canvas: offscreenCanvas,
-            context: offscreenGL,
-            antialias: false,
-            alpha: false
-        });
-        offscreenRenderer.setSize(256, 256);
-        offscreenRenderer.setPixelRatio(1);
-
-        const testScene = new THREE.Scene();
-        const testCamera = new THREE.PerspectiveCamera(60, 1, 1, 1000);
-        testCamera.position.set(0, 0, 100);
-
-        // Create test geometry (1000 cubes)
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-        const mesh = new THREE.InstancedMesh(geometry, material, 1000);
-
-        // Random positions
-        const dummy = new THREE.Object3D();
-        for (let i = 0; i < 1000; i++) {
-            dummy.position.set(
-                (Math.random() - 0.5) * 50,
-                (Math.random() - 0.5) * 50,
-                (Math.random() - 0.5) * 50
-            );
-            dummy.updateMatrix();
-            mesh.setMatrixAt(i, dummy.matrix);
-        }
-        testScene.add(mesh);
-
-        // Add light
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(1, 1, 1);
-        testScene.add(light);
-
-        // Benchmark: 100 frames
-        const startTime = performance.now();
-        for (let i = 0; i < 100; i++) {
-            offscreenRenderer.render(testScene, testCamera);
-        }
-        const endTime = performance.now();
-        const avgFrameTime = (endTime - startTime) / 100;
-
-        // Calculate scores (lower is better, normalize to 0-100 scale)
-        benchmark.fillRate = Math.min(100, (1000 / avgFrameTime) * 10); // Target: 16.67ms = 60fps
-        benchmark.geometry = benchmark.fillRate; // Same test for both
-        benchmark.combined = benchmark.fillRate;
-
-        // Cleanup
-        geometry.dispose();
-        material.dispose();
-        mesh.dispose();
-        light.dispose();
-        offscreenRenderer.dispose();
-
-    } catch (e) {
-        console.warn('GPU benchmark failed:', e);
-    }
-
-    return benchmark;
+    return window.GPUInfo.benchmarkGPU(testRenderer, testGL);
 }
 
 /**
@@ -2688,37 +2556,9 @@ function createPivotMarker(position) {
     }, 3000);
 }
 
-function calculateRealWorldScale() {
-    // Calculate real-world scale from geographic bounds
-    // This ensures vertical_exaggeration=1.0 means "true scale like real Earth"
-    const bounds = rawElevationData.bounds;
-    const width = rawElevationData.width;
-    const height = rawElevationData.height;
-
-    const lonSpan = Math.abs(bounds.right - bounds.left); // degrees
-    const latSpan = Math.abs(bounds.top - bounds.bottom); // degrees
-
-    // Calculate meters per degree at the center latitude
-    const centerLat = (bounds.top + bounds.bottom) / 2.0;
-    const metersPerDegLon = 111_320 * Math.cos(centerLat * Math.PI / 180);
-    const metersPerDegLat = 111_320; // approximately constant
-
-    // Calculate real-world dimensions in meters
-    const widthMeters = lonSpan * metersPerDegLon;
-    const heightMeters = latSpan * metersPerDegLat;
-
-    // Meters per pixel
-    const metersPerPixelX = widthMeters / width;
-    const metersPerPixelY = heightMeters / height;
-
-    // Removed verbose real-world scale logs
-
-    return {
-        metersPerPixelX,
-        metersPerPixelY,
-        widthMeters,
-        heightMeters
-    };
+// Geometry utilities now in js/geometry-utils.js
+function calculateRealWorldScale(data) {
+    return window.GeometryUtils.calculateRealWorldScale(data);
 }
 
 function createTerrain() {
@@ -4056,92 +3896,14 @@ function autoReduceResolution() {
 if (!groundPlane) groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 function raycastToWorld(screenX, screenY) {
-    // Convert screen coordinates to normalized device coordinates (-1 to +1)
-    const rect = renderer.domElement.getBoundingClientRect();
-    const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
-
-    // Set up raycaster
-    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-    // Prefer terrain intersection; fall back to ground plane
-    if (terrainMesh) {
-        const hits = raycaster.intersectObject(terrainMesh, true);
-        if (hits && hits.length > 0) {
-            const p = hits[0].point;
-            return new THREE.Vector3(p.x, 0, p.z);
-        }
-    }
-    const planeIntersect = new THREE.Vector3();
-    const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
-    if (intersected) return planeIntersect;
-
-    // Should never happen, but just in case
-    console.warn('Raycast failed completely');
-    return null;
+    return window.GeometryUtils.raycastToWorld(screenX, screenY);
 }
 function worldToLonLat(worldX, worldZ) {
-    if (!rawElevationData || !processedData || !borderData) return null;
-    const { bounds: elevBounds } = rawElevationData; // {left, right, top, bottom}
-    const w = processedData.width;
-    const h = processedData.height;
-    let colNorm, rowNorm;
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        const xMin = -(w - 1) * bucket / 2;
-        const zMin = -(h - 1) * bucket / 2;
-        const xMax = (w - 1) * bucket / 2;
-        const zMax = (h - 1) * bucket / 2;
-        colNorm = (worldX - xMin) / (xMax - xMin);
-        rowNorm = (worldZ - zMin) / (zMax - zMin);
-    } else if (params.renderMode === 'points') {
-        const xMin = -(w - 1) / 2;
-        const zMin = -(h - 1) / 2;
-        const xMax = (w - 1) / 2;
-        const zMax = (h - 1) / 2;
-        colNorm = (worldX - xMin) / (xMax - xMin);
-        rowNorm = (worldZ - zMin) / (zMax - zMin);
-    } else {
-        // surface
-        colNorm = (worldX + w / 2) / (w);
-        rowNorm = (worldZ + h / 2) / (h);
-    }
-    colNorm = Math.max(0, Math.min(1, colNorm));
-    rowNorm = Math.max(0, Math.min(1, rowNorm));
-    const lon = elevBounds.left + colNorm * (elevBounds.right - elevBounds.left);
-    const lat = elevBounds.top - rowNorm * (elevBounds.top - elevBounds.bottom);
-    return { lon, lat };
+    return window.GeometryUtils.worldToLonLat(worldX, worldZ);
 }
 
 function worldToGridIndex(worldX, worldZ) {
-    if (!processedData) return null;
-    const w = processedData.width;
-    const h = processedData.height;
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
-        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
-        let j = Math.round((worldX - originX) / bucket);
-        let i = Math.round((worldZ - originZ) / bucket);
-        i = Math.max(0, Math.min(h - 1, i));
-        j = Math.max(0, Math.min(w - 1, j));
-        return { i, j };
-    } else if (params.renderMode === 'points') {
-        const bucket = 1;
-        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
-        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
-        let j = Math.round((worldX - originX) / bucket);
-        let i = Math.round((worldZ - originZ) / bucket);
-        i = Math.max(0, Math.min(h - 1, i));
-        j = Math.max(0, Math.min(w - 1, j));
-        return { i, j };
-    } else {
-        // Surface centered at origin, each vertex spaced 1 unit
-        let j = Math.round(worldX + w / 2);
-        let i = Math.round(worldZ + h / 2);
-        i = Math.max(0, Math.min(h - 1, i));
-        j = Math.max(0, Math.min(w - 1, j));
-        return { i, j };
-    }
+    return window.GeometryUtils.worldToGridIndex(worldX, worldZ);
 }
 
 function updateCursorHUD(clientX, clientY) {
@@ -4277,59 +4039,19 @@ function bindHudSettingsHandlers() {
 }
 
 function formatElevation(meters, units) {
-    const feet = meters * 3.280839895;
-    if (units === 'metric') return `${Math.round(meters)} m`;
-    if (units === 'imperial') return `${Math.round(feet)} ft`;
-    return `${Math.round(meters)} m / ${Math.round(feet)} ft`;
+    return window.FormatUtils.formatElevation(meters, units);
 }
 
 function formatDistance(meters, units) {
-    const miles = meters / 1609.344;
-    const km = meters / 1000;
-    if (units === 'metric') return km < 1 ? `${Math.round(meters)} m` : `${km.toFixed(2)} km`;
-    if (units === 'imperial') return miles < 0.5 ? `${Math.round(meters * 3.280839895)} ft` : `${miles.toFixed(2)} mi`;
-    const left = km < 1 ? `${Math.round(meters)} m` : `${km.toFixed(2)} km`;
-    const right = miles < 0.5 ? `${Math.round(meters * 3.280839895)} ft` : `${miles.toFixed(2)} mi`;
-    return `${left} / ${right}`;
+    return window.FormatUtils.formatDistance(meters, units);
 }
 
 function formatFootprint(metersX, metersY, units) {
-    if (units === 'metric') {
-        const kmX = metersX / 1000;
-        const kmY = metersY / 1000;
-        const fmtX = kmX < 1 ? `${Math.round(metersX)} m` : `${kmX.toFixed(2)} km`;
-        const fmtY = kmY < 1 ? `${Math.round(metersY)} m` : `${kmY.toFixed(2)} km`;
-        return `${fmtX} × ${fmtY}`;
-    } else if (units === 'imperial') {
-        const miX = metersX / 1609.344;
-        const miY = metersY / 1609.344;
-        const feetX = metersX * 3.280839895;
-        const feetY = metersY * 3.280839895;
-        const fmtX = miX < 0.5 ? `${Math.round(feetX)} ft` : `${miX.toFixed(2)} mi`;
-        const fmtY = miY < 0.5 ? `${Math.round(feetY)} ft` : `${miY.toFixed(2)} mi`;
-        return `${fmtX} × ${fmtY}`;
-    } else { // 'both'
-        const kmX = metersX / 1000;
-        const kmY = metersY / 1000;
-        const miX = metersX / 1609.344;
-        const miY = metersY / 1609.344;
-        const feetX = metersX * 3.280839895;
-        const feetY = metersY * 3.280839895;
-        const fmtXm = kmX < 1 ? `${Math.round(metersX)} m` : `${kmX.toFixed(2)} km`;
-        const fmtYm = kmY < 1 ? `${Math.round(metersY)} m` : `${kmY.toFixed(2)} km`;
-        const fmtXi = miX < 0.5 ? `${Math.round(feetX)} ft` : `${miX.toFixed(2)} mi`;
-        const fmtYi = miY < 0.5 ? `${Math.round(feetY)} ft` : `${miY.toFixed(2)} mi`;
-        return `${fmtXm} × ${fmtYm} / ${fmtXi} × ${fmtYi}`;
-    }
+    return window.FormatUtils.formatFootprint(metersX, metersY, units);
 }
 
 function formatPixelSize(meters) {
-    // Format pixel size with km if >1000m, one decimal point only
-    if (meters >= 1000) {
-        return `${(meters / 1000).toFixed(1)}km`;
-    } else {
-        return `${meters.toFixed(1)}m`;
-    }
+    return window.FormatUtils.formatPixelSize(meters);
 }
 
 function updateResolutionInfo() {
@@ -4352,16 +4074,7 @@ function updateResolutionInfo() {
 }
 
 function getMetersScalePerWorldUnit() {
-    if (!processedData) return { mx: 1, mz: 1 };
-    if (params.renderMode === 'bars') {
-        const mx = (processedData.bucketSizeMetersX || 1) / (params.bucketSize || 1);
-        const mz = (processedData.bucketSizeMetersY || 1) / (params.bucketSize || 1);
-        return { mx, mz };
-    } else {
-        const mx = processedData.bucketSizeMetersX || 1;
-        const mz = processedData.bucketSizeMetersY || 1;
-        return { mx, mz };
-    }
+    return window.GeometryUtils.getMetersScalePerWorldUnit();
 }
 
 function computeDistanceToNearestBorderMetersGeo(worldX, worldZ) {
@@ -4451,37 +4164,11 @@ function computeDistanceToDataEdgeMeters(worldX, worldZ) {
 }
 
 function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
-    const vx = bx - ax;
-    const vz = bz - az;
-    const wx = px - ax;
-    const wz = pz - az;
-    const c1 = vx * wx + vz * wz;
-    if (c1 <= 0) return Math.hypot(px - ax, pz - az);
-    const c2 = vx * vx + vz * vz;
-    if (c2 <= c1) return Math.hypot(px - bx, pz - bz);
-    const t = c1 / c2;
-    const projx = ax + t * vx;
-    const projz = az + t * vz;
-    return Math.hypot(px - projx, pz - projz);
+    return window.GeometryUtils.distancePointToSegment2D(px, pz, ax, az, bx, bz);
 }
 
 function isWorldInsideData(worldX, worldZ) {
-    if (!processedData) return false;
-    const w = processedData.width;
-    const h = processedData.height;
-    let xMin, xMax, zMin, zMax;
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
-        zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
-    } else if (params.renderMode === 'points') {
-        xMin = -(w - 1) / 2; xMax = (w - 1) / 2;
-        zMin = -(h - 1) / 2; zMax = (h - 1) / 2;
-    } else {
-        xMin = -w / 2; xMax = w / 2;
-        zMin = -h / 2; zMax = h / 2;
-    }
-    return (worldX >= xMin && worldX <= xMax && worldZ >= zMin && worldZ <= zMax);
+    return window.GeometryUtils.isWorldInsideData(worldX, worldZ);
 }
 
 function onMouseDown(event) {

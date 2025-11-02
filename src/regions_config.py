@@ -446,6 +446,15 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "helsinki": RegionConfig(
+        id="helsinki",
+        name="Helsinki",
+        bounds=(24.4, 59.8, 25.5, 60.5),
+        description="Finland - Helsinki metropolitan area including city center, harbor, and major landmarks",
+        region_type=RegionType.REGION,
+        country="Finland",
+        clip_boundary=False,
+    ),
     "arkhangelsk_area": RegionConfig(
         id="arkhangelsk_area",
         name="Arkhangelsk Area",

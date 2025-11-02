@@ -663,14 +663,14 @@ class JumpingScheme extends CameraScheme {
             position: new THREE.Vector3(0, 50, 0),
             velocity: new THREE.Vector3(0, 0, 0),
             onGround: false,
-            radius: 5,
-            height: 10
+            radius: 0.5,  // 1/10th size (was 5)
+            height: 1.0   // 1/10th size (was 10)
         };
         this.mouseSensitivity = 0.003;
-        this.walkSpeed = 3.0;
-        this.runSpeed = 8.0;
-        this.jumpForce = 15.0;
-        this.gravity = -30.0;
+        this.walkSpeed = 15.0;   // 5x faster (was 3.0)
+        this.runSpeed = 40.0;    // 5x faster (was 8.0)
+        this.jumpForce = 25.0;   // Stronger jump (was 15.0)
+        this.gravity = -60.0;    // 2x stronger gravity for less floaty feel (was -30.0)
 
         // Camera offset from character (third-person view)
         this.cameraDistance = 30;
@@ -683,9 +683,32 @@ class JumpingScheme extends CameraScheme {
     activate(camera, controls, renderer) {
         super.activate(camera, controls, renderer);
 
-        // Initialize character at camera position
-        this.character.position.copy(camera.position);
-        this.character.position.y = Math.max(50, camera.position.y);
+        // Find a valid spawn position (non-null elevation tile)
+        let spawnX = 0, spawnZ = 0;
+        let terrainHeight = this.getTerrainHeight(0, 0);
+        
+        // If center is null/water, search for valid land in a spiral pattern
+        if (terrainHeight <= 0 && typeof processedData !== 'undefined' && processedData) {
+            let found = false;
+            const maxSearch = 50;
+            for (let radius = 1; radius < maxSearch && !found; radius++) {
+                for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+                    const testX = Math.cos(angle) * radius * (params.bucketSize || 1);
+                    const testZ = Math.sin(angle) * radius * (params.bucketSize || 1);
+                    const testHeight = this.getTerrainHeight(testX, testZ);
+                    if (testHeight > 0) {
+                        spawnX = testX;
+                        spawnZ = testZ;
+                        terrainHeight = testHeight;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Position character 10 body-units above the terrain top
+        this.character.position.set(spawnX, terrainHeight + (this.character.height * 10), spawnZ);
 
         // Set up event listeners
         this.keydownHandler = (e) => this.onKeyDown(e);
@@ -815,28 +838,23 @@ class JumpingScheme extends CameraScheme {
     }
 
     getTerrainHeight(x, z) {
-        // Simple terrain collision - get height at character position
-        // This is a placeholder - would need access to actual terrain data
-        if (!rawElevationData || !rawElevationData.bounds) return 0;
+        // Get terrain height at character position
+        // In bars mode, this returns the TOP of the bar (solid collision)
+        if (typeof processedData === 'undefined' || !processedData) return 0;
+        if (typeof params === 'undefined' || !params) return 0;
 
-        const bounds = rawElevationData.bounds;
-        const width = rawElevationData.width;
-        const height = rawElevationData.height;
-        const data = rawElevationData.data;
+        // Use worldToGridIndex to convert world position to grid indices
+        const idx = worldToGridIndex(x, z);
+        if (!idx) return 0;
 
-        // Convert world position to data coordinates
-        const normalizedX = (x - bounds.minX) / (bounds.maxX - bounds.minX);
-        const normalizedZ = (z - bounds.minZ) / (bounds.maxZ - bounds.minZ);
+        const { i, j } = idx;
+        const elevation = processedData.elevation[i] && processedData.elevation[i][j];
+        if (elevation === null || elevation === undefined) return 0;
 
-        const col = Math.floor(normalizedX * width);
-        const row = Math.floor((1 - normalizedZ) * height); // Flip Z
-
-        if (col >= 0 && col < width && row >= 0 && row < height) {
-            const elevation = data[row * width + col];
-            return elevation !== null ? elevation : 0;
-        }
-
-        return 0;
+        // Return TOP of terrain/bar (elevation * vertical exaggeration)
+        // In bars mode: this is the top surface of the bar (solid collision)
+        // In surface/points mode: this is the terrain surface
+        return elevation * (params.verticalExaggeration || 1.0);
     }
 
     update() {

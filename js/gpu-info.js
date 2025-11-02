@@ -109,137 +109,93 @@ function detectVendorFromRenderer(renderer) {
 }
 
 /**
- * Run GPU performance benchmark
- * @param {THREE.WebGLRenderer} testRenderer - Three.js renderer to test
- * @param {WebGLRenderingContext} testGL - WebGL context to test
+ * Benchmark GPU fill rate and geometry performance
+ * @param {THREE.WebGLRenderer} testRenderer - Renderer to test with
+ * @param {WebGLRenderingContext} testGL - WebGL context to test with
  * @returns {Object} Benchmark results
  */
 function benchmarkGPU(testRenderer, testGL) {
-    const results = {
-        triangleTest: null,
-        fillRateTest: null,
-        textureTest: null,
-        overallScore: null
+    const benchmark = {
+        fillRate: 0,
+        geometry: 0,
+        combined: 0,
+        timestamp: Date.now()
     };
 
     try {
-        // Test 1: Triangle rendering performance
-        const triangleScene = new THREE.Scene();
-        const triangleCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-        triangleCamera.position.z = 50;
+        // Create off-screen canvas for benchmark to avoid visual interference
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 256;
+        offscreenCanvas.height = 256;
+        const offscreenGL = offscreenCanvas.getContext('webgl', { preserveDrawingBuffer: false });
 
-        // Create many small triangles
-        const triangleCount = 10000;
-        const triangleGeometry = new THREE.BufferGeometry();
-        const vertices = new Float32Array(triangleCount * 9); // 3 vertices * 3 components
-
-        for (let i = 0; i < triangleCount * 9; i += 9) {
-            const x = Math.random() * 100 - 50;
-            const y = Math.random() * 100 - 50;
-            const z = Math.random() * 100 - 50;
-
-            vertices[i] = x;
-            vertices[i + 1] = y;
-            vertices[i + 2] = z;
-
-            vertices[i + 3] = x + Math.random() * 2;
-            vertices[i + 4] = y + Math.random() * 2;
-            vertices[i + 5] = z;
-
-            vertices[i + 6] = x;
-            vertices[i + 7] = y + Math.random() * 2;
-            vertices[i + 8] = z;
+        if (!offscreenGL) {
+            // Fallback: skip benchmark if off-screen context not available
+            return benchmark;
         }
 
-        triangleGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        const triangleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const triangleMesh = new THREE.Mesh(triangleGeometry, triangleMaterial);
-        triangleScene.add(triangleMesh);
+        // Create off-screen renderer for benchmark
+        const offscreenRenderer = new THREE.WebGLRenderer({
+            canvas: offscreenCanvas,
+            context: offscreenGL,
+            antialias: false,
+            alpha: false
+        });
+        offscreenRenderer.setSize(256, 256);
+        offscreenRenderer.setPixelRatio(1);
 
-        // Measure triangle rendering time
-        const triangleStart = performance.now();
-        const triangleFrames = 60;
-        for (let i = 0; i < triangleFrames; i++) {
-            triangleMesh.rotation.y += 0.01;
-            testRenderer.render(triangleScene, triangleCamera);
+        const testScene = new THREE.Scene();
+        const testCamera = new THREE.PerspectiveCamera(60, 1, 1, 1000);
+        testCamera.position.set(0, 0, 100);
+
+        // Create test geometry (1000 cubes)
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        const mesh = new THREE.InstancedMesh(geometry, material, 1000);
+
+        // Random positions
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < 1000; i++) {
+            dummy.position.set(
+                (Math.random() - 0.5) * 50,
+                (Math.random() - 0.5) * 50,
+                (Math.random() - 0.5) * 50
+            );
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
         }
-        const triangleTime = performance.now() - triangleStart;
-        const triangleFPS = (triangleFrames / triangleTime) * 1000;
+        testScene.add(mesh);
 
-        results.triangleTest = {
-            fps: triangleFPS.toFixed(1),
-            avgFrameTime: (triangleTime / triangleFrames).toFixed(2),
-            triangleCount
-        };
+        // Add light
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        testScene.add(light);
 
-        // Test 2: Fill rate (large textured quad)
-        const fillScene = new THREE.Scene();
-        const fillCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-        fillCamera.position.z = 2;
-
-        const fillGeometry = new THREE.PlaneGeometry(10, 10);
-        const canvas = document.createElement('canvas');
-        canvas.width = 2048;
-        canvas.height = 2048;
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.createImageData(2048, 2048);
-        for (let i = 0; i < imageData.data.length; i += 4) {
-            imageData.data[i] = Math.random() * 255;
-            imageData.data[i + 1] = Math.random() * 255;
-            imageData.data[i + 2] = Math.random() * 255;
-            imageData.data[i + 3] = 255;
+        // Benchmark: 100 frames
+        const startTime = performance.now();
+        for (let i = 0; i < 100; i++) {
+            offscreenRenderer.render(testScene, testCamera);
         }
-        ctx.putImageData(imageData, 0, 0);
+        const endTime = performance.now();
+        const avgFrameTime = (endTime - startTime) / 100;
 
-        const fillTexture = new THREE.CanvasTexture(canvas);
-        const fillMaterial = new THREE.MeshBasicMaterial({ map: fillTexture });
-        const fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
-        fillScene.add(fillMesh);
-
-        const fillStart = performance.now();
-        const fillFrames = 60;
-        for (let i = 0; i < fillFrames; i++) {
-            fillMesh.rotation.z += 0.01;
-            testRenderer.render(fillScene, fillCamera);
-        }
-        const fillTime = performance.now() - fillStart;
-        const fillFPS = (fillFrames / fillTime) * 1000;
-
-        results.fillRateTest = {
-            fps: fillFPS.toFixed(1),
-            avgFrameTime: (fillTime / fillFrames).toFixed(2),
-            textureSize: '2048x2048'
-        };
-
-        // Test 3: Texture sampling
-        const textureStart = performance.now();
-        const maxTextureSize = testGL.getParameter(testGL.MAX_TEXTURE_SIZE);
-        const textureTime = performance.now() - textureStart;
-
-        results.textureTest = {
-            maxSize: maxTextureSize,
-            queryTime: textureTime.toFixed(2)
-        };
-
-        // Calculate overall score (normalized)
-        const triangleScore = Math.min(triangleFPS / 60, 1) * 100;
-        const fillScore = Math.min(fillFPS / 60, 1) * 100;
-        const textureScore = Math.min(maxTextureSize / 16384, 1) * 100;
-
-        results.overallScore = ((triangleScore + fillScore + textureScore) / 3).toFixed(1);
+        // Calculate scores (lower is better, normalize to 0-100 scale)
+        benchmark.fillRate = Math.min(100, (1000 / avgFrameTime) * 10); // Target: 16.67ms = 60fps
+        benchmark.geometry = benchmark.fillRate; // Same test for both
+        benchmark.combined = benchmark.fillRate;
 
         // Cleanup
-        triangleGeometry.dispose();
-        triangleMaterial.dispose();
-        fillGeometry.dispose();
-        fillMaterial.dispose();
-        fillTexture.dispose();
+        geometry.dispose();
+        material.dispose();
+        mesh.dispose();
+        light.dispose();
+        offscreenRenderer.dispose();
 
-    } catch (error) {
-        results.error = error.message;
+    } catch (e) {
+        console.warn('GPU benchmark failed:', e);
     }
 
-    return results;
+    return benchmark;
 }
 
 // Export to window for global access
