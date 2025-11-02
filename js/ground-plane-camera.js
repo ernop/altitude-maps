@@ -201,10 +201,10 @@ class GroundPlaneCamera extends CameraScheme {
             spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi + deltaY * tiltSpeed));
 
             // Convert back to Cartesian and apply
+            // Use live focusPoint so WASD movement works during tilt
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.focusPoint).add(offset);
-
-            // Update controls target (lookAt will be handled by update() loop for smoothness)
+            this.camera.lookAt(this.focusPoint);
             this.controls.target.copy(this.focusPoint);
         }
 
@@ -217,13 +217,13 @@ class GroundPlaneCamera extends CameraScheme {
                 return;
             }
 
-            // Google Earth style rotation: rotate view around focus point
-            // Horizontal drag = rotate around vertical axis (turn left/right)
-            // Vertical drag = tilt view up/down
+            // Roblox Studio style rotation: rotate around target point
+            // Key insight: Use LIVE focusPoint (which WASD updates), not locked focusStart
+            // This allows keyboard movement during rotation without jumps
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
 
-            // Get current offset from focus to camera
+            // Get offset from target to camera (captured at drag start)
             const offset = new THREE.Vector3();
             offset.subVectors(this.state.cameraStart, this.state.focusStart);
 
@@ -231,18 +231,17 @@ class GroundPlaneCamera extends CameraScheme {
             const spherical = new THREE.Spherical();
             spherical.setFromVector3(offset);
 
-            // Apply rotation
-            // Horizontal: rotate around vertical axis (theta)
+            // Apply rotation (Roblox style)
             spherical.theta -= deltaX * 0.005;
-
-            // Vertical: tilt (phi) - drag right to tilt down (see more ground)
-            spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi - deltaY * 0.005));
+            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - deltaY * 0.005));
 
             // Convert back and update camera position
+            // CRITICAL: Use live focusPoint (not focusStart) so WASD movement works smoothly
             offset.setFromSpherical(spherical);
             this.camera.position.copy(this.focusPoint).add(offset);
 
-            // Update controls target
+            // Camera looks at the live target point (updated by WASD)
+            this.camera.lookAt(this.focusPoint);
             this.controls.target.copy(this.focusPoint);
         }
     }
@@ -584,7 +583,7 @@ class GroundPlaneCamera extends CameraScheme {
     }
 
     update() {
-        // WASD/QE keyboard movement (always active)
+        // WASD/QE keyboard movement (always active - Roblox Studio style)
         if (this.enabled) {
             // Get camera vectors
             const forward = new THREE.Vector3();
@@ -604,7 +603,7 @@ class GroundPlaneCamera extends CameraScheme {
                 // Gradually increase speed while moving
                 this.currentMoveSpeed = Math.min(this.currentMoveSpeed + this.acceleration, this.maxMoveSpeed);
 
-                // WASD movement (horizontal and forward/back) - moves camera and focus together
+                // WASD movement (horizontal and forward/back)
                 if (this.keysPressed['w']) movement.addScaledVector(forward, this.currentMoveSpeed);
                 if (this.keysPressed['s']) movement.addScaledVector(forward, -this.currentMoveSpeed);
                 if (this.keysPressed['a']) movement.addScaledVector(right, -this.currentMoveSpeed);
@@ -618,12 +617,25 @@ class GroundPlaneCamera extends CameraScheme {
                     this.controls.target.copy(this.focusPoint);
                 }
 
-                // QE movement (vertical only) - moves camera only, keeps viewing angle
+                // QE movement (vertical only) - Roblox principle: maintain viewing direction
+                // Move camera vertically, then adjust focus to maintain same viewing angle
                 if (this.keysPressed['q']) {
                     this.camera.position.y -= this.currentMoveSpeed;  // Down
                 }
                 if (this.keysPressed['e']) {
                     this.camera.position.y += this.currentMoveSpeed;  // Up
+                }
+
+                if (this.keysPressed['q'] || this.keysPressed['e']) {
+                    // Adjust focus point to maintain viewing direction (ground plane constraint)
+                    const cameraDir = new THREE.Vector3();
+                    this.camera.getWorldDirection(cameraDir);
+                    const ray = new THREE.Ray(this.camera.position, cameraDir);
+                    const newFocus = new THREE.Vector3();
+                    if (ray.intersectPlane(this.groundPlane, newFocus)) {
+                        this.focusPoint.copy(newFocus);
+                        this.controls.target.copy(this.focusPoint);
+                    }
                 }
             } else {
                 // Immediately reset speed when movement stops
@@ -632,7 +644,8 @@ class GroundPlaneCamera extends CameraScheme {
         }
 
         // Ensure camera always looks at focus point
-        if (this.enabled && this.focusPoint) {
+        // Skip during mouse drags - they handle lookAt directly (Roblox style)
+        if (this.enabled && this.focusPoint && !this.state.rotating && !this.state.tilting) {
             this.camera.lookAt(this.focusPoint);
         }
     }

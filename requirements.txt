@@ -30,3 +30,4 @@ shapely  # Dependency of geopandas, explicitly listed for clarity
 # Note: For cartopy and netCDF4 on Windows, consider using conda:
 # conda install -c conda-forge cartopy netCDF4
 
+pytest==8.3.3

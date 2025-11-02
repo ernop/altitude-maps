@@ -1,15 +1,17 @@
-# Legacy Files - One-Off Transformation Scripts and Completed Migrations
+# Legacy Documentation - Historical Reference Only
 
-This folder contains one-off scripts and completed migration utilities that are no longer actively used but are preserved for historical reference.
+This folder contains documentation about completed migrations and one-time transformations that were performed on the codebase. All executable scripts have been removed as they are no longer needed.
 
-## Migration Scripts (Completed)
+**Note**: All knowledge from these migrations has been captured in `.cursorrules` and `tech/` documentation.
 
-### `migrate_to_abstract_naming.py`
-**Purpose**: One-time migration script to rename files from region_id-based naming to abstract bounds-based naming.
+## Completed Migrations
 
-**Status**: Migration completed. The codebase now uses abstract bounds-based naming exclusively.
+### Abstract Naming Migration (Completed)
+**Purpose**: Migrated files from region_id-based naming to abstract bounds-based naming.
 
-**What it did**: 
+**Status**: ✓ Completed - Migration script has been removed.
+
+**What was done**: 
 - Scanned for old region_id-based files (e.g., `utah_bbox_30m.tif`)
 - Renamed them to abstract bounds-based naming (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
 - Covered raw, clipped, processed, and exported files
@@ -17,40 +19,26 @@ This folder contains one-off scripts and completed migration utilities that are 
 **Knowledge preserved in**: 
 - `.cursorrules` (File Naming Philosophy section)
 - `tech/TECHNICAL_REFERENCE.md` (naming conventions)
+- `legacy/MIGRATION_STEPS.md` (detailed migration steps)
 
-### `MIGRATION_STEPS.md`
-**Purpose**: Step-by-step migration guide for the abstract naming migration.
+## Completed One-Off Tasks
 
-**Status**: Migration completed.
+### Emoji Removal Cleanup (Completed)
+**Status**: ✓ Completed - Cleanup script has been removed.
 
-**Knowledge preserved in**: `.cursorrules` (File Naming Philosophy: Abstract vs Specific section)
-
-## One-Off Utility Scripts (Completed)
-
-### `remove_emojis.py`
-**Purpose**: One-off script to remove emojis from documentation and code files.
-
-**Status**: Cleanup completed. Project now enforces no emojis in documentation (absolute rule in `.cursorrules`).
-
-**What it did**: Scanned markdown, Python, JavaScript, and other text files to find and remove emoji characters.
+**What was done**: Scanned markdown, Python, JavaScript, and other text files to find and remove emoji characters.
 
 **Knowledge preserved in**: `.cursorrules` (ABSOLUTE RULE: NEVER use emojis)
 
-### `update_region_names.py`
-**Purpose**: One-off fix script for swapping "peninsula" and "san_mateo" region names in JSON exports.
+### Region Name Fixes (Completed)
+**Status**: ✓ Completed - Fix script has been removed.
 
-**Status**: Fix completed. Region names now correctly managed via `src/regions_config.py`.
-
-**What it did**: Fixed incorrectly swapped region display names in exported JSON files.
+**What was done**: Fixed incorrectly swapped region display names in exported JSON files.
 
 **Knowledge preserved in**: Region names now centrally managed in `src/regions_config.py`
 
-## Obsolete Deployment Scripts
-
-### `deploy_production.py`
-**Purpose**: Older deployment script that prepared files for deployment.
-
-**Status**: Replaced by `deploy.ps1` and `deploy.sh` which are more comprehensive and handle rsync directly.
+### Deployment Script Updates (Completed)
+**Status**: ✓ Completed - All obsolete scripts have been removed.
 
 **Replaced by**: 
 - `deploy.ps1` (PowerShell, Windows)
@@ -60,62 +48,41 @@ This folder contains one-off scripts and completed migration utilities that are 
 - `tech/DEPLOYMENT_GUIDE.md`
 - `.cursorrules` (Production Deployment section)
 
-### `deploy_htaccess.py`
-**Purpose**: One-off script to deploy `.htaccess` file to production server for gzip compression.
+### Border Functionality Testing (Completed)
+**Status**: ✓ Completed - Test scripts have been removed.
 
-**Status**: Deployment completed. `.htaccess` configuration is now part of standard deployment.
+**What was done**: Tested BorderManager imports, Natural Earth border loading, and `.htaccess` configurations.
 
-**What it did**: Deployed `.htaccess` file to enable gzip compression for JSON files on Dreamhost.
-
-**Knowledge preserved in**: `tech/PRODUCTION_COMPRESSION_SETUP.md`
-
-## Temporary Test Scripts
-
-### `test_site_status.py`
-**Purpose**: Quick test script to verify site accessibility (check for 500 errors).
-
-**Status**: One-off diagnostic script, no longer needed.
-
-**What it did**: Tested if site loads without HTTP 500 errors (useful for diagnosing `.htaccess` issues).
-
-### `test_htaccess_features.py`
-**Purpose**: Interactive test script for different `.htaccess` configurations on Dreamhost.
-
-**Status**: One-off diagnostic script used during `.htaccess` setup.
-
-**What it did**: Tested different `.htaccess` configurations incrementally to identify which features work on Dreamhost hosting.
-
-**Knowledge preserved in**: `tech/PRODUCTION_COMPRESSION_SETUP.md`
-
-### `test_borders.py`
-**Purpose**: Test script for border functionality (imports, loading, Natural Earth borders).
-
-**Status**: Temporary diagnostic script. Border functionality is tested as part of normal pipeline.
-
-**What it did**: Tested BorderManager imports, instantiation, and Natural Earth border loading.
+**Knowledge preserved in**: 
+- Border functionality tested in normal pipeline (`src/pipeline.py`)
+- `.htaccess` configuration documented in `tech/PRODUCTION_COMPRESSION_SETUP.md`
 
 ---
 
-## Why These Files Are Preserved
+## What Happened to the Scripts?
 
-These files are kept for historical reference and to understand:
-1. **Migration history**: How the project evolved (e.g., naming convention migration)
-2. **One-off fixes**: What issues were encountered and how they were solved
-3. **Deployment evolution**: How deployment processes improved over time
+All executable scripts have been **deleted** as they are no longer needed:
+- One-time migrations have been completed
+- Knowledge has been captured in documentation
+- Defensive import patterns have been removed (violates project coding standards)
+- Test functionality has been integrated into the main pipeline
 
-## When It's Safe to Delete
+Only documentation files remain for historical reference.
 
-These files can be safely deleted if:
-- You're certain all knowledge is captured in documentation
-- You don't need historical reference for similar future tasks
-- You want to reduce repository size (though these are small text files)
+## Why Keep This Folder?
+
+This folder preserves:
+1. **Migration history**: Understanding how the project evolved (naming conventions, etc.)
+2. **Lessons learned**: What issues were encountered and how they were solved
+3. **Context for future work**: Reference for similar migrations or transformations
 
 ## Related Active Files
 
 For current functionality, see:
-- **Version management**: `bump_version.py`, `update_version.py`
-- **Deployment**: `deploy.ps1`, `deploy.sh`
+- **Version management**: `bump_version.py`
+- **Deployment**: `deploy.ps1`, `deploy.sh`, `DEPLOY_README.md`
 - **Region management**: `src/regions_config.py`, `ensure_region.py`
-- **Testing**: Normal pipeline testing in `ensure_region.py` and `src/pipeline.py`
+- **Pipeline**: `src/pipeline.py`, `ensure_region.py`
+- **Documentation**: `.cursorrules`, `tech/` folder
 
 

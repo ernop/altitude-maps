@@ -144,6 +144,41 @@ def tile_filename_from_bounds(bounds: Tuple[float, float, float, float],
     return f"{lat_str}_{lon_str}_{resolution}.tif"
 
 
+def merged_filename_from_region(region_id: str, bounds: Tuple[float, float, float, float], resolution: str) -> str:
+    """
+    Generate merged filename that includes bounds for cache invalidation.
+    
+    When region bounds change, the filename changes, preventing stale data reuse.
+    Format: {region_id}_{bounds_compact}_merged_{resolution}.tif
+    
+    Args:
+        region_id: Region identifier (e.g., 'cottonwood_valley')
+        bounds: (west, south, east, north) in degrees
+        resolution: Resolution identifier (e.g., '10m', '30m', '90m')
+        
+    Returns:
+        Filename string with embedded bounds information
+        
+    Example:
+        Input: region_id='cottonwood_valley', bounds=(-111.87, 40.55, -111.66, 40.76), resolution='10m'
+        Output: 'cottonwood_valley_w111p87_s40p55_e111p66_n40p76_merged_10m.tif'
+    """
+    west, south, east, north = bounds
+    
+    # Format bounds compactly: replace '.' with 'p', '-' with 'm'
+    # Use 2 decimal precision for reasonable uniqueness
+    def fmt(val, prefix):
+        # Format: prefix + value with 'p' for decimal and 'm' for minus
+        if val < 0:
+            return f"{prefix}m{abs(val):.2f}".replace('.', 'p')
+        else:
+            return f"{prefix}{val:.2f}".replace('.', 'p')
+    
+    bounds_str = f"{fmt(west, 'w')}_{fmt(south, 's')}_{fmt(east, 'e')}_{fmt(north, 'n')}"
+    
+    return f"{region_id}_{bounds_str}_merged_{resolution}"
+
+
 def estimate_raw_file_size_mb(bounds: Tuple[float, float, float, float], resolution_meters: int) -> float:
     """
     Estimate raw GeoTIFF file size in MB based on bounds and resolution.

@@ -7,7 +7,7 @@ Handles downloading and merging 1-degree tiles for large regions.
 from pathlib import Path
 from typing import Tuple, List
 
-from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds
+from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds, merged_filename_from_region
 from src.downloaders.opentopography import download_srtm
 
 
@@ -39,7 +39,8 @@ def download_and_merge_tiles(
     # Default output path to data/merged/ directory
     if output_path is None:
         resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
-        output_path = Path(f"data/merged/{source}/{region_id}_merged_{resolution}.tif")
+        filename = merged_filename_from_region(region_id, bounds, resolution) + '.tif'
+        output_path = Path(f"data/merged/{source}/{filename}")
     
     tiles = calculate_1degree_tiles(bounds)
     

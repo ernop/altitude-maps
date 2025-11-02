@@ -45,13 +45,12 @@ from src.tile_geometry import (
 )
 from src.pipeline import run_pipeline, PipelineError
 from src.downloaders.orchestrator import (
-    download_us_state,
-    download_international_region,
     download_region,
     determine_dataset_override,
     determine_min_required_resolution,
     format_pixel_size
 )
+from src.downloaders.data_source_resolution import determine_data_source
 from src.validation import (
     validate_geotiff,
     validate_json_export,
@@ -446,59 +445,81 @@ This script will:
     # Check if raw data exists (stage 4)
     print(f"\n[STAGE 4/10] Checking raw elevation data...", flush=True)
     
-    # Determine minimum required resolution based on available data sources
-    # US regions have access to 10m/30m/90m, international has 30m/90m
+    # Calculate visible pixel size and minimum required resolution
     visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
     
-    # Determine available resolutions based on region location
+    # Determine available download resolutions based on region location
+    # US regions: 10m USGS 3DEP now available via automated API, plus 30m/90m via OpenTopography
+    # International: 30m/90m via OpenTopography API only
     if region_type == 'us_region':
-        available_resolutions = [10, 30, 90]  # USGS 3DEP provides 10m for USA
+        available_downloads = [10, 30, 90]  # USGS 3DEP 10m + SRTM/Copernicus 30m/90m
     else:
-        available_resolutions = [30, 90]  # International: SRTM/Copernicus
+        available_downloads = [30, 90]  # SRTM/Copernicus via OpenTopography API only
     
     # Calculate minimum required resolution using Nyquist rule
     try:
         min_required_resolution = determine_min_required_resolution(
             visible['avg_m_per_pixel'],
-            available_resolutions=available_resolutions
+            available_resolutions=available_downloads
         )
-        print(f"  Quality requirement: minimum {min_required_resolution}m resolution", flush=True)
-        print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
-    except ValueError as e:
-        # Region requires higher resolution than available - ask user if they'll accept lower quality
-        print(f"\n{'='*70}", flush=True)
-        print(f"  WARNING: Quality Issue", flush=True)
-        print(f"{'='*70}", flush=True)
-        print(f"\n  {str(e)}", flush=True)
-        finest_available = min(available_resolutions)
-        print(f"\n  The best available source ({finest_available}m) does not meet Nyquist quality standards.", flush=True)
-        print(f"  This may result in some aliasing artifacts in the visualization.", flush=True)
-        
-        # Auto-accept if --yes flag provided
-        if args.yes:
-            response = 'yes'
-            print(f"\n  Auto-accepting lower quality data (--yes flag).", flush=True)
-        else:
-            print(f"\n  Do you want to proceed with lower quality data? (yes/no): ", end='', flush=True)
-            try:
-                response = input().strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                print("\n  Aborted by user.", flush=True)
-                return 1
-        
-        if response in ('yes', 'y'):
-            # User accepted lower quality - proceed with finest available
-            min_required_resolution = determine_min_required_resolution(
-                visible['avg_m_per_pixel'],
-                available_resolutions=available_resolutions,
-                allow_lower_quality=True
-            )
-            print(f"\n  Proceeding with {min_required_resolution}m source (lower quality).", flush=True)
-        else:
-            print(f"\n  Aborted. To try again with lower quality, run the command again and accept.", flush=True)
-            return 1
+    except ValueError:
+        # Need finer than available - will handle in determine_data_source with accept_lower_quality
+        min_required_resolution = min(available_downloads)
     
-    raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
+    # Build local cache dict by checking what files exist
+    local_cache = {}
+    for res in [10, 30, 90]:
+        cached_path, cached_source = find_raw_file(region_id, verbose=False, min_required_resolution_meters=res)
+        if cached_path and cached_source:
+            # Extract resolution from source
+            res_map = {'usa_3dep': 10, 'srtm_30m': 30, 'srtm_90m': 90}
+            actual_res = res_map.get(cached_source, res)
+            if actual_res not in local_cache:  # Only add if not already present
+                local_cache[actual_res] = cached_path
+    
+    # Use the decision function to determine what to do
+    bounds = region_info['bounds']
+    latitude_range = (bounds[1], bounds[3])  # (south, north)
+    
+    decision = determine_data_source(
+        region_id=region_id,
+        min_required_resolution=min_required_resolution,
+        available_downloads=available_downloads,
+        local_cache=local_cache,
+        accept_lower_quality=args.yes,  # --yes flag means accept lower quality
+        latitude_range=latitude_range
+    )
+    
+    # Handle the decision
+    print(f"  Requirement: {min_required_resolution}m resolution (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
+    
+    if decision.action == "USE_LOCAL":
+        print(f"  Found: {decision.message}", flush=True)
+        raw_path = decision.file_path
+        source = {10: 'usa_3dep', 30: 'srtm_30m', 90: 'srtm_90m'}.get(decision.resolution, 'srtm_30m')
+    
+    elif decision.action == "ERROR_NEED_MANUAL":
+        print(f"\n{'='*70}", flush=True)
+        print(f"  ERROR: Manual Download Required", flush=True)
+        print(f"{'='*70}", flush=True)
+        print(f"\n  {decision.message}", flush=True)
+        return 1
+    
+    elif decision.action == "ERROR_INSUFFICIENT":
+        print(f"\n{'='*70}", flush=True)
+        print(f"  ERROR: Insufficient Resolution", flush=True)
+        print(f"{'='*70}", flush=True)
+        print(f"\n  {decision.message}", flush=True)
+        return 1
+    
+    elif decision.action == "DOWNLOAD":
+        print(f"  {decision.message}", flush=True)
+        raw_path = None
+        source = None
+    
+    else:
+        print(f"  ERROR: Unknown decision action: {decision.action}", flush=True)
+        return 1
 
     if not raw_path:
         print(f"  No raw data found for {region_id}", flush=True)

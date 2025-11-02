@@ -222,14 +222,6 @@ function applyParamsFromURL() {
     if (sal !== null) params.sunAltitudeDeg = sal;
     const gamma = getFloat('gamma', 0.5, 2.0);
     if (gamma !== null) params.colorGamma = gamma;
-
-    // Camera scheme (if exists in UI)
-    const scheme = getStr('camera');
-    const schemeEl = document.getElementById('cameraScheme');
-    if (scheme && schemeEl) {
-        schemeEl.value = scheme;
-        try { switchCameraScheme(scheme); } catch (_) { }
-    }
 }
 
 // Initialize
@@ -435,15 +427,17 @@ async function loadElevationData(url) {
         throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${url}`);
     }
 
-    // HTTP/2 strips Content-Length after auto-decompression, so we load as blob to get size
-    // This works with compressed data transparently
-    console.log(` Loading data (HTTP/2 compatible mode)...`);
-    const blob = await response.blob();
-    const text = await blob.text();
-    const data = JSON.parse(text);
+    // Parse JSON directly (fastest method)
+    console.log(` Parsing JSON...`);
+    const data = await response.json();
 
-    appendActivityLog(`Loaded ${filename}: ${(blob.size / 1024 / 1024).toFixed(2)} MB (decompressed)`);
-    updateLoadingProgress(100, blob.size, blob.size);
+    // Get content length if available (may be null for compressed responses)
+    const contentLength = response.headers.get('content-length');
+    const sizeMB = contentLength ? (parseInt(contentLength) / 1024 / 1024).toFixed(2) : '?';
+    appendActivityLog(`Loaded ${filename}: ${sizeMB} MB`);
+    if (contentLength) {
+        updateLoadingProgress(100, parseInt(contentLength), parseInt(contentLength));
+    }
 
     // Validate format version
     if (data.format_version && data.format_version !== EXPECTED_FORMAT_VERSION) {

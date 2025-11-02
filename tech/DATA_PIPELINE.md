@@ -12,10 +12,11 @@ Every region must be classified into one of these groups:
 
 ### US State
 - **Definition location**: `src/regions_config.py` -> `US_STATES`
-- **Source**: USGS 3DEP (10m resolution)
+- **Source**: SRTM 30m or 90m (via OpenTopography API, same as international)
+  - **Note**: USGS 3DEP 10m is available but requires manual download from https://apps.nationalmap.gov/downloader/
 - **Clipping**: Always `clip_boundary=True` -> clips to `"United States of America/<StateName>"`
 - **Boundary source**: Natural Earth administrative boundaries (10m recommended)
-- **Downloader**: `download_all_us_states_highres.py`
+- **Downloader**: OpenTopography GlobalDEM API (automated)
 
 ### Country
 - **Definition location**: `src/regions_config.py` -> `COUNTRIES`

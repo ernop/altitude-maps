@@ -108,16 +108,70 @@ Session notes and development threads only:
 - **One term per concept**: Never use synonyms for the same thing (e.g., not both "category" and "region_type")
 - **Unify immediately**: When you notice dual terminology, refactor to single term before it spreads - IF you are sure it really is the same thing! If in doubt, check or ask
 
-### Import Safety
-- **Never use defensive imports for internal code**: No `try/except ImportError` for your own modules. Just fix upstream. This applies 
-even to NOT our own modules, too; if we need a certain raster library,
-then install it and if it's not there, just fail.
-**Let imports fail hard**: If an internal import fails, fix the underlying issue, don't add fallbacks
-- **After refactoring**: Use grep to find ALL import statements of moved functions:
-  ```bash
-  grep -r "from src.module import function_name" .
-  ```
-- **Why**: Defensive imports hide real errors and allow duplicate implementations to proliferate
+### Import Safety - CRITICAL RULE
+
+**NEVER use defensive imports with fallbacks. Let imports fail hard.**
+
+#### What This Means:
+- **No `try/except ImportError`** for internal code (your own modules)
+- **No `try/except ImportError`** for required external libraries (rasterio, numpy, shapely, etc.)
+- **No conditional imports** (`if X: import A else: import B`)
+- **No fallback implementations** that work around missing imports
+
+#### Examples of BANNED patterns:
+```python
+# BAD - Defensive import with fallback
+try:
+    import rasterio
+except ImportError:
+    print("Install rasterio: pip install rasterio")
+    sys.exit(1)
+
+# BAD - Conditional import with alternative
+try:
+    from src.borders import get_border_manager
+except ImportError:
+    # Use alternative implementation
+    from src.legacy_borders import get_border_manager
+
+# BAD - Optional feature with import fallback
+try:
+    import optional_library
+    HAS_FEATURE = True
+except ImportError:
+    HAS_FEATURE = False
+```
+
+#### CORRECT pattern:
+```python
+# GOOD - Just import directly, let Python handle errors
+import rasterio
+from rasterio.mask import mask as rasterio_mask
+import numpy as np
+from src.borders import get_border_manager
+```
+
+#### Why This Rule Exists:
+1. **Hides real errors**: Defensive imports mask configuration and dependency issues
+2. **Allows duplication**: Alternative implementations proliferate instead of fixing root cause
+3. **Confuses dependencies**: Unclear what's actually required vs optional
+4. **Poor error messages**: Custom error messages are worse than Python's native ImportError
+
+#### Exception - Test Files Only:
+Test files that explicitly check if imports work are OK (e.g., `test_import_works()`), but these should be in test suites, not production code.
+
+#### If Import Fails:
+1. **Check `requirements.txt`** - Is the package listed?
+2. **Install dependencies** - Run `pip install -r requirements.txt`
+3. **Fix the import path** - If it's an internal module, fix the path or structure
+4. **Never add try/except** - Fix the root cause instead
+
+#### After Refactoring:
+Use grep to find ALL import statements of moved functions:
+```bash
+grep -r "from src.module import function_name" .
+```
+Update all imports - don't add defensive fallbacks to old paths.
 
 ### Frontend/Web Viewer
 - **jQuery**: Keep it. jQuery is widely cached and makes code more readable. Avoid Select2; use native or custom dropdowns matching the region selector pattern.

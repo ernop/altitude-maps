@@ -331,10 +331,17 @@ def find_raw_file(region_id: str, verbose: bool = True, min_required_resolution_
     ])
     
     # Also check merged directory (for regions downloaded via tile merging)
+    # Import merged_filename_from_region to generate correct bounds-based filenames
+    from src.tile_geometry import merged_filename_from_region
+    
+    merged_10m = merged_filename_from_region(region_id, bounds, '10m') + '.tif'
+    merged_30m = merged_filename_from_region(region_id, bounds, '30m') + '.tif'
+    merged_90m = merged_filename_from_region(region_id, bounds, '90m') + '.tif'
+    
     possible_locations.extend([
-        (Path(f"data/merged/usa_3dep/{region_id}_merged_10m.tif"), 'usa_3dep'),
-        (Path(f"data/merged/srtm_30m/{region_id}_merged_30m.tif"), 'srtm_30m'),
-        (Path(f"data/merged/srtm_90m/{region_id}_merged_90m.tif"), 'srtm_90m'),
+        (Path(f"data/merged/usa_3dep/{merged_10m}"), 'usa_3dep'),
+        (Path(f"data/merged/srtm_30m/{merged_30m}"), 'srtm_30m'),
+        (Path(f"data/merged/srtm_90m/{merged_90m}"), 'srtm_90m'),
     ])
     
     valid_files = []  # Collect all valid files that meet requirement
