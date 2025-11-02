@@ -6,13 +6,8 @@ from typing import Tuple, Optional
 # NOTE: Can be imported as library - do NOT wrap stdout/stderr
 # Modern Python handles UTF-8 correctly by default
 
-try:
-    import requests
-    from tqdm import tqdm
-except ImportError as e:
-    print(f"Missing package: {e}")
-    print("Install with: pip install requests tqdm")
-    sys.exit(1)
+import requests
+from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))

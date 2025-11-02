@@ -15,18 +15,13 @@ from pathlib import Path
 from typing import Optional
 import json
 
-try:
-    import rasterio
-    from rasterio.mask import mask as rasterio_mask
-    from rasterio.merge import merge
-    from rasterio.windows import Window
-    import numpy as np
-    from shapely.ops import unary_union
-    from shapely.geometry import mapping as shapely_mapping
-except ImportError as e:
-    print(f"Missing package: {e}")
-    print("Install with: pip install rasterio shapely")
-    sys.exit(1)
+import rasterio
+from rasterio.mask import mask as rasterio_mask
+from rasterio.merge import merge
+from rasterio.windows import Window
+import numpy as np
+from shapely.ops import unary_union
+from shapely.geometry import mapping as shapely_mapping
 
 from src.metadata import (
     create_clipped_metadata, create_processed_metadata,

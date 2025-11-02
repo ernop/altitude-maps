@@ -88,6 +88,19 @@ def determine_min_required_resolution(
     # Sort resolutions from finest to coarsest
     available_resolutions = sorted(available_resolutions)
     
+    # Check for native resolution display first (0.8x to 1.2x = essentially 1:1)
+    # At native resolution, there's no downsampling, so no aliasing risk
+    # This handles cases like 10.1m visible pixels with 10m source
+    NATIVE_MIN = 0.8
+    NATIVE_MAX = 1.2
+    
+    for resolution in available_resolutions:
+        oversampling = visible_m_per_pixel / resolution
+        if NATIVE_MIN <= oversampling <= NATIVE_MAX:
+            # Native resolution display - no downsampling, no aliasing
+            return resolution
+    
+    # Not at native resolution - apply Nyquist rule for downsampling
     # Minimum requirement: 2.0x oversampling (Nyquist criterion)
     MIN_OVERSAMPLING = 2.0
     
@@ -96,7 +109,7 @@ def determine_min_required_resolution(
     for resolution in reversed(available_resolutions):
         oversampling = visible_m_per_pixel / resolution
         if oversampling >= MIN_OVERSAMPLING:
-            # This resolution provides sufficient oversampling
+            # This resolution provides sufficient oversampling for downsampling
             return resolution
     
     # No resolution meets the Nyquist requirement
@@ -175,7 +188,10 @@ def download_international_region(region_id: str, region_info: Dict, dataset_ove
         # Quality-first automatic selection: determine minimum required resolution
         # Automatically select the smallest resolution that still meets quality requirements
         try:
-            min_required = determine_min_required_resolution(visible['avg_m_per_pixel'])
+            min_required = determine_min_required_resolution(
+                visible['avg_m_per_pixel'],
+                available_resolutions=[30, 90]
+            )
         except ValueError as e:
             print(f"\n  ERROR: {e}", flush=True)
             print(f"\n  Resolution Selection Failed", flush=True)
@@ -527,16 +543,38 @@ def download_region(region_id: str, region_type: str, region_info: Dict, dataset
 def determine_dataset_override(region_id: str, region_type: str, region_info: dict, target_pixels: int = 2048) -> str | None:
     """
     Stage 2/3: Determine dataset to use for download (including resolution).
-    - US regions (all): USGS 3DEP 10m (best available for USA) -> return 'USA_3DEP'
+    - US regions: Check if 10m/30m/90m needed based on Nyquist rule -> return appropriate dataset
     - International: Choose by latitude AND resolution requirements:
         * Calculates minimum required resolution (Nyquist rule)
         * Returns SRTMGL3/COP90 if 90m is sufficient
         * Returns SRTMGL1/COP30 if 30m is required
-    Returns a short code: 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', or 'USA_3DEP'.
+    Returns a short code: 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', or 'USA_3DEP_10m', 'USA_3DEP_30m', etc.
     """
+    # Calculate visible pixel size for resolution determination
+    visible = calculate_visible_pixel_size(region_info['bounds'], target_pixels)
+    
     if region_type == 'us_region':
-        print("[STAGE 2/10] Dataset: USGS 3DEP 10m (US Region)")
-        return 'USA_3DEP'
+        # US regions have access to USGS 3DEP 10m (via OpenTopography API)
+        # Determine which resolution is actually needed based on region size
+        try:
+            min_required = determine_min_required_resolution(
+                visible['avg_m_per_pixel'],
+                available_resolutions=[10, 30, 90]
+            )
+            
+            if min_required == 90:
+                print(f"[STAGE 2/10] Dataset: SRTM 90m (90m sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+                return 'SRTMGL3'
+            elif min_required == 30:
+                print(f"[STAGE 2/10] Dataset: SRTM 30m (30m required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+                return 'SRTMGL1'
+            else:  # min_required == 10
+                print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m (10m required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+                return 'USA_3DEP'
+        except ValueError:
+            # Region too small even for 10m - default to finest available
+            print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m (region requires high detail)")
+            return 'USA_3DEP'
 
     # International regions - check for explicit override first
     recommended = None
@@ -564,12 +602,12 @@ def determine_dataset_override(region_id: str, region_type: str, region_info: di
         base_90m = 'SRTMGL3'
         base_name = 'SRTM'
     
-    # Calculate minimum required resolution based on Nyquist rule
-    from src.tile_geometry import calculate_visible_pixel_size
-    visible = calculate_visible_pixel_size(region_info['bounds'], target_pixels)
-    
+    # Calculate minimum required resolution based on Nyquist rule (30m/90m only)
     try:
-        min_required = determine_min_required_resolution(visible['avg_m_per_pixel'])
+        min_required = determine_min_required_resolution(
+            visible['avg_m_per_pixel'],
+            available_resolutions=[30, 90]
+        )
         if min_required == 90:
             print(f"[STAGE 2/10] Dataset: {base_name} 90m (90m sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
             return base_90m

@@ -6,13 +6,8 @@ from typing import Tuple, Optional
 # Windows UTF-8 encoding support (PowerShell handles this automatically on Win10+)
 # Removed wrapper to avoid conflicts with PowerShell's own UTF-8 handling
 
-try:
-    import requests
-    from tqdm import tqdm
-except ImportError as e:
-    print(f"Missing package: {e}")
-    print("Install with: pip install requests tqdm")
-    sys.exit(1)
+import requests
+from tqdm import tqdm
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))

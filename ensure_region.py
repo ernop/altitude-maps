@@ -41,16 +41,16 @@ from src.tile_geometry import (
     snap_bounds_to_grid, 
     tile_filename_from_bounds, 
     estimate_raw_file_size_mb,
-    calculate_visible_pixel_size,
-    determine_min_required_resolution,
-    format_pixel_size
+    calculate_visible_pixel_size
 )
 from src.pipeline import run_pipeline, PipelineError
 from src.downloaders.orchestrator import (
     download_us_state,
     download_international_region,
     download_region,
-    determine_dataset_override
+    determine_dataset_override,
+    determine_min_required_resolution,
+    format_pixel_size
 )
 from src.validation import (
     validate_geotiff,
@@ -446,51 +446,57 @@ This script will:
     # Check if raw data exists (stage 4)
     print(f"\n[STAGE 4/10] Checking raw elevation data...", flush=True)
     
-    # Determine minimum required resolution based on available data source
+    # Determine minimum required resolution based on available data sources
+    # US regions have access to 10m/30m/90m, international has 30m/90m
     visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
     
-    # US regions use USGS 3DEP 10m data - skip Nyquist check for standard resolutions
+    # Determine available resolutions based on region location
     if region_type == 'us_region':
-        min_required_resolution = 10  # USGS 3DEP provides 10m data
-        print(f"  Quality requirement: 10m resolution (USGS 3DEP)", flush=True)
-        print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
+        available_resolutions = [10, 30, 90]  # USGS 3DEP provides 10m for USA
     else:
-        # International regions: apply Nyquist rule for 30m/90m sources
-        try:
-            min_required_resolution = determine_min_required_resolution(visible['avg_m_per_pixel'])
-            print(f"  Quality requirement: minimum {min_required_resolution}m resolution", flush=True)
-            print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
-        except ValueError as e:
-            # Region requires higher resolution than available - ask user if they'll accept lower quality
-            print(f"\n{'='*70}", flush=True)
-            print(f"  WARNING: Quality Issue", flush=True)
-            print(f"{'='*70}", flush=True)
-            print(f"\n  {str(e)}", flush=True)
-            print(f"\n  The best available source (30m) does not meet Nyquist quality standards.", flush=True)
-            print(f"  This may result in some aliasing artifacts in the visualization.", flush=True)
-            
-            # Auto-accept if --yes flag provided
-            if args.yes:
-                response = 'yes'
-                print(f"\n  Auto-accepting lower quality data (--yes flag).", flush=True)
-            else:
-                print(f"\n  Do you want to proceed with lower quality data? (yes/no): ", end='', flush=True)
-                try:
-                    response = input().strip().lower()
-                except (EOFError, KeyboardInterrupt):
-                    print("\n  Aborted by user.", flush=True)
-                    return 1
-            
-            if response in ('yes', 'y'):
-                # User accepted lower quality - proceed with best available (30m)
-                min_required_resolution = determine_min_required_resolution(
-                    visible['avg_m_per_pixel'], 
-                    allow_lower_quality=True
-                )
-                print(f"\n  Proceeding with {min_required_resolution}m source (lower quality).", flush=True)
-            else:
-                print(f"\n  Aborted. To try again with lower quality, run the command again and accept.", flush=True)
+        available_resolutions = [30, 90]  # International: SRTM/Copernicus
+    
+    # Calculate minimum required resolution using Nyquist rule
+    try:
+        min_required_resolution = determine_min_required_resolution(
+            visible['avg_m_per_pixel'],
+            available_resolutions=available_resolutions
+        )
+        print(f"  Quality requirement: minimum {min_required_resolution}m resolution", flush=True)
+        print(f"    (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
+    except ValueError as e:
+        # Region requires higher resolution than available - ask user if they'll accept lower quality
+        print(f"\n{'='*70}", flush=True)
+        print(f"  WARNING: Quality Issue", flush=True)
+        print(f"{'='*70}", flush=True)
+        print(f"\n  {str(e)}", flush=True)
+        finest_available = min(available_resolutions)
+        print(f"\n  The best available source ({finest_available}m) does not meet Nyquist quality standards.", flush=True)
+        print(f"  This may result in some aliasing artifacts in the visualization.", flush=True)
+        
+        # Auto-accept if --yes flag provided
+        if args.yes:
+            response = 'yes'
+            print(f"\n  Auto-accepting lower quality data (--yes flag).", flush=True)
+        else:
+            print(f"\n  Do you want to proceed with lower quality data? (yes/no): ", end='', flush=True)
+            try:
+                response = input().strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print("\n  Aborted by user.", flush=True)
                 return 1
+        
+        if response in ('yes', 'y'):
+            # User accepted lower quality - proceed with finest available
+            min_required_resolution = determine_min_required_resolution(
+                visible['avg_m_per_pixel'],
+                available_resolutions=available_resolutions,
+                allow_lower_quality=True
+            )
+            print(f"\n  Proceeding with {min_required_resolution}m source (lower quality).", flush=True)
+        else:
+            print(f"\n  Aborted. To try again with lower quality, run the command again and accept.", flush=True)
+            return 1
     
     raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
 
