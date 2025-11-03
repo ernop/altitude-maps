@@ -17,9 +17,9 @@ Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Wh
 
 ### Camera Control Enhancements (October 28, 2025)
 Major updates to interactive viewer controls:
--**WASD/QE flythrough** - Unity/Unreal-style first-person camera movement
--**F key reframe** - Instantly center view on terrain bounds (like Maya/Blender)
--**Touch & trackpad gestures** - Pinch zoom, two-finger pan (Google Maps style)
+-**WASD/QE flythrough** - First-person camera movement
+-**F key reframe** - Instantly center view on terrain bounds
+-**Touch & trackpad gestures** - Pinch zoom, two-finger pan
 -**Alt+Left rotate** - Maya/3ds Max style tumble (same as right-drag)
 -**Smart typing detection** - Keyboard shortcuts disabled while typing in inputs
 - All controls work simultaneously with no conflicts
@@ -237,7 +237,7 @@ altitude-maps/
 - `interactive_viewer_advanced.html` - Full-featured viewer
 - Real-time bucketing and aggregation
 - Multiple render modes and color schemes
-- Roblox Studio-inspired camera controls
+- Multiple camera control schemes (Custom default + 6 alternatives)
 
 ### Data Download Tools
 - `download_continental_usa.py` - Full USA download

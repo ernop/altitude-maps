@@ -13,11 +13,20 @@
 <body>
 	<div id="container">
 		<div id="contact-email" class="contact-email" title="Contact">akasatanahamayarawan@gmail.com</div>
-		<div id="canvas-container"></div>
+		<div id="canvas-container">
+			<!-- Neighbor navigation buttons (2D overlay synced to 3D positions) -->
+			<div id="neighbor-buttons-overlay"
+				style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%; z-index: 5;">
+			</div>
 
-		<!-- Neighbor navigation buttons (2D overlay synced to 3D positions) -->
-		<div id="neighbor-buttons-overlay"
-			style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%; z-index: 5;">
+			<!-- Color Scale Legend (lower-right corner) -->
+			<div id="color-legend" class="color-legend">
+				<div class="color-legend-content">
+					<canvas id="color-legend-canvas" width="32" height="320"></canvas>
+					<div id="color-legend-labels"></div>
+				</div>
+				<div class="color-legend-title">Elevation</div>
+			</div>
 		</div>
 
 		<div id="info" aria-live="polite" style="display:none;">
@@ -78,15 +87,11 @@
 				<div class="spinner"></div>
 			</div>
 
-			<div class="activityLogHeader">
-				<div class="title">Load Log</div>
-				<div class="actions">
-					<button id="copy-logs-loading" title="Copy all logs" onclick="copyActivityLogs()">Copy all
-						logs</button>
-				</div>
-			</div>
+			<h2 style="color: #5588cc; font-size: 16px; margin-top: 20px; margin-bottom: 8px;">Load Log</h2>
 			<div style="font-size: 11px; color:#aaa; margin-bottom:6px;">
 				Saves significant events you can paste back into coding agents to explain what happened.
+				<button id="copy-logs-loading" title="Copy all logs" onclick="copyActivityLogs()"
+					style="font-size: 10px; padding: 2px 6px; margin-left: 8px;">Copy Logs</button>
 			</div>
 			<div id="activityLog"></div>
 		</div>
@@ -225,13 +230,13 @@
 			<div class="control-group">
 				<label>Color Scheme</label>
 				<select id="colorScheme">
-					<option value="terrain">Terrain (Natural)</option>
-					<option value="test">High-Contrast (Intense)</option>
+					<option value="test" selected>High-Contrast (Intense)</option>
+					<option value="hypsometric-banded">Hypsometric (Banded)</option>
+					<option value="aspect">Aspect (Compass)</option>
+					<option value="terrain-muted">Terrain (Muted)</option>
 					<option value="hypsometric">Hypsometric (Perceptual)</option>
 					<option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
-					<option value="hypsometric-banded">Hypsometric (Banded)</option>
 					<option value="slope">Slope (Degrees)</option>
-					<option value="aspect">Aspect (Compass)</option>
 					<option value="auto-stretch">Auto-Stretch (Dynamic)</option>
 					<option value="elevation">Elevation (Blue-Red)</option>
 					<option value="grayscale">Grayscale</option>
@@ -240,7 +245,6 @@
 					<option value="heatmap">Heatmap</option>
 					<option value="relief-emphasis">Relief Emphasis (Color)</option>
 					<option value="diverging-elevation">Diverging Elevation</option>
-					<option value="terrain-muted">Terrain (Muted)</option>
 				</select>
 				<div id="colorSchemeNudger" style="margin-top:6px; display:flex; gap:6px;">
 					<button id="colorSchemeUp" title="Previous color scheme">^</button>
@@ -258,13 +262,17 @@
 					<input type="checkbox" id="showEdgeMarkers" checked />
 					<label for="showEdgeMarkers" style="margin: 0;">Show Edge Markers</label>
 				</div>
+				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+					<input type="checkbox" id="showColorScale" checked />
+					<label for="showColorScale" style="margin: 0;">Show Scale</label>
+				</div>
 			</div>
 
 			<h2>Camera Controls</h2>
 
 			<div class="control-group">
 				<select id="cameraScheme">
-					<option value="ground-plane" selected>Google Maps (Ground Plane)</option>
+					<option value="ground-plane" selected>Custom (Default)</option>
 					<option value="google-earth-plane">Google Earth (Ground Plane)</option>
 					<option value="roblox">Roblox Studio</option>
 					<option value="flying">Flying</option>
@@ -278,27 +286,43 @@
 
 			<div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
 				<button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;">Overhead</button>
-				<button onclick="setView('isometric')" style="padding: 6px; font-size: 11px;">Isometric</button>
-				<button onclick="setView('north')" style="padding: 6px; font-size: 11px;">North</button>
-				<button onclick="setView('south')" style="padding: 6px; font-size: 11px;">South</button>
-				<button onclick="setView('east')" style="padding: 6px; font-size: 11px;">East</button>
-				<button onclick="setView('west')" style="padding: 6px; font-size: 11px;">West</button>
+				<button onclick="setView('low-south')" style="padding: 6px; font-size: 11px;">Low South</button>
 			</div>
 
 			<div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-				<button onclick="resetCamera()" style="padding: 6px; font-size: 11px;">Reset Camera</button>
+				<button onclick="resetCamera()" style="padding: 6px; font-size: 11px;">Reset Camera (F)</button>
 				<button onclick="exportImage()" style="padding: 6px; font-size: 11px;">Screenshot</button>
 			</div>
 
-			<div class="activityLogHeader">
-				<div class="title">Load Log</div>
-				<div class="actions">
-					<button id="copy-logs-controls" title="Copy all logs" onclick="copyActivityLogs()">Copy all
-						logs</button>
+			<h2 style="cursor: pointer; user-select: none;" onclick="toggleKeyboardControls()">
+				Keyboard Controls
+				<span id="keyboard-controls-arrow" style="float: right; transition: transform 0.2s;">▼</span>
+			</h2>
+
+			<div id="keyboard-controls-content" style="display: none;">
+				<div class="keyboard-controls-grid">
+					<div class="keyboard-controls-row">
+						<button class="keyboard-btn" data-key="w" title="Forward">W</button>
+					</div>
+					<div class="keyboard-controls-row">
+						<button class="keyboard-btn" data-key="a" title="Left">A</button>
+						<button class="keyboard-btn" data-key="s" title="Back">S</button>
+						<button class="keyboard-btn" data-key="d" title="Right">D</button>
+					</div>
+					<div class="keyboard-controls-row" style="margin-top: 8px;">
+						<button class="keyboard-btn" data-key="e" title="Ascend">E</button>
+						<button class="keyboard-btn" data-key="q" title="Descend">Q</button>
+						<button class="keyboard-btn" data-action="zoom-in" title="Zoom In">Zoom+</button>
+						<button class="keyboard-btn" data-action="zoom-out" title="Zoom Out">Zoom−</button>
+					</div>
 				</div>
 			</div>
+
+			<h2>Load Log</h2>
 			<div style="font-size: 11px; color:#aaa; margin-bottom:6px;">
 				Saves significant events you can paste back into coding agents to explain what happened.
+				<button id="copy-logs-controls" title="Copy all logs" onclick="copyActivityLogs()"
+					style="font-size: 10px; padding: 2px 6px; margin-left: 8px;">Copy Logs</button>
 			</div>
 			<div id="activityLog"></div>
 		</div>
@@ -316,6 +340,9 @@
 
 	<!-- Color schemes -->
 	<script src="js/color-schemes.js?v=1.366"></script>
+
+	<!-- Color scale legend -->
+	<script src="js/color-legend.js?v=1.366"></script>
 
 	<!-- Geometry and spatial utilities -->
 	<script src="js/geometry-utils.js?v=1.366"></script>
@@ -339,7 +366,7 @@
 	<script src="js/state-connectivity.js?v=1.366"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.366"></script>
+	<script src="js/viewer-advanced.js?v=1.367"></script>
 </body>
 
 </html>

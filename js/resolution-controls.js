@@ -12,6 +12,7 @@
  * - Press-and-hold repeat for buttons
  * - Visual loading overlay during resolution changes
  * - Snap-to-tick behavior for precise control
+ * - Cancellation support: new requests cancel in-progress operations
  * 
  * DESIGN NOTES:
  * - Bucket size = how many pixels to group together
@@ -23,6 +24,9 @@
  * - Global: params, rawElevationData, processedData, scene, edgeMarkers, pendingBucketTimeout
  * - Functions: rebucketData(), recreateTerrain(), updateStats(), updateURLParameter(), appendActivityLog()
  */
+
+// Track ongoing recalculation timeout for cancellation support
+let pendingRecalculationTimeout = null;
 
 /**
  * Show the resolution loading overlay
@@ -216,8 +220,17 @@ function initResolutionScale() {
         params.bucketSize = clamped;
         updateResolutionScaleUI(clamped);
         showResolutionLoading();
+
+        // Cancel any pending drag debounce or recalculation
         if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
-        setTimeout(() => {
+        if (pendingRecalculationTimeout !== null) {
+            clearTimeout(pendingRecalculationTimeout);
+            pendingRecalculationTimeout = null;
+            console.log('[RESOLUTION] Cancelled previous recalculation');
+        }
+
+        pendingRecalculationTimeout = setTimeout(() => {
+            pendingRecalculationTimeout = null;
             try {
                 edgeMarkers.forEach(marker => scene.remove(marker));
                 edgeMarkers = [];
@@ -230,15 +243,11 @@ function initResolutionScale() {
         }, 0);
     };
 
-    // Sharp button: move to previous smaller tick (single step per click)
+    // Sharp button: decrease bucket size by 1 (more detail)
     if (maxBtn) {
         const doSharpStep = () => {
-            let prev = 1;
-            for (let i = 0; i < ticks.length; i++) {
-                if (ticks[i] >= params.bucketSize) { break; }
-                prev = ticks[i];
-            }
-            setImmediateToSize(prev);
+            const newSize = Math.max(1, params.bucketSize - 1);
+            setImmediateToSize(newSize);
         };
         maxBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doSharpStep(); });
     }
@@ -268,12 +277,12 @@ function initResolutionScale() {
         el.addEventListener('mouseleave', end);
     };
 
-    // Less/Blur button: move to next larger tick (single step per click)
+    // Less/Blur button: increase bucket size by 1 (less detail)
     const lessBtn = document.getElementById('resolutionLessButton');
     if (lessBtn) {
         const doBlurStep = () => {
-            let target = ticks.find(t => t > params.bucketSize) || 500;
-            setImmediateToSize(target);
+            const newSize = Math.min(500, params.bucketSize + 1);
+            setImmediateToSize(newSize);
         };
         lessBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doBlurStep(); });
     }
@@ -305,9 +314,16 @@ function adjustBucketSize(delta) {
     // Show loading overlay
     showResolutionLoading();
 
-    // Cancel any pending drag debounce and rebuild immediately
+    // Cancel any pending drag debounce or recalculation
     if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
-    setTimeout(() => {
+    if (pendingRecalculationTimeout !== null) {
+        clearTimeout(pendingRecalculationTimeout);
+        pendingRecalculationTimeout = null;
+        console.log('[RESOLUTION] Cancelled previous recalculation');
+    }
+
+    pendingRecalculationTimeout = setTimeout(() => {
+        pendingRecalculationTimeout = null;
         try {
 
             // Update params and UI
@@ -351,8 +367,17 @@ function setMaxResolution() {
     // Show loading overlay
     showResolutionLoading();
 
+    // Cancel any pending drag debounce or recalculation
+    if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
+    if (pendingRecalculationTimeout !== null) {
+        clearTimeout(pendingRecalculationTimeout);
+        pendingRecalculationTimeout = null;
+        console.log('[RESOLUTION] Cancelled previous recalculation');
+    }
+
     // Use setTimeout to allow UI to update before heavy processing
-    setTimeout(() => {
+    pendingRecalculationTimeout = setTimeout(() => {
+        pendingRecalculationTimeout = null;
         try {
             // Max resolution = bucket size of 1 (every pixel rendered)
             params.bucketSize = 1;
@@ -389,8 +414,17 @@ function setDefaultResolution() {
     // Show loading overlay
     showResolutionLoading();
 
+    // Cancel any pending drag debounce or recalculation
+    if (pendingBucketTimeout !== null) { clearTimeout(pendingBucketTimeout); pendingBucketTimeout = null; }
+    if (pendingRecalculationTimeout !== null) {
+        clearTimeout(pendingRecalculationTimeout);
+        pendingRecalculationTimeout = null;
+        console.log('[RESOLUTION] Cancelled previous recalculation');
+    }
+
     // Use setTimeout to allow UI to update before heavy processing
-    setTimeout(() => {
+    pendingRecalculationTimeout = setTimeout(() => {
+        pendingRecalculationTimeout = null;
         try {
             // Use the auto-adjust algorithm to find optimal default
             autoAdjustBucketSize();

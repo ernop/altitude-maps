@@ -183,9 +183,9 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
 
     const compassFontSize = 112; // Larger for compass letter (40% increase from 80)
     const stateFontSize = 70;   // Smaller for state names (40% increase from 50)
-    const padding = 20;
-    const buttonPadding = 10;
-    const buttonSpacing = 8;
+    const padding = 32;
+    const buttonPadding = 16;
+    const buttonSpacing = 12;
 
     // Store button boundaries for accurate click detection
     const buttonBounds = [];
@@ -306,7 +306,7 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
 }
 
 /**
- * Create a text sprite with colored circle border for compass directions (LEGACY - not used)
+ * Create a text sprite with solid colored square background for compass directions
  * Uses canvas to render text onto a texture
  * 
  * @param {string} text - Text to display (single letter: N, E, S, W)
@@ -320,27 +320,41 @@ function createTextSprite(text, color, neighborId) {
     canvas.width = 256;
     canvas.height = 256;
 
-    // Draw background circle
-    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    const fontSize = 140;
+    const padding = 32;
+    const rectSize = 220;
+    const rectX = (canvas.width - rectSize) / 2;
+    const rectY = (canvas.height - rectSize) / 2;
+    const radius = 8;
+
+    // Draw solid colored rounded rectangle background
+    const bgColor = getCompassBackgroundColor(color, false);
+    context.fillStyle = bgColor;
     context.beginPath();
-    context.arc(128, 128, 100, 0, 2 * Math.PI);
+    context.moveTo(rectX + radius, rectY);
+    context.lineTo(rectX + rectSize - radius, rectY);
+    context.quadraticCurveTo(rectX + rectSize, rectY, rectX + rectSize, rectY + radius);
+    context.lineTo(rectX + rectSize, rectY + rectSize - radius);
+    context.quadraticCurveTo(rectX + rectSize, rectY + rectSize, rectX + rectSize - radius, rectY + rectSize);
+    context.lineTo(rectX + radius, rectY + rectSize);
+    context.quadraticCurveTo(rectX, rectY + rectSize, rectX, rectY + rectSize - radius);
+    context.lineTo(rectX, rectY + radius);
+    context.quadraticCurveTo(rectX, rectY, rectX + radius, rectY);
+    context.closePath();
     context.fill();
 
-    // Draw border
-    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 8;
-    context.beginPath();
-    context.arc(128, 128, 100, 0, 2 * Math.PI);
-    context.stroke();
-
-    // Draw text
-    context.font = 'Bold 140px Arial';
-    context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+    // Draw text in white
+    context.font = `Bold ${fontSize}px Arial`;
+    context.fillStyle = '#ffffff';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(text, 128, 128);
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
+
     const spriteMaterial = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
@@ -520,16 +534,18 @@ function lightenColor(color, factor) {
  * Get background color for a compass direction
  * @param {number} color - Hex color (0xff4444=red, 0x4488ff=blue, 0x44ff44=green, 0xffff44=yellow)
  * @param {boolean} hover - Whether this is for hover state
- * @returns {string} RGBA color string
+ * @returns {string} RGB color string
  */
 function getCompassBackgroundColor(color, hover = false) {
-    const opacity = hover ? 0.25 : 0.15;
-
     switch (color) {
-        case 0xff4444: return `rgba(255, 68, 68, ${opacity})`;    // North - red
-        case 0x4488ff: return `rgba(68, 136, 255, ${opacity})`;   // South - blue
-        case 0x44ff44: return `rgba(68, 255, 68, ${opacity})`;    // East - green
-        case 0xffff44: return `rgba(255, 255, 68, ${opacity})`;   // West - yellow
+        case 0xff4444: // North - red
+            return hover ? 'rgb(180, 40, 40)' : 'rgb(140, 30, 30)';
+        case 0x4488ff: // South - blue
+            return hover ? 'rgb(50, 100, 180)' : 'rgb(35, 75, 140)';
+        case 0x44ff44: // East - green
+            return hover ? 'rgb(40, 150, 40)' : 'rgb(25, 110, 25)';
+        case 0xffff44: // West - yellow/orange
+            return hover ? 'rgb(180, 140, 30)' : 'rgb(140, 105, 20)';
     }
 }
 
@@ -571,9 +587,9 @@ function updateHoverState(sprite, hoveredIndex) {
 
     const compassFontSize = 112; // 40% increase from 80
     const stateFontSize = 70;    // 40% increase from 50
-    const padding = 20;
-    const buttonPadding = 10;
-    const buttonSpacing = 8;
+    const padding = 32;
+    const buttonPadding = 16;
+    const buttonSpacing = 12;
 
     // Measure compass letter
     context.font = `Bold ${compassFontSize}px Arial`;

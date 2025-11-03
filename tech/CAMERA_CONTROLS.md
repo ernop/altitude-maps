@@ -1,10 +1,12 @@
-# Camera Controls - Ground Plane System
+# Camera Controls - Custom (Default) Scheme
 
-Complete documentation of the camera control system used in Altitude Maps interactive viewer.
+Complete documentation of the default camera control system used in Altitude Maps interactive viewer.
 
 ## Overview
 
-The camera system is based on a **ground plane** architecture, modeled after Google Earth and Google Maps for intuitive navigation. The key concept is a fixed ground plane (y=0) representing the map surface, with a focus point that anchors camera operations.
+The camera system is based on a **ground plane** architecture for intuitive navigation. The key concept is a fixed ground plane (y=0) representing the map surface, with a focus point that anchors camera operations.
+
+**Note**: Alternative camera schemes (Google Earth, Roblox Studio, Flying, Jumping, Blender, Unity Editor) are available via the Camera Controls dropdown in the viewer, but this Custom scheme is the recommended default.
 
 ## Core Architecture
 

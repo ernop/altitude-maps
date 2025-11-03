@@ -1,14 +1,6 @@
 // Color schemes for terrain visualization
 
 const COLOR_SCHEMES = {
-    terrain: [
-        { stop: 0.0, color: new THREE.Color(0x1a4f63) },
-        { stop: 0.2, color: new THREE.Color(0x2d8659) },
-        { stop: 0.4, color: new THREE.Color(0x5ea849) },
-        { stop: 0.6, color: new THREE.Color(0xa8b840) },
-        { stop: 0.8, color: new THREE.Color(0xb87333) },
-        { stop: 1.0, color: new THREE.Color(0xe8e8e8) }
-    ],
     elevation: [
         { stop: 0.0, color: new THREE.Color(0x0000ff) },
         { stop: 0.5, color: new THREE.Color(0x00ff00) },
@@ -102,7 +94,6 @@ const COLOR_SCHEMES = {
 };
 
 const COLOR_SCHEME_DESCRIPTIONS = {
-    'terrain': 'Natural earthy palette: lowlands to high peaks (balanced visibility).',
     'test': 'High-contrast ramp to accentuate small elevation changes.',
     'auto-stretch': 'Dynamic percentile stretch (2-98%) for maximum contrast on this map.',
     'slope': 'Colors by slope steepness (degrees): blue=flat, red=steep.',
@@ -123,7 +114,7 @@ const COLOR_SCHEME_DESCRIPTIONS = {
 function updateColorSchemeDescription() {
     const el = document.getElementById('colorSchemeDescription');
     if (!el) return;
-    const key = params.colorScheme || 'terrain';
+    const key = params.colorScheme || 'test';
     el.textContent = COLOR_SCHEME_DESCRIPTIONS[key] || '';
 }
 

@@ -624,9 +624,8 @@ python ensure_region.py <region_id> --force-reprocess
 - **Performance over quality**: Start conservative (larger buckets), let users increase detail if they want
 - **Rationale**: Better to load fast with decent quality than slow with perfect quality - users will adjust if needed
 
-### Camera Controls - Best Known Scheme (Oct 2025)
-**Ground Plane Camera System** - Tested and confirmed buttery smooth, modeled after Google Maps/Earth.
-
+### Camera Controls - Custom (Default) Scheme
+**Ground Plane Camera System** - The project's custom default camera controls, tested and confirmed buttery smooth. Users can switch to alternative schemes (Google Earth, Roblox Studio, Flying, Jumping, Blender, Unity Editor) via the Camera Controls dropdown, but this is the recommended default.
 
 **Core Architecture (CRITICAL for smoothness):**
 - Fixed ground plane at y=0 (the map surface)
@@ -665,19 +664,19 @@ python ensure_region.py <region_id> --force-reprocess
    - Height limits: 5 to 50,000 units
    - Sensitivity: 2.0 units per pixel
 
-4. **Right Drag or Alt + Left Drag = Rotate View (Google Earth style)**
-   - Behavior: Rotate view around focus point (Google Earth style)
+4. **Right Drag or Alt + Left Drag = Rotate View**
+   - Behavior: Rotate view around focus point
    - Horizontal drag → turn left/right (rotate around vertical axis)
    - Vertical drag → tilt up/down (adjust viewing angle)
    - Implementation: Spherical coordinate transformation around focus point
    - Rotation speed: 0.005 radians per pixel
    - Maintains constant distance from focus point
    - Same angle limits as tilt to prevent camera flipping
-   - **Alternative mappings:** Alt + Left Drag (Maya/3ds Max/Cinema 4D style - same behavior)
+   - **Alternative mappings:** Alt + Left Drag provides same behavior
    - Cancels smoothly if Alt released mid-drag (prevents jank)
 
 5. **Mouse Wheel = Zoom Toward/Away From Cursor**
-   - Behavior: Zoom toward point under cursor (Google Maps style)
+   - Behavior: Zoom toward point under cursor
    - Scroll UP (negative delta) → zoom IN = camera moves toward cursor point
    - Scroll DOWN (positive delta) → zoom OUT = camera moves away from cursor point
    - Zoom factor: 10% of distance per scroll tick
@@ -711,9 +710,9 @@ python ensure_region.py <region_id> --force-reprocess
    - Speed: Base 4.0 units/frame, accelerates which is kept as long as they're moving, no limit, but slow acceleration.
 - **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, or dropdown inputs.
 
-7. **Touch/Trackpad Gestures** (NEW - Google Maps style)
+7. **Touch/Trackpad Gestures**
    - **Single finger drag** = Pan (mobile touch)
-   - **Two-finger drag** = Pan (trackpad/desktop, Google Maps style)
+   - **Two-finger drag** = Pan (trackpad/desktop)
    - **Two-finger pinch** = Zoom in/out (pinch together = zoom in, spread apart = zoom out)
    - **Simultaneous pan + zoom** = Two-finger gesture supports both at once
    - Implementation: Touch event handlers with gesture recognition

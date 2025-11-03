@@ -29,7 +29,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.366';
+const VIEWER_VERSION = '1.362';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -45,8 +45,8 @@ let groundPlane; // Ground plane at y=0 used for consistent ray intersections
 let currentMouseX, currentMouseY; // Tracked mouse position for HUD updates
 let hudSettings = null; // HUD configuration (units/visibility)
 
-// Recent regions tracking (max 12 most recent)
-const MAX_RECENT_REGIONS = 12;
+// Recent regions tracking (max 10 most recent)
+const MAX_RECENT_REGIONS = 10;
 let recentRegions = []; // Array of region IDs in order (most recent first)
 
 // Region adjacency data (which regions border which)
@@ -288,13 +288,20 @@ async function init() {
             console.log(`Region input synced to shown region: ${firstRegionId}`);
         }
 
-        // Set default vertical exaggeration to 6x after initial data load
-        try {
-            if (typeof setVertExagMultiplier === 'function') {
-                setVertExagMultiplier(6);
+        // Set default vertical exaggeration to 6x ONLY if not specified in URL
+        // URL params are the source of truth on initial load, then UI takes over
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!urlParams.has('exag')) {
+            try {
+                if (typeof setVertExagMultiplier === 'function') {
+                    setVertExagMultiplier(6);
+                    console.log('Set default vertical exaggeration to 6x (no URL param)');
+                }
+            } catch (e) {
+                console.warn('Could not set default vertical exaggeration to 6x:', e);
             }
-        } catch (e) {
-            console.warn('Could not set default vertical exaggeration to 6x:', e);
+        } else {
+            console.log('Keeping vertical exaggeration from URL parameter');
         }
         // Initialize HUD toggle
         const hudMin = document.getElementById('hud-minimize');
@@ -1116,15 +1123,7 @@ function rebucketData() {
 
 // Edge markers now in edge-markers.js
 function createEdgeMarkers() {
-    const result = window.EdgeMarkers.create();
-
-    // Apply visibility state from checkbox after creation
-    const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
-    if (showEdgeMarkersCheckbox) {
-        updateEdgeMarkersVisibility(showEdgeMarkersCheckbox.checked);
-    }
-
-    return result;
+    return window.EdgeMarkers.create();
 }
 
 function createTextSprite(text, color) {
@@ -1133,19 +1132,6 @@ function createTextSprite(text, color) {
 
 function updateEdgeMarkers() {
     return window.EdgeMarkers.update();
-}
-
-/**
- * Update visibility of all edge markers
- * @param {boolean} visible - Whether edge markers should be visible
- */
-function updateEdgeMarkersVisibility(visible) {
-    if (edgeMarkers && edgeMarkers.length > 0) {
-        edgeMarkers.forEach(marker => {
-            marker.visible = visible;
-        });
-        console.log(`Edge markers ${visible ? 'shown' : 'hidden'}`);
-    }
 }
 
 /**
@@ -1832,102 +1818,32 @@ function setupEventListeners() {
         }
     });
 
-    // Track current hover state for edge markers
-    let currentHoveredMarker = null;
-    let currentHoveredButtonIndex = -1;
-
     renderer.domElement.addEventListener('mousemove', (e) => {
         // Track mouse for HUD and zoom-to-cursor
         currentMouseX = e.clientX;
         currentMouseY = e.clientY;
         if (activeScheme) activeScheme.onMouseMove(e);
+        // Update HUD live
+        updateCursorHUD(e.clientX, e.clientY);
 
-        // OPTIMIZATION: Single raycast for all hover detection (HUD + edge markers + connectivity labels)
-        // Skip entirely if HUD is hidden AND edge markers are hidden AND no other interactive elements exist
-        const showHUDCheckbox = document.getElementById('showHUD');
-        const hudVisible = showHUDCheckbox && showHUDCheckbox.checked;
-
-        const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
-        const edgeMarkersVisible = showEdgeMarkersCheckbox && showEdgeMarkersCheckbox.checked;
-        const hasVisibleEdgeMarkers = edgeMarkersVisible && edgeMarkers && edgeMarkers.length > 0;
-
-        const hasOtherInteractiveElements = typeof handleConnectivityClick === 'function';
-
-        if (!hudVisible && !hasVisibleEdgeMarkers && !hasOtherInteractiveElements) {
-            return; // Skip raycasting entirely - nothing needs it
-        }
-
-        // Single raycast against all scene objects
-        const mouse = new THREE.Vector2();
-        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(scene.children, true);
-
-        // Process results for different systems
-        let cursorStyle = 'default';
-
-        // 1. Update HUD if visible (reuse raycast results)
-        if (hudVisible) {
-            updateCursorHUDFromIntersects(e.clientX, e.clientY, intersects);
-        }
-
-        // 2. Check for clickable edge markers with precise button detection (only if visible)
-        let hoveredMarker = null;
-        let hoveredButtonIndex = -1;
-
-        if (hasVisibleEdgeMarkers) {
-            for (const intersect of intersects) {
-                if (edgeMarkers.includes(intersect.object)) {
-                    const marker = intersect.object;
-                    if (marker.userData.isClickable) {
-                        hoveredMarker = marker;
-
-                        // Find which button is being hovered using UV coordinates
-                        const uv = intersect.uv;
-                        const buttonBounds = marker.userData.buttonBounds || [];
-
-                        for (const bounds of buttonBounds) {
-                            if (uv.y >= bounds.uvBottom && uv.y <= bounds.uvTop) {
-                                hoveredButtonIndex = bounds.index;
-                                cursorStyle = 'pointer';
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Update hover state if changed
-        if (hoveredMarker !== currentHoveredMarker || hoveredButtonIndex !== currentHoveredButtonIndex) {
-            // Clear previous hover
-            if (currentHoveredMarker && window.EdgeMarkers && window.EdgeMarkers.updateHoverState) {
-                window.EdgeMarkers.updateHoverState(currentHoveredMarker, -1);
-            }
-
-            // Set new hover
-            if (hoveredMarker && hoveredButtonIndex >= 0 && window.EdgeMarkers && window.EdgeMarkers.updateHoverState) {
-                window.EdgeMarkers.updateHoverState(hoveredMarker, hoveredButtonIndex);
-            }
-
-            currentHoveredMarker = hoveredMarker;
-            currentHoveredButtonIndex = hoveredButtonIndex;
-        }
-
-        // 3. Check for connectivity labels (overrides edge marker cursor)
+        // Check if hovering over connectivity label
         if (typeof handleConnectivityClick === 'function') {
+            const mouse = new THREE.Vector2();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let overLabel = false;
             for (const intersect of intersects) {
                 if (intersect.object.userData.isConnectivityLabel) {
-                    cursorStyle = 'pointer';
+                    overLabel = true;
                     break;
                 }
             }
+            renderer.domElement.style.cursor = overLabel ? 'pointer' : 'default';
         }
-
-        renderer.domElement.style.cursor = cursorStyle;
     });
 
     renderer.domElement.addEventListener('mouseup', (e) => {
@@ -1985,7 +1901,29 @@ function setupEventListeners() {
         }
     });
 
-    // Removed: duplicate mousemove listener consolidated above
+    // Handle hover effects on clickable edge markers
+    renderer.domElement.addEventListener('mousemove', (e) => {
+        const mouse = new THREE.Vector2();
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        if (edgeMarkers && edgeMarkers.length > 0) {
+            const intersects = raycaster.intersectObjects(edgeMarkers);
+
+            // Check if hovering over a clickable marker
+            let isHoveringClickable = false;
+            if (intersects.length > 0) {
+                const marker = intersects[0].object;
+                if (marker.userData.isClickable) {
+                    isHoveringClickable = true;
+                }
+            }
+
+            renderer.domElement.style.cursor = isHoveringClickable ? 'pointer' : 'default';
+        }
+    });
 
     // Setup camera scheme selector
     document.getElementById('cameraScheme').addEventListener('change', (e) => {
@@ -2045,24 +1983,44 @@ function setupEventListeners() {
         });
     }
 
-    // Edge Markers show/hide toggle
-    const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
-    if (showEdgeMarkersCheckbox) {
-        // Load saved preference from localStorage
-        const savedEdgeMarkersVisible = localStorage.getItem('edgeMarkersVisible');
-        if (savedEdgeMarkersVisible !== null) {
-            showEdgeMarkersCheckbox.checked = savedEdgeMarkersVisible === 'true';
+    // Color Scale show/hide toggle
+    const showColorScaleCheckbox = document.getElementById('showColorScale');
+    if (showColorScaleCheckbox && typeof colorLegend !== 'undefined') {
+        // Load saved preference from localStorage (default: true)
+        const savedColorScaleVisible = localStorage.getItem('colorScaleVisible');
+        if (savedColorScaleVisible !== null) {
+            showColorScaleCheckbox.checked = savedColorScaleVisible === 'true';
         }
 
         // Apply initial visibility state
-        updateEdgeMarkersVisibility(showEdgeMarkersCheckbox.checked);
+        if (showColorScaleCheckbox.checked) {
+            if (colorLegend && typeof colorLegend.show === 'function') {
+                colorLegend.show();
+            }
+        } else {
+            if (colorLegend && typeof colorLegend.hide === 'function') {
+                colorLegend.hide();
+            }
+        }
 
         // Add change listener
-        showEdgeMarkersCheckbox.addEventListener('change', () => {
-            const visible = showEdgeMarkersCheckbox.checked;
-            updateEdgeMarkersVisibility(visible);
+        showColorScaleCheckbox.addEventListener('change', () => {
+            const visible = showColorScaleCheckbox.checked;
+            if (visible) {
+                if (colorLegend && typeof colorLegend.show === 'function') {
+                    colorLegend.show();
+                }
+                // Update with current data if available
+                if (typeof updateColorLegend === 'function') {
+                    updateColorLegend();
+                }
+            } else {
+                if (colorLegend && typeof colorLegend.hide === 'function') {
+                    colorLegend.hide();
+                }
+            }
             // Save preference to localStorage
-            localStorage.setItem('edgeMarkersVisible', String(visible));
+            localStorage.setItem('colorScaleVisible', String(visible));
         });
     }
 
@@ -2142,16 +2100,8 @@ function loadHudPosition() {
             const position = JSON.parse(saved);
             if (position.left) hud.style.left = position.left;
             if (position.top) hud.style.top = position.top;
-        } else {
-            // Default position: upper left, pushed slightly off-screen left
-            hud.style.left = '-8px';
-            hud.style.top = '10px';
         }
-    } catch (_) {
-        // Fallback to default position on error
-        hud.style.left = '-8px';
-        hud.style.top = '10px';
-    }
+    } catch (_) { }
 }
 
 // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
@@ -2887,62 +2837,6 @@ function getAspectDegrees(i, j) {
     return derivedAspectDeg[i][j];
 }
 
-/**
- * Calculate relief (elevation range) within a given radius around a point
- * @param {number} i - Row index in processed grid
- * @param {number} j - Column index in processed grid
- * @param {number} radiusMeters - Radius in meters to sample
- * @returns {number|null} Relief (max - min elevation) in meters, or null if insufficient data
- */
-function getRelief(i, j, radiusMeters) {
-    if (!processedData || !processedData.elevation) return null;
-
-    const h = processedData.height;
-    const w = processedData.width;
-    if (i < 0 || j < 0 || i >= h || j >= w) return null;
-
-    // Use bucket size from processedData (accounts for bucketing/aggregation)
-    const metersPerCellX = processedData.bucketSizeMetersX || 1;
-    const metersPerCellY = processedData.bucketSizeMetersY || 1;
-
-    // Convert radius in meters to grid cells
-    const radiusCellsX = Math.ceil(radiusMeters / metersPerCellX);
-    const radiusCellsY = Math.ceil(radiusMeters / metersPerCellY);
-
-    // Sample elevations within the circular region
-    let minElev = Infinity;
-    let maxElev = -Infinity;
-    let sampleCount = 0;
-
-    for (let di = -radiusCellsY; di <= radiusCellsY; di++) {
-        for (let dj = -radiusCellsX; dj <= radiusCellsX; dj++) {
-            const ni = i + di;
-            const nj = j + dj;
-
-            // Skip out of bounds
-            if (ni < 0 || nj < 0 || ni >= h || nj >= w) continue;
-
-            // Check if within circular radius
-            const distX = dj * metersPerCellX;
-            const distY = di * metersPerCellY;
-            const dist = Math.sqrt(distX * distX + distY * distY);
-            if (dist > radiusMeters) continue;
-
-            const elev = processedData.elevation[ni] && processedData.elevation[ni][nj];
-            if (elev != null && isFinite(elev)) {
-                minElev = Math.min(minElev, elev);
-                maxElev = Math.max(maxElev, elev);
-                sampleCount++;
-            }
-        }
-    }
-
-    // Need at least a few samples to calculate meaningful relief
-    if (sampleCount < 3) return null;
-
-    return maxElev - minElev;
-}
-
 function updateStats() {
     const statsDiv = document.getElementById('stats');
     if (!statsDiv) return; // Element removed from UI
@@ -3311,8 +3205,29 @@ function updateRecentRegionsList() {
 
         const button = document.createElement('button');
         button.textContent = regionInfo.name;
-        button.className = 'recent-region-item';
-        // Styles are defined in CSS, not inline
+        button.className = 'recent-region-btn';
+        button.style.cssText = `
+            display: inline-block;
+            padding: 6px 12px;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            background: rgba(85, 136, 204, 0.15);
+            border: 1px solid rgba(85, 136, 204, 0.3);
+            border-radius: 4px;
+            color: #88ccff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        `;
+
+        button.addEventListener('mouseenter', () => {
+            button.style.background = 'rgba(85, 136, 204, 0.25)';
+        });
+
+        button.addEventListener('mouseleave', () => {
+            button.style.background = 'rgba(85, 136, 204, 0.15)';
+        });
 
         button.addEventListener('click', () => {
             loadRegion(regionId);
@@ -3527,39 +3442,23 @@ function worldToGridIndex(worldX, worldZ) {
 }
 
 function updateCursorHUD(clientX, clientY) {
-    const geocodeEl = document.getElementById('hud-geocode');
     const elevEl = document.getElementById('hud-elev');
     const slopeEl = document.getElementById('hud-slope');
     const aspectEl = document.getElementById('hud-aspect');
-    const reliefEl = document.getElementById('hud-relief');
     if (!elevEl || !processedData) return;
     const world = raycastToWorld(clientX, clientY);
     if (!world) {
-        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (reliefEl) reliefEl.textContent = '--';
         return;
     }
     // Ignore when cursor is outside data footprint
     if (!isWorldInsideData(world.x, world.z)) {
-        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (reliefEl) reliefEl.textContent = '--';
         return;
-    }
-
-    // Calculate geocode (lat/lon)
-    if (geocodeEl && window.GeometryUtils && typeof window.GeometryUtils.worldToLonLat === 'function') {
-        const latLon = window.GeometryUtils.worldToLonLat(world.x, world.z);
-        if (latLon) {
-            geocodeEl.textContent = `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}`;
-        } else {
-            geocodeEl.textContent = '--';
-        }
     }
 
     const idx = worldToGridIndex(world.x, world.z);
@@ -3567,150 +3466,31 @@ function updateCursorHUD(clientX, clientY) {
     const zCell = (processedData.elevation[idx.i] && processedData.elevation[idx.i][idx.j]);
     const hasData = (zCell != null) && isFinite(zCell);
     if (!hasData) {
-        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (reliefEl) reliefEl.textContent = '--';
         return;
     }
     const zMeters = zCell;
     const s = getSlopeDegrees(idx.i, idx.j);
     const a = getAspectDegrees(idx.i, idx.j);
-    const r = getRelief(idx.i, idx.j, 5000); // 5km radius (works better with bucketed data)
     const units = (hudSettings && hudSettings.units) || 'metric';
     const elevText = formatElevation(zMeters, units);
     elevEl.textContent = elevText;
     if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
     if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
-    if (reliefEl) {
-        if (r != null && isFinite(r)) {
-            const reliefText = formatElevation(r, units);
-            reliefEl.textContent = reliefText;
-        } else {
-            reliefEl.textContent = '--';
-        }
-    }
-}
-
-/**
- * Update HUD using pre-computed raycast intersections (optimization)
- * This avoids duplicate raycasting when we already have intersection results
- */
-function updateCursorHUDFromIntersects(clientX, clientY, intersects) {
-    const geocodeEl = document.getElementById('hud-geocode');
-    const elevEl = document.getElementById('hud-elev');
-    const slopeEl = document.getElementById('hud-slope');
-    const aspectEl = document.getElementById('hud-aspect');
-    const reliefEl = document.getElementById('hud-relief');
-    if (!elevEl || !processedData) return;
-
-    // Extract world position from intersects (terrain mesh or ground plane)
-    let world = null;
-
-    // First try to find terrain mesh intersection
-    if (terrainMesh) {
-        for (const intersect of intersects) {
-            if (intersect.object === terrainMesh || (intersect.object.parent && intersect.object.parent === terrainMesh)) {
-                const p = intersect.point;
-                world = new THREE.Vector3(p.x, 0, p.z); // Project to ground plane
-                break;
-            }
-        }
-    }
-
-    // Fallback: raycast to ground plane if no terrain intersection found
-    if (!world) {
-        const rect = renderer.domElement.getBoundingClientRect();
-        const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-        const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-        const planeIntersect = new THREE.Vector3();
-        const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
-        if (intersected) {
-            world = planeIntersect;
-        }
-    }
-
-    if (!world) {
-        if (geocodeEl) geocodeEl.textContent = '--';
-        elevEl.textContent = '--';
-        if (slopeEl) slopeEl.textContent = '--';
-        if (aspectEl) aspectEl.textContent = '--';
-        if (reliefEl) reliefEl.textContent = '--';
-        return;
-    }
-
-    // Ignore when cursor is outside data footprint
-    if (!isWorldInsideData(world.x, world.z)) {
-        if (geocodeEl) geocodeEl.textContent = '--';
-        elevEl.textContent = '--';
-        if (slopeEl) slopeEl.textContent = '--';
-        if (aspectEl) aspectEl.textContent = '--';
-        if (reliefEl) reliefEl.textContent = '--';
-        return;
-    }
-
-    // Calculate geocode (lat/lon)
-    if (geocodeEl && window.GeometryUtils && typeof window.GeometryUtils.worldToLonLat === 'function') {
-        const latLon = window.GeometryUtils.worldToLonLat(world.x, world.z);
-        if (latLon) {
-            geocodeEl.textContent = `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}`;
-        } else {
-            geocodeEl.textContent = '--';
-        }
-    }
-
-    const idx = worldToGridIndex(world.x, world.z);
-    if (!idx) return;
-    const zCell = (processedData.elevation[idx.i] && processedData.elevation[idx.i][idx.j]);
-    const hasData = (zCell != null) && isFinite(zCell);
-    if (!hasData) {
-        if (geocodeEl) geocodeEl.textContent = '--';
-        elevEl.textContent = '--';
-        if (slopeEl) slopeEl.textContent = '--';
-        if (aspectEl) aspectEl.textContent = '--';
-        if (reliefEl) reliefEl.textContent = '--';
-        return;
-    }
-    const zMeters = zCell;
-    const s = getSlopeDegrees(idx.i, idx.j);
-    const a = getAspectDegrees(idx.i, idx.j);
-    const r = getRelief(idx.i, idx.j, 5000); // 5km radius (works better with bucketed data)
-    const units = (hudSettings && hudSettings.units) || 'metric';
-    const elevText = formatElevation(zMeters, units);
-    elevEl.textContent = elevText;
-    if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
-    if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
-    if (reliefEl) {
-        if (r != null && isFinite(r)) {
-            const reliefText = formatElevation(r, units);
-            reliefEl.textContent = reliefText;
-        } else {
-            reliefEl.textContent = '--';
-        }
-    }
 }
 
 function loadHudSettings() {
-    const defaults = {
-        units: 'metric', // 'metric'|'imperial'|'both'
-        show: { geocode: true, elevation: true, slope: true, aspect: true, relief: false }
-    };
     try {
         const raw = localStorage.getItem('hudSettings');
         const parsed = raw ? JSON.parse(raw) : null;
-        if (parsed) {
-            // Merge with defaults to ensure new fields are added
-            hudSettings = {
-                units: parsed.units || defaults.units,
-                show: { ...defaults.show, ...parsed.show }
-            };
-        } else {
-            hudSettings = defaults;
-        }
+        hudSettings = parsed || {
+            units: 'metric', // 'metric'|'imperial'|'both'
+            show: { elevation: true, slope: true, aspect: true, distance: false }
+        };
     } catch (_) {
-        hudSettings = defaults;
+        hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, distance: false } };
     }
 }
 
@@ -3723,22 +3503,18 @@ function applyHudSettingsToUI() {
     const u = hudSettings.units;
     const unitsRadios = document.querySelectorAll('input[name="hud-units"]');
     unitsRadios.forEach(r => { r.checked = (r.value === u); });
-    const rowGeocode = document.getElementById('hud-row-geocode');
     const rowElev = document.getElementById('hud-row-elev');
     const rowSlope = document.getElementById('hud-row-slope');
     const rowAspect = document.getElementById('hud-row-aspect');
     const rowRelief = document.getElementById('hud-row-relief');
-    if (rowGeocode) rowGeocode.style.display = hudSettings.show.geocode ? '' : 'none';
     if (rowElev) rowElev.style.display = hudSettings.show.elevation ? '' : 'none';
     if (rowSlope) rowSlope.style.display = hudSettings.show.slope ? '' : 'none';
     if (rowAspect) rowAspect.style.display = hudSettings.show.aspect ? '' : 'none';
     if (rowRelief) rowRelief.style.display = hudSettings.show.relief ? '' : 'none';
-    const chkGeocode = document.getElementById('hud-show-geocode');
     const chkElev = document.getElementById('hud-show-elev');
     const chkSlope = document.getElementById('hud-show-slope');
     const chkAspect = document.getElementById('hud-show-aspect');
     const chkRelief = document.getElementById('hud-show-relief');
-    if (chkGeocode) chkGeocode.checked = !!hudSettings.show.geocode;
     if (chkElev) chkElev.checked = !!hudSettings.show.elevation;
     if (chkSlope) chkSlope.checked = !!hudSettings.show.slope;
     if (chkAspect) chkAspect.checked = !!hudSettings.show.aspect;
@@ -3761,7 +3537,6 @@ function bindHudSettingsHandlers() {
     });
     // Visibility
     const vis = [
-        { id: 'hud-show-geocode', key: 'geocode' },
         { id: 'hud-show-elev', key: 'elevation' },
         { id: 'hud-show-slope', key: 'slope' },
         { id: 'hud-show-aspect', key: 'aspect' },

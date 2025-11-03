@@ -10,7 +10,7 @@
     // Do not wrap warn/error so critical issues are never suppressed or altered
     // Note: Message filtering now handled by viewer-advanced.js to allow UI log mirroring
 })();
-// The fundamental model used by Google Maps, Mapbox, etc.
+// Custom ground plane camera system (project default)
 // 
 // Core concept:
 // - Fixed ground plane at y=0 (the map surface)
@@ -19,7 +19,7 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Earth)', 'Left = pan, Shift+Left = tilt, Middle = height, Alt+Left/Right = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
+        super('Custom (Default)', 'Left = pan, Right = look around, Middle = rotate map, Shift+Left = tilt, Alt+Left = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -111,46 +111,32 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.tilting = true;
             this.state.tiltStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
-
-            // Set pivot point to where mouse clicked (Maya-style)
-            // Only set the LOCAL pivot (focusStart), don't modify global focusPoint
-            const clickPoint = this.raycastToPlane(event.clientX, event.clientY);
-            this.state.focusStart = clickPoint ? clickPoint.clone() : this.focusPoint.clone();
+            this.state.focusStart = this.focusPoint.clone();
 
         } else if (event.button === 0 && event.altKey) { // Alt+Left = Tumble/Rotate (Maya style)
             this.state.rotating = true;
             this.state.rotatingWithAlt = true; // Track that Alt was used
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
 
-            // Set pivot point to where mouse clicked (Maya-style)
-            // Only set the LOCAL pivot (focusStart), don't modify global focusPoint
-            const clickPoint = this.raycastToPlane(event.clientX, event.clientY);
-            this.state.focusStart = clickPoint ? clickPoint.clone() : this.focusPoint.clone();
-
-        } else if (event.button === 0) { // Left = Pan along plane
+        } else if (event.button === 0) { // Left = Pan (standard map grab and drag)
             this.state.panning = true;
-            this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
+            this.state.panStart = { x: event.clientX, y: event.clientY };
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
 
-        } else if (event.button === 1) { // Middle = Height adjustment (altitude only)
-            this.state.adjustingHeight = true;
-            this.state.heightStart = event.clientY;
+        } else if (event.button === 1) { // Middle = Rotate map around origin
+            this.state.rotatingMap = true;
+            this.state.rotateMapStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
-            this.state.initialHeight = this.camera.position.y;
 
-        } else if (event.button === 2) { // Right = Rotate around focus point
-            this.state.rotating = true;
-            this.state.rotatingWithAlt = false; // Right button, not Alt
-            this.state.rotateStart = { x: event.clientX, y: event.clientY };
-            this.state.cameraStart = this.camera.position.clone();
-
-            // Set pivot point to where mouse clicked (Maya-style)
-            // Only set the LOCAL pivot (focusStart), don't modify global focusPoint
-            const clickPoint = this.raycastToPlane(event.clientX, event.clientY);
-            this.state.focusStart = clickPoint ? clickPoint.clone() : this.focusPoint.clone();
+        } else if (event.button === 2) { // Right = Look around (Roblox Studio style)
+            this.state.lookingAround = true;
+            this.state.lookStart = { x: event.clientX, y: event.clientY };
+            this.state.quaternionStart = this.camera.quaternion.clone();
+            this.state.focusStart = this.focusPoint.clone();
 
         }
     }
@@ -241,73 +227,141 @@ class GroundPlaneCamera extends CameraScheme {
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
 
-            // Only apply rotation if mouse has actually moved (prevents initial jump)
-            if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
-                // Get offset from pivot point to camera (captured at drag start)
-                const offset = new THREE.Vector3();
-                offset.subVectors(this.state.cameraStart, this.state.focusStart);
+            // Calculate rotation angles from mouse movement
+            const rotationSpeed = 0.005;
+            const horizontalAngle = -deltaX * rotationSpeed;
+            const verticalAngle = -deltaY * rotationSpeed;
 
-                // Convert to spherical coordinates
-                const spherical = new THREE.Spherical();
-                spherical.setFromVector3(offset);
+            // Rotate camera position around pivot point
+            // Start from initial camera position, translate to pivot origin
+            const pos = this.state.cameraStart.clone().sub(this.state.focusStart);
 
-                // Apply rotation
-                spherical.theta -= deltaX * 0.005;
-                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - deltaY * 0.005));
+            // Horizontal rotation (around Y axis through pivot)
+            pos.applyAxisAngle(new THREE.Vector3(0, 1, 0), horizontalAngle);
 
-                // Convert back and update camera position
-                // Use the LOCKED pivot point (focusStart), not the live focusPoint
-                offset.setFromSpherical(spherical);
-                this.camera.position.copy(this.state.focusStart).add(offset);
+            // Vertical rotation (around right/horizontal axis through pivot)
+            // First check current angle to prevent flipping
+            const currentAngle = Math.acos(pos.y / pos.length());
+            const right = new THREE.Vector3(1, 0, 0);
+            right.applyAxisAngle(new THREE.Vector3(0, 1, 0), horizontalAngle);
 
-                // Camera looks at the pivot point
-                this.camera.lookAt(this.state.focusStart);
-                this.controls.target.copy(this.state.focusStart);
+            // Clamp vertical angle to prevent flipping (keep between 0.1 and 179.9 degrees)
+            const newAngle = currentAngle + verticalAngle;
+            const minAngle = 0.1; // Almost straight up
+            const maxAngle = Math.PI - 0.1; // Almost straight down
+
+            if (newAngle > minAngle && newAngle < maxAngle) {
+                pos.applyAxisAngle(right, verticalAngle);
             }
+
+            // Translate back from pivot origin
+            pos.add(this.state.focusStart);
+
+            // Update camera position
+            this.camera.position.copy(pos);
+
+            // Look at pivot
+            this.camera.lookAt(this.state.focusStart);
         }
 
-        if (this.state.adjustingHeight) {
-            // Height adjustment: Move camera perpendicular to plane (Y-axis only)
-            const deltaY = event.clientY - this.state.heightStart;
+        if (this.state.lookingAround) {
+            // Look around (Roblox Studio style): Rotate camera in place
+            // Camera position stays fixed, only view direction changes
+            const deltaX = event.clientX - this.state.lookStart.x;
+            const deltaY = event.clientY - this.state.lookStart.y;
 
-            // Convert mouse movement to height change
-            // Positive deltaY (mouse down) = move up
-            // Negative deltaY (mouse up) = move down
-            const heightChange = -deltaY * 2.0; // Scale factor for sensitivity
+            // Rotation sensitivity
+            const sensitivity = 0.005;
 
-            // Only change Y position, keep XZ the same
-            const newHeight = this.state.initialHeight + heightChange;
+            // Extract starting yaw and pitch from quaternion
+            const startEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+            startEuler.setFromQuaternion(this.state.quaternionStart);
 
-            // Clamp to reasonable bounds
-            if (newHeight > 5 && newHeight < 50000) {
-                this.camera.position.y = newHeight;
+            // Calculate new yaw and pitch (no roll component)
+            const yaw = startEuler.y - deltaX * sensitivity;
+            let pitch = startEuler.x - deltaY * sensitivity;
 
-                // Keep looking at the same focus point on the plane
-                this.camera.lookAt(this.focusPoint);
+            // Clamp pitch to prevent looking straight up/down
+            const maxPitch = Math.PI / 2 - 0.01;
+            pitch = Math.max(-maxPitch, Math.min(maxPitch, pitch));
+
+            // Build rotation with ONLY yaw and pitch (no roll)
+            // Apply rotations in order: yaw around world Y, then pitch around local X
+            const qYaw = new THREE.Quaternion();
+            qYaw.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+
+            const qPitch = new THREE.Quaternion();
+            qPitch.setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitch);
+
+            // Combine: yaw first, then pitch (YX order, no Z/roll)
+            this.camera.quaternion.copy(qYaw).multiply(qPitch);
+            this.camera.up.set(0, 1, 0); // Maintain world up
+
+            // Update focus point to where camera is now looking
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(this.camera.quaternion);
+            this.focusPoint.copy(this.camera.position).addScaledVector(forward, 1000);
+            this.controls.target.copy(this.focusPoint);
+        }
+
+        if (this.state.rotatingMap) {
+            // Rotate map: Orbit camera around origin (0,0,0)
+            const deltaX = event.clientX - this.state.rotateMapStart.x;
+            const deltaY = event.clientY - this.state.rotateMapStart.y;
+
+            // Rotation speed
+            const rotationSpeed = 0.005;
+            const horizontalAngle = -deltaX * rotationSpeed;
+            const verticalAngle = -deltaY * rotationSpeed;
+
+            // Get camera position relative to origin
+            const pos = this.state.cameraStart.clone();
+
+            // Horizontal rotation (around Y axis through origin)
+            pos.applyAxisAngle(new THREE.Vector3(0, 1, 0), horizontalAngle);
+
+            // Vertical rotation (around right/horizontal axis through origin)
+            // Calculate right vector for current horizontal rotation
+            const right = new THREE.Vector3(1, 0, 0);
+            right.applyAxisAngle(new THREE.Vector3(0, 1, 0), horizontalAngle);
+
+            // Clamp vertical angle to prevent flipping
+            const currentAngle = Math.acos(pos.y / pos.length());
+            const newAngle = currentAngle + verticalAngle;
+            const minAngle = 0.1; // Almost straight up
+            const maxAngle = Math.PI - 0.1; // Almost straight down
+
+            if (newAngle > minAngle && newAngle < maxAngle) {
+                pos.applyAxisAngle(right, verticalAngle);
             }
+
+            // Update camera position
+            this.camera.position.copy(pos);
+
+            // Focus point stays at origin for this operation
+            const origin = new THREE.Vector3(0, 0, 0);
+            this.focusPoint.copy(origin);
+            this.controls.target.copy(origin);
+
+            // Look at origin
+            this.camera.lookAt(origin);
         }
     }
 
     onMouseUp(event) {
         if (event.button === 0) {
             if (this.state.tilting) {
-
                 this.state.tilting = false;
             }
-            if (this.state.panning) {
-
-            }
-            if (this.state.rotating) {
-
+            if (this.state.rotating && this.state.rotatingWithAlt) {
                 this.state.rotating = false;
                 this.state.rotatingWithAlt = false;
             }
             this.state.panning = false;
         } else if (event.button === 1) {
-            this.state.adjustingHeight = false;
+            this.state.rotatingMap = false;
         } else if (event.button === 2) {
-            this.state.rotating = false;
-            this.state.rotatingWithAlt = false;
+            this.state.lookingAround = false;
         }
     }
 
@@ -576,7 +630,7 @@ class GroundPlaneCamera extends CameraScheme {
                 this.controls.target.copy(this.focusPoint);
             }
 
-            // Two-finger twist = rotate around vertical axis (like Google Earth)
+            // Two-finger twist = rotate around vertical axis
             if (this.lastTouchAngle !== null) {
                 const deltaAngle = currentAngle - this.lastTouchAngle;
                 if (Math.abs(deltaAngle) > 0.001) {
@@ -659,6 +713,12 @@ class GroundPlaneCamera extends CameraScheme {
                 // Move camera in pure space
                 if (movement.length() > 0) {
                     this.camera.position.add(movement);
+
+                    // Update focus point to stay ahead of camera for mouse controls
+                    const cameraDir = new THREE.Vector3();
+                    this.camera.getWorldDirection(cameraDir);
+                    this.focusPoint.copy(this.camera.position).addScaledVector(cameraDir, 1000);
+                    this.controls.target.copy(this.focusPoint);
                 }
             } else {
                 // Immediately reset speed when movement stops
