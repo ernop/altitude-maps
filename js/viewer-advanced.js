@@ -30,7 +30,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.346';
+const VIEWER_VERSION = '1.348';
 
 // All console logs use plain ASCII - no sanitizer needed
 
