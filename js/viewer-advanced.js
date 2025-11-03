@@ -29,7 +29,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.355';
+const VIEWER_VERSION = '1.363';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -381,20 +381,64 @@ async function loadElevationData(url) {
     console.log(` Content-Length: ${response.headers.get('content-length')}`);
 
     if (!response.ok) {
-        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${url}`);
+        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusCode} for ${url}`);
     }
 
-    // Parse JSON directly (fastest method)
-    console.log(` Parsing JSON...`);
-    const data = await response.json();
+    // Detect cache hit using Performance API
+    const perfEntries = performance.getEntriesByName(urlWithBuster, 'resource');
+    const isCacheHit = perfEntries.length > 0 && perfEntries[0].transferSize === 0;
 
-    // Get content length if available (may be null for compressed responses)
+    if (isCacheHit) {
+        console.log(` Cache hit! Loading from browser cache.`);
+        appendActivityLog(`Loading ${filename} from cache`);
+        updateLoadingProgress(0, 0, 1, 'Loading from cache...');
+    }
+
+    // Get content length for progress tracking
     const contentLength = response.headers.get('content-length');
-    const sizeMB = contentLength ? (parseInt(contentLength) / 1024 / 1024).toFixed(2) : '?';
-    appendActivityLog(`Loaded ${filename}: ${sizeMB} MB`);
-    if (contentLength) {
-        updateLoadingProgress(100, parseInt(contentLength), parseInt(contentLength));
+    const totalBytes = contentLength ? parseInt(contentLength) : 0;
+
+    let data;
+
+    if (isCacheHit || !totalBytes || !response.body) {
+        // Cache hit or no content length - just parse directly (fast)
+        console.log(` Parsing JSON...`);
+        data = await response.json();
+    } else {
+        // Real download - stream with progress tracking
+        console.log(` Downloading with progress tracking...`);
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedBytes = 0;
+        let lastProgressUpdate = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            chunks.push(value);
+            receivedBytes += value.length;
+
+            // Update progress (throttle to every 100ms to avoid UI spam)
+            const now = performance.now();
+            if (now - lastProgressUpdate > 100) {
+                const percent = Math.floor((receivedBytes / totalBytes) * 100);
+                updateLoadingProgress(percent, receivedBytes, totalBytes, 'Downloading...');
+                lastProgressUpdate = now;
+            }
+        }
+
+        // Combine chunks and parse
+        const blob = new Blob(chunks);
+        const text = await blob.text();
+        console.log(` Parsing JSON...`);
+        data = JSON.parse(text);
     }
+
+    // Log final size
+    const sizeMB = totalBytes ? (totalBytes / 1024 / 1024).toFixed(2) : '?';
+    appendActivityLog(`Loaded ${filename}: ${sizeMB} MB`);
 
     // Extract version from filename for logging (e.g., ohio_srtm_30m_2048px_v2.json -> v2)
     const versionMatch = filename.match(/_v(\d+)\.json/);
@@ -768,7 +812,8 @@ async function loadRegion(regionId) {
         }
         const dataUrl = `generated/regions/${filename}`;
 
-        updateLoadingProgress(0, 0, 1, 'Downloading data...');
+        // loadElevationData now handles progress updates intelligently
+        // (shows "Loading from cache..." for cached data or "Downloading..." with progress for real downloads)
         rawElevationData = await loadElevationData(dataUrl);
         currentRegionId = regionId;
         updateRegionInfo(regionId);
@@ -1766,42 +1811,104 @@ function setupEventListeners() {
         }
     });
 
+    // Track current hover state for edge markers
+    let currentHoveredMarker = null;
+    let currentHoveredButtonIndex = -1;
+
     renderer.domElement.addEventListener('mousemove', (e) => {
         // Track mouse for HUD and zoom-to-cursor
         currentMouseX = e.clientX;
         currentMouseY = e.clientY;
         if (activeScheme) activeScheme.onMouseMove(e);
-        // Update HUD live
-        updateCursorHUD(e.clientX, e.clientY);
 
-        // Check if hovering over connectivity label
+        // OPTIMIZATION: Single raycast for all hover detection (HUD + edge markers + connectivity labels)
+        // Skip entirely if HUD is hidden AND no interactive elements exist
+        const showHUDCheckbox = document.getElementById('showHUD');
+        const hudVisible = showHUDCheckbox && showHUDCheckbox.checked;
+        const hasInteractiveElements = (edgeMarkers && edgeMarkers.length > 0) || typeof handleConnectivityClick === 'function';
+
+        if (!hudVisible && !hasInteractiveElements) {
+            return; // Skip raycasting entirely - nothing to check
+        }
+
+        // Single raycast against all scene objects
+        const mouse = new THREE.Vector2();
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        // Process results for different systems
+        let cursorStyle = 'default';
+
+        // 1. Update HUD if visible (reuse raycast results)
+        if (hudVisible) {
+            updateCursorHUDFromIntersects(e.clientX, e.clientY, intersects);
+        }
+
+        // 2. Check for clickable edge markers with precise button detection
+        let hoveredMarker = null;
+        let hoveredButtonIndex = -1;
+
+        if (edgeMarkers && edgeMarkers.length > 0) {
+            for (const intersect of intersects) {
+                if (edgeMarkers.includes(intersect.object)) {
+                    const marker = intersect.object;
+                    if (marker.userData.isClickable) {
+                        hoveredMarker = marker;
+
+                        // Find which button is being hovered using UV coordinates
+                        const uv = intersect.uv;
+                        const buttonBounds = marker.userData.buttonBounds || [];
+
+                        for (const bounds of buttonBounds) {
+                            if (uv.y >= bounds.uvBottom && uv.y <= bounds.uvTop) {
+                                hoveredButtonIndex = bounds.index;
+                                cursorStyle = 'pointer';
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Update hover state if changed
+        if (hoveredMarker !== currentHoveredMarker || hoveredButtonIndex !== currentHoveredButtonIndex) {
+            // Clear previous hover
+            if (currentHoveredMarker && window.EdgeMarkers && window.EdgeMarkers.updateHoverState) {
+                window.EdgeMarkers.updateHoverState(currentHoveredMarker, -1);
+            }
+
+            // Set new hover
+            if (hoveredMarker && hoveredButtonIndex >= 0 && window.EdgeMarkers && window.EdgeMarkers.updateHoverState) {
+                window.EdgeMarkers.updateHoverState(hoveredMarker, hoveredButtonIndex);
+            }
+
+            currentHoveredMarker = hoveredMarker;
+            currentHoveredButtonIndex = hoveredButtonIndex;
+        }
+
+        // 3. Check for connectivity labels (overrides edge marker cursor)
         if (typeof handleConnectivityClick === 'function') {
-            const mouse = new THREE.Vector2();
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
-
-            let overLabel = false;
             for (const intersect of intersects) {
                 if (intersect.object.userData.isConnectivityLabel) {
-                    overLabel = true;
+                    cursorStyle = 'pointer';
                     break;
                 }
             }
-            renderer.domElement.style.cursor = overLabel ? 'pointer' : 'default';
         }
+
+        renderer.domElement.style.cursor = cursorStyle;
     });
 
     renderer.domElement.addEventListener('mouseup', (e) => {
         if (activeScheme) activeScheme.onMouseUp(e);
     });
 
-    // Track currently hovered button for hover effects
-    let currentlyHoveredButton = null;
-
-    // Handle clicks on neighbor buttons (sprites)
+    // Handle clicks on edge markers (combined compass + neighbors)
     renderer.domElement.addEventListener('click', (e) => {
         if (e.button !== 0) return; // Only left click
 
@@ -1814,45 +1921,45 @@ function setupEventListeners() {
         if (edgeMarkers && edgeMarkers.length > 0) {
             const intersects = raycaster.intersectObjects(edgeMarkers);
             if (intersects.length > 0) {
-                const marker = intersects[0].object;
-                if (marker.userData.isButton && marker.userData.neighborId) {
-                    console.log(`Clicked neighbor button: ${marker.userData.neighborName} -> loading ${marker.userData.neighborId}`);
-                    loadRegion(marker.userData.neighborId);
+                const intersection = intersects[0];
+                const marker = intersection.object;
+
+                // Check if this marker has clickable neighbors
+                if (marker.userData.isClickable && marker.userData.neighborIds && marker.userData.neighborIds.length > 0) {
+                    // Use EXACT button bounds calculated during canvas drawing
+                    const uv = intersection.uv;
+                    const buttonBounds = marker.userData.buttonBounds || [];
+
+                    // Find which button was clicked by checking UV.y against exact bounds
+                    let clickedButton = null;
+                    for (const bounds of buttonBounds) {
+                        // bounds.uvTop is higher (closer to 1)
+                        // bounds.uvBottom is lower (closer to 0)
+                        if (uv.y >= bounds.uvBottom && uv.y <= bounds.uvTop) {
+                            clickedButton = bounds;
+                            break;
+                        }
+                    }
+
+                    if (clickedButton) {
+                        // Clicked on a specific button - load that neighbor
+                        const neighborId = marker.userData.neighborIds[clickedButton.index];
+                        const neighborName = marker.userData.neighborNames[clickedButton.index];
+                        console.log(`Clicked button ${clickedButton.index + 1}/${buttonBounds.length}: ${neighborName} (UV.y=${uv.y.toFixed(3)}, bounds=[${clickedButton.uvBottom.toFixed(3)}, ${clickedButton.uvTop.toFixed(3)}])`);
+                        loadRegion(neighborId);
+                    } else {
+                        // Clicked on compass letter area or outside buttons - load first neighbor
+                        const neighborId = marker.userData.neighborIds[0];
+                        const neighborName = marker.userData.neighborNames[0];
+                        console.log(`Clicked outside buttons (UV.y=${uv.y.toFixed(3)}) -> loading ${neighborName}`);
+                        loadRegion(neighborId);
+                    }
                 }
             }
         }
     });
 
-    // Handle hover effects on neighbor buttons (sprites)
-    renderer.domElement.addEventListener('mousemove', (e) => {
-        const mouse = new THREE.Vector2();
-        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-        raycaster.setFromCamera(mouse, camera);
-
-        if (edgeMarkers && edgeMarkers.length > 0) {
-            const buttonMarkers = edgeMarkers.filter(m => m.userData.isButton);
-            const intersects = raycaster.intersectObjects(buttonMarkers);
-
-            const hoveredButton = intersects.length > 0 ? intersects[0].object : null;
-
-            if (hoveredButton !== currentlyHoveredButton) {
-                if (currentlyHoveredButton && window.EdgeMarkers) {
-                    window.EdgeMarkers.updateButtonAppearance(currentlyHoveredButton, false);
-                }
-
-                if (hoveredButton && window.EdgeMarkers) {
-                    window.EdgeMarkers.updateButtonAppearance(hoveredButton, true);
-                    renderer.domElement.style.cursor = 'pointer';
-                } else {
-                    renderer.domElement.style.cursor = 'default';
-                }
-
-                currentlyHoveredButton = hoveredButton;
-            }
-        }
-    });
+    // Removed: duplicate mousemove listener consolidated above
 
     // Setup camera scheme selector
     document.getElementById('cameraScheme').addEventListener('change', (e) => {
@@ -3341,6 +3448,78 @@ function updateCursorHUD(clientX, clientY) {
         if (aspectEl) aspectEl.textContent = '--';
         return;
     }
+    // Ignore when cursor is outside data footprint
+    if (!isWorldInsideData(world.x, world.z)) {
+        elevEl.textContent = '--';
+        if (slopeEl) slopeEl.textContent = '--';
+        if (aspectEl) aspectEl.textContent = '--';
+        return;
+    }
+
+    const idx = worldToGridIndex(world.x, world.z);
+    if (!idx) return;
+    const zCell = (processedData.elevation[idx.i] && processedData.elevation[idx.i][idx.j]);
+    const hasData = (zCell != null) && isFinite(zCell);
+    if (!hasData) {
+        elevEl.textContent = '--';
+        if (slopeEl) slopeEl.textContent = '--';
+        if (aspectEl) aspectEl.textContent = '--';
+        return;
+    }
+    const zMeters = zCell;
+    const s = getSlopeDegrees(idx.i, idx.j);
+    const a = getAspectDegrees(idx.i, idx.j);
+    const units = (hudSettings && hudSettings.units) || 'metric';
+    const elevText = formatElevation(zMeters, units);
+    elevEl.textContent = elevText;
+    if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
+    if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
+}
+
+/**
+ * Update HUD using pre-computed raycast intersections (optimization)
+ * This avoids duplicate raycasting when we already have intersection results
+ */
+function updateCursorHUDFromIntersects(clientX, clientY, intersects) {
+    const elevEl = document.getElementById('hud-elev');
+    const slopeEl = document.getElementById('hud-slope');
+    const aspectEl = document.getElementById('hud-aspect');
+    if (!elevEl || !processedData) return;
+
+    // Extract world position from intersects (terrain mesh or ground plane)
+    let world = null;
+
+    // First try to find terrain mesh intersection
+    if (terrainMesh) {
+        for (const intersect of intersects) {
+            if (intersect.object === terrainMesh || (intersect.object.parent && intersect.object.parent === terrainMesh)) {
+                const p = intersect.point;
+                world = new THREE.Vector3(p.x, 0, p.z); // Project to ground plane
+                break;
+            }
+        }
+    }
+
+    // Fallback: raycast to ground plane if no terrain intersection found
+    if (!world) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
+        const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+        const planeIntersect = new THREE.Vector3();
+        const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
+        if (intersected) {
+            world = planeIntersect;
+        }
+    }
+
+    if (!world) {
+        elevEl.textContent = '--';
+        if (slopeEl) slopeEl.textContent = '--';
+        if (aspectEl) aspectEl.textContent = '--';
+        return;
+    }
+
     // Ignore when cursor is outside data footprint
     if (!isWorldInsideData(world.x, world.z)) {
         elevEl.textContent = '--';

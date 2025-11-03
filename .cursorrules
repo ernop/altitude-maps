@@ -55,6 +55,133 @@ Session notes and development threads only:
 
 ## Development Patterns
 
+### Performance-First Thinking - CRITICAL
+
+**Before implementing ANY feature, ask these questions:**
+
+1. **Am I doing expensive work unnecessarily?**
+   - Raycasting when no systems need the results
+   - Updating UI elements that are hidden
+   - Recalculating values that haven't changed
+   - Processing data that won't be used
+   - **Rule: Check if work is needed BEFORE doing it**
+
+3. **Am I duplicating computation?**
+   - Multiple event listeners doing the same raycast
+   - Multiple passes over the same data
+   - Recalculating instead of caching
+   - **Rule: Compute once, reuse results**
+
+4. **Can I consolidate operations?**
+   - Multiple raycasts → Single raycast with multiple result consumers
+
+**Examples of What to Catch:**
+
+**BAD - Multiple raycasts per event:**
+```javascript
+// Three separate listeners, three raycasts!
+element.addEventListener('mousemove', (e) => {
+    updateHUD(e);  // Does raycast #1
+});
+element.addEventListener('mousemove', (e) => {
+    checkHover(e);  // Does raycast #2
+});
+element.addEventListener('mousemove', (e) => {
+    updateCursor(e);  // Does raycast #3
+});
+```
+
+**GOOD - Single raycast, shared results:**
+```javascript
+element.addEventListener('mousemove', (e) => {
+    const intersects = raycaster.intersectObjects(scene.children);
+    updateHUD(intersects);
+    checkHover(intersects);
+    updateCursor(intersects);
+});
+```
+
+**BAD - Doing work when nothing needs it:**
+```javascript
+// Always raycasts terrain, even when HUD is hidden!
+function onMouseMove(e) {
+    const world = raycastToWorld(e);
+    updateHUD(world);  // HUD might be hidden!
+}
+```
+
+**GOOD - Skip work when not needed:**
+```javascript
+function onMouseMove(e) {
+    if (!hudVisible && !hasInteractiveElements) {
+        return;  // Skip entirely
+    }
+    const intersects = doRaycast(e);
+    if (hudVisible) updateHUD(intersects);
+    // ... other systems
+}
+```
+
+**When to Raise Performance Concerns:**
+
+- **BEFORE implementing** - If something feels wasteful, question it
+- **When you see duplication** - Multiple listeners, multiple loops, multiple queries
+- **In event handlers** - mousemove/wheel/scroll fire 60+ times/second
+- **When conditionals exist** - If a system might be disabled, check before computing
+
+**What to Say:**
+
+- "This will do X raycasts per mousemove - should we consolidate?"
+- "The HUD might be hidden - should we skip this work?"
+- "I see three listeners doing similar work - can we combine them?"
+- "This rebuilds geometry on every change - can we use uniforms instead?"
+
+**Don't implement first, ask later. Question inefficiency upfront.**
+
+### Event Handler Patterns - Common Hot Paths
+
+**These handlers fire 60+ times per second. Every millisecond counts.**
+
+#### Animation Loops (requestAnimationFrame)
+
+**Pattern: Coalesce rapid updates, apply once per frame**
+```javascript
+let pendingUpdate = null;
+
+function requestTerrainUpdate(newValue) {
+    pendingUpdate = newValue;  // Don't process immediately
+}
+
+function animate() {
+    if (pendingUpdate !== null) {
+        applyUpdate(pendingUpdate);  // Process once per frame
+        pendingUpdate = null;
+    }
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+```
+
+#### Conditional System Checks
+
+**CRITICAL: Check visibility/state BEFORE computing**
+```javascript
+// BAD - Always computes, might not be used
+function onMouseMove(e) {
+    const world = raycastToWorld(e);  // Expensive!
+    if (hudVisible) {
+        updateHUD(world);  // Might be false
+    }
+}
+
+// GOOD - Skip computation if not needed
+function onMouseMove(e) {
+    if (!hudVisible) return;  // Early exit
+    const world = raycastToWorld(e);
+    updateHUD(world);
+}
+```
+
 ### Environment
 - Always use Python 3.13 virtual environment (`venv`)
 - Activate with `.\venv\Scripts\Activate.ps1` in PowerShell
@@ -328,6 +455,8 @@ downsampled = elevation[::step_y, ::step_x]  # Distorts!
 - Non-selectable divider entries should not be focusable or trigger selection.
 
 ## UI Responsiveness: Slider/Drag Debounce
+**See "Performance-First Thinking" section for general principles. These are specific patterns for interactive controls.**
+
 - Debounce expensive operations during continuous input (dragging sliders, rapid changes):
   - Recreating terrain meshes, recomputing normals, or other heavy rebuilds should be debounced (≈50–120 ms).
   - Apply immediate lightweight updates for responsiveness (e.g., height value updates) and coalesce heavy work.

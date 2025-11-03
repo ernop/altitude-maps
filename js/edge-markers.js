@@ -116,88 +116,203 @@ function createEdgeMarkers() {
         const neighborData = neighbors[dir.key];
         console.log(`[EDGE MARKERS] Direction ${dir.key}: neighborData=`, neighborData);
 
-        // Always create the compass direction marker (non-clickable)
-        const compassSprite = createTextSprite(dir.letter, dir.color, null);
-        compassSprite.position.set(dir.x, markerHeight, dir.z);
-        const baseScale = avgSize * 0.06;
-        compassSprite.scale.set(baseScale, baseScale, baseScale);
-        // Mark as non-interactive
-        compassSprite.userData.nonInteractive = true;
-        scene.add(compassSprite);
-        edgeMarkers.push(compassSprite);
+        // Get valid neighbor names for this direction
+        let neighborIds = [];
+        let neighborNames = [];
 
-        if (!neighborData) {
-            console.log(`[EDGE MARKERS] No neighbor for ${dir.key}, compass marker only`);
-            return; // No neighbor in this direction
+        if (neighborData) {
+            // Handle both single neighbor (string) and multiple neighbors (array)
+            const rawIds = Array.isArray(neighborData) ? neighborData : [neighborData];
+
+            // Filter out neighbors that don't exist in manifest
+            neighborIds = rawIds.filter(id => {
+                if (regionsManifest && regionsManifest.regions && regionsManifest.regions[id]) {
+                    return true;
+                }
+                console.log(`[EDGE MARKERS] Neighbor "${id}" not in manifest, skipping`);
+                return false;
+            });
+
+            // Get display names
+            neighborNames = neighborIds.map(id => regionIdToName[id] || id);
         }
 
-        // Handle both single neighbor (string) and multiple neighbors (array)
-        const neighborIds = Array.isArray(neighborData) ? neighborData : [neighborData];
+        // Create combined sprite with compass letter + neighbor names
+        const combinedSprite = createCombinedDirectionSprite(dir.letter, neighborNames, dir.color);
+        combinedSprite.position.set(dir.x, markerHeight, dir.z);
 
-        // Filter out neighbors that don't exist in manifest
-        const validNeighbors = neighborIds.filter(id => {
-            if (regionsManifest && regionsManifest.regions && regionsManifest.regions[id]) {
-                return true;
-            }
-            console.log(`[EDGE MARKERS] Neighbor "${id}" not in manifest, skipping`);
-            return false;
-        });
+        // Scale based on terrain size (2x bigger)
+        const baseScale = avgSize * 0.12; // Doubled from 0.06
+        combinedSprite.scale.set(baseScale, baseScale, baseScale);
 
-        if (validNeighbors.length === 0) {
-            console.log(`[EDGE MARKERS] No valid neighbors for ${dir.key}, compass marker only`);
-            return;
+        // Store neighbor info for click handling
+        if (neighborIds.length > 0) {
+            combinedSprite.userData.neighborIds = neighborIds;
+            combinedSprite.userData.neighborNames = neighborNames;
+            combinedSprite.userData.isClickable = true;
+            combinedSprite.userData.neighborCount = neighborIds.length;
+        } else {
+            combinedSprite.userData.isClickable = false;
+            combinedSprite.userData.neighborCount = 0;
         }
 
-        // Get display names for all valid neighbors
-        const neighborNames = validNeighbors.map(id => regionIdToName[id] || id);
-        console.log(`[EDGE MARKERS] Creating ${validNeighbors.length} neighbor button(s) for ${dir.key}:`, neighborNames);
+        scene.add(combinedSprite);
+        edgeMarkers.push(combinedSprite);
 
-        // Create individual sprite button for each neighbor
-        validNeighbors.forEach((neighborId, index) => {
-            const neighborName = neighborNames[index];
-
-            // Calculate 3D position for this button
-            const textOffset = avgSize * 0.12; // Distance from compass marker
-            const buttonSpacing = avgSize * 0.08; // Spacing between buttons (in world space, relative to terrain size)
-            const totalHeight = (validNeighbors.length - 1) * buttonSpacing;
-            const startOffset = -totalHeight / 2; // Center the stack vertically
-
-            let buttonX = dir.x;
-            let buttonZ = dir.z;
-
-            // Move button out from center based on direction
-            if (dir.key === 'north') buttonZ -= textOffset;
-            if (dir.key === 'south') buttonZ += textOffset;
-            if (dir.key === 'east') buttonX += textOffset;
-            if (dir.key === 'west') buttonX -= textOffset;
-
-            // Stack buttons vertically (up/down in world space)
-            const buttonY = markerHeight + startOffset + (index * buttonSpacing);
-
-            // Create sprite button
-            const buttonSprite = createNeighborButtonSprite(neighborName, dir.color);
-            buttonSprite.position.set(buttonX, buttonY, buttonZ);
-
-            // Scale relative to terrain size (sizeAttenuation: true means world-space)
-            const buttonScale = avgSize * 0.075; // 50% smaller (was 0.15)
-            buttonSprite.scale.set(buttonScale * 4, buttonScale, 1); // 4x wider than tall
-
-            // Store neighbor info for click handling
-            buttonSprite.userData.neighborId = neighborId;
-            buttonSprite.userData.neighborName = neighborName;
-            buttonSprite.userData.isButton = true;
-            buttonSprite.userData.baseColor = dir.color;
-
-            scene.add(buttonSprite);
-            edgeMarkers.push(buttonSprite);
-
-            console.log(`[EDGE MARKERS] Added sprite button for ${neighborName} at (${buttonX.toFixed(1)}, ${buttonY.toFixed(1)}, ${buttonZ.toFixed(1)})`);
-        });
+        console.log(`[EDGE MARKERS] Added combined marker for ${dir.key} with neighbors:`, neighborNames);
     });
 }
 
 /**
- * Create a text sprite with colored circle border for compass directions
+ * Create a combined rectangular sprite with compass direction and neighbor names
+ * @param {string} directionLetter - Compass direction (N, E, S, W)
+ * @param {string[]} neighborNames - Array of neighbor region names (empty if none)
+ * @param {number} color - Hex color for border
+ * @returns {THREE.Sprite} Combined sprite
+ */
+function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    // Canvas size
+    canvas.width = 512;
+    canvas.height = 512;
+
+    const compassFontSize = 80; // Larger for compass letter
+    const stateFontSize = 50;   // Smaller for state names
+    const padding = 20;
+    const buttonPadding = 10;
+    const buttonSpacing = 8;
+
+    // Store button boundaries for accurate click detection
+    const buttonBounds = [];
+
+    // Measure compass letter
+    context.font = `Bold ${compassFontSize}px Arial`;
+    const compassWidth = context.measureText(directionLetter).width;
+
+    // Measure state names
+    context.font = `Bold ${stateFontSize}px Arial`;
+    const stateWidths = neighborNames.map(name => context.measureText(name).width);
+    const maxStateWidth = stateWidths.length > 0 ? Math.max(...stateWidths) : 0;
+
+    // Calculate container dimensions
+    const contentWidth = Math.max(compassWidth, maxStateWidth + buttonPadding * 2);
+    const rectWidth = Math.min(contentWidth + padding * 2, canvas.width - 20);
+
+    const compassHeight = compassFontSize * 1.2;
+    const stateButtonHeight = stateFontSize + buttonPadding * 2;
+    const totalStateHeight = neighborNames.length > 0
+        ? (stateButtonHeight * neighborNames.length) + (buttonSpacing * (neighborNames.length - 1))
+        : 0;
+    const rectHeight = compassHeight + totalStateHeight + padding * 2 + (neighborNames.length > 0 ? 10 : 0);
+
+    const rectX = (canvas.width - rectWidth) / 2;
+    const rectY = (canvas.height - rectHeight) / 2;
+    const radius = 8;
+
+    // Draw main container background
+    context.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    context.beginPath();
+    context.moveTo(rectX + radius, rectY);
+    context.lineTo(rectX + rectWidth - radius, rectY);
+    context.quadraticCurveTo(rectX + rectWidth, rectY, rectX + rectWidth, rectY + radius);
+    context.lineTo(rectX + rectWidth, rectY + rectHeight - radius);
+    context.quadraticCurveTo(rectX + rectWidth, rectY + rectHeight, rectX + rectWidth - radius, rectY + rectHeight);
+    context.lineTo(rectX + radius, rectY + rectHeight);
+    context.quadraticCurveTo(rectX, rectY + rectHeight, rectX, rectY + rectHeight - radius);
+    context.lineTo(rectX, rectY + radius);
+    context.quadraticCurveTo(rectX, rectY, rectX + radius, rectY);
+    context.closePath();
+    context.fill();
+
+    // Draw colored border
+    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+    context.lineWidth = 3;
+    context.stroke();
+
+    // Draw compass letter (centered, larger)
+    context.font = `Bold ${compassFontSize}px Arial`;
+    context.fillStyle = '#ffffff';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    const compassY = rectY + padding + compassHeight / 2;
+    context.fillText(directionLetter, canvas.width / 2, compassY);
+
+    // Draw state name buttons (left-aligned)
+    if (neighborNames.length > 0) {
+        const stateStartY = rectY + padding + compassHeight + 10;
+
+        neighborNames.forEach((name, index) => {
+            const buttonY = stateStartY + index * (stateButtonHeight + buttonSpacing);
+            const buttonX = rectX + padding;
+            const buttonWidth = rectWidth - padding * 2;
+            const buttonRadius = 6;
+
+            // Store button boundaries in UV space (0-1, inverted Y)
+            // UV: y=0 is bottom, y=1 is top
+            const uvTop = 1 - (buttonY / canvas.height);
+            const uvBottom = 1 - ((buttonY + stateButtonHeight) / canvas.height);
+            buttonBounds.push({
+                index: index,
+                uvTop: uvTop,      // Higher Y value in UV space
+                uvBottom: uvBottom, // Lower Y value in UV space
+                name: name
+            });
+
+            // Draw button background
+            context.fillStyle = 'rgba(40, 40, 40, 0.9)';
+            context.beginPath();
+            context.moveTo(buttonX + buttonRadius, buttonY);
+            context.lineTo(buttonX + buttonWidth - buttonRadius, buttonY);
+            context.quadraticCurveTo(buttonX + buttonWidth, buttonY, buttonX + buttonWidth, buttonY + buttonRadius);
+            context.lineTo(buttonX + buttonWidth, buttonY + stateButtonHeight - buttonRadius);
+            context.quadraticCurveTo(buttonX + buttonWidth, buttonY + stateButtonHeight, buttonX + buttonWidth - buttonRadius, buttonY + stateButtonHeight);
+            context.lineTo(buttonX + buttonRadius, buttonY + stateButtonHeight);
+            context.quadraticCurveTo(buttonX, buttonY + stateButtonHeight, buttonX, buttonY + stateButtonHeight - buttonRadius);
+            context.lineTo(buttonX, buttonY + buttonRadius);
+            context.quadraticCurveTo(buttonX, buttonY, buttonX + buttonRadius, buttonY);
+            context.closePath();
+            context.fill();
+
+            // Draw button border
+            context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.lineWidth = 2;
+            context.stroke();
+
+            // Draw state name (left-aligned)
+            context.font = `Bold ${stateFontSize}px Arial`;
+            context.fillStyle = '#ffffff';
+            context.textAlign = 'left';
+            context.textBaseline = 'middle';
+            context.fillText(name, buttonX + buttonPadding, buttonY + stateButtonHeight / 2);
+        });
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
+
+    const spriteMaterial = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+    });
+    const sprite = new THREE.Sprite(spriteMaterial);
+
+    // Attach data for click detection and hover state regeneration
+    sprite.userData.buttonBounds = buttonBounds;
+    sprite.userData.directionLetter = directionLetter;
+    sprite.userData.neighborNames = neighborNames;
+    sprite.userData.color = color;
+
+    return sprite;
+}
+
+/**
+ * Create a text sprite with colored circle border for compass directions (LEGACY - not used)
  * Uses canvas to render text onto a texture
  * 
  * @param {string} text - Text to display (single letter: N, E, S, W)
@@ -420,11 +535,143 @@ function updateEdgeMarkers() {
     // The markers are positioned at a fixed height set in createEdgeMarkers()
 }
 
+/**
+ * Update hover state for a combined direction sprite
+ * Regenerates the texture with the hovered button highlighted
+ * @param {THREE.Sprite} sprite - The edge marker sprite
+ * @param {number} hoveredIndex - Index of button being hovered (-1 for none)
+ */
+function updateHoverState(sprite, hoveredIndex) {
+    if (!sprite || !sprite.userData) return;
+
+    // Store hover state and get marker data
+    const directionLetter = sprite.userData.directionLetter;
+    const neighborNames = sprite.userData.neighborNames || [];
+    const color = sprite.userData.color;
+
+    if (!directionLetter || !neighborNames.length || !color) return;
+
+    // Recreate the sprite texture with hover highlighting
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    canvas.width = 512;
+    canvas.height = 512;
+
+    const compassFontSize = 80;
+    const stateFontSize = 50;
+    const padding = 20;
+    const buttonPadding = 10;
+    const buttonSpacing = 8;
+
+    // Measure compass letter
+    context.font = `Bold ${compassFontSize}px Arial`;
+    const compassWidth = context.measureText(directionLetter).width;
+
+    // Measure state names
+    context.font = `Bold ${stateFontSize}px Arial`;
+    const stateWidths = neighborNames.map(name => context.measureText(name).width);
+    const maxStateWidth = stateWidths.length > 0 ? Math.max(...stateWidths) : 0;
+
+    // Calculate container dimensions
+    const contentWidth = Math.max(compassWidth, maxStateWidth + buttonPadding * 2);
+    const rectWidth = Math.min(contentWidth + padding * 2, canvas.width - 20);
+
+    const compassHeight = compassFontSize * 1.2;
+    const stateButtonHeight = stateFontSize + buttonPadding * 2;
+    const totalStateHeight = neighborNames.length > 0
+        ? (stateButtonHeight * neighborNames.length) + (buttonSpacing * (neighborNames.length - 1))
+        : 0;
+    const rectHeight = compassHeight + totalStateHeight + padding * 2 + (neighborNames.length > 0 ? 10 : 0);
+
+    const rectX = (canvas.width - rectWidth) / 2;
+    const rectY = (canvas.height - rectHeight) / 2;
+    const radius = 8;
+
+    // Draw main container background
+    context.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    context.beginPath();
+    context.moveTo(rectX + radius, rectY);
+    context.lineTo(rectX + rectWidth - radius, rectY);
+    context.quadraticCurveTo(rectX + rectWidth, rectY, rectX + rectWidth, rectY + radius);
+    context.lineTo(rectX + rectWidth, rectY + rectHeight - radius);
+    context.quadraticCurveTo(rectX + rectWidth, rectY + rectHeight, rectX + rectWidth - radius, rectY + rectHeight);
+    context.lineTo(rectX + radius, rectY + rectHeight);
+    context.quadraticCurveTo(rectX, rectY + rectHeight, rectX, rectY + rectHeight - radius);
+    context.lineTo(rectX, rectY + radius);
+    context.quadraticCurveTo(rectX, rectY, rectX + radius, rectY);
+    context.closePath();
+    context.fill();
+
+    // Draw colored border
+    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+    context.lineWidth = 3;
+    context.stroke();
+
+    // Draw compass letter (centered, larger)
+    context.font = `Bold ${compassFontSize}px Arial`;
+    context.fillStyle = '#ffffff';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    const compassY = rectY + padding + compassHeight / 2;
+    context.fillText(directionLetter, canvas.width / 2, compassY);
+
+    // Draw state name buttons (left-aligned, with hover highlighting)
+    if (neighborNames.length > 0) {
+        const stateStartY = rectY + padding + compassHeight + 10;
+
+        neighborNames.forEach((name, index) => {
+            const isHovered = (index === hoveredIndex);
+            const buttonY = stateStartY + index * (stateButtonHeight + buttonSpacing);
+            const buttonX = rectX + padding;
+            const buttonWidth = rectWidth - padding * 2;
+            const buttonRadius = 6;
+
+            // Draw button background (brighter if hovered)
+            context.fillStyle = isHovered ? 'rgba(70, 70, 70, 0.95)' : 'rgba(40, 40, 40, 0.9)';
+            context.beginPath();
+            context.moveTo(buttonX + buttonRadius, buttonY);
+            context.lineTo(buttonX + buttonWidth - buttonRadius, buttonY);
+            context.quadraticCurveTo(buttonX + buttonWidth, buttonY, buttonX + buttonWidth, buttonY + buttonRadius);
+            context.lineTo(buttonX + buttonWidth, buttonY + stateButtonHeight - buttonRadius);
+            context.quadraticCurveTo(buttonX + buttonWidth, buttonY + stateButtonHeight, buttonX + buttonWidth - buttonRadius, buttonY + stateButtonHeight);
+            context.lineTo(buttonX + buttonRadius, buttonY + stateButtonHeight);
+            context.quadraticCurveTo(buttonX, buttonY + stateButtonHeight, buttonX, buttonY + stateButtonHeight - buttonRadius);
+            context.lineTo(buttonX, buttonY + buttonRadius);
+            context.quadraticCurveTo(buttonX, buttonY, buttonX + buttonRadius, buttonY);
+            context.closePath();
+            context.fill();
+
+            // Draw button border (thicker if hovered)
+            context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.lineWidth = isHovered ? 3 : 2;
+            context.stroke();
+
+            // Draw state name (left-aligned)
+            context.font = `Bold ${stateFontSize}px Arial`;
+            context.fillStyle = '#ffffff';
+            context.textAlign = 'left';
+            context.textBaseline = 'middle';
+            context.fillText(name, buttonX + buttonPadding, buttonY + stateButtonHeight / 2);
+        });
+    }
+
+    // Update texture
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
+
+    sprite.material.map = texture;
+    sprite.material.needsUpdate = true;
+}
+
 // Export module
 window.EdgeMarkers = {
     create: createEdgeMarkers,
     update: updateEdgeMarkers,
     createTextSprite: createTextSprite,
-    updateButtonAppearance: updateButtonAppearance
+    updateButtonAppearance: updateButtonAppearance,
+    updateHoverState: updateHoverState
 };
 
