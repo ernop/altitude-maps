@@ -8,10 +8,26 @@ class ColorLegend {
         this.container = document.getElementById('color-legend');
         this.titleElement = document.querySelector('.color-legend-title');
 
+        console.log('ColorLegend constructor:', {
+            hasCanvas: !!this.canvas,
+            hasCtx: !!this.ctx,
+            canvasWidth: this.canvas ? this.canvas.width : 0,
+            canvasHeight: this.canvas ? this.canvas.height : 0,
+            hasLabels: !!this.labelsContainer,
+            hasContainer: !!this.container
+        });
+
         if (!this.canvas || !this.ctx || !this.labelsContainer || !this.container) {
-            console.warn('Color legend elements not found');
+            console.error('Color legend elements not found - cannot initialize');
             return;
         }
+
+        // Test rendering - draw a simple gradient to verify canvas works
+        this.ctx.fillStyle = '#ff0000';
+        this.ctx.fillRect(0, 0, this.canvas.width / 2, this.canvas.height);
+        this.ctx.fillStyle = '#0000ff';
+        this.ctx.fillRect(this.canvas.width / 2, 0, this.canvas.width / 2, this.canvas.height);
+        console.log('Test gradient drawn (red/blue split)');
 
         // Hide by default until data is loaded
         this.container.style.display = 'none';
@@ -52,7 +68,7 @@ class ColorLegend {
         }
 
         // Get the color scheme definition
-        const scheme = COLOR_SCHEMES[colorScheme] || COLOR_SCHEMES['test'];
+        const scheme = COLOR_SCHEMES[colorScheme] || COLOR_SCHEMES['high-contrast'];
 
         // Draw the color gradient on canvas
         this.drawGradient(scheme, colorScheme);
@@ -68,11 +84,29 @@ class ColorLegend {
      * Draw the color gradient on the canvas
      */
     drawGradient(scheme, colorScheme) {
+        if (!this.canvas || !this.ctx) {
+            console.error('Canvas or context not available');
+            return;
+        }
+
         const width = this.canvas.width;
         const height = this.canvas.height;
 
-        // Clear canvas
-        this.ctx.clearRect(0, 0, width, height);
+        console.log('Drawing gradient:', { width, height, scheme: colorScheme, schemeStops: scheme ? scheme.length : 0 });
+
+        if (width === 0 || height === 0) {
+            console.warn('Canvas dimensions are zero');
+            return;
+        }
+
+        // Clear canvas with a test color to verify rendering works
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(0, 0, width, height);
+
+        if (!scheme || !scheme.length) {
+            console.error('Invalid color scheme');
+            return;
+        }
 
         const isBanded = colorScheme === 'hypsometric-banded';
 
@@ -84,9 +118,13 @@ class ColorLegend {
             // Get color for this normalized value
             const color = this.getColorFromScheme(scheme, t, isBanded);
 
-            this.ctx.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
-            this.ctx.fillRect(0, y, width, 1);
+            if (color && typeof color.r === 'number') {
+                this.ctx.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+                this.ctx.fillRect(0, y, width, 1);
+            }
         }
+
+        console.log('Gradient drawing complete');
     }
 
     /**
@@ -207,7 +245,7 @@ function updateColorLegend() {
     }
 
     const stats = rawElevationData.stats;
-    const colorScheme = params.colorScheme || 'test';
+    const colorScheme = params.colorScheme || 'high-contrast';
 
     // Determine value range based on color scheme
     let minValue = stats.min;

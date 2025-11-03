@@ -890,6 +890,16 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "bama_east_coast_line_cities": RegionConfig(
+        id="bama_east_coast_line_cities",
+        name="BAMA - East Coast Line Cities",
+        bounds=(-77.5, 38.8, -71.0, 42.5),
+        description="USA - Boston-New York-Philadelphia-Baltimore-Washington corridor, major East Coast metropolitan areas and transportation links",
+        region_type=RegionType.REGION,
+        country="United States of America",
+        clip_boundary=False,
+        tiles=(2, 2),  # 6.5deg x 3.7deg -> 2x2 tiles for better API handling
+    ),
 }
 
 

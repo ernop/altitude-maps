@@ -7,7 +7,7 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.366">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.367">
 </head>
 
 <body>
@@ -100,14 +100,15 @@
 
 		<div id="controls">
 			<div id="controls-meta"
-				style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
-				<div class="controls-meta-left" style="font-size: 11px; color:#fff; font-weight: 600;">altitude-maps
+				style="display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px;">
+				<div class="controls-meta-left"
+					style="font-size: 9px; color:#ffffff; font-weight: 600; line-height: 1;">altitude-maps
 				</div>
 				<div class="controls-meta-right"
-					style="display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11px; color:#fff;">
+					style="display: flex; align-items: center; gap: 4px; font-family: 'Segoe UI', sans-serif; font-size: 9px; color:#ffffff; line-height: 1;">
 					<a id="github-home-link" href="https://github.com/ernop/altitude-maps" target="_blank"
 						rel="noopener" title="GitHub homepage"
-						style="color:#fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5);">GitHub</a>
+						style="color:#ffffff; text-decoration: none; border-bottom: none;">GitHub</a>
 					<span id="version-display">v?.?.?</span>
 					<span id="fps-display">FPS: --</span>
 				</div>
@@ -138,9 +139,8 @@
 			</div>
 
 			<!-- Recent Regions -->
-			<div id="recent-regions-container" style="margin-top: 12px;">
-				<div style="font-size: 11px; color: #888; margin-bottom: 0px; font-weight: 600; line-height: 1;">RECENT
-				</div>
+			<div id="recent-regions-container" style="margin-top: 6px;">
+				<div class="recent-regions-header">RECENT</div>
 				<div id="recent-regions-list" class="recent-regions-list"></div>
 			</div>
 
@@ -230,7 +230,7 @@
 			<div class="control-group">
 				<label>Color Scheme</label>
 				<select id="colorScheme">
-					<option value="test" selected>High-Contrast (Intense)</option>
+					<option value="high-contrast" selected>High-Contrast (Intense)</option>
 					<option value="hypsometric-banded">Hypsometric (Banded)</option>
 					<option value="aspect">Aspect (Compass)</option>
 					<option value="terrain-muted">Terrain (Muted)</option>
@@ -266,54 +266,59 @@
 					<input type="checkbox" id="showColorScale" checked />
 					<label for="showColorScale" style="margin: 0;">Show Scale</label>
 				</div>
-			</div>
-
-			<h2>Camera Controls</h2>
-
-			<div class="control-group">
-				<select id="cameraScheme">
-					<option value="ground-plane" selected>Custom (Default)</option>
-					<option value="google-earth-plane">Google Earth (Ground Plane)</option>
-					<option value="roblox">Roblox Studio</option>
-					<option value="flying">Flying</option>
-					<option value="jumping">Jumping (Map-Grandpa)</option>
-					<option value="blender">Blender</option>
-					<option value="unity">Unity Editor</option>
-				</select>
+				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+					<input type="checkbox" id="showCameraControls" />
+					<label for="showCameraControls" style="margin: 0;">Show Camera Controls</label>
+				</div>
 			</div>
 
 			<h2>Camera Views</h2>
 
-			<div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-				<button onclick="setView('overhead')" style="padding: 6px; font-size: 11px;">Overhead</button>
-				<button onclick="setView('low-south')" style="padding: 6px; font-size: 11px;">Low South</button>
+			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+				<button onclick="triggerOverheadView()" style="padding: 6px; font-size: 11px;">Overhead</button>
+				<button onclick="triggerReframeView()" style="padding: 6px; font-size: 11px;">Reset Camera (F)</button>
 			</div>
 
-			<div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-				<button onclick="resetCamera()" style="padding: 6px; font-size: 11px;">Reset Camera (F)</button>
-				<button onclick="exportImage()" style="padding: 6px; font-size: 11px;">Screenshot</button>
+			<div style="margin-top: 8px;">
+				<button onclick="exportImage()" style="padding: 6px; font-size: 11px; width: 100%;">Screenshot</button>
 			</div>
 
-			<h2 style="cursor: pointer; user-select: none;" onclick="toggleKeyboardControls()">
-				Keyboard Controls
-				<span id="keyboard-controls-arrow" style="float: right; transition: transform 0.2s;">▼</span>
-			</h2>
+			<div id="camera-controls-section" style="display: none;">
+				<h2>Camera Controls</h2>
 
-			<div id="keyboard-controls-content" style="display: none;">
-				<div class="keyboard-controls-grid">
-					<div class="keyboard-controls-row">
-						<button class="keyboard-btn" data-key="w" title="Forward">W</button>
-					</div>
-					<div class="keyboard-controls-row">
-						<button class="keyboard-btn" data-key="a" title="Left">A</button>
-						<button class="keyboard-btn" data-key="s" title="Back">S</button>
-						<button class="keyboard-btn" data-key="d" title="Right">D</button>
-					</div>
-					<div class="keyboard-controls-row" style="margin-top: 8px;">
-						<button class="keyboard-btn" data-key="e" title="Ascend">E</button>
-						<button class="keyboard-btn" data-key="q" title="Descend">Q</button>
-						<button class="keyboard-btn" data-action="zoom-in" title="Zoom In">Zoom+</button>
-						<button class="keyboard-btn" data-action="zoom-out" title="Zoom Out">Zoom−</button>
+				<div class="control-group">
+					<select id="cameraScheme">
+						<option value="ground-plane" selected>Custom (Default)</option>
+						<option value="google-earth-plane">Google Earth (Ground Plane)</option>
+						<option value="roblox">Roblox Studio</option>
+						<option value="flying">Flying</option>
+						<option value="jumping">Jumping (Map-Grandpa)</option>
+						<option value="blender">Blender</option>
+						<option value="unity">Unity Editor</option>
+					</select>
+				</div>
+
+				<h2 style="cursor: pointer; user-select: none;" onclick="toggleKeyboardControls()">
+					Keyboard Controls
+					<span id="keyboard-controls-arrow" style="float: right; transition: transform 0.2s;">▼</span>
+				</h2>
+
+				<div id="keyboard-controls-content" style="display: none;">
+					<div class="keyboard-controls-grid">
+						<div class="keyboard-controls-row">
+							<button class="keyboard-btn" data-key="w" title="Forward">W</button>
+						</div>
+						<div class="keyboard-controls-row">
+							<button class="keyboard-btn" data-key="a" title="Left">A</button>
+							<button class="keyboard-btn" data-key="s" title="Back">S</button>
+							<button class="keyboard-btn" data-key="d" title="Right">D</button>
+						</div>
+						<div class="keyboard-controls-row" style="margin-top: 8px;">
+							<button class="keyboard-btn" data-key="e" title="Ascend">E</button>
+							<button class="keyboard-btn" data-key="q" title="Descend">Q</button>
+							<button class="keyboard-btn" data-action="zoom-in" title="Zoom In">Zoom+</button>
+							<button class="keyboard-btn" data-action="zoom-out" title="Zoom Out">Zoom−</button>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -342,7 +347,7 @@
 	<script src="js/color-schemes.js?v=1.366"></script>
 
 	<!-- Color scale legend -->
-	<script src="js/color-legend.js?v=1.366"></script>
+	<script src="js/color-legend.js?v=1.367"></script>
 
 	<!-- Geometry and spatial utilities -->
 	<script src="js/geometry-utils.js?v=1.366"></script>

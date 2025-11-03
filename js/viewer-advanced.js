@@ -150,7 +150,7 @@ let params = {
     aggregation: 'max',
     renderMode: 'bars',
     verticalExaggeration: 0.03, // Default: good balance of detail and scale
-    colorScheme: 'terrain',
+    colorScheme: 'elevation-enhanced',
     showGrid: false,
     autoRotate: false,
     // Shading: Always use Natural (Lambert) - no UI control needed
@@ -222,6 +222,14 @@ async function init() {
     try {
         setupScene();
         setupEventListeners();
+
+        // Initialize color scale legend
+        if (typeof initColorLegend === 'function') {
+            initColorLegend();
+            console.log('Color legend initialized');
+        } else {
+            console.warn('initColorLegend function not found');
+        }
 
         // Ensure activity log is visible by adding an initial entry
         appendActivityLog('Viewer initialized');
@@ -869,13 +877,18 @@ async function loadRegion(regionId) {
 
         updateLoadingProgress(70, 1, 1, 'Applying colors...');
         stepStart = performance.now();
-        if (!params.colorScheme) params.colorScheme = 'terrain';
+        if (!params.colorScheme) params.colorScheme = 'high-contrast';
         updateColors();
         console.log(`updateColors: ${(performance.now() - stepStart).toFixed(1)}ms`);
 
 
         updateLoadingProgress(95, 1, 1, 'Finalizing...');
         updateStats();
+
+        // Update color legend with loaded data
+        if (typeof updateColorLegend === 'function') {
+            updateColorLegend();
+        }
 
         // Sync UI controls with current params
         syncUIControls();
@@ -1463,9 +1476,11 @@ function setupControls() {
     if (regionInput && dropdown) {
         regionInput.addEventListener('focus', () => {
             openDropdown();
+            regionInput.select();  // Auto-select text on focus
         });
         regionInput.addEventListener('click', () => {
             openDropdown();
+            regionInput.select();  // Auto-select text on click
         });
         regionInput.addEventListener('input', () => {
             filteredOptions = filterOptions(regionInput.value);
@@ -2021,6 +2036,53 @@ function setupEventListeners() {
             }
             // Save preference to localStorage
             localStorage.setItem('colorScaleVisible', String(visible));
+        });
+    }
+
+    // Edge Markers show/hide toggle
+    const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
+    if (showEdgeMarkersCheckbox) {
+        // Load saved preference from localStorage (default: true)
+        const savedEdgeMarkersVisible = localStorage.getItem('edgeMarkersVisible');
+        if (savedEdgeMarkersVisible !== null) {
+            showEdgeMarkersCheckbox.checked = savedEdgeMarkersVisible === 'true';
+        }
+
+        // Apply initial visibility state
+        edgeMarkers.forEach(marker => {
+            marker.visible = showEdgeMarkersCheckbox.checked;
+        });
+
+        // Add change listener
+        showEdgeMarkersCheckbox.addEventListener('change', () => {
+            const visible = showEdgeMarkersCheckbox.checked;
+            edgeMarkers.forEach(marker => {
+                marker.visible = visible;
+            });
+            // Save preference to localStorage
+            localStorage.setItem('edgeMarkersVisible', String(visible));
+        });
+    }
+
+    // Camera Controls show/hide toggle
+    const showCameraControlsCheckbox = document.getElementById('showCameraControls');
+    const cameraControlsSection = document.getElementById('camera-controls-section');
+    if (showCameraControlsCheckbox && cameraControlsSection) {
+        // Load saved preference from localStorage (default: false)
+        const savedCameraControlsVisible = localStorage.getItem('cameraControlsVisible');
+        if (savedCameraControlsVisible !== null) {
+            showCameraControlsCheckbox.checked = savedCameraControlsVisible === 'true';
+        }
+
+        // Apply initial visibility state
+        cameraControlsSection.style.display = showCameraControlsCheckbox.checked ? 'block' : 'none';
+
+        // Add change listener
+        showCameraControlsCheckbox.addEventListener('change', () => {
+            const visible = showCameraControlsCheckbox.checked;
+            cameraControlsSection.style.display = visible ? 'block' : 'none';
+            // Save preference to localStorage
+            localStorage.setItem('cameraControlsVisible', String(visible));
         });
     }
 
@@ -2605,7 +2667,7 @@ function getColorForElevation(elevation) {
     const g = (params && typeof params.colorGamma === 'number') ? Math.max(0.1, Math.min(10, params.colorGamma)) : 1.0;
     normalized = Math.pow(normalized, g);
 
-    const scheme = COLOR_SCHEMES[params.colorScheme] || COLOR_SCHEMES.terrain;
+    const scheme = COLOR_SCHEMES[params.colorScheme] || COLOR_SCHEMES['high-contrast'];
     const isBanded = params.colorScheme === 'hypsometric-banded';
 
     for (let i = 0; i < scheme.length - 1; i++) {
@@ -3019,6 +3081,35 @@ function updateVertExagButtons(activeValue) {
     });
 }
 
+// Overhead view - looks directly down at terrain center
+function triggerOverheadView() {
+    const fixedHeight = 1320;
+    const tiltDeg = 0; // Look straight down
+    const zOffset = fixedHeight * Math.tan(THREE.MathUtils.degToRad(tiltDeg)); // = 0
+
+    camera.position.set(0, fixedHeight, zOffset);
+
+    if (activeScheme && activeScheme.focusPoint) {
+        activeScheme.focusPoint.set(0, 0, 0);
+        activeScheme.controls.target.copy(activeScheme.focusPoint);
+    } else {
+        controls.target.set(0, 0, 0);
+    }
+
+    camera.up.set(0, 1, 0);
+    camera.lookAt(0, 0, 0);
+}
+
+// Trigger reframe view on active camera scheme (same as F key)
+function triggerReframeView() {
+    if (activeScheme && typeof activeScheme.reframeView === 'function') {
+        activeScheme.reframeView();
+    } else {
+        // Fallback to legacy reset if scheme doesn't have reframeView
+        resetCamera();
+    }
+}
+
 function resetCamera() {
     // Fixed camera position: directly above center, looking straight down
     // This gives a consistent map view every time
@@ -3208,25 +3299,27 @@ function updateRecentRegionsList() {
         button.className = 'recent-region-btn';
         button.style.cssText = `
             display: inline-block;
-            padding: 6px 12px;
-            margin-right: 6px;
-            margin-bottom: 6px;
-            background: rgba(85, 136, 204, 0.15);
-            border: 1px solid rgba(85, 136, 204, 0.3);
-            border-radius: 4px;
-            color: #88ccff;
-            font-size: 12px;
+            padding: 2px 6px;
+            margin-right: 3px;
+            margin-bottom: 3px;
+            background: #1a2a3a;
+            border: 1px solid #4477aa;
+            border-radius: 2px;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: normal;
             cursor: pointer;
-            transition: all 0.2s ease;
             white-space: nowrap;
         `;
 
         button.addEventListener('mouseenter', () => {
-            button.style.background = 'rgba(85, 136, 204, 0.25)';
+            button.style.background = '#2a4a6a';
+            button.style.borderColor = '#6699cc';
         });
 
         button.addEventListener('mouseleave', () => {
-            button.style.background = 'rgba(85, 136, 204, 0.15)';
+            button.style.background = '#1a2a3a';
+            button.style.borderColor = '#4477aa';
         });
 
         button.addEventListener('click', () => {

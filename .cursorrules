@@ -655,16 +655,25 @@ python ensure_region.py <region_id> --force-reprocess
    - Cancels smoothly if Shift released mid-drag (prevents jank)
    - Focus point stays fixed on ground plane
 
-3. **Middle Drag = Height Adjustment (Altitude Control)**
-   - Behavior: Adjust camera altitude (Y-axis only)
-   - Drag DOWN → camera moves UP (increase height)
-   - Drag UP → camera moves DOWN (decrease height)
-   - Horizontal position (X/Z) stays fixed
-   - Focus point remains locked on ground plane
-   - Height limits: 5 to 50,000 units
-   - Sensitivity: 2.0 units per pixel
+3. **Middle Drag = Rotate Map Around Origin**
+   - Behavior: Orbit camera around origin (0,0,0)
+   - Camera moves in a circular path, always looking at origin
+   - Horizontal drag → rotate around vertical axis (orbit left/right)
+   - Vertical drag → change viewing angle (orbit up/down)
+   - Rotation speed: 0.005 radians per pixel
+   - Angle limits: Prevents camera from flipping (0.1 to π - 0.1 radians)
+   - Focus point stays at origin during operation
 
-4. **Right Drag or Alt + Left Drag = Rotate View**
+4. **Right Drag = Look Around (Rotate View in Place)**
+   - Behavior: Rotate view direction without moving camera position
+   - Camera position stays completely fixed (no movement)
+   - Only the view direction changes (where you're looking)
+   - Horizontal drag → turn left/right (yaw)
+   - Vertical drag → look up/down (pitch)
+   - Angle limits: Prevents looking straight up/down (max pitch ±89 degrees)
+   - Rotation speed: 0.005 radians per pixel
+
+5. **Alt + Left Drag = Rotate View Around Focus Point**
    - Behavior: Rotate view around focus point
    - Horizontal drag → turn left/right (rotate around vertical axis)
    - Vertical drag → tilt up/down (adjust viewing angle)
@@ -672,10 +681,9 @@ python ensure_region.py <region_id> --force-reprocess
    - Rotation speed: 0.005 radians per pixel
    - Maintains constant distance from focus point
    - Same angle limits as tilt to prevent camera flipping
-   - **Alternative mappings:** Alt + Left Drag provides same behavior
    - Cancels smoothly if Alt released mid-drag (prevents jank)
 
-5. **Mouse Wheel = Zoom Toward/Away From Cursor**
+6. **Mouse Wheel = Zoom Toward/Away From Cursor**
    - Behavior: Zoom toward point under cursor
    - Scroll UP (negative delta) → zoom IN = camera moves toward cursor point
    - Scroll DOWN (positive delta) → zoom OUT = camera moves away from cursor point
@@ -687,7 +695,7 @@ python ensure_region.py <region_id> --force-reprocess
      - This ensures camera AND focus move in same direction (no conflict)
    - Cursor point stays visually stable under mouse
 
-6. **WASD/QE/F Keys = Keyboard Movement**
+7. **WASD/QE/F Keys = Keyboard Movement**
    - Behavior: Pure space movement - camera moves freely without orientation constraints
    - W = move forward in view direction
    - S = move backward
@@ -710,7 +718,7 @@ python ensure_region.py <region_id> --force-reprocess
    - Speed: Base 4.0 units/frame, accelerates which is kept as long as they're moving, no limit, but slow acceleration.
 - **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, or dropdown inputs.
 
-7. **Touch/Trackpad Gestures**
+8. **Touch/Trackpad Gestures**
    - **Single finger drag** = Pan (mobile touch)
    - **Two-finger drag** = Pan (trackpad/desktop)
    - **Two-finger pinch** = Zoom in/out (pinch together = zoom in, spread apart = zoom out)

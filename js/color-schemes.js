@@ -31,7 +31,7 @@ const COLOR_SCHEMES = {
         { stop: 0.75, color: new THREE.Color(0xffff00) },
         { stop: 1.0, color: new THREE.Color(0xff0000) }
     ],
-    test: [
+    'high-contrast': [
         { stop: 0.00, color: new THREE.Color(0x001b3a) },
         { stop: 0.08, color: new THREE.Color(0x004e98) },
         { stop: 0.16, color: new THREE.Color(0x00b4d8) },
@@ -94,7 +94,7 @@ const COLOR_SCHEMES = {
 };
 
 const COLOR_SCHEME_DESCRIPTIONS = {
-    'test': 'High-contrast ramp to accentuate small elevation changes.',
+    'high-contrast': 'High-contrast ramp to accentuate small elevation changes.',
     'auto-stretch': 'Dynamic percentile stretch (2-98%) for maximum contrast on this map.',
     'slope': 'Colors by slope steepness (degrees): blue=flat, red=steep.',
     'aspect': 'Hue encodes slope direction (0-360deg).',

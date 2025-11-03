@@ -15,22 +15,25 @@ body {
 /* Color Scale Legend (lower-right corner) */
 .color-legend {
     position: absolute;
-    bottom: 15px;
+    bottom: 0;
     right: 0;
     background: rgba(0, 0, 0, 0.8);
-    padding: 8px;
+    padding: 0;
+    margin: 0;
     z-index: 10;
     pointer-events: auto;
     backdrop-filter: blur(3px);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 0;
 }
 
 .color-legend-content {
     display: flex;
-    gap: 6px;
+    gap: 0;
     align-items: stretch;
+    padding: 0;
+    margin: 0;
 }
 
 #color-legend-canvas {
@@ -43,8 +46,9 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    font-family: 'Courier New', monospace;
-    font-size: 9px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
     color: #ffffff;
     min-width: 35px;
 }
@@ -57,21 +61,21 @@ body {
 }
 
 .color-legend-title {
-    font-family: 'Courier New', monospace;
-    font-size: 8px;
-    font-weight: 400;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 9px;
+    font-weight: 600;
     color: #ffffff;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     text-align: center;
-    opacity: 0.7;
+    opacity: 1.0;
 }
 
 /* Mobile responsiveness for legend */
 @media (max-width: 768px) {
     .color-legend {
-        bottom: 10px;
-        padding: 6px;
+        bottom: 0;
+        padding: 0;
     }
 
     #color-legend-canvas {
@@ -112,11 +116,11 @@ body {
 .neighbor-btn:hover {
     background: rgba(40, 40, 40, 0.95);
     border-width: 3px;
-    transform: translate(-50%, 0) scale(1.05);
+    transform: translate(-50%, 0);
 }
 
 .neighbor-btn:active {
-    transform: translate(-50%, 0) scale(0.98);
+    transform: translate(-50%, 0);
 }
 
 /* Subtle contact label (upper-right) */
@@ -502,27 +506,20 @@ input[type="number"] {
 }
 
 button {
-    background: linear-gradient(135deg, #5588cc, #4477bb);
-    color: #fff;
+    background: #5588cc;
+    color: #ffffff;
     border: none;
     padding: 11px 20px;
     border-radius: 6px;
     cursor: pointer;
     font-weight: bold;
     margin: 6px 6px 6px 0;
-    transition: all 0.2s;
     font-size: 13px;
-    box-shadow: 0 4px 15px rgba(85, 136, 204, 0.3);
 }
 
 button:hover {
-    background: linear-gradient(135deg, #6699dd, #5588bb);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(85, 136, 204, 0.4);
-}
-
-button:active {
-    transform: translateY(0);
+    background: #6699dd;
+    color: #ffffff;
 }
 
 select {
@@ -674,23 +671,20 @@ input[type="checkbox"] {
     position: absolute;
     bottom: 150px;
     left: 20px;
-    background: linear-gradient(135deg, #ff8844, #ff6622);
-    color: #000;
+    background: #ff8844;
+    color: #ffffff;
     border: none;
     padding: 10px 15px;
     border-radius: 6px;
     cursor: pointer;
     font-weight: bold;
     font-size: 12px;
-    box-shadow: 0 4px 15px rgba(255, 136, 68, 0.3);
-    transition: all 0.2s;
     z-index: 101;
 }
 
 #controls-help-toggle:hover {
-    background: linear-gradient(135deg, #ffaa66, #ff8844);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(255, 136, 68, 0.4);
+    background: #ffaa66;
+    color: #ffffff;
 }
 
 .close-btn {
@@ -980,10 +974,10 @@ input[type="checkbox"] {
 
 .region-nav-btn {
     flex-shrink: 0;
-    background: linear-gradient(135deg, #5588cc, #4477bb);
+    background: #5588cc;
     border: none;
     border-radius: 5px;
-    color: #fff;
+    color: #ffffff;
     cursor: pointer;
     padding: 8px 10px;
     font-size: 11px;
@@ -991,19 +985,11 @@ input[type="checkbox"] {
     display: flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 8px rgba(85, 136, 204, 0.2);
 }
 
 .region-nav-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #6699dd, #5588cc);
-    box-shadow: 0 4px 12px rgba(85, 136, 204, 0.4);
-    transform: translateY(-1px);
-}
-
-.region-nav-btn:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(85, 136, 204, 0.3);
+    background: #6699dd;
+    color: #ffffff;
 }
 
 .region-nav-btn:disabled {
@@ -1043,7 +1029,7 @@ input[type="checkbox"] {
 .recent-regions-header {
     font-size: 11px;
     color: #88bbff;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1057,30 +1043,35 @@ input[type="checkbox"] {
     line-height: 1;
 }
 
-.recent-region-item {
-    background: rgba(85, 136, 204, 0.15);
-    border: 1px solid rgba(85, 136, 204, 0.3);
-    border-radius: 1px;
-    padding: 0px 2px;
+.recent-region-item,
+.recent-region-btn {
+    background: #1a2a3a;
+    border: 1px solid #4477aa;
+    border-radius: 2px;
+    padding: 2px 6px;
+    margin-right: 3px;
+    margin-bottom: 3px;
     font-size: 11px;
-    color: #fff;
+    font-weight: normal;
+    color: #ffffff;
     cursor: pointer;
-    transition: all 0.2s ease;
     white-space: nowrap;
-    line-height: 1.2;
+    line-height: 1.4;
 }
 
-.recent-region-item:hover {
-    background: rgba(85, 136, 204, 0.3);
-    border-color: rgba(85, 136, 204, 0.6);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(85, 136, 204, 0.2);
+.recent-region-item:hover,
+.recent-region-btn:hover {
+    background: #2a4a6a;
+    border-color: #6699cc;
+    color: #ffffff;
 }
 
-.recent-region-item.active {
-    background: rgba(85, 136, 204, 0.4);
-    border-color: #5588cc;
+.recent-region-item.active,
+.recent-region-btn.active {
+    background: #2a4a6a;
+    border-color: #6699cc;
     font-weight: 600;
+    color: #ffffff;
 }
 
 /* Keyboard Controls Section */
@@ -1101,7 +1092,7 @@ input[type="checkbox"] {
 }
 
 .keyboard-btn {
-    background: linear-gradient(135deg, #444, #333);
+    background: #444;
     color: #ffffff;
     border: 1px solid #5588cc;
     border-radius: 4px;
@@ -1109,8 +1100,6 @@ input[type="checkbox"] {
     cursor: pointer;
     font-size: 11px;
     font-weight: bold;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     user-select: none;
     min-width: 45px;
     height: 45px;
@@ -1120,15 +1109,6 @@ input[type="checkbox"] {
 }
 
 .keyboard-btn:hover {
-    background: linear-gradient(135deg, #5588cc, #4477bb);
+    background: #5588cc;
     color: #ffffff;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(85, 136, 204, 0.4);
-}
-
-.keyboard-btn:active {
-    background: linear-gradient(135deg, #6699dd, #5588cc);
-    color: #ffffff;
-    transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(85, 136, 204, 0.3);
 }

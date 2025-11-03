@@ -101,6 +101,11 @@ function createEdgeMarkers() {
             sprite.position.set(markerData.x, markerHeight, markerData.z);
             const baseScale = avgSize * 0.06;
             sprite.scale.set(baseScale, baseScale, baseScale);
+
+            // Apply current visibility state from checkbox
+            const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
+            sprite.visible = !showEdgeMarkersCheckbox || showEdgeMarkersCheckbox.checked;
+
             scene.add(sprite);
             edgeMarkers.push(sprite);
         });
@@ -159,6 +164,10 @@ function createEdgeMarkers() {
             combinedSprite.userData.neighborCount = 0;
         }
 
+        // Apply current visibility state from checkbox
+        const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
+        combinedSprite.visible = !showEdgeMarkersCheckbox || showEdgeMarkersCheckbox.checked;
+
         scene.add(combinedSprite);
         edgeMarkers.push(combinedSprite);
 
@@ -177,14 +186,14 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
-    // Canvas size
-    canvas.width = 512;
-    canvas.height = 512;
+    // Canvas size - larger to accommodate long state names
+    canvas.width = 768;
+    canvas.height = 768;
 
     const compassFontSize = 112; // Larger for compass letter (40% increase from 80)
     const stateFontSize = 70;   // Smaller for state names (40% increase from 50)
     const padding = 32;
-    const buttonPadding = 16;
+    const buttonPadding = 28;   // Extra padding for breathing room
     const buttonSpacing = 12;
 
     // Store button boundaries for accurate click detection
@@ -199,9 +208,9 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
     const stateWidths = neighborNames.map(name => context.measureText(name).width);
     const maxStateWidth = stateWidths.length > 0 ? Math.max(...stateWidths) : 0;
 
-    // Calculate container dimensions
+    // Calculate container dimensions - no artificial width constraint
     const contentWidth = Math.max(compassWidth, maxStateWidth + buttonPadding * 2);
-    const rectWidth = Math.min(contentWidth + padding * 2, canvas.width - 20);
+    const rectWidth = contentWidth + padding * 2;  // Removed Math.min constraint
 
     const compassHeight = compassFontSize * 1.2;
     const stateButtonHeight = stateFontSize + buttonPadding * 2;
@@ -582,13 +591,13 @@ function updateHoverState(sprite, hoveredIndex) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
-    canvas.width = 512;
-    canvas.height = 512;
+    canvas.width = 768;
+    canvas.height = 768;
 
     const compassFontSize = 112; // 40% increase from 80
     const stateFontSize = 70;    // 40% increase from 50
     const padding = 32;
-    const buttonPadding = 16;
+    const buttonPadding = 28;    // Extra padding for breathing room
     const buttonSpacing = 12;
 
     // Measure compass letter
@@ -600,9 +609,9 @@ function updateHoverState(sprite, hoveredIndex) {
     const stateWidths = neighborNames.map(name => context.measureText(name).width);
     const maxStateWidth = stateWidths.length > 0 ? Math.max(...stateWidths) : 0;
 
-    // Calculate container dimensions
+    // Calculate container dimensions - no artificial width constraint
     const contentWidth = Math.max(compassWidth, maxStateWidth + buttonPadding * 2);
-    const rectWidth = Math.min(contentWidth + padding * 2, canvas.width - 20);
+    const rectWidth = contentWidth + padding * 2;  // Removed Math.min constraint
 
     const compassHeight = compassFontSize * 1.2;
     const stateButtonHeight = stateFontSize + buttonPadding * 2;

@@ -126,13 +126,13 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
 
-        } else if (event.button === 1) { // Middle = Rotate map around origin
+        } else if (event.button === 1) { // Middle = Rotate map (trackball - all directions, no roll)
             this.state.rotatingMap = true;
             this.state.rotateMapStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
 
-        } else if (event.button === 2) { // Right = Look around (Roblox Studio style)
+        } else if (event.button === 2) { // Right = Look around (rotate view in place)
             this.state.lookingAround = true;
             this.state.lookStart = { x: event.clientX, y: event.clientY };
             this.state.quaternionStart = this.camera.quaternion.clone();
@@ -265,7 +265,7 @@ class GroundPlaneCamera extends CameraScheme {
         }
 
         if (this.state.lookingAround) {
-            // Look around (Roblox Studio style): Rotate camera in place
+            // Look around: Rotate camera in place
             // Camera position stays fixed, only view direction changes
             const deltaX = event.clientX - this.state.lookStart.x;
             const deltaY = event.clientY - this.state.lookStart.y;
@@ -305,46 +305,37 @@ class GroundPlaneCamera extends CameraScheme {
         }
 
         if (this.state.rotatingMap) {
-            // Rotate map: Orbit camera around origin (0,0,0)
+            // Rotate map: Camera orbits in all directions, but stays level (no roll)
+            // Drag left/right → rotate horizontally, drag up/down → rotate vertically
             const deltaX = event.clientX - this.state.rotateMapStart.x;
             const deltaY = event.clientY - this.state.rotateMapStart.y;
 
             // Rotation speed
             const rotationSpeed = 0.005;
-            const horizontalAngle = -deltaX * rotationSpeed;
-            const verticalAngle = -deltaY * rotationSpeed;
 
-            // Get camera position relative to origin
-            const pos = this.state.cameraStart.clone();
+            // Convert camera offset to spherical coordinates
+            // Use focusStart as the fixed rotation center
+            const offset = this.state.cameraStart.clone().sub(this.state.focusStart);
+            const spherical = new THREE.Spherical();
+            spherical.setFromVector3(offset);
 
-            // Horizontal rotation (around Y axis through origin)
-            pos.applyAxisAngle(new THREE.Vector3(0, 1, 0), horizontalAngle);
-
-            // Vertical rotation (around right/horizontal axis through origin)
-            // Calculate right vector for current horizontal rotation
-            const right = new THREE.Vector3(1, 0, 0);
-            right.applyAxisAngle(new THREE.Vector3(0, 1, 0), horizontalAngle);
+            // Apply both horizontal (theta) and vertical (phi) rotation
+            spherical.theta += -deltaX * rotationSpeed;  // Horizontal rotation
+            spherical.phi += deltaY * rotationSpeed;     // Vertical rotation
 
             // Clamp vertical angle to prevent flipping
-            const currentAngle = Math.acos(pos.y / pos.length());
-            const newAngle = currentAngle + verticalAngle;
-            const minAngle = 0.1; // Almost straight up
-            const maxAngle = Math.PI - 0.1; // Almost straight down
+            const minAngle = 0.1;
+            const maxAngle = Math.PI - 0.1;
+            spherical.phi = Math.max(minAngle, Math.min(maxAngle, spherical.phi));
 
-            if (newAngle > minAngle && newAngle < maxAngle) {
-                pos.applyAxisAngle(right, verticalAngle);
-            }
+            // Convert back to Cartesian and update camera position
+            offset.setFromSpherical(spherical);
+            this.camera.position.copy(this.state.focusStart).add(offset);
 
-            // Update camera position
-            this.camera.position.copy(pos);
-
-            // Focus point stays at origin for this operation
-            const origin = new THREE.Vector3(0, 0, 0);
-            this.focusPoint.copy(origin);
-            this.controls.target.copy(origin);
-
-            // Look at origin
-            this.camera.lookAt(origin);
+            // Camera looks at focus point, maintaining proper up vector (no roll)
+            this.focusPoint.copy(this.state.focusStart);
+            this.camera.up.set(0, 1, 0);  // Keep camera level
+            this.controls.target.copy(this.focusPoint);
         }
     }
 
