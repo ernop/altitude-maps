@@ -9,6 +9,7 @@ Usage:
     python ensure_region.py iceland  # International region
     python ensure_region.py tennessee --target-pixels 4096
     python ensure_region.py california --force-reprocess
+    python ensure_region.py new_mexico --update-adjacency  # Add region + update neighbors
 """
 import sys
 import io
@@ -253,13 +254,17 @@ Examples:
     python ensure_region.py japan  # Japan
     python ensure_region.py switzerland  # Switzerland
     python ensure_region.py new_zealand  # New Zealand
+    
+  # Update adjacency after adding a new region
+    python ensure_region.py montana --update-adjacency  # Add Montana and update neighbors
 
 This script will:
     1. Detect region type (US state or international)
     2. Check if raw data exists
     3. Download if missing (auto-download for US states and supported international regions)
     4. Run the full pipeline (clip, downsample, export)
-    5. Report status
+    5. Optionally regenerate adjacency data (with --update-adjacency flag)
+    6. Report status
         """
     )
     parser.add_argument('region_id', nargs='?', help='Region ID (e.g., ohio, iceland, japan)')
@@ -276,6 +281,8 @@ This script will:
                         help='List all available regions')
     parser.add_argument('--yes', action='store_true',
                         help='Auto-accept lower quality data prompts')
+    parser.add_argument('--update-adjacency', action='store_true',
+                        help='Regenerate adjacency data after processing (run after adding new regions)')
 
     args = parser.parse_args()
 
@@ -600,6 +607,30 @@ This script will:
             print(f"  FAILED: Auto-fix could not repair {region_info['display_name']}")
             print("="*70)
             return 1
+        
+        # Step 4 (optional): Update adjacency data if requested
+        if args.update_adjacency:
+            print("\n" + "="*70)
+            print("  Updating adjacency data...")
+            print("="*70)
+            try:
+                import subprocess
+                result = subprocess.run(
+                    [sys.executable, 'compute_adjacency.py'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                print(result.stdout)
+                print("  Adjacency data updated successfully")
+            except subprocess.CalledProcessError as e:
+                print(f"  WARNING: Failed to update adjacency data")
+                print(f"  You may need to run: python compute_adjacency.py")
+                if e.stdout:
+                    print(f"  Output: {e.stdout}")
+                if e.stderr:
+                    print(f"  Error: {e.stderr}")
+        
         print("\n" + "="*70)
         print(f"  SUCCESS: {region_info['display_name']} is ready to view!")
         print("="*70)
@@ -607,6 +638,9 @@ This script will:
         print(f"  1. python serve_viewer.py")
         print(f"  2. Visit http://localhost:8001/interactive_viewer_advanced.html")
         print(f"  3. Select '{region_id}' from dropdown")
+        if not args.update_adjacency and region_type in [RegionType.USA_STATE, RegionType.COUNTRY]:
+            print(f"\nNote: To update neighbor connections, run:")
+            print(f"  python compute_adjacency.py")
         return 0
     else:
         print("\n" + "="*70)

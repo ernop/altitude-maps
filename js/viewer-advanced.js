@@ -9,7 +9,6 @@
  * - camera-schemes.js       → Camera control implementations (Google Maps, Blender, etc.)
  * - ground-plane-camera.js  → Ground plane camera system (default)
  * - bucketing.js            → Data aggregation and downsampling
- * - gpu-info.js             → GPU detection and performance benchmarking
  * - geometry-utils.js       → Spatial calculations and coordinate conversions
  * - format-utils.js         → Data formatting (units, distances, file sizes)
  * - activity-log.js         → UI activity log (timestamped events, copy to clipboard)
@@ -30,7 +29,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.348';
+const VIEWER_VERSION = '1.355';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -1084,20 +1083,6 @@ function updateEdgeMarkers() {
 }
 
 /**
- * Detect GPU capabilities and benchmark performance tier
- * @returns {Object|null} GPU info with vendor, renderer, tier, and benchmark results
- */
-// GPU detection and benchmarking now in js/gpu-info.js
-// Wrapper functions for backward compatibility
-function detectGPU(renderer) {
-    return window.GPUInfo.detectGPU(renderer);
-}
-
-function benchmarkGPU(testRenderer, testGL) {
-    return window.GPUInfo.benchmarkGPU(testRenderer, testGL);
-}
-
-/**
  * Dynamically test if frustum culling helps performance
  * Disables culling, measures FPS, re-enables, measures again
  * @returns {Promise<Object>} Performance comparison
@@ -1161,7 +1146,6 @@ async function measureFPS(frames) {
 // Expose performance testing functions for console use
 window.testFrustumCulling = testFrustumCulling;
 window.measureFPS = measureFPS;
-window.getGPUInfo = () => window.gpuInfo || { error: 'No GPU info available yet' };
 
 function setupScene() {
     // Scene
@@ -1262,21 +1246,6 @@ function setupScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-    // GPU Detection and Benchmarking (async after renderer is ready)
-    setTimeout(() => {
-        window.gpuInfo = detectGPU();
-        if (window.gpuInfo) {
-            console.log('GPU Detection:', window.gpuInfo);
-            // Log performance tier recommendation
-            if (window.gpuInfo.tier === 'low') {
-                console.warn('LOW-END GPU detected. Consider increasing bucket size for better performance.');
-                appendActivityLog(`GPU: ${window.gpuInfo.vendor} ${window.gpuInfo.renderer} - ${window.gpuInfo.tier.toUpperCase()} tier`);
-            } else {
-                appendActivityLog(`GPU: ${window.gpuInfo.vendor} ${window.gpuInfo.renderer} - ${window.gpuInfo.tier.toUpperCase()} tier`);
-            }
-        }
-    }, 100); // Small delay to let renderer initialize
 
     // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -1829,36 +1798,58 @@ function setupEventListeners() {
         if (activeScheme) activeScheme.onMouseUp(e);
     });
 
-    // Handle clicks on edge markers (neighboring regions)
-    renderer.domElement.addEventListener('click', (e) => {
-        // Only handle left clicks
-        if (e.button !== 0) return;
+    // Track currently hovered button for hover effects
+    let currentlyHoveredButton = null;
 
-        // Setup raycaster
+    // Handle clicks on neighbor buttons (sprites)
+    renderer.domElement.addEventListener('click', (e) => {
+        if (e.button !== 0) return; // Only left click
+
         const mouse = new THREE.Vector2();
         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
         raycaster.setFromCamera(mouse, camera);
 
-        // Check for intersection with edge markers
         if (edgeMarkers && edgeMarkers.length > 0) {
             const intersects = raycaster.intersectObjects(edgeMarkers);
             if (intersects.length > 0) {
                 const marker = intersects[0].object;
-                // Skip non-interactive markers (compass circles)
-                if (marker.userData.nonInteractive) return;
-                
-                // Handle both old single neighborId and new neighborIds array
-                const neighborIds = marker.userData.neighborIds || (marker.userData.neighborId ? [marker.userData.neighborId] : null);
-                if (neighborIds && neighborIds.length > 0) {
-                    // For now, just load the first neighbor if multiple exist
-                    // Future enhancement: could show a menu for multiple neighbors
-                    const neighborId = neighborIds[0];
-                    const neighborNames = marker.userData.neighborNames || [neighborId];
-                    console.log(`Clicked neighbor marker: ${neighborNames.join(', ')} -> loading ${neighborId}`);
-                    loadRegion(neighborId);
+                if (marker.userData.isButton && marker.userData.neighborId) {
+                    console.log(`Clicked neighbor button: ${marker.userData.neighborName} -> loading ${marker.userData.neighborId}`);
+                    loadRegion(marker.userData.neighborId);
                 }
+            }
+        }
+    });
+
+    // Handle hover effects on neighbor buttons (sprites)
+    renderer.domElement.addEventListener('mousemove', (e) => {
+        const mouse = new THREE.Vector2();
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        if (edgeMarkers && edgeMarkers.length > 0) {
+            const buttonMarkers = edgeMarkers.filter(m => m.userData.isButton);
+            const intersects = raycaster.intersectObjects(buttonMarkers);
+
+            const hoveredButton = intersects.length > 0 ? intersects[0].object : null;
+
+            if (hoveredButton !== currentlyHoveredButton) {
+                if (currentlyHoveredButton && window.EdgeMarkers) {
+                    window.EdgeMarkers.updateButtonAppearance(currentlyHoveredButton, false);
+                }
+
+                if (hoveredButton && window.EdgeMarkers) {
+                    window.EdgeMarkers.updateButtonAppearance(hoveredButton, true);
+                    renderer.domElement.style.cursor = 'pointer';
+                } else {
+                    renderer.domElement.style.cursor = 'default';
+                }
+
+                currentlyHoveredButton = hoveredButton;
             }
         }
     });
@@ -1871,26 +1862,6 @@ function setupEventListeners() {
 
     // Initialize default scheme (Google Maps Ground Plane)
     switchCameraScheme('ground-plane');
-
-    // GPU Info link click handler
-    const gpuInfoLink = document.getElementById('gpu-info-link');
-    if (gpuInfoLink) {
-        gpuInfoLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            const info = window.gpuInfo;
-            if (info) {
-                const tier = info.tier.toUpperCase();
-                const msg = `GPU Information:\n` +
-                    `Vendor: ${info.vendor}\n` +
-                    `Renderer: ${info.renderer}\n` +
-                    `Performance Tier: ${tier}`;
-                alert(msg);
-                console.log('GPU Info:', info);
-            } else {
-                alert('GPU information not available yet. Please wait a moment and try again.');
-            }
-        });
-    }
 
     // Mobile/UI controls toggle
     const mobileToggleBtn = document.getElementById('mobile-ui-toggle');
@@ -1961,7 +1932,7 @@ function initHudDragging() {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') {
             return;
         }
-        
+
         isDragging = true;
         const rect = hud.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
@@ -1972,17 +1943,17 @@ function initHudDragging() {
 
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-        
+
         // Calculate new position instantly
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
-        
+
         // Keep HUD within viewport bounds
         const maxLeft = window.innerWidth - hud.offsetWidth - 10;
         const maxTop = window.innerHeight - hud.offsetHeight - 10;
         newLeft = Math.max(10, Math.min(newLeft, maxLeft));
         newTop = Math.max(10, Math.min(newTop, maxTop));
-        
+
         // Apply instantly without any delay
         hud.style.left = newLeft + 'px';
         hud.style.top = newTop + 'px';
@@ -3098,11 +3069,11 @@ function updateRegionNavHints() {
 function updateRecentRegionsList() {
     const container = document.getElementById('recent-regions-container');
     const listEl = document.getElementById('recent-regions-list');
-    
+
     if (!listEl) return;
 
     const validRecent = getValidRecentRegions();
-    
+
     // Hide container if no recent regions
     if (validRecent.length === 0) {
         if (container) container.style.display = 'none';
@@ -3111,9 +3082,12 @@ function updateRecentRegionsList() {
 
     // Show container and populate list
     if (container) container.style.display = 'block';
-    
+
     listEl.innerHTML = '';
     validRecent.forEach((regionId) => {
+        // Skip the current region - no need to show it in recent list
+        if (regionId === currentRegionId) return;
+
         const regionInfo = regionsManifest?.regions[regionId];
         if (!regionInfo) return;
 
@@ -3134,30 +3108,17 @@ function updateRecentRegionsList() {
             transition: all 0.2s ease;
             white-space: nowrap;
         `;
-        
-        // Highlight current region
-        if (regionId === currentRegionId) {
-            button.style.background = 'rgba(85, 136, 204, 0.3)';
-            button.style.borderColor = 'rgba(85, 136, 204, 0.5)';
-            button.style.fontWeight = '600';
-        }
 
         button.addEventListener('mouseenter', () => {
-            if (regionId !== currentRegionId) {
-                button.style.background = 'rgba(85, 136, 204, 0.25)';
-            }
+            button.style.background = 'rgba(85, 136, 204, 0.25)';
         });
 
         button.addEventListener('mouseleave', () => {
-            if (regionId !== currentRegionId) {
-                button.style.background = 'rgba(85, 136, 204, 0.15)';
-            }
+            button.style.background = 'rgba(85, 136, 204, 0.15)';
         });
 
         button.addEventListener('click', () => {
-            if (regionId !== currentRegionId) {
-                loadRegion(regionId);
-            }
+            loadRegion(regionId);
         });
 
         listEl.appendChild(button);
@@ -3710,12 +3671,12 @@ function updateURLParameter(key, value) {
     const url = new URL(window.location);
     const currentValue = url.searchParams.get(key);
     const newValue = String(value);
-    
+
     // Skip update if value hasn't changed
     if (currentValue === newValue) {
         return;
     }
-    
+
     url.searchParams.set(key, newValue);
     window.history.pushState({}, '', url);
     console.log(`URL updated: ${url.href}`);

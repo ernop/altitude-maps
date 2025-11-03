@@ -8,6 +8,8 @@ from pathlib import Path
 import sys
 import gzip
 import io
+import signal
+import threading
 
 class GzipHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """HTTP handler that supports gzip compression for JSON files."""
@@ -81,28 +83,51 @@ def main():
     # Create HTTP request handler with gzip support
     Handler = GzipHTTPRequestHandler
     
+    # Global reference for signal handler
+    httpd_server = None
+    shutdown_event = threading.Event()
+    
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully."""
+        print("\n\n[-] Shutdown signal received, stopping server...")
+        shutdown_event.set()
+        if httpd_server:
+            httpd_server.shutdown()
+    
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Termination request
+    
     try:
-        with socketserver.TCPServer(("", PORT), Handler) as httpd:
-            print(f"\n[+] Server started successfully!")
-            print(f"\n[>] Opening viewer in browser...")
-            
-            # Open browser after short delay
-            import threading
-            def open_browser():
-                import time
-                time.sleep(1)
+        # Create server with socket reuse enabled
+        socketserver.TCPServer.allow_reuse_address = True
+        httpd_server = socketserver.TCPServer(("", PORT), Handler)
+        
+        # Set socket timeout to allow periodic interrupt checking
+        httpd_server.timeout = 0.5
+        
+        print(f"\n[+] Server started successfully!")
+        print(f"\n[>] Opening viewer in browser...")
+        
+        # Open browser after short delay
+        def open_browser():
+            import time
+            time.sleep(1)
+            if not shutdown_event.is_set():
                 webbrowser.open(f"http://localhost:{PORT}/interactive_viewer_advanced.html")
-            
-            browser_thread = threading.Thread(target=open_browser)
-            browser_thread.daemon = True
-            browser_thread.start()
-            
-            # Serve forever
-            httpd.serve_forever()
-            
-    except KeyboardInterrupt:
-        print("\n\n[-] Server stopped by user")
+        
+        browser_thread = threading.Thread(target=open_browser)
+        browser_thread.daemon = True
+        browser_thread.start()
+        
+        # Serve with periodic checking for shutdown
+        print(f"\n[*] Server running (Ctrl+C to stop)...")
+        while not shutdown_event.is_set():
+            httpd_server.handle_request()
+        
+        print("[-] Server stopped cleanly")
         return 0
+            
     except OSError as e:
         if "address already in use" in str(e).lower():
             print(f"\n[X] Error: Port {PORT} is already in use!")
@@ -112,6 +137,13 @@ def main():
         else:
             print(f"\n[X] Error starting server: {e}")
         return 1
+    finally:
+        # Ensure cleanup
+        if httpd_server:
+            try:
+                httpd_server.server_close()
+            except:
+                pass
 
 if __name__ == "__main__":
     sys.exit(main())

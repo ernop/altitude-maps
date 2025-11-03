@@ -12,6 +12,35 @@ body {
     overflow: hidden;
 }
 
+/* Neighbor Navigation Buttons (2D Overlay) */
+.neighbor-btn {
+    position: absolute;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #ffffff;
+    border: 2px solid;
+    border-radius: 6px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    pointer-events: auto;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    user-select: none;
+    transform: translate(-50%, 0); /* Center horizontally on anchor point */
+}
+
+.neighbor-btn:hover {
+    background: rgba(40, 40, 40, 0.95);
+    border-width: 3px;
+    transform: translate(-50%, 0) scale(1.05);
+}
+
+.neighbor-btn:active {
+    transform: translate(-50%, 0) scale(0.98);
+}
+
 /* Subtle contact label (upper-right) */
 .contact-email {
     position: fixed;
@@ -497,17 +526,6 @@ input[type="checkbox"] {
 }
 
 /* FPS/Version moved into controls meta bar (no absolute positioning) */
-
-/* GPU Info Link */
-#gpu-info-link {
-    opacity: 0.7;
-    transition: opacity 0.2s ease, border-bottom 0.2s ease;
-}
-
-#gpu-info-link:hover {
-    opacity: 1.0;
-    border-bottom-color: rgba(255, 255, 255, 1.0) !important;
-}
 
 /* Controls Help Window */
 #controls-help-window {

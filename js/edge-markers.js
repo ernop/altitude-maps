@@ -42,7 +42,7 @@
  * @global regionsManifest - Manifest of available regions
  */
 function createEdgeMarkers() {
-    // Remove old markers
+    // Remove old markers (3D sprites)
     edgeMarkers.forEach(marker => scene.remove(marker));
     edgeMarkers = [];
 
@@ -151,44 +151,47 @@ function createEdgeMarkers() {
         // Get display names for all valid neighbors
         const neighborNames = validNeighbors.map(id => regionIdToName[id] || id);
         console.log(`[EDGE MARKERS] Creating ${validNeighbors.length} neighbor button(s) for ${dir.key}:`, neighborNames);
-        
-        // Create individual button for each neighbor
+
+        // Create individual sprite button for each neighbor
         validNeighbors.forEach((neighborId, index) => {
             const neighborName = neighborNames[index];
-            
-            // Create individual button
-            const buttonSprite = createNeighborButtonSprite(neighborName, dir.color);
-            
-            // Position buttons stacked vertically beyond the compass marker
+
+            // Calculate 3D position for this button
             const textOffset = avgSize * 0.12; // Distance from compass marker
-            const buttonSpacing = baseScale * 0.35; // Vertical spacing between buttons
+            const buttonSpacing = avgSize * 0.08; // Spacing between buttons (in world space, relative to terrain size)
             const totalHeight = (validNeighbors.length - 1) * buttonSpacing;
             const startOffset = -totalHeight / 2; // Center the stack vertically
-            
+
             let buttonX = dir.x;
             let buttonZ = dir.z;
-            
+
             // Move button out from center based on direction
             if (dir.key === 'north') buttonZ -= textOffset;
             if (dir.key === 'south') buttonZ += textOffset;
             if (dir.key === 'east') buttonX += textOffset;
             if (dir.key === 'west') buttonX -= textOffset;
-            
+
             // Stack buttons vertically (up/down in world space)
             const buttonY = markerHeight + startOffset + (index * buttonSpacing);
-            
+
+            // Create sprite button
+            const buttonSprite = createNeighborButtonSprite(neighborName, dir.color);
             buttonSprite.position.set(buttonX, buttonY, buttonZ);
-            // Make buttons slightly smaller than compass ball for better layout
-            const buttonScale = baseScale * 0.8;
-            buttonSprite.scale.set(buttonScale, buttonScale * 0.5, buttonScale); // Shorter height
-            
+
+            // Scale relative to terrain size (sizeAttenuation: true means world-space)
+            const buttonScale = avgSize * 0.075; // 50% smaller (was 0.15)
+            buttonSprite.scale.set(buttonScale * 4, buttonScale, 1); // 4x wider than tall
+
             // Store neighbor info for click handling
-            buttonSprite.userData.neighborIds = [neighborId]; // Single neighbor per button
-            buttonSprite.userData.neighborNames = [neighborName];
-            
+            buttonSprite.userData.neighborId = neighborId;
+            buttonSprite.userData.neighborName = neighborName;
+            buttonSprite.userData.isButton = true;
+            buttonSprite.userData.baseColor = dir.color;
+
             scene.add(buttonSprite);
             edgeMarkers.push(buttonSprite);
-            console.log(`[EDGE MARKERS] Added button for ${neighborName} at index ${index}`);
+
+            console.log(`[EDGE MARKERS] Added sprite button for ${neighborName} at (${buttonX.toFixed(1)}, ${buttonY.toFixed(1)}, ${buttonZ.toFixed(1)})`);
         });
     });
 }
@@ -242,7 +245,7 @@ function createTextSprite(text, color, neighborId) {
 
 /**
  * Create an individual button sprite for a neighbor region
- * Button-like appearance: wider than tall, holds single name
+ * Uses sizeAttenuation: false for constant screen size
  * 
  * @param {string} name - Neighbor state/region name
  * @param {number} color - Hex color for the border accent
@@ -251,26 +254,26 @@ function createTextSprite(text, color, neighborId) {
 function createNeighborButtonSprite(name, color) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    
-    // Wide canvas for button shape (wider than tall)
-    canvas.width = 1024;
-    canvas.height = 256;
-    
-    const fontSize = 80;
-    const padding = 40;
-    
+
+    // Canvas size for button texture
+    canvas.width = 512;
+    canvas.height = 128;
+
+    const fontSize = 48;
+    const padding = 20;
+
     // Measure text to size button appropriately
     context.font = `Bold ${fontSize}px Arial`;
     const textMetrics = context.measureText(name);
     const textWidth = textMetrics.width;
-    
+
     // Button dimensions
     const buttonWidth = Math.min(textWidth + padding * 2, canvas.width - 40);
     const buttonHeight = canvas.height - 40;
     const buttonX = (canvas.width - buttonWidth) / 2;
     const buttonY = (canvas.height - buttonHeight) / 2;
     const radius = 12;
-    
+
     // Draw rounded rectangle button background
     context.fillStyle = 'rgba(0, 0, 0, 0.9)';
     context.beginPath();
@@ -285,35 +288,123 @@ function createNeighborButtonSprite(name, color) {
     context.quadraticCurveTo(buttonX, buttonY, buttonX + radius, buttonY);
     context.closePath();
     context.fill();
-    
-    // Draw colored border
+
+    // Draw colored border (thinner)
     context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 6;
+    context.lineWidth = 3; // Thinner (was 6)
     context.stroke();
-    
+
     // Draw text centered
     context.font = `Bold ${fontSize}px Arial`;
     context.fillStyle = '#ffffff';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText(name, canvas.width / 2, canvas.height / 2);
-    
+
     const texture = new THREE.CanvasTexture(canvas);
-    
+
     // Set texture filtering for crisp text
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.anisotropy = 4;
-    
+
     const spriteMaterial = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
         depthTest: false,
         depthWrite: false
+        // sizeAttenuation defaults to true - sprites scale with distance
     });
     const sprite = new THREE.Sprite(spriteMaterial);
-    
+
     return sprite;
+}
+
+/**
+ * Update button appearance for hover effect
+ * @param {THREE.Sprite} buttonSprite - The button sprite to update
+ * @param {boolean} isHovered - Whether the button is being hovered
+ */
+function updateButtonAppearance(buttonSprite, isHovered) {
+    if (!buttonSprite.userData.isButton) return;
+
+    const name = buttonSprite.userData.neighborName;
+    const baseColor = buttonSprite.userData.baseColor;
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    canvas.width = 512;
+    canvas.height = 128;
+
+    const fontSize = 48;
+    const padding = 20;
+
+    context.font = `Bold ${fontSize}px Arial`;
+    const textMetrics = context.measureText(name);
+    const textWidth = textMetrics.width;
+
+    const buttonWidth = Math.min(textWidth + padding * 2, canvas.width - 40);
+    const buttonHeight = canvas.height - 40;
+    const buttonX = (canvas.width - buttonWidth) / 2;
+    const buttonY = (canvas.height - buttonHeight) / 2;
+    const radius = 12;
+
+    // Background color changes on hover
+    context.fillStyle = isHovered ? 'rgba(40, 40, 40, 0.95)' : 'rgba(0, 0, 0, 0.9)';
+    context.beginPath();
+    context.moveTo(buttonX + radius, buttonY);
+    context.lineTo(buttonX + buttonWidth - radius, buttonY);
+    context.quadraticCurveTo(buttonX + buttonWidth, buttonY, buttonX + buttonWidth, buttonY + radius);
+    context.lineTo(buttonX + buttonWidth, buttonY + buttonHeight - radius);
+    context.quadraticCurveTo(buttonX + buttonWidth, buttonY + buttonHeight, buttonX + buttonWidth - radius, buttonY + buttonHeight);
+    context.lineTo(buttonX + radius, buttonY + buttonHeight);
+    context.quadraticCurveTo(buttonX, buttonY + buttonHeight, buttonX, buttonY + buttonHeight - radius);
+    context.lineTo(buttonX, buttonY + radius);
+    context.quadraticCurveTo(buttonX, buttonY, buttonX + radius, buttonY);
+    context.closePath();
+    context.fill();
+
+    // Border color brightens on hover
+    const borderColor = isHovered ? lightenColor(baseColor, 0.3) : baseColor;
+    context.strokeStyle = `#${borderColor.toString(16).padStart(6, '0')}`;
+    context.lineWidth = isHovered ? 4 : 3; // Thinner (was 8/6)
+    context.stroke();
+
+    // Draw text
+    context.font = `Bold ${fontSize}px Arial`;
+    context.fillStyle = '#ffffff';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(name, canvas.width / 2, canvas.height / 2);
+
+    // Update texture
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
+
+    buttonSprite.material.map.dispose();
+    buttonSprite.material.map = texture;
+    buttonSprite.material.needsUpdate = true;
+}
+
+/**
+ * Lighten a color by a factor
+ * @param {number} color - Hex color
+ * @param {number} factor - Amount to lighten (0-1)
+ * @returns {number} Lightened color
+ */
+function lightenColor(color, factor) {
+    const r = (color >> 16) & 0xff;
+    const g = (color >> 8) & 0xff;
+    const b = color & 0xff;
+
+    const newR = Math.min(255, Math.floor(r + (255 - r) * factor));
+    const newG = Math.min(255, Math.floor(g + (255 - g) * factor));
+    const newB = Math.min(255, Math.floor(b + (255 - b) * factor));
+
+    return (newR << 16) | (newG << 8) | newB;
 }
 
 /**
@@ -333,6 +424,7 @@ function updateEdgeMarkers() {
 window.EdgeMarkers = {
     create: createEdgeMarkers,
     update: updateEdgeMarkers,
-    createTextSprite: createTextSprite
+    createTextSprite: createTextSprite,
+    updateButtonAppearance: updateButtonAppearance
 };
 

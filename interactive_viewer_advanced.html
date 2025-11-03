@@ -7,13 +7,19 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.348">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.355">
 </head>
 
 <body>
 	<div id="container">
 		<div id="contact-email" class="contact-email" title="Contact">akasatanahamayarawan@gmail.com</div>
 		<div id="canvas-container"></div>
+
+		<!-- Neighbor navigation buttons (2D overlay synced to 3D positions) -->
+		<div id="neighbor-buttons-overlay"
+			style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%; z-index: 5;">
+		</div>
+
 		<div id="info" aria-live="polite" style="display:none;">
 			<button id="hud-minimize" title="Hide HUD">-</button>
 
@@ -92,9 +98,6 @@
 						rel="noopener" title="GitHub homepage"
 						style="color:#fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5);">GitHub</a>
 					<span id="version-display">v?.?.?</span>
-					<a id="gpu-info-link" href="#" title="GPU Information"
-						style="color:#fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.5); cursor: pointer; transition: border-bottom 0.2s ease;">GPU
-						Info</a>
 					<span id="fps-display">FPS: --</span>
 				</div>
 			</div>
@@ -300,42 +303,39 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.348"></script>
-	<script src="js/ground-plane-camera.js?v=1.348"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.348"></script>
+	<script src="js/camera-schemes.js?v=1.355"></script>
+	<script src="js/ground-plane-camera.js?v=1.355"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.355"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.348"></script>
-
-	<!-- GPU detection and benchmarking -->
-	<script src="js/gpu-info.js?v=1.348"></script>
+	<script src="js/color-schemes.js?v=1.355"></script>
 
 	<!-- Geometry and spatial utilities -->
-	<script src="js/geometry-utils.js?v=1.348"></script>
+	<script src="js/geometry-utils.js?v=1.355"></script>
 
 	<!-- Data formatting utilities -->
-	<script src="js/format-utils.js?v=1.348"></script>
+	<script src="js/format-utils.js?v=1.355"></script>
 
 	<!-- Activity log utilities -->
-	<script src="js/activity-log.js?v=1.348"></script>
+	<script src="js/activity-log.js?v=1.355"></script>
 
 	<!-- Edge markers (N/E/S/W directional labels) -->
-	<script src="js/edge-markers.js?v=1.348"></script>
+	<script src="js/edge-markers.js?v=1.355"></script>
 
 	<!-- UI loading states (loading screen and progress bar) -->
-	<script src="js/ui-loading.js?v=1.348"></script>
+	<script src="js/ui-loading.js?v=1.355"></script>
 
 	<!-- Resolution controls (bucket size slider and presets) -->
-	<script src="js/resolution-controls.js?v=1.348"></script>
+	<script src="js/resolution-controls.js?v=1.355"></script>
 
 	<!-- State connectivity (US states only) -->
-	<script src="js/state-connectivity.js?v=1.348"></script>
+	<script src="js/state-connectivity.js?v=1.355"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.348"></script>
+	<script src="js/viewer-advanced.js?v=1.355"></script>
 </body>
 
 </html>
