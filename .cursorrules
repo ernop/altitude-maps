@@ -208,6 +208,92 @@ function onMouseMove(e) {
 - **Alternative**: Use `typing.Literal['value1', 'value2']` for type hints without runtime overhead
 - **Example**: `RegionType` enum with USA_STATE, COUNTRY, REGION values
 
+### Region Type System (CRITICAL - ABSOLUTE ENFORCEMENT)
+
+**CANONICAL REFERENCE**: `tech/DATA_PIPELINE.md` - Section "Region Type System"
+
+**ABSOLUTE RULE**: ALL code handling region types MUST use the `RegionType` enum from `src/types.py`.
+
+```python
+from src.types import RegionType
+
+class RegionType(str, Enum):
+    USA_STATE = "usa_state"  # US states
+    COUNTRY = "country"      # Countries
+    REGION = "region"        # Islands, ranges, custom areas
+```
+
+**ENFORCEMENT CHECKLIST**:
+1. ✓ Import `RegionType` enum at top of file
+2. ✓ Use enum values: `RegionType.USA_STATE` (NOT strings like `'us_state'`)
+3. ✓ Check all three cases exhaustively with if/elif/elif/else
+4. ✓ Raise `ValueError` for unknown types (NEVER silent fallback to None/default)
+
+**FORBIDDEN PATTERNS**:
+```python
+# WRONG - String literals
+if region_type == 'us_state':
+if region_type == 'international':  # Not even an enum value!
+
+# WRONG - Silent fallback
+else:
+    boundary_name = None  # Hides bugs!
+```
+
+**CORRECT PATTERN** (mandatory):
+```python
+from src.types import RegionType
+
+if region_type == RegionType.USA_STATE:
+    boundary_name = f"United States of America/{state_name}"
+    boundary_type = "state"
+elif region_type == RegionType.COUNTRY:
+    boundary_name = country_name if clip_boundary else None
+    boundary_type = "country" if clip_boundary else None
+elif region_type == RegionType.REGION:
+    boundary_name = region_name if clip_boundary else None
+    boundary_type = None
+else:
+    raise ValueError(f"Unknown region type: {region_type}")
+```
+
+**WHY THIS MATTERS**: The bug we just fixed (Idaho not getting state borders) happened because code used ad-hoc strings (`'us_region'` vs `'us_state'`) that never matched, causing silent fallback to no clipping. The enum system prevents this class of bugs.
+
+---
+
+### Resolution Determination (CRITICAL - ABSOLUTE ENFORCEMENT)
+
+**CANONICAL REFERENCE**: `tech/DATA_PIPELINE.md` - Section "Determine Required Resolution"
+
+**ABSOLUTE RULE**: Resolution is NEVER hardcoded by region type. It is ALWAYS dynamically determined using Nyquist sampling.
+
+**Process** (see `src/downloaders/orchestrator.determine_min_required_resolution()`):
+1. Calculate visible pixel size: `visible_m_per_pixel = geographic_span_meters / target_pixels`
+2. Apply Nyquist rule: `min_resolution <= visible_m_per_pixel / 2.0`
+3. Select coarsest available resolution that meets requirement
+
+**Available Resolutions**:
+- `RegionType.USA_STATE`: `[10m, 30m, 90m]` (USGS 3DEP + OpenTopography)
+- `RegionType.COUNTRY`: `[30m, 90m]` (OpenTopography only)
+- `RegionType.REGION`: `[30m, 90m]` (OpenTopography only)
+
+**Example (Idaho)**:
+```
+--target-pixels 512:  visible=1292m/px -> requires 90m (1292/90=14x > 2x ✓)
+--target-pixels 2048: visible=323m/px  -> requires 90m (323/90=3.6x > 2x ✓)
+--target-pixels 4096: visible=162m/px  -> requires 30m (162/30=5.4x > 2x ✓)
+--target-pixels 8192: visible=81m/px   -> requires 10m (81/10=8.1x > 2x ✓) [US only]
+```
+
+**FORBIDDEN ASSUMPTIONS**:
+- ✗ "US states always use 10m" - FALSE, depends on target_pixels
+- ✗ "International regions always use 30m" - FALSE, depends on target_pixels
+- ✗ "Small states need high resolution" - FALSE, depends on output size, not geographic size
+
+**WHY THIS MATTERS**: Hardcoding resolutions wastes storage (downloading unnecessary 10m data) and breaks the quality model. The system is designed to automatically select optimal resolution based on actual viewer needs.
+
+---
+
 ### Terminology Consistency
 - **One term per concept**: Never use synonyms for the same thing (e.g., not both "category" and "region_type")
 - **Unify immediately**: When you notice dual terminology, refactor to single term before it spreads - IF you are sure it really is the same thing! If in doubt, check or ask
@@ -279,9 +365,10 @@ Update all imports - don't add defensive fallbacks to old paths.
 
 ### Frontend/Web Viewer
 - **jQuery**: Keep it. jQuery is widely cached and makes code more readable. Avoid Select2; use native or custom dropdowns matching the region selector pattern.
-- **CSS styling**: Avoid inline styles. Use rationally-named CSS classes instead.
+- **CSS styling**: Avoid inline styles. Use rationally-named CSS classes instead. **CRITICAL**: Inline styles (`element.style.cssText` or `element.style.property`) override CSS with highest specificity - always check JS for inline styles when CSS changes don't apply.
 - **File organization**: Separate HTML and JS into different files rather than mixing them.
 - **Code reuse**: Don't duplicate code, but also don't force artificial reuse when use cases actually differ. Balance DRY with clarity.
+- **Recent regions**: Max 12 items, most recent first. On region load, move to front of list (deduplicates automatically).
 
 #### UI Control Organization
 - **Bidirectional controls**: Split into two clear columns with user-friendly labels (e.g., "HIGHER DETAIL" vs "LOWER DETAIL")
@@ -602,13 +689,15 @@ python ensure_region.py <region_id> --force-reprocess
    - Cursor point stays visually stable under mouse
 
 6. **WASD/QE/F Keys = Keyboard Movement**
-   - Behavior: First-person style camera movement (always active when not typing)
+   - Behavior: Pure space movement - camera moves freely without orientation constraints
    - W = move forward in view direction
    - S = move backward
    - A = strafe left
    - D = strafe right
-   - Q = move down (descend) - camera and focus both move down, maintaining view angle
-   - E = move up (ascend) - camera and focus both move up, maintaining view angle
+   - Q = move down (descend)
+   - E = move up (ascend)
+   - All movement maintains camera orientation (no auto-tilting or ground plane snapping)
+   - Can fly through terrain geometry without sticking
    - **F = Reframe view** - Reset to fixed overhead map view:
      - Position: Fixed at (0, 2500, 2.5) looking at origin
      - Height: 2,200 units (close-up view)
@@ -618,10 +707,8 @@ python ensure_region.py <region_id> --force-reprocess
        - User switches to a different region via dropdown
        - This ensures consistent, well-centered view every time data loads
      - Manual trigger: Press F key anytime to recenter
-     - Perfect for getting oriented after exploring
    - Works simultaneously with all mouse controls
-   - Speed: 2.0 units per frame
-   - Focus point moves with camera (WASD keeps focus on ground plane y=0; Q/E moves focus vertically with camera)
+   - Speed: Base 4.0 units/frame, accelerates which is kept as long as they're moving, no limit, but slow acceleration.
 - **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, or dropdown inputs.
 
 7. **Touch/Trackpad Gestures** (NEW - Google Maps style)

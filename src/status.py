@@ -20,7 +20,7 @@ from src.versioning import get_current_version
 from src.validation import check_pipeline_complete, find_raw_file, validate_json_export
 
 
-def summarize_pipeline_status(region_id: str, region_type: str, region_info: dict) -> None:
+def summarize_pipeline_status(region_id: str, region_type: 'RegionType', region_info: dict) -> None:
     """Print a compact summary of pipeline stage completion for the region."""
     # Import here to avoid circular dependency
     from src.tile_geometry import tile_filename_from_bounds
@@ -92,7 +92,7 @@ def check_export_version(region_id: str) -> Tuple[bool, str, str]:
 
 
 def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_pixels: int,
-                        region_type: str, region_info: dict, border_resolution: str) -> bool:
+                        region_type: 'RegionType', region_info: dict, border_resolution: str) -> bool:
     """
     Detect compressed/flat altitude outputs and auto-fix by force reprocessing.
     Guarantees valid export when returning True.

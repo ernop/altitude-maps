@@ -62,7 +62,7 @@ The system automatically selects optimal data resolution based on region size:
 
 **Why this matters**: For a large country at 2048px output, visible pixels might be 400m each. Using 90m source data gives 4.4x oversampling (optimal), while 30m would give 13.3x oversampling (wasteful with no visual benefit). The Nyquist sampling rule ensures clean downsampling without aliasing.
 
-See `tech/SRTM_90M_DOWNLOADER.md` for technical details.
+See `tech/DATA_PIPELINE.md` for complete technical details.
 
 ## What Can You Do With It?
 
@@ -125,12 +125,12 @@ See borders documentation in `tech/TECHNICAL_REFERENCE.md`.
 
 ### 3. Work With Real Data
 
-Download elevation data from:
--**USA**: 1-10 meter resolution (USGS 3DEP)
--**Global**: 30-90 meter resolution (SRTM, ASTER, ALOS)
+Download elevation data with dynamic resolution selection:
+-**USA**: 10/30/90m resolution (USGS 3DEP + OpenTopography) - selected automatically based on output size
+-**Global**: 30/90m resolution (SRTM, Copernicus DEM) - selected automatically based on output size
 -**Europe, Japan, Australia**: High-quality national datasets
 
-All data is cached locally - download once, use forever.
+All data is cached locally - download once, use forever. Resolution is determined by Nyquist sampling rule.
 
 ## Who Is This For?
 
@@ -147,9 +147,9 @@ All data is cached locally - download once, use forever.
 .\setup.ps1
 
 # 2. Download a region (US state OR international)
-python ensure_region.py ohio# US state (10m resolution, USGS)
-python ensure_region.py iceland# International (30m, SRTM)
-python ensure_region.py --list-regions# See all 50 states + 70+ countries
+python ensure_region.py ohio           # US state (dynamic resolution: 10/30/90m)
+python ensure_region.py iceland        # International (dynamic resolution: 30/90m)
+python ensure_region.py --list-regions # See all 50 states + 70+ countries
 
 # 3. Start interactive viewer
 python serve_viewer.py
@@ -171,7 +171,7 @@ See [User Guide](tech/USER_GUIDE.md) for more details.
 - Generate multiple viewpoints with `--gen-nine`
 
 ###**Global Coverage**
-- USA: 10m resolution via USGS 3DEP
+- USA: Dynamic resolution (10/30/90m) via USGS 3DEP + OpenTopography
 - 60+ pre-configured regions worldwide
 - Support for any GeoTIFF elevation data
 - Add custom regions as needed

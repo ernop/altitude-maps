@@ -911,11 +911,11 @@ def get_region(region_id: str) -> Optional[RegionConfig]:
     return ALL_REGIONS.get(region_id)
 
 
-def list_regions(category: Optional[str] = None) -> List[RegionConfig]:
-    """List all regions, optionally filtered by category."""
+def list_regions(region_type_filter: Optional[RegionType] = None) -> List[RegionConfig]:
+    """List all regions, optionally filtered by region type."""
     regions = list(ALL_REGIONS.values())
-    if category:
-        regions = [r for r in regions if r.category == category]
+    if region_type_filter:
+        regions = [r for r in regions if r.region_type == region_type_filter]
     return sorted(regions, key=lambda r: r.name.lower())
 
 

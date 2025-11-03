@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.pipeline import run_pipeline
 from src.regions_config import US_STATES, get_region
+from src.types import RegionType
 
 
 def main():
@@ -124,7 +125,16 @@ def main():
         
         # Build boundary name from config
         boundary_name = f"{config.country}/{config.name}" if config.country else None
-        boundary_type = 'state' if config.category == 'usa_state' else 'country'
+        
+        # Determine boundary type based on region type (using enum)
+        if config.region_type == RegionType.USA_STATE:
+            boundary_type = 'state'
+        elif config.region_type == RegionType.COUNTRY:
+            boundary_type = 'country'
+        elif config.region_type == RegionType.REGION:
+            boundary_type = None  # Regions don't have standard boundaries
+        else:
+            raise ValueError(f"Unknown region type for {state_id}: {config.region_type}")
         
         print(f"\n[{i}/{len(state_files)}] Processing {config.name}...")
         print(f"   Source: {tif_file}")

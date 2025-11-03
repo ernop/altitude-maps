@@ -84,14 +84,14 @@ function raycastToWorld(screenX, screenY) {
 
 /**
  * Convert world coordinates (3D scene) to lon/lat (geographic)
- * Depends on globals: rawElevationData, processedData, borderData, params
+ * Depends on globals: rawElevationData, processedData, params
  * 
  * @param {number} worldX - World space X coordinate
  * @param {number} worldZ - World space Z coordinate
  * @returns {Object|null} Geographic coordinates { lon, lat }
  */
 function worldToLonLat(worldX, worldZ) {
-    if (!rawElevationData || !processedData || !borderData) return null;
+    if (!rawElevationData || !processedData) return null;
 
     const { bounds: elevBounds } = rawElevationData; // {left, right, top, bottom}
     const w = processedData.width;

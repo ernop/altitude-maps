@@ -376,12 +376,15 @@ class ViewerElevationData:
 @dataclass
 class RegionInfo:
     """
-    Information about a single region in the manifest.
+    Information about a single region in the manifest (JSON export format).
     
     VALIDATION:
     - All required fields must be present
     - File must be a valid filename
-    - region_type must be one of: "usa_state", "country", "region"
+    - region_type must be string value from RegionType enum: "usa_state", "country", or "region"
+    
+    Note: This is a data container for JSON serialization. The enum is used in code,
+    but manifest stores string values. See src/types.py for RegionType enum definition.
     """
     name: str
     description: str
@@ -389,7 +392,7 @@ class RegionInfo:
     file: str    # Filename only, e.g., "ohio.json"
     bounds: Dict[str, float]
     stats: Dict[str, float]
-    region_type: str  # "usa_state", "country", or "region"
+    region_type: str  # String value from RegionType enum: "usa_state", "country", or "region"
     
     def __post_init__(self):
         """Validate region info."""

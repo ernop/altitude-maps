@@ -29,7 +29,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.363';
+const VIEWER_VERSION = '1.366';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -45,8 +45,8 @@ let groundPlane; // Ground plane at y=0 used for consistent ray intersections
 let currentMouseX, currentMouseY; // Tracked mouse position for HUD updates
 let hudSettings = null; // HUD configuration (units/visibility)
 
-// Recent regions tracking (max 8 most recent)
-const MAX_RECENT_REGIONS = 8;
+// Recent regions tracking (max 12 most recent)
+const MAX_RECENT_REGIONS = 12;
 let recentRegions = []; // Array of region IDs in order (most recent first)
 
 // Region adjacency data (which regions border which)
@@ -2901,13 +2901,13 @@ function getRelief(i, j, radiusMeters) {
     const w = processedData.width;
     if (i < 0 || j < 0 || i >= h || j >= w) return null;
 
-    // Calculate real-world scale to convert meters to grid cells
-    const scale = calculateRealWorldScale();
-    if (!scale) return null;
+    // Use bucket size from processedData (accounts for bucketing/aggregation)
+    const metersPerCellX = processedData.bucketSizeMetersX || 1;
+    const metersPerCellY = processedData.bucketSizeMetersY || 1;
 
     // Convert radius in meters to grid cells
-    const radiusCellsX = Math.ceil(radiusMeters / scale.metersPerPixelX);
-    const radiusCellsY = Math.ceil(radiusMeters / scale.metersPerPixelY);
+    const radiusCellsX = Math.ceil(radiusMeters / metersPerCellX);
+    const radiusCellsY = Math.ceil(radiusMeters / metersPerCellY);
 
     // Sample elevations within the circular region
     let minElev = Infinity;
@@ -2923,8 +2923,8 @@ function getRelief(i, j, radiusMeters) {
             if (ni < 0 || nj < 0 || ni >= h || nj >= w) continue;
 
             // Check if within circular radius
-            const distX = dj * scale.metersPerPixelX;
-            const distY = di * scale.metersPerPixelY;
+            const distX = dj * metersPerCellX;
+            const distY = di * metersPerCellY;
             const dist = Math.sqrt(distX * distX + distY * distY);
             if (dist > radiusMeters) continue;
 
@@ -3577,7 +3577,7 @@ function updateCursorHUD(clientX, clientY) {
     const zMeters = zCell;
     const s = getSlopeDegrees(idx.i, idx.j);
     const a = getAspectDegrees(idx.i, idx.j);
-    const r = getRelief(idx.i, idx.j, 100); // 100m radius
+    const r = getRelief(idx.i, idx.j, 5000); // 5km radius (works better with bucketed data)
     const units = (hudSettings && hudSettings.units) || 'metric';
     const elevText = formatElevation(zMeters, units);
     elevEl.textContent = elevText;
@@ -3676,7 +3676,7 @@ function updateCursorHUDFromIntersects(clientX, clientY, intersects) {
     const zMeters = zCell;
     const s = getSlopeDegrees(idx.i, idx.j);
     const a = getAspectDegrees(idx.i, idx.j);
-    const r = getRelief(idx.i, idx.j, 100); // 100m radius
+    const r = getRelief(idx.i, idx.j, 5000); // 5km radius (works better with bucketed data)
     const units = (hudSettings && hudSettings.units) || 'metric';
     const elevText = formatElevation(zMeters, units);
     elevEl.textContent = elevText;

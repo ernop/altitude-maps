@@ -4,6 +4,11 @@ One command to ensure a region is ready to view.
 Downloads if needed, processes if needed, checks if everything is valid.
 Works for both US states and international regions.
 
+CRITICAL ENFORCEMENT (see tech/DATA_PIPELINE.md):
+- Always use RegionType enum (never ad-hoc strings)
+- Resolution is dynamic (Nyquist sampling) - never hardcoded by region type
+- Check all three enum cases exhaustively with ValueError for unknown
+
 Usage:
     python ensure_region.py ohio  # US state
     python ensure_region.py iceland  # International region
@@ -103,13 +108,13 @@ def check_venv() -> None:
 
 
 
-def get_region_info(region_id: str) -> Tuple[Optional[str], Optional[Dict]]:
+def get_region_info(region_id: str) -> Tuple[Optional[RegionType], Optional[Dict]]:
     """
     Get information about a region (US state or international).
 
     Returns:
         Tuple of (region_type, region_data) where:
-        - region_type is 'us_region' (USA, uses USGS 3DEP) or 'international'
+        - region_type is a RegionType enum value
         - region_data is a dict with region info
 
         Returns (None, None) if region not found
@@ -123,13 +128,8 @@ def get_region_info(region_id: str) -> Tuple[Optional[str], Optional[Dict]]:
     if region_config is None:
         return None, None
 
-    # Determine download path based on country - all US regions use USGS 3DEP 10m data
-    # This includes US states AND US regions (valleys, mountains, etc.)
-    # International regions use OpenTopography (SRTM/Copernicus)
-    if region_config.country == "United States of America":
-        region_type = 'us_region'
-    else:
-        region_type = 'international'
+    # Use the actual enum from the config
+    region_type = region_config.region_type
 
     # Build region data dict
     region_data = {
@@ -164,26 +164,39 @@ def _iter_all_region_ids() -> list[str]:
         return []
 
 
-def process_region(region_id: str, raw_path: Path, source: str, target_pixels: int, force: bool, region_type: str, region_info: Dict, border_resolution: str = '10m') -> Tuple[bool, Dict]:
-    """Run the pipeline on a region and return (success, result_paths)."""
+def process_region(region_id: str, raw_path: Path, source: str, target_pixels: int, force: bool, region_type: RegionType, region_info: Dict, border_resolution: str = '10m') -> Tuple[bool, Dict]:
+    """
+    Run the pipeline on a region and return (success, result_paths).
+    
+    CRITICAL: Uses RegionType enum for all decisions (see tech/DATA_PIPELINE.md).
+    Checks all three cases exhaustively with ValueError for unknown types.
+    """
 
-    # Determine boundary based on region type
-    if region_type == 'us_state':
+    # Determine boundary based on region type (using enum)
+    # CANONICAL REFERENCE: tech/DATA_PIPELINE.md - Section "Region Type System"
+    if region_type == RegionType.USA_STATE:
         state_name = region_info['name']
         boundary_name = f"United States of America/{state_name}"
         boundary_type = "state"
-    elif region_type == 'international':
-        # For international regions, use country-level boundary
-        # Some regions (territories, disputed areas) may not have boundaries in Natural Earth
+    elif region_type == RegionType.COUNTRY:
+        # For countries, use country-level boundary
         if region_info.get('clip_boundary', True):
             boundary_name = region_info['name']
             boundary_type = "country"
         else:
             boundary_name = None
             boundary_type = None
+    elif region_type == RegionType.REGION:
+        # For regions (islands, ranges, etc.), check if boundary clipping is enabled
+        if region_info.get('clip_boundary', False):
+            # Some regions may have boundaries defined
+            boundary_name = region_info['name']
+            boundary_type = "country"  # Or custom boundary if available
+        else:
+            boundary_name = None
+            boundary_type = None
     else:
-        boundary_name = None
-        boundary_type = "country"
+        raise ValueError(f"Unknown region type: {region_type}")
 
     print(f"\n[STAGES 6-10] Processing pipeline...", flush=True)
     if boundary_name:
@@ -321,12 +334,21 @@ This script will:
                     print(f"  Skipping unknown region: {rid}")
                     continue
                 # Determine minimum required resolution for this region
-                min_req_res = None
-                if region_type == 'us_state':
-                    min_req_res = 10
+                # All regions use dynamic resolution determination based on Nyquist rule
+                visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
+                
+                if region_type == RegionType.USA_STATE:
+                    # US states: 10m, 30m, or 90m based on requirements
+                    min_req_res = determine_min_required_resolution(
+                        visible['avg_m_per_pixel'],
+                        available_resolutions=[10, 30, 90]
+                    )
                 else:
-                    visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
-                    min_req_res = determine_min_required_resolution(visible['avg_m_per_pixel'])
+                    # International regions: 30m or 90m
+                    min_req_res = determine_min_required_resolution(
+                        visible['avg_m_per_pixel'],
+                        available_resolutions=[30, 90]
+                    )
                 
                 raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
                 if not raw_path:
@@ -471,13 +493,15 @@ This script will:
     # Calculate visible pixel size and minimum required resolution
     visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
     
-    # Determine available download resolutions based on region location
-    # US regions: 10m USGS 3DEP now available via automated API, plus 30m/90m via OpenTopography
+    # Determine available download resolutions based on region type
+    # US states: 10m USGS 3DEP now available via automated API, plus 30m/90m via OpenTopography
     # International: 30m/90m via OpenTopography API only
-    if region_type == 'us_region':
+    if region_type == RegionType.USA_STATE:
         available_downloads = [10, 30, 90]  # USGS 3DEP 10m + SRTM/Copernicus 30m/90m
-    else:
+    elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:
         available_downloads = [30, 90]  # SRTM/Copernicus via OpenTopography API only
+    else:
+        raise ValueError(f"Unknown region type: {region_type}")
     
     # Calculate minimum required resolution using Nyquist rule
     try:

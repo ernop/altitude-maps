@@ -30,6 +30,7 @@ from src.metadata import (
 from src.tile_geometry import abstract_filename_from_raw, tile_filename_from_bounds, get_bounds_from_raw_file
 from src.versioning import get_current_version
 from src.borders import get_border_manager
+from src.types import RegionType
 
 # Alias for backward compatibility
 bbox_filename_from_bounds = tile_filename_from_bounds
@@ -777,6 +778,125 @@ def export_for_viewer(
         return False
 
 
+def export_borders_for_viewer(
+    processed_tif_path: Path,
+    region_id: str,
+    output_path: Path,
+    boundary_name: Optional[str] = None,
+    boundary_type: str = "country",
+    border_resolution: str = "10m"
+) -> bool:
+    """
+    Export border visualization data for the web viewer.
+    
+    Creates a separate _borders.json file containing border line coordinates
+    for rendering yellow boundary lines in the 3D viewer.
+    
+    Args:
+        processed_tif_path: Path to processed TIF (to get bounds/CRS)
+        region_id: Region identifier
+        output_path: Where to save borders JSON
+        boundary_name: Boundary name (e.g., "United States of America/Idaho")
+        boundary_type: "country" or "state"
+        border_resolution: Natural Earth resolution for borders
+        
+    Returns:
+        True if successful, False if no borders to export
+    """
+    if not boundary_name:
+        # No boundary specified - skip border export
+        return True
+    
+    try:
+        print(f"  Exporting border visualization data...", flush=True)
+        
+        border_manager = get_border_manager()
+        
+        # Get bounds and CRS from processed TIF
+        with rasterio.open(processed_tif_path) as src:
+            bounds = src.bounds
+            crs = src.crs
+        
+        # Get border geometry based on type
+        if boundary_type == "state":
+            # Parse "Country/State" format
+            if "/" not in boundary_name:
+                print(f"  Warning: State boundary requires 'Country/State' format, got: {boundary_name}")
+                return False
+            
+            country, state = boundary_name.split("/", 1)
+            geometry_gdf = border_manager.get_state(country, state, resolution=border_resolution)
+        elif boundary_type == "country":
+            geometry_gdf = border_manager.get_country(boundary_name, resolution=border_resolution)
+        else:
+            print(f"  Warning: Unknown boundary_type '{boundary_type}'")
+            return False
+        
+        if geometry_gdf is None or geometry_gdf.empty:
+            print(f"  Warning: Could not find boundary '{boundary_name}'")
+            return False
+        
+        # Get border coordinates
+        border_coords = border_manager.get_border_coordinates(
+            boundary_name if boundary_type == "country" else [boundary_name],
+            target_crs=crs,
+            resolution=border_resolution
+        )
+        
+        if not border_coords:
+            print(f"  Warning: No border coordinates found")
+            return False
+        
+        # Convert to JSON format
+        segments = []
+        total_points = 0
+        for lon_coords, lat_coords in border_coords:
+            segment = {
+                "lon": [float(x) for x in lon_coords],
+                "lat": [float(y) for y in lat_coords]
+            }
+            segments.append(segment)
+            total_points += len(lon_coords)
+        
+        borders_data = {
+            "bounds": {
+                "left": float(bounds.left),
+                "right": float(bounds.right),
+                "top": float(bounds.top),
+                "bottom": float(bounds.bottom)
+            },
+            "resolution": border_resolution,
+            "countries": [{
+                "name": boundary_name,
+                "segments": segments,
+                "segment_count": len(segments)
+            }]
+        }
+        
+        # Write JSON
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(borders_data, f, separators=(',', ':'))
+        
+        # Gzip compress
+        import gzip
+        gzip_path = output_path.with_suffix('.json.gz')
+        with open(output_path, 'rb') as f_in:
+            with gzip.open(gzip_path, 'wb', compresslevel=9) as f_out:
+                f_out.writelines(f_in)
+        
+        file_size_kb = gzip_path.stat().st_size / 1024
+        print(f"  Border data: {gzip_path.name} ({file_size_kb:.1f} KB, {len(segments)} segments, {total_points:,} points)")
+        
+        return True
+        
+    except Exception as e:
+        import traceback
+        print(f"  Border export failed: {e}")
+        traceback.print_exc()
+        return False
+
+
 def update_regions_manifest(generated_dir: Path) -> bool:
     """
     Stage 11: Update the regions manifest with all available regions.
@@ -947,6 +1067,20 @@ def run_pipeline(
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths
     result_paths["exported"] = exported_path
+    
+    # Stage 9.5: export border visualization (if applicable)
+    if boundary_name:
+        borders_filename = f"{region_id}_{source}_{target_pixels}px_v2_borders.json"
+        borders_path = generated_dir / borders_filename
+        export_borders_for_viewer(
+            processed_path, 
+            region_id, 
+            borders_path,
+            boundary_name=boundary_name,
+            boundary_type=boundary_type,
+            border_resolution=border_resolution
+        )
+        # Note: Border export failure is non-fatal - terrain data is still usable
 
     # Stage 10: manifest
     print(f"[STAGE 10/10] Updating regions manifest...")

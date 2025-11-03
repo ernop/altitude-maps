@@ -111,14 +111,22 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.tilting = true;
             this.state.tiltStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
-            this.state.focusStart = this.focusPoint.clone();
+
+            // Set pivot point to where mouse clicked (Maya-style)
+            // Only set the LOCAL pivot (focusStart), don't modify global focusPoint
+            const clickPoint = this.raycastToPlane(event.clientX, event.clientY);
+            this.state.focusStart = clickPoint ? clickPoint.clone() : this.focusPoint.clone();
 
         } else if (event.button === 0 && event.altKey) { // Alt+Left = Tumble/Rotate (Maya style)
             this.state.rotating = true;
             this.state.rotatingWithAlt = true; // Track that Alt was used
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
-            this.state.focusStart = this.focusPoint.clone();
+
+            // Set pivot point to where mouse clicked (Maya-style)
+            // Only set the LOCAL pivot (focusStart), don't modify global focusPoint
+            const clickPoint = this.raycastToPlane(event.clientX, event.clientY);
+            this.state.focusStart = clickPoint ? clickPoint.clone() : this.focusPoint.clone();
 
         } else if (event.button === 0) { // Left = Pan along plane
             this.state.panning = true;
@@ -138,7 +146,11 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.rotatingWithAlt = false; // Right button, not Alt
             this.state.rotateStart = { x: event.clientX, y: event.clientY };
             this.state.cameraStart = this.camera.position.clone();
-            this.state.focusStart = this.focusPoint.clone();
+
+            // Set pivot point to where mouse clicked (Maya-style)
+            // Only set the LOCAL pivot (focusStart), don't modify global focusPoint
+            const clickPoint = this.raycastToPlane(event.clientX, event.clientY);
+            this.state.focusStart = clickPoint ? clickPoint.clone() : this.focusPoint.clone();
 
         }
     }
@@ -190,29 +202,31 @@ class GroundPlaneCamera extends CameraScheme {
                 return;
             }
 
-            // Tilt: Adjust viewing angle (phi) - drag down = tilt down (see more land), drag up = tilt up (overhead)
             const deltaY = event.clientY - this.state.tiltStart.y;
 
-            // Get vector from focus point to camera
-            const offset = new THREE.Vector3();
-            offset.subVectors(this.state.cameraStart, this.state.focusStart);
+            // Only apply tilt if mouse has actually moved (prevents initial jump)
+            if (Math.abs(deltaY) > 0) {
+                // Get vector from pivot point to camera
+                const offset = new THREE.Vector3();
+                offset.subVectors(this.state.cameraStart, this.state.focusStart);
 
-            // Convert to spherical coordinates
-            const spherical = new THREE.Spherical();
-            spherical.setFromVector3(offset);
+                // Convert to spherical coordinates
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(offset);
 
-            // Adjust vertical angle (phi) based on mouse movement
-            // Drag DOWN = positive deltaY = increase phi = tilt down (see more terrain)
-            // Drag UP = negative deltaY = decrease phi = tilt up (more overhead)
-            const tiltSpeed = 0.005;
-            spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi + deltaY * tiltSpeed));
+                // Adjust vertical angle (phi) based on mouse movement
+                // Drag DOWN = positive deltaY = increase phi = tilt down (see more terrain)
+                // Drag UP = negative deltaY = decrease phi = tilt up (more overhead)
+                const tiltSpeed = 0.005;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, spherical.phi + deltaY * tiltSpeed));
 
-            // Convert back to Cartesian and apply
-            // Use live focusPoint so WASD movement works during tilt
-            offset.setFromSpherical(spherical);
-            this.camera.position.copy(this.focusPoint).add(offset);
-            this.camera.lookAt(this.focusPoint);
-            this.controls.target.copy(this.focusPoint);
+                // Convert back to Cartesian and apply
+                // Use the LOCKED pivot point (focusStart)
+                offset.setFromSpherical(spherical);
+                this.camera.position.copy(this.state.focusStart).add(offset);
+                this.camera.lookAt(this.state.focusStart);
+                this.controls.target.copy(this.state.focusStart);
+            }
         }
 
         if (this.state.rotating) {
@@ -224,32 +238,32 @@ class GroundPlaneCamera extends CameraScheme {
                 return;
             }
 
-            // Roblox Studio style rotation: rotate around target point
-            // Key insight: Use LIVE focusPoint (which WASD updates), not locked focusStart
-            // This allows keyboard movement during rotation without jumps
             const deltaX = event.clientX - this.state.rotateStart.x;
             const deltaY = event.clientY - this.state.rotateStart.y;
 
-            // Get offset from target to camera (captured at drag start)
-            const offset = new THREE.Vector3();
-            offset.subVectors(this.state.cameraStart, this.state.focusStart);
+            // Only apply rotation if mouse has actually moved (prevents initial jump)
+            if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
+                // Get offset from pivot point to camera (captured at drag start)
+                const offset = new THREE.Vector3();
+                offset.subVectors(this.state.cameraStart, this.state.focusStart);
 
-            // Convert to spherical coordinates
-            const spherical = new THREE.Spherical();
-            spherical.setFromVector3(offset);
+                // Convert to spherical coordinates
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(offset);
 
-            // Apply rotation (Roblox style)
-            spherical.theta -= deltaX * 0.005;
-            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - deltaY * 0.005));
+                // Apply rotation
+                spherical.theta -= deltaX * 0.005;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - deltaY * 0.005));
 
-            // Convert back and update camera position
-            // CRITICAL: Use live focusPoint (not focusStart) so WASD movement works smoothly
-            offset.setFromSpherical(spherical);
-            this.camera.position.copy(this.focusPoint).add(offset);
+                // Convert back and update camera position
+                // Use the LOCKED pivot point (focusStart), not the live focusPoint
+                offset.setFromSpherical(spherical);
+                this.camera.position.copy(this.state.focusStart).add(offset);
 
-            // Camera looks at the live target point (updated by WASD)
-            this.camera.lookAt(this.focusPoint);
-            this.controls.target.copy(this.focusPoint);
+                // Camera looks at the pivot point
+                this.camera.lookAt(this.state.focusStart);
+                this.controls.target.copy(this.state.focusStart);
+            }
         }
 
         if (this.state.adjustingHeight) {
@@ -642,16 +656,9 @@ class GroundPlaneCamera extends CameraScheme {
                 if (this.keysPressed['q']) movement.y -= this.currentMoveSpeed;  // Down
                 if (this.keysPressed['e']) movement.y += this.currentMoveSpeed;  // Up
 
-                // Move camera - that's it, no magic
+                // Move camera in pure space
                 if (movement.length() > 0) {
                     this.camera.position.add(movement);
-
-                    // Keep focus point ahead of camera for when mouse controls are used
-                    // No constraints - just project forward from current view direction
-                    const cameraDir = new THREE.Vector3();
-                    this.camera.getWorldDirection(cameraDir);
-                    this.focusPoint.copy(this.camera.position).addScaledVector(cameraDir, 1000);
-                    this.controls.target.copy(this.focusPoint);
                 }
             } else {
                 // Immediately reset speed when movement stops

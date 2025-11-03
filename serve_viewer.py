@@ -91,8 +91,6 @@ def main():
         """Handle shutdown signals gracefully."""
         print("\n\n[-] Shutdown signal received, stopping server...")
         shutdown_event.set()
-        if httpd_server:
-            httpd_server.shutdown()
     
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C

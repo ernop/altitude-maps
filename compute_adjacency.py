@@ -90,10 +90,10 @@ def compute_adjacency():
     # Build a mapping of region_id -> geometry
     region_geometries = {}
     
-    # Add US states
+    # Process all regions based on their type
     for region in all_regions:
         if region.region_type == RegionType.USA_STATE:
-            # Match by name
+            # Match by name in US states data
             state_name = region.name
             state_row = states_gdf[states_gdf['name'] == state_name]
             if not state_row.empty:
@@ -102,11 +102,9 @@ def compute_adjacency():
                     'name': region.name
                 }
             else:
-                print(f"Warning: Could not find boundary for {region.name}")
-    
-    # Add countries
-    for region in all_regions:
-        if region.region_type == RegionType.COUNTRY:
+                print(f"Warning: Could not find boundary for US state {region.name}")
+        
+        elif region.region_type == RegionType.COUNTRY:
             # Try to match by name in Natural Earth data
             country_name = region.name
             # Try various name variations
@@ -123,7 +121,15 @@ def compute_adjacency():
                     'name': region.name
                 }
             else:
-                print(f"Warning: Could not find boundary for {region.name}")
+                print(f"Warning: Could not find boundary for country {region.name}")
+        
+        elif region.region_type == RegionType.REGION:
+            # REGION types (islands, mountain ranges, etc.) don't have boundaries in Natural Earth
+            # Skip them for adjacency computation
+            print(f"Skipping REGION type '{region.name}' - no boundary data available")
+        
+        else:
+            raise ValueError(f"Unknown region type for {region.id}: {region.region_type}")
     
     print(f"\nFound geometries for {len(region_geometries)} regions")
     

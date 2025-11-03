@@ -57,6 +57,11 @@ def determine_min_required_resolution(
     """
     Determine minimum required source resolution based on visible pixel size.
     
+    CRITICAL ENFORCEMENT (see tech/DATA_PIPELINE.md - Section "Determine Required Resolution"):
+    - Resolution is NEVER hardcoded by region type
+    - Uses Nyquist sampling theorem (2x oversampling minimum)
+    - Returns coarsest available resolution that meets requirement
+    
     NYQUIST SAMPLING RULE (from Shannon-Nyquist theorem):
     To avoid aliasing when downsampling, we need at least 2.0x oversampling.
     
@@ -221,7 +226,7 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
         return False
 
 
-def download_region(region_id: str, region_type: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
+def download_region(region_id: str, region_type: 'RegionType', region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
     """
     Route to unified downloader for any region.
     
@@ -231,20 +236,26 @@ def download_region(region_id: str, region_type: str, region_info: Dict, dataset
     return download_elevation_data(region_id, region_info, dataset_override, target_pixels)
 
 
-def determine_dataset_override(region_id: str, region_type: str, region_info: dict, target_pixels: int = 2048) -> str | None:
+def determine_dataset_override(region_id: str, region_type: 'RegionType', region_info: dict, target_pixels: int = 2048) -> str | None:
     """
     Stage 2/3: Determine dataset to use for download (including resolution).
-    - US regions: Check if 10m/30m/90m needed based on Nyquist rule -> return appropriate dataset
-    - International: Choose by latitude AND resolution requirements:
-        * Calculates minimum required resolution (Nyquist rule)
-        * Returns SRTMGL3/COP90 if 90m is sufficient
-        * Returns SRTMGL1/COP30 if 30m is required
-    Returns a short code: 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', or 'USA_3DEP_10m', 'USA_3DEP_30m', etc.
+    
+    CRITICAL ENFORCEMENT (see tech/DATA_PIPELINE.md - Section "Determine Dataset"):
+    - Uses RegionType enum (never string literals)
+    - Resolution determined first via Nyquist rule (Stage 2)
+    - Dataset selection is OUTPUT of resolution determination, not input
+    - US states: 10m, 30m, or 90m (dynamic based on target_pixels)
+    - International: 30m or 90m (dynamic based on target_pixels)
+    
+    Returns a short code: 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', or 'USA_3DEP'.
     """
+    from src.types import RegionType
+    
     # Calculate visible pixel size for resolution determination
     visible = calculate_visible_pixel_size(region_info['bounds'], target_pixels)
     
-    if region_type == 'us_region':
+    # CANONICAL REFERENCE: tech/DATA_PIPELINE.md - Stage 2 & 3
+    if region_type == RegionType.USA_STATE:
         # US regions: 10m USGS 3DEP now available via automated API, plus 30m/90m via OpenTopography
         try:
             min_required = determine_min_required_resolution(
@@ -266,46 +277,50 @@ def determine_dataset_override(region_id: str, region_type: str, region_info: di
             print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m (region requires high detail)")
             return 'USA_3DEP'
 
-    # International regions - check for explicit override first
-    recommended = None
-    try:
-        entry = ALL_REGIONS.get(region_id)
-        if entry and getattr(entry, 'recommended_dataset', None):
-            recommended = entry.recommended_dataset
-    except Exception:
+    elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:
+        # International regions - check for explicit override first
         recommended = None
+        try:
+            entry = ALL_REGIONS.get(region_id)
+            if entry and getattr(entry, 'recommended_dataset', None):
+                recommended = entry.recommended_dataset
+        except Exception:
+            recommended = None
 
-    if recommended in ('SRTMGL1', 'SRTMGL3', 'COP30', 'COP90'):
-        print(f"[STAGE 2/10] Dataset override from RegionConfig: {recommended}")
-        return recommended
+        if recommended in ('SRTMGL1', 'SRTMGL3', 'COP30', 'COP90'):
+            print(f"[STAGE 2/10] Dataset override from RegionConfig: {recommended}")
+            return recommended
 
-    # Auto-select dataset based on latitude and resolution requirements
-    _west, south, _east, north = region_info['bounds']
-    
-    # Determine base dataset by latitude
-    if north > 60.0 or south < -56.0:
-        base_30m = 'COP30'
-        base_90m = 'COP90'
-        base_name = 'Copernicus DEM'
-    else:
-        base_30m = 'SRTMGL1'
-        base_90m = 'SRTMGL3'
-        base_name = 'SRTM'
-    
-    # Calculate minimum required resolution based on Nyquist rule (30m/90m only)
-    try:
-        min_required = determine_min_required_resolution(
-            visible['avg_m_per_pixel'],
-            available_resolutions=[30, 90]
-        )
-        if min_required == 90:
-            print(f"[STAGE 2/10] Dataset: {base_name} 90m (90m sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-            return base_90m
+        # Auto-select dataset based on latitude and resolution requirements
+        _west, south, _east, north = region_info['bounds']
+        
+        # Determine base dataset by latitude
+        if north > 60.0 or south < -56.0:
+            base_30m = 'COP30'
+            base_90m = 'COP90'
+            base_name = 'Copernicus DEM'
         else:
-            print(f"[STAGE 2/10] Dataset: {base_name} 30m (30m required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+            base_30m = 'SRTMGL1'
+            base_90m = 'SRTMGL3'
+            base_name = 'SRTM'
+        
+        # Calculate minimum required resolution based on Nyquist rule (30m/90m only)
+        try:
+            min_required = determine_min_required_resolution(
+                visible['avg_m_per_pixel'],
+                available_resolutions=[30, 90]
+            )
+            if min_required == 90:
+                print(f"[STAGE 2/10] Dataset: {base_name} 90m (90m sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+                return base_90m
+            else:
+                print(f"[STAGE 2/10] Dataset: {base_name} 30m (30m required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+                return base_30m
+        except ValueError:
+            # Region too small for standard resolutions - default to 30m
+            print(f"[STAGE 2/10] Dataset: {base_name} 30m (region requires high detail)")
             return base_30m
-    except ValueError:
-        # Region too small for standard resolutions - default to 30m
-        print(f"[STAGE 2/10] Dataset: {base_name} 30m (region requires high detail)")
-        return base_30m
+    
+    else:
+        raise ValueError(f"Unknown region type: {region_type}")
 
