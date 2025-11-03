@@ -2479,6 +2479,7 @@ function createBarsTerrain(width, height, elevation, scale) {
 
     terrainMesh = instancedMesh;
     scene.add(terrainMesh);
+    window.terrainMesh = terrainMesh; // Expose for camera controls
     stats.bars = barCount;
     // Record the internal exaggeration used when building bars and reset uniform to 1.0
     lastBarsExaggerationInternal = params.verticalExaggeration;
@@ -2567,6 +2568,7 @@ function createPointCloudTerrain(width, height, elevation, scale) {
 
     terrainMesh = points;
     scene.add(terrainMesh);
+    window.terrainMesh = terrainMesh; // Expose for camera controls
     lastPointsExaggerationInternal = params.verticalExaggeration;
     if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uExaggerationUniform) {
         terrainMesh.material.userData.uExaggerationUniform.value = 1.0;
@@ -2634,6 +2636,7 @@ function createSurfaceTerrain(width, height, elevation, scale) {
     terrainMesh = new THREE.Mesh(geometry, material);
     terrainMesh.rotation.x = -Math.PI / 2;
     scene.add(terrainMesh);
+    window.terrainMesh = terrainMesh; // Expose for camera controls
 }
 
 function getColorForElevation(elevation) {
@@ -3467,7 +3470,9 @@ function isCameraMoving() {
         activeScheme.state.rotating ||
         activeScheme.state.tilting ||
         activeScheme.state.orbiting ||
-        activeScheme.state.pinching
+        activeScheme.state.pinching ||
+        activeScheme.state.rotatingCamera ||
+        activeScheme.state.rotatingTerrain
     );
 
     return isMovingKeyboard || isMovingMouse;
