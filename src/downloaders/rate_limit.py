@@ -5,22 +5,25 @@ All download processes check and update a shared rate limit state file to
 coordinate backoff when hitting API limits. This ensures good citizenship
 with the OpenTopography API.
 
-Conservative defaults based on typical API limits:
-- Initial backoff: 1 hour after 401
-- Max backoff: 24 hours (for repeated violations)
-- Small delay between requests: 0.5s (avoid bursts)
-- Assumes daily quota ~1000-2000 requests (typical free tier)
+Simple exponential backoff strategy:
+- Initial backoff: 10 minutes after 401
+- Exponential backoff: Doubles for each consecutive 401
+- Request spacing: 0.5s delay between requests (avoid bursts)
 
 Usage:
     from src.downloaders.rate_limit import check_rate_limit, record_rate_limit_hit
     
     # Before any OpenTopography download:
-    if not check_rate_limit():
+    ok, reason = check_rate_limit()
+    if not ok:
         print("Rate limited - waiting...")
         return False
     
     # After receiving 401:
     record_rate_limit_hit()
+    
+    # After successful download:
+    record_successful_request()
 """
 
 import json
@@ -35,12 +38,10 @@ import filelock
 STATE_FILE = Path("data/.opentopography_rate_limit.json")
 LOCK_FILE = Path("data/.opentopography_rate_limit.lock")
 
-# Conservative rate limit settings (erring on the side of caution)
-INITIAL_BACKOFF_SECONDS = 3600      # 1 hour initial wait after 401
-MAX_BACKOFF_SECONDS = 86400         # 24 hours max wait (for repeated violations)
+# Simple rate limit settings
+INITIAL_BACKOFF_SECONDS = 600       # 10 minutes initial wait after 401
 BACKOFF_MULTIPLIER = 2.0            # Double wait time for each subsequent 401
 REQUEST_DELAY_SECONDS = 0.5         # Small delay between requests to avoid bursts
-DAILY_REQUEST_LIMIT = 1000          # Conservative estimate of daily quota
 
 
 def _ensure_state_dir():
@@ -58,9 +59,7 @@ def _read_state() -> Dict:
         - backoff_until: ISO timestamp string
         - backoff_seconds: current backoff duration
         - consecutive_violations: count of 401s in sequence
-        - last_request_time: ISO timestamp of last successful request
-        - requests_today: count of requests made today
-        - day_started: ISO timestamp of when current day count started
+        - last_request_time: ISO timestamp of last request
     """
     _ensure_state_dir()
     
@@ -70,9 +69,7 @@ def _read_state() -> Dict:
             'backoff_until': None,
             'backoff_seconds': INITIAL_BACKOFF_SECONDS,
             'consecutive_violations': 0,
-            'last_request_time': None,
-            'requests_today': 0,
-            'day_started': datetime.now().isoformat()
+            'last_request_time': None
         }
     
     try:
@@ -86,9 +83,7 @@ def _read_state() -> Dict:
             'backoff_until': None,
             'backoff_seconds': INITIAL_BACKOFF_SECONDS,
             'consecutive_violations': 0,
-            'last_request_time': None,
-            'requests_today': 0,
-            'day_started': datetime.now().isoformat()
+            'last_request_time': None
         }
 
 
@@ -126,16 +121,16 @@ def check_rate_limit() -> Tuple[bool, Optional[str]]:
         
         if now < backoff_until:
             remaining = (backoff_until - now).total_seconds()
-            hours = remaining / 3600
-            if hours >= 1:
-                time_str = f"{hours:.1f} hours"
+            minutes = remaining / 60
+            if minutes >= 60:
+                time_str = f"{minutes / 60:.1f} hours"
             else:
-                time_str = f"{remaining / 60:.0f} minutes"
+                time_str = f"{minutes:.0f} minutes"
             
             reason = (
                 f"Rate limited until {backoff_until.strftime('%Y-%m-%d %H:%M:%S')} "
                 f"({time_str} remaining). "
-                f"Previous 401 errors: {state['consecutive_violations']}"
+                f"Consecutive 401 errors: {state['consecutive_violations']}"
             )
             return False, reason
         else:
@@ -145,26 +140,10 @@ def check_rate_limit() -> Tuple[bool, Optional[str]]:
             # Don't reset consecutive_violations yet - only on successful request
             _write_state(state)
     
-    # Check daily request limit (very conservative)
-    day_started = datetime.fromisoformat(state['day_started'])
-    now = datetime.now()
-    
-    # Reset daily counter if it's a new day
-    if now.date() > day_started.date():
-        state['requests_today'] = 0
-        state['day_started'] = now.isoformat()
-        _write_state(state)
-    
-    if state['requests_today'] >= DAILY_REQUEST_LIMIT:
-        reason = (
-            f"Daily request limit reached ({DAILY_REQUEST_LIMIT} requests). "
-            f"Will reset at midnight. Current time: {now.strftime('%H:%M:%S')}"
-        )
-        return False, reason
-    
     # Check minimum delay between requests (avoid bursts)
-    if state['last_request_time']:
+    if state.get('last_request_time'):
         last_request = datetime.fromisoformat(state['last_request_time'])
+        now = datetime.now()
         time_since_last = (now - last_request).total_seconds()
         
         if time_since_last < REQUEST_DELAY_SECONDS:
@@ -189,12 +168,9 @@ def record_rate_limit_hit(response_code: int = 401) -> None:
     # Increment consecutive violations
     state['consecutive_violations'] = state.get('consecutive_violations', 0) + 1
     
-    # Calculate backoff duration (exponential backoff with max cap)
+    # Calculate backoff duration (exponential backoff: 10min, 20min, 40min, 80min, ...)
     violations = state['consecutive_violations']
-    backoff_seconds = min(
-        INITIAL_BACKOFF_SECONDS * (BACKOFF_MULTIPLIER ** (violations - 1)),
-        MAX_BACKOFF_SECONDS
-    )
+    backoff_seconds = INITIAL_BACKOFF_SECONDS * (BACKOFF_MULTIPLIER ** (violations - 1))
     
     state['rate_limited'] = True
     state['backoff_seconds'] = backoff_seconds
@@ -205,12 +181,17 @@ def record_rate_limit_hit(response_code: int = 401) -> None:
     _write_state(state)
     
     # Log the event
-    hours = backoff_seconds / 3600
+    minutes = backoff_seconds / 60
+    if minutes >= 60:
+        time_str = f"{minutes / 60:.1f} hours"
+    else:
+        time_str = f"{minutes:.0f} minutes"
+    
     print(f"\n{'='*70}")
     print(f"  RATE LIMIT HIT RECORDED (violation #{violations})")
     print(f"{'='*70}")
     print(f"  Response code: {response_code}")
-    print(f"  Backoff duration: {hours:.1f} hours ({backoff_seconds:.0f} seconds)")
+    print(f"  Backoff duration: {time_str} ({backoff_seconds:.0f} seconds)")
     print(f"  Backoff until: {state['backoff_until']}")
     print(f"  All processes will respect this limit")
     print(f"{'='*70}\n")
@@ -225,7 +206,6 @@ def record_successful_request() -> None:
     now = datetime.now()
     
     state['last_request_time'] = now.isoformat()
-    state['requests_today'] = state.get('requests_today', 0) + 1
     
     # Reset consecutive violations after successful request
     if state.get('consecutive_violations', 0) > 0:
@@ -249,8 +229,6 @@ def get_rate_limit_status() -> Dict:
     status = {
         'rate_limited': state['rate_limited'],
         'consecutive_violations': state.get('consecutive_violations', 0),
-        'requests_today': state.get('requests_today', 0),
-        'daily_limit': DAILY_REQUEST_LIMIT,
     }
     
     if state.get('backoff_until'):
@@ -292,9 +270,7 @@ def clear_rate_limit(force: bool = False) -> bool:
         'backoff_until': None,
         'backoff_seconds': INITIAL_BACKOFF_SECONDS,
         'consecutive_violations': 0,
-        'last_request_time': None,
-        'requests_today': 0,
-        'day_started': datetime.now().isoformat()
+        'last_request_time': None
     }
     _write_state(state)
     

@@ -287,26 +287,29 @@ class ViewerElevationData:
     
     FORMAT:
     {
-        "format_version": 2,
-        "exported_at": "2025-10-24T12:34:56Z",
-        "source_file": "data/raw/srtm_30m/ohio_bbox_30m.tif",
+        "version": "export_v2",
+        "region_id": "ohio",
+        "source": "srtm_30m",
+        "name": "Ohio",
         "width": 888,
         "height": 834,
         "elevation": [[...], [...], ...],  # 2D array: height rows, width columns
         "bounds": {"left": -84.82, "bottom": 38.40, "right": -80.52, "top": 41.98},
-        "stats": {"min": -35.0, "max": 166.0, "mean": 15.17},
-        "orientation": "north_up_east_right"
+        "stats": {"min": -35.0, "max": 166.0, "mean": 15.17}
     }
     
+    VERSION TRACKING:
+    - Format version encoded in filename: <region>_<source>_<pixels>px_v2.json
+    - No version fields inside the file (filename is source of truth)
+    
     VALIDATION:
-    - format_version must be 2
     - elevation must be 2D list with None for no-data
     - All required fields must be present
     - Dimensions must match array size
     """
-    format_version: Literal[2]
-    exported_at: str  # ISO format with Z
-    source_file: str
+    region_id: str
+    source: str
+    name: str
     
     width: int
     height: int
@@ -321,12 +324,8 @@ class ViewerElevationData:
     bounds: Dict[str, float]  # {"left": ..., "bottom": ..., "right": ..., "top": ...}
     stats: Dict[str, float]   # {"min": ..., "max": ..., "mean": ...}
     
-    orientation: Literal["north_up_east_right"]
-    
     def __post_init__(self):
         """Validate viewer data."""
-        if self.format_version != 2:
-            raise ValueError(f"Invalid format_version: {self.format_version}")
         
         if len(self.elevation) != self.height:
             raise ValueError(
@@ -382,6 +381,7 @@ class RegionInfo:
     VALIDATION:
     - All required fields must be present
     - File must be a valid filename
+    - region_type must be one of: "usa_state", "country", "region"
     """
     name: str
     description: str
@@ -389,6 +389,7 @@ class RegionInfo:
     file: str    # Filename only, e.g., "ohio.json"
     bounds: Dict[str, float]
     stats: Dict[str, float]
+    region_type: str  # "usa_state", "country", or "region"
     
     def __post_init__(self):
         """Validate region info."""
@@ -406,7 +407,6 @@ class RegionsManifest:
     
     FORMAT:
     {
-        "version": "export_v2",
         "regions": {
             "ohio": {
                 "name": "Ohio",
@@ -420,12 +420,14 @@ class RegionsManifest:
         }
     }
     
+    VERSION TRACKING:
+    - Format version in filenames (e.g., *_v2.json)
+    - No version field in manifest
+    
     VALIDATION:
-    - version must be "export_v2"
     - regions must be a dict (not a list!)
     - Each region must have valid RegionInfo
     """
-    version: Literal["export_v2"]
     regions: Dict[str, RegionInfo]  # Key = region_id
     
     def __post_init__(self):
@@ -443,7 +445,6 @@ class RegionsManifest:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
-            'version': self.version,
             'regions': {
                 region_id: asdict(info)
                 for region_id, info in self.regions.items()
@@ -500,8 +501,8 @@ def validate_viewer_json(filepath: Path) -> ViewerElevationData:
     
     # Validate required fields
     required_fields = {
-        'format_version', 'exported_at', 'source_file',
-        'width', 'height', 'elevation', 'bounds', 'stats', 'orientation'
+        'region_id', 'source', 'name',
+        'width', 'height', 'elevation', 'bounds', 'stats'
     }
     missing = required_fields - set(data.keys())
     if missing:
@@ -538,18 +539,14 @@ def validate_manifest_json(filepath: Path) -> RegionsManifest:
     # Always report absolute path and manifest metadata
     try:
         abs_path = str(filepath.resolve())
-        version = data.get('version')
         regions = data.get('regions')
         count = len(regions) if isinstance(regions, dict) else 0
         print(f"[JSON] Loaded regions manifest: {abs_path}")
-        print(f"[JSON] Metadata: version={version}, regions={count}")
+        print(f"[JSON] Metadata: regions={count}")
     except Exception:
         pass
     
     # Validate structure
-    if 'version' not in data:
-        raise ValueError("Manifest missing 'version' field")
-    
     if 'regions' not in data:
         raise ValueError("Manifest missing 'regions' field")
     
@@ -570,7 +567,6 @@ def validate_manifest_json(filepath: Path) -> RegionsManifest:
     
     # Create and validate manifest
     manifest = RegionsManifest(
-        version=data['version'],
         regions=regions
     )
     

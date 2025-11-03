@@ -49,20 +49,31 @@ function showLoading(message = 'Loading elevation data...') {
 
 /**
  * Update loading progress bar
- * Shows percentage and file sizes (loaded/total)
+ * Shows percentage, file sizes (loaded/total), and optional status message
  * 
  * @param {number} percent - Progress percentage (0-100)
  * @param {number} loaded - Bytes loaded so far
  * @param {number} total - Total bytes to load
+ * @param {string} message - Optional status message (e.g., "Creating 3D terrain...")
  */
-function updateLoadingProgress(percent, loaded, total) {
+function updateLoadingProgress(percent, loaded, total, message) {
     const progressFill = document.getElementById('progress-bar-fill');
     const progressText = document.getElementById('progress-text');
 
     if (!progressFill || !progressText) return;
 
     progressFill.style.width = `${Math.min(100, percent)}%`;
-    progressText.textContent = `${percent}% (${window.FormatUtils.formatFileSize(loaded)} / ${window.FormatUtils.formatFileSize(total)})`;
+    
+    if (message) {
+        // Show custom message with percentage
+        progressText.textContent = `${percent}% - ${message}`;
+    } else if (loaded > 0 && total > 0) {
+        // Show file size progress
+        progressText.textContent = `${percent}% (${window.FormatUtils.formatFileSize(loaded)} / ${window.FormatUtils.formatFileSize(total)})`;
+    } else {
+        // Just show percentage
+        progressText.textContent = `${percent}%`;
+    }
 }
 
 /**

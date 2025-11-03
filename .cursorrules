@@ -585,7 +585,8 @@ Priority order for any country:
 
 - **Shared state file**: `data/.opentopography_rate_limit.json`
 - **Automatic coordination**: All downloaders check this file before requests
-- **Conservative backoff**: 1 hour initial, exponential up to 24 hours
+- **Simple backoff**: 10 minutes initial, doubles each 401 (10min → 20min → 40min...)
+- **Request spacing**: 0.5s delay between OpenTopography requests
 - **Multi-process safe**: Thread-safe file locking prevents race conditions
 
 **Implementation** (already integrated in all OpenTopography downloaders):
@@ -811,6 +812,13 @@ Always ignore these directories and file types to keep git lean:
 ### UI Essentials
 - **Region selector groups**: Countries → Regions → US States; include non-selectable dividers; alphabetical inside each group.
 - **Text legibility**: Primary HUD/meta/status (project name, GitHub, FPS/version, logs) should be white on dark backgrounds.
+- **Button styling standard**: ALL buttons must use white text (#ffffff) in both normal and hover states. On hover, change background color only, never text color. Use smooth transitions (0.2s).
+- **HUD Overlay**: Elevation/slope/aspect data display in bottom-left corner.
+  - Hidden by default; toggleable via "Show HUD Overlay" checkbox in Display section.
+  - Draggable anywhere on screen; position persists in localStorage.
+  - Minimize button (-) in top-right collapses HUD and unchecks checkbox.
+  - Settings button at bottom opens config panel (units, visible fields).
+  - Tabular layout prevents value jitter.
 - **Controls**: Conceptual labels ("Resolution", "Vertical Exaggeration"), not technical jargon. Provide MAX/DEFAULT quick actions.
 - **Responsiveness**: Debounce heavy updates (~50–120 ms). Apply lightweight visual changes immediately; settle once on input end.
 - **Flat lighting**: Simple checkbox "Flat lighting (no shading)" under Color Scheme.
@@ -826,3 +834,6 @@ Always ignore these directories and file types to keep git lean:
 
 ### Removed UI
 - Shading controls (sun/azimuth/altitude/contrast) and water simulation UI are not present.
+- Contour lines (elevation isolines) removed completely - no UI controls, no rendering code.
+- Region navigation arrows (prev/next) hidden by default.
+- Render mode selector (bars/surface/points) hidden by default.

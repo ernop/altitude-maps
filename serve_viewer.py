@@ -24,6 +24,12 @@ class GzipHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         
         # Check if it's a JSON file and client accepts gzip
         if path.endswith('.json') and 'gzip' in self.headers.get('Accept-Encoding', ''):
+            # Check if file exists before attempting compression
+            if not Path(path).exists():
+                # File doesn't exist - let default handler return 404
+                super().do_GET()
+                return
+            
             try:
                 with open(path, 'rb') as f:
                     content = f.read()

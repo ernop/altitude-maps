@@ -717,7 +717,6 @@ def export_for_viewer(
             
             # Create export data
             export_data = {
-                "version": get_current_version('export'),
                 "region_id": region_id,
                 "source": source,
                 "name": region_id.replace('_', ' ').title(),
@@ -792,7 +791,6 @@ def update_regions_manifest(generated_dir: Path) -> bool:
     
     try:
         manifest = {
-            "version": get_current_version('export'),
             "regions": {}
         }
         

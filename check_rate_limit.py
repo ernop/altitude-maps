@@ -55,8 +55,6 @@ def show_status():
     else:
         print("  Status: OK - No active rate limits")
     
-    print(f"\n  Requests today: {status['requests_today']} / {status['daily_limit']}")
-    
     # Check if state file exists
     if STATE_FILE.exists():
         file_size = STATE_FILE.stat().st_size

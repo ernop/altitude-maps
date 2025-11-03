@@ -9,6 +9,8 @@
  * @returns {Object} GPU information object with tier classification
  */
 function detectGPU(renderer) {
+    const t0 = performance.now();
+    
     // Use the renderer's GL context if available
     let gl = null;
     if (renderer && renderer.getContext) {
@@ -24,13 +26,16 @@ function detectGPU(renderer) {
         return null;
     }
 
+    const t1 = performance.now();
     const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    const t2 = performance.now();
     const gpuInfo = {
         renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
         vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
         tier: 'medium', // Default tier
         benchmark: null
     };
+    const t3 = performance.now();
 
     // Identify known GPU vendor strings
     const rendererLower = gpuInfo.renderer.toLowerCase();
@@ -73,11 +78,24 @@ function detectGPU(renderer) {
         gpuInfo.vendor = 'Unknown';
         gpuInfo.tier = 'medium'; // Conservative default
     }
+    const t4 = performance.now();
 
     // Run simple performance benchmark if renderer is available
     if (renderer) {
+        const tBenchStart = performance.now();
         gpuInfo.benchmark = benchmarkGPU(renderer, gl);
+        const tBenchEnd = performance.now();
+        console.log(`  [TIMING] GPU benchmark: ${(tBenchEnd - tBenchStart).toFixed(2)}ms`);
     }
+
+    const tTotal = performance.now();
+    console.log(`  [TIMING] GPU detection breakdown:`);
+    console.log(`    - GL context: ${(t1 - t0).toFixed(2)}ms`);
+    console.log(`    - Debug info extension: ${(t2 - t1).toFixed(2)}ms`);
+    console.log(`    - Get parameters: ${(t3 - t2).toFixed(2)}ms`);
+    console.log(`    - Vendor/tier classification: ${(t4 - t3).toFixed(2)}ms`);
+    console.log(`    - Total (excl. benchmark): ${(t4 - t0).toFixed(2)}ms`);
+    console.log(`    - Total (incl. benchmark): ${(tTotal - t0).toFixed(2)}ms`);
 
     return gpuInfo;
 }

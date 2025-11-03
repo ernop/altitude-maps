@@ -15,7 +15,6 @@
  * - activity-log.js         → UI activity log (timestamped events, copy to clipboard)
  * - edge-markers.js         → Directional markers (N/E/S/W labels at terrain edges)
  * - ui-loading.js           → Loading screen and progress bar management
- * - borders-contours.js     → Border lines and elevation contours rendering
  * - resolution-controls.js  → Resolution slider, bucket size presets (MAX/DEFAULT)
  * 
  * This main file handles:
@@ -31,7 +30,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.340';
+const VIEWER_VERSION = '1.346';
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -46,21 +45,17 @@ let raycaster; // Three.js raycaster for HUD and camera interactions
 let groundPlane; // Ground plane at y=0 used for consistent ray intersections
 let currentMouseX, currentMouseY; // Tracked mouse position for HUD updates
 let hudSettings = null; // HUD configuration (units/visibility)
-let borderSegmentsMeters = []; // Flattened list of border line segments in meters space
-let borderSegmentsGeo = []; // [{axLon, axLat, bxLon, bxLat}]
-let borderGeoIndex = null; // Map of cellKey -> array of segment indices
-let borderGeoCellSizeDeg = 0.25; // spatial hash cell size in degrees
 
 // Recent regions tracking (max 10 most recent)
 const MAX_RECENT_REGIONS = 10;
 let recentRegions = []; // Array of region IDs in order (most recent first)
 
+// Region adjacency data (which regions border which)
+let regionAdjacency = null;
+
 // Temporary color reused to avoid per-vertex allocations
 const __tmpColor = new THREE.Color();
 let stats = {};
-let borderMeshes = [];
-let contourMeshes = [];
-let borderData = null;
 let frameCount = 0;
 let lastTime = performance.now();
 let isCurrentlyLoading = false; // Track if region is being loaded/reloaded
@@ -158,14 +153,9 @@ let params = {
     verticalExaggeration: 0.03, // Default: good balance of detail and scale
     colorScheme: 'terrain',
     showGrid: false,
-    showBorders: false,
     autoRotate: false,
-    shadingMode: 'natural', // Options: 'natural', 'flat', 'hillshade', 'hillshade-tinted'
-    sunAzimuthDeg: 315, // Northwest light for hillshade
-    sunAltitudeDeg: 45,
-    colorGamma: 1.0,
-    showContours: false,
-    contourInterval: 100 // Contour line interval in meters
+    // Shading: Always use Natural (Lambert) - no UI control needed
+    colorGamma: 1.0
 };
 
 // Read and apply modifiable params from URL so links are shareable and stateful
@@ -223,30 +213,9 @@ function applyParamsFromURL() {
     const cs = getStr('colorScheme');
     if (cs) params.colorScheme = cs;
 
-    // Shading / lighting
-    // Shading mode (supports legacy flat=1 and hillshade=1 parameters)
-    const shadingMode = getStr('shading', ['natural', 'flat', 'hillshade', 'hillshade-tinted']);
-    if (shadingMode) {
-        params.shadingMode = shadingMode;
-    } else {
-        // Legacy parameter support
-        const flat = getBool('flat');
-        if (flat !== null && flat) params.shadingMode = 'flat';
-        const hs = getBool('hillshade');
-        if (hs !== null && hs) params.shadingMode = 'hillshade';
-    }
-    const saz = getInt('sunAz', 0, 360);
-    if (saz !== null) params.sunAzimuthDeg = saz;
-    const sal = getInt('sunAlt', 0, 90);
-    if (sal !== null) params.sunAltitudeDeg = sal;
+    // Shading: Always Natural (Lambert) - no URL parameter needed
     const gamma = getFloat('gamma', 0.5, 2.0);
     if (gamma !== null) params.colorGamma = gamma;
-
-    // Contour lines
-    const contours = getBool('contours');
-    if (contours !== null) params.showContours = !!contours;
-    const contourInt = getInt('contourInterval', 10, 5000);
-    if (contourInt !== null) params.contourInterval = contourInt;
 }
 
 // Initialize
@@ -277,8 +246,7 @@ async function init() {
                     msg.includes('Aggregation:') || msg.includes('Already at') ||
                     msg.includes('Switching to') || msg.includes('Pivot marker created') ||
                     msg.includes('Bars centered') || msg.includes('Points centered') ||
-                    msg.includes('PURE 2D GRID') || (msg.includes('Created') && msg.includes('instanced bars')) ||
-                    msg.includes('Creating borders') || msg.includes('border segments')) {
+                    msg.includes('PURE 2D GRID') || (msg.includes('Created') && msg.includes('instanced bars'))) {
                     try { appendActivityLog(msg); } catch (_) { }
                 }
             };
@@ -296,6 +264,11 @@ async function init() {
 
         // Populate region selector (loads manifest and populates dropdown)
         const firstRegionId = await populateRegionSelector();
+
+        // Load state adjacency data (US states only)
+        if (typeof loadStateAdjacency === 'function') {
+            await loadStateAdjacency();
+        }
 
         // Initialize Select2 and all UI controls BEFORE loading any region data
         // This ensures the region selector is completely loaded and interactive
@@ -348,19 +321,10 @@ async function init() {
         // Sync UI to match params (ensures no mismatch on initial load)
         syncUIControls();
 
-        // Auto-adjust bucket size to meet complexity constraints
-        autoAdjustBucketSize();
+        // NOTE: autoAdjustBucketSize() was already called by loadRegion() above
+        // No need to call it again here - that would create terrain twice!
 
-        // updateStats() is called by autoAdjustBucketSize(), no need to call again
-
-        // Reset camera to appropriate distance for this terrain size
-        resetCamera();
-
-        // Automatically reframe view (equivalent to F key) if camera scheme supports it
-        if (activeScheme && activeScheme.reframeView) {
-            activeScheme.reframeView();
-        }
-
+        // Animate loop starts
         animate();
     } catch (error) {
         document.getElementById('loading').innerHTML = `
@@ -386,9 +350,6 @@ async function init() {
 
 let regionsManifest = null;
 let currentRegionId = null;
-
-// Expected data format version - must match export script
-const EXPECTED_FORMAT_VERSION = 2;
 
 // Data caching toggle: when true (default), do NOT add cache-busting params
 // Enable dev busting with URL: ?useCache=0 (or useCache=false)
@@ -436,51 +397,13 @@ async function loadElevationData(url) {
         updateLoadingProgress(100, parseInt(contentLength), parseInt(contentLength));
     }
 
-    // Validate format version
-    if (data.format_version && data.format_version !== EXPECTED_FORMAT_VERSION) {
-        console.error(`[!!] FORMAT VERSION MISMATCH!`);
-        console.error(` Expected: v${EXPECTED_FORMAT_VERSION}`);
-        console.error(` Got: v${data.format_version}`);
-        console.error(` File may have outdated transformations!`);
-        throw new Error(
-            `Data format version mismatch!\n` +
-            `Expected v${EXPECTED_FORMAT_VERSION}, got v${data.format_version}\n\n` +
-            `This data was exported with an older format.\n` +
-            `Please re-export: python export_for_web_viewer.py`
-        );
-    } else if (!data.format_version) {
-        console.warn(`[!!] No format version in data file - may be legacy format!`);
-        console.warn(` Consider re-exporting: python export_for_web_viewer.py`);
-    } else {
-        appendActivityLog(`[OK] Data format v${data.format_version} (exported: ${data.exported_at || 'unknown'})`);
-    }
+    // Extract version from filename for logging (e.g., ohio_srtm_30m_2048px_v2.json -> v2)
+    const versionMatch = filename.match(/_v(\d+)\.json/);
+    const fileVersion = versionMatch ? versionMatch[1] : 'unknown';
+    appendActivityLog(`[OK] Data format v${fileVersion} from filename`);
 
     try { logResourceTiming(urlWithBuster, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
     return data;
-}
-
-async function loadBorderData(elevationUrl) {
-    // Try to load borders from the same location with _borders suffix
-    const borderUrl = elevationUrl.replace('.json', '_borders.json');
-    // Respect caching toggle
-    const urlWithBuster = USE_CACHE ? borderUrl : (borderUrl.includes('?') ? `${borderUrl}&_t=${Date.now()}` : `${borderUrl}?_t=${Date.now()}`);
-    try {
-        const tStart = performance.now();
-        const response = await fetch(urlWithBuster);
-        if (!response.ok) {
-            console.warn(`[INFO] No border data found at ${borderUrl}`);
-            return null;
-        }
-        const data = await response.json();
-        const borderCount = (data.countries?.length || 0) + (data.states?.length || 0);
-        const borderType = data.states ? 'states' : 'countries';
-        appendActivityLog(`[OK] Loaded border data: ${borderCount} ${borderType}`);
-        try { logResourceTiming(urlWithBuster, 'Loaded borders', tStart, performance.now()); } catch (e) { }
-        return data;
-    } catch (error) {
-        console.warn(`[INFO] Border data not available: ${error.message}`);
-        return null;
-    }
 }
 
 async function loadRegionsManifest() {
@@ -499,6 +422,21 @@ async function loadRegionsManifest() {
         return json;
     } catch (error) {
         console.warn('Could not load regions manifest:', error);
+        return null;
+    }
+}
+
+async function loadAdjacencyData() {
+    try {
+        const url = 'generated/region_adjacency.json';
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.warn('Region adjacency data not found');
+            return null;
+        }
+        return await response.json();
+    } catch (error) {
+        console.warn('Could not load region adjacency data:', error);
         return null;
     }
 }
@@ -529,7 +467,7 @@ function saveRecentRegions() {
 }
 
 function addToRecentRegions(regionId) {
-    if (!regionId || regionId === 'default') return;
+    if (!regionId) return;
 
     // Remove if already in list
     recentRegions = recentRegions.filter(id => id !== regionId);
@@ -576,40 +514,39 @@ function rebuildRegionDropdown() {
         }
     }
 
-    // 0) Recent regions (if any)
-    const validRecent = getValidRecentRegions();
-    if (validRecent.length > 0) {
-        for (const id of validRecent) {
-            const info = regionsManifest.regions[id];
-            if (info) {
-                regionOptions.push({ id, name: info.name, isRecent: true });
-            }
-        }
-        regionOptions.push({ id: '__divider__', name: '' });
-    }
+    // Recent regions are shown separately above the dropdown, not in the dropdown list
 
     // 1) Countries (alpha)
-    internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of internationalCountries) {
-        regionOptions.push({ id, name: info.name });
-    }
-    if (internationalCountries.length && (nonCountryRegions.length || unitedStates.length)) {
-        regionOptions.push({ id: '__divider__', name: '' });
+    if (internationalCountries.length > 0) {
+        regionOptions.push({ id: '__header__', name: 'COUNTRIES' });
+        internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of internationalCountries) {
+            regionOptions.push({ id, name: info.name });
+        }
+        if (nonCountryRegions.length || unitedStates.length) {
+            regionOptions.push({ id: '__divider__', name: '' });
+        }
     }
 
     // 2) Regions (alpha)
-    nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of nonCountryRegions) {
-        regionOptions.push({ id, name: info.name });
-    }
-    if (nonCountryRegions.length && unitedStates.length) {
-        regionOptions.push({ id: '__divider__', name: '' });
+    if (nonCountryRegions.length > 0) {
+        regionOptions.push({ id: '__header__', name: 'REGIONS' });
+        nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of nonCountryRegions) {
+            regionOptions.push({ id, name: info.name });
+        }
+        if (unitedStates.length) {
+            regionOptions.push({ id: '__divider__', name: '' });
+        }
     }
 
     // 3) US states (alpha)
-    unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of unitedStates) {
-        regionOptions.push({ id, name: info.name });
+    if (unitedStates.length > 0) {
+        regionOptions.push({ id: '__header__', name: 'US STATES' });
+        unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of unitedStates) {
+            regionOptions.push({ id, name: info.name });
+        }
     }
 
     // Rebuild the DOM dropdown
@@ -626,6 +563,22 @@ function rebuildRegionDropdown() {
                 dropdown.appendChild(div);
                 return;
             }
+            if (opt.id === '__header__') {
+                const header = document.createElement('div');
+                header.setAttribute('data-header', 'true');
+                header.textContent = opt.name;
+                header.style.padding = '8px 10px';
+                header.style.fontSize = '11px';
+                header.style.fontWeight = '700';
+                header.style.color = '#888';
+                header.style.textTransform = 'uppercase';
+                header.style.letterSpacing = '0.5px';
+                header.style.backgroundColor = 'rgba(85,136,204,0.08)';
+                header.style.cursor = 'default';
+                header.style.userSelect = 'none';
+                dropdown.appendChild(header);
+                return;
+            }
             const row = document.createElement('div');
             row.textContent = opt.name;
             row.setAttribute('data-id', opt.id);
@@ -633,12 +586,6 @@ function rebuildRegionDropdown() {
             row.style.cursor = 'pointer';
             row.style.fontSize = '12px';
             row.style.borderBottom = '1px solid rgba(85,136,204,0.12)';
-
-            // Add visual indicator for recent regions
-            if (opt.isRecent) {
-                row.style.color = '#88ccff'; // Lighter blue for recent items
-                row.style.fontWeight = '500';
-            }
 
             row.addEventListener('mousedown', (e) => {
                 e.preventDefault();
@@ -659,14 +606,11 @@ async function populateRegionSelector() {
     const listEl = document.getElementById('regionList');
 
     regionsManifest = await loadRegionsManifest();
+    regionAdjacency = await loadAdjacencyData();
 
     if (!regionsManifest || !regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
-        // No manifest, use default single region
-        if (inputEl) {
-            inputEl.value = 'Default Region';
-        }
-        currentRegionId = 'default';
-        return 'default';
+        // No manifest - cannot load any region
+        throw new Error('No regions manifest found. Cannot load elevation data.');
     }
 
     // Check for URL parameter to specify initial region (e.g., ?region=ohio)
@@ -711,40 +655,39 @@ async function populateRegionSelector() {
         }
     }
 
-    // 0) Recent regions (if any)
-    const validRecent = getValidRecentRegions();
-    if (validRecent.length > 0) {
-        for (const id of validRecent) {
-            const info = regionsManifest.regions[id];
-            if (info) {
-                regionOptions.push({ id, name: info.name, isRecent: true });
-            }
-        }
-        regionOptions.push({ id: '__divider__', name: '' });
-    }
+    // Recent regions are shown separately above the dropdown, not in the dropdown list
 
     // 1) Countries (alpha)
-    internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of internationalCountries) {
-        regionOptions.push({ id, name: info.name });
-    }
-    if (internationalCountries.length && (nonCountryRegions.length || unitedStates.length)) {
-        regionOptions.push({ id: '__divider__', name: '' });
+    if (internationalCountries.length > 0) {
+        regionOptions.push({ id: '__header__', name: 'COUNTRIES' });
+        internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of internationalCountries) {
+            regionOptions.push({ id, name: info.name });
+        }
+        if (nonCountryRegions.length || unitedStates.length) {
+            regionOptions.push({ id: '__divider__', name: '' });
+        }
     }
 
     // 2) Regions (alpha)
-    nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of nonCountryRegions) {
-        regionOptions.push({ id, name: info.name });
-    }
-    if (nonCountryRegions.length && unitedStates.length) {
-        regionOptions.push({ id: '__divider__', name: '' });
+    if (nonCountryRegions.length > 0) {
+        regionOptions.push({ id: '__header__', name: 'REGIONS' });
+        nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of nonCountryRegions) {
+            regionOptions.push({ id, name: info.name });
+        }
+        if (unitedStates.length) {
+            regionOptions.push({ id: '__divider__', name: '' });
+        }
     }
 
     // 3) US states (alpha)
-    unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
-    for (const { id, info } of unitedStates) {
-        regionOptions.push({ id, name: info.name });
+    if (unitedStates.length > 0) {
+        regionOptions.push({ id: '__header__', name: 'US STATES' });
+        unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
+        for (const { id, info } of unitedStates) {
+            regionOptions.push({ id, name: info.name });
+        }
     }
 
     // Determine which region to load initially
@@ -796,8 +739,8 @@ function updateRegionInfo(regionId) {
     const currentRegionEl = document.getElementById('currentRegion');
     const regionInfoEl = document.getElementById('regionInfo');
 
-    if (regionId === 'default' || !regionsManifest || !regionsManifest.regions[regionId]) {
-        if (currentRegionEl) currentRegionEl.textContent = 'Default Region';
+    if (!regionsManifest || !regionsManifest.regions[regionId]) {
+        if (currentRegionEl) currentRegionEl.textContent = 'Unknown Region';
         if (regionInfoEl) regionInfoEl.textContent = 'No region data available';
         return;
     }
@@ -808,42 +751,28 @@ function updateRegionInfo(regionId) {
 }
 
 async function loadRegion(regionId) {
+    // Fallback to california if no region specified or invalid
+    if (!regionId || !regionsManifest?.regions[regionId]) {
+        regionId = 'california';
+    }
+
     appendActivityLog(`Loading region: ${regionId}`);
-    showLoading(`Loading ${regionsManifest?.regions[regionId]?.name || regionId}...`);
+
+    const regionName = regionsManifest?.regions[regionId]?.name || regionId;
+    showLoading(`Loading ${regionName}...`);
 
     try {
-        let dataUrl;
-        if (regionId === 'default') {
-            dataUrl = 'generated/elevation_data.json';
-        } else {
-            // Use the file path from manifest (handles version suffixes like _srtm_30m_v2)
-            const filename = regionsManifest?.regions[regionId]?.file || `${regionId}.json`;
-            dataUrl = `generated/regions/${filename}`;
+        // ALWAYS use manifest file path (no fallback)
+        const filename = regionsManifest.regions[regionId].file;
+        if (!filename) {
+            throw new Error(`No file path in manifest for region: ${regionId}`);
         }
+        const dataUrl = `generated/regions/${filename}`;
 
-        // Display the full file path in the UI
-        const regionInfoEl = document.getElementById('regionInfo');
-        if (regionInfoEl) {
-            const regionName = regionsManifest?.regions[regionId]?.name || regionId;
-            regionInfoEl.innerHTML = `
- ${regionName}<br>
- <span style="font-size: 11px; color:#888; font-family: monospace;">${dataUrl}</span>
- `;
-        }
-
+        updateLoadingProgress(0, 0, 1, 'Downloading data...');
         rawElevationData = await loadElevationData(dataUrl);
-        borderData = await loadBorderData(dataUrl);
         currentRegionId = regionId;
         updateRegionInfo(regionId);
-
-        // Display the full file path in the UI (after updateRegionInfo overwrites it)
-        if (regionInfoEl) {
-            const regionName = regionsManifest?.regions[regionId]?.name || regionId;
-            regionInfoEl.innerHTML = `
- ${regionName}<br>
- <span style="font-size: 11px; color:#888; font-family: monospace;">${dataUrl}</span>
- `;
-        }
 
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
@@ -877,16 +806,24 @@ async function loadRegion(regionId) {
         edgeMarkers.forEach(marker => scene.remove(marker));
         edgeMarkers = [];
 
-        // Before first build for this region, auto-increase bucket size to target count
-        // (respects larger values from URL/user)
+        // Processing steps with detailed progress tracking
+        let stepStart;
+
+        updateLoadingProgress(20, 1, 1, 'Auto-adjusting resolution...');
+        stepStart = performance.now();
+        // autoAdjustBucketSize() calls rebucketData() + recreateTerrain() internally
+        // No need to call them again after this
         autoAdjustBucketSize();
-        // Reprocess and recreate terrain
-        rebucketData();
-        recreateTerrain();
-        // Ensure color scheme is applied immediately on new region load
+        console.log(`autoAdjustBucketSize: ${(performance.now() - stepStart).toFixed(1)}ms (includes rebucket + terrain creation)`);
+
+        updateLoadingProgress(70, 1, 1, 'Applying colors...');
+        stepStart = performance.now();
         if (!params.colorScheme) params.colorScheme = 'terrain';
         updateColors();
-        recreateBorders();
+        console.log(`updateColors: ${(performance.now() - stepStart).toFixed(1)}ms`);
+
+
+        updateLoadingProgress(95, 1, 1, 'Finalizing...');
         updateStats();
 
         // Sync UI controls with current params
@@ -903,6 +840,11 @@ async function loadRegion(regionId) {
         hideLoading();
         appendActivityLog(`Loaded ${regionId}`);
         try { logSignificant(`Region loaded: ${regionId}`); } catch (_) { }
+
+        // Create connectivity labels for US states
+        if (typeof createConnectivityLabels === 'function') {
+            createConnectivityLabels();
+        }
     } catch (error) {
         console.error(`Failed to load region ${regionId}:`, error);
         try { logSignificant(`Region load failed: ${regionId}`); } catch (_) { }
@@ -922,8 +864,8 @@ function showLoading(message) {
     return window.UILoading.show(message);
 }
 
-function updateLoadingProgress(percent, loaded, total) {
-    return window.UILoading.updateProgress(percent, loaded, total);
+function updateLoadingProgress(percent, loaded, total, message) {
+    return window.UILoading.updateProgress(percent, loaded, total, message);
 }
 
 function hideLoading() {
@@ -970,28 +912,17 @@ function syncUIControls() {
     const $colorScheme = $('#colorScheme');
     $colorScheme.val(params.colorScheme);
 
-    // Shading mode dropdown
-    const shadingModeEl = document.getElementById('shadingMode');
-    if (shadingModeEl) shadingModeEl.value = params.shadingMode || 'natural';
-
-    // Contour controls
-    const contourToggleEl = document.getElementById('showContours');
-    if (contourToggleEl) contourToggleEl.checked = !!params.showContours;
-    const contourIntervalEl = document.getElementById('contourInterval');
-    if (contourIntervalEl) contourIntervalEl.value = params.contourInterval || 100;
+    // Shading: Always Natural (Lambert) - no UI element
 
     // Apply visual settings to scene objects
     if (gridHelper) {
         gridHelper.visible = params.showGrid;
     }
-    if (borderMeshes && borderMeshes.length > 0) {
-        borderMeshes.forEach(mesh => mesh.visible = params.showBorders);
-    }
     if (controls) {
         controls.autoRotate = params.autoRotate;
     }
 
-    // Shading controls removed from UI
+    // Shading: Always Natural (Lambert) - no controls needed
 }
 
 // Compute percentile-based auto stretch bounds from current bucketed elevation
@@ -1023,6 +954,9 @@ function computeAutoStretchStats() {
 // CLIENT-SIDE BUCKETING ALGORITHMS
 function rebucketData() {
     const startTime = performance.now();
+    const stack = new Error().stack;
+    const caller = stack.split('\n')[2]?.trim() || 'unknown';
+    console.log(`[BUCKETING] rebucketData() called from: ${caller}`);
     appendActivityLog(`Bucketing with multiplier ${params.bucketSize}x, method: ${params.aggregation}`);
 
     const { width, height, elevation, bounds } = rawElevationData;
@@ -1147,15 +1081,6 @@ function createTextSprite(text, color) {
 
 function updateEdgeMarkers() {
     return window.EdgeMarkers.update();
-}
-
-// Borders and contours now in borders-contours.js
-function createContourLines() {
-    return window.BordersContours.createContourLines();
-}
-
-function traceContourLevel(elevation, width, height, level) {
-    return window.BordersContours.traceContourLevel(elevation, width, height, level);
 }
 
 /**
@@ -1369,7 +1294,7 @@ function setupScene() {
     scene.add(dirLight2);
     window.__dirLight2 = dirLight2;
 
-    // Ensure intensities match current flat/non-flat state
+    // Initialize lighting intensities for Natural (Lambert) shading
     updateLightingForShading();
 
     // Grid helper
@@ -1402,7 +1327,7 @@ function setupScene() {
     raycaster = new THREE.Raycaster();
     groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-    // Apply current shading parameters
+    // Initialize Natural (Lambert) lighting
     try { updateLightingForShading(); } catch (_) { }
 }
 
@@ -1780,45 +1705,7 @@ function setupControls() {
         csDownBtn.addEventListener('click', () => jumpToIndex(+jumpBy));
     }
 
-    // Shading mode dropdown
-    const shadingModeSelect = document.getElementById('shadingMode');
-    if (shadingModeSelect) {
-        shadingModeSelect.addEventListener('change', (e) => {
-            params.shadingMode = e.target.value;
-            console.log(`Shading mode changed: ${params.shadingMode}`);
-            updateLightingForShading();
-            recreateTerrain(); // Recreate to update materials
-            updateURLParameter('shading', params.shadingMode);
-            e.target.blur(); // Remove focus for keyboard navigation
-        });
-    }
-
-    // Contour lines toggle
-    const contourToggle = document.getElementById('showContours');
-    if (contourToggle) {
-        contourToggle.addEventListener('change', (e) => {
-            params.showContours = !!e.target.checked;
-            console.log(`Contours ${params.showContours ? 'enabled' : 'disabled'}`);
-            createContourLines();
-            updateURLParameter('contours', params.showContours ? '1' : '0');
-        });
-    }
-
-    // Contour interval input
-    const contourIntervalInput = document.getElementById('contourInterval');
-    if (contourIntervalInput) {
-        contourIntervalInput.addEventListener('change', (e) => {
-            const value = parseInt(e.target.value);
-            if (value && value > 0) {
-                params.contourInterval = value;
-                console.log(`Contour interval set to ${params.contourInterval}m`);
-                if (params.showContours) {
-                    createContourLines();
-                }
-                updateURLParameter('contourInterval', params.contourInterval);
-            }
-        });
-    }
+    // Shading: Always Natural (Lambert) - no UI control
 
     // Initialize vertical exaggeration button states (highlight default active button)
     updateVertExagButtons(params.verticalExaggeration);
@@ -1891,6 +1778,25 @@ function setupEventListeners() {
         if (activeScheme) activeScheme.onMouseDown(e);
     });
 
+    // Handle clicks on connectivity labels (US state neighbors)
+    renderer.domElement.addEventListener('click', (e) => {
+        if (typeof handleConnectivityClick === 'function') {
+            // Use raycaster to check for sprite clicks
+            const mouse = new THREE.Vector2();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            for (const intersect of intersects) {
+                if (handleConnectivityClick(intersect.object)) {
+                    break; // Stop after first handled click
+                }
+            }
+        }
+    });
+
     renderer.domElement.addEventListener('mousemove', (e) => {
         // Track mouse for HUD and zoom-to-cursor
         currentMouseX = e.clientX;
@@ -1898,10 +1804,63 @@ function setupEventListeners() {
         if (activeScheme) activeScheme.onMouseMove(e);
         // Update HUD live
         updateCursorHUD(e.clientX, e.clientY);
+
+        // Check if hovering over connectivity label
+        if (typeof handleConnectivityClick === 'function') {
+            const mouse = new THREE.Vector2();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let overLabel = false;
+            for (const intersect of intersects) {
+                if (intersect.object.userData.isConnectivityLabel) {
+                    overLabel = true;
+                    break;
+                }
+            }
+            renderer.domElement.style.cursor = overLabel ? 'pointer' : 'default';
+        }
     });
 
     renderer.domElement.addEventListener('mouseup', (e) => {
         if (activeScheme) activeScheme.onMouseUp(e);
+    });
+
+    // Handle clicks on edge markers (neighboring regions)
+    renderer.domElement.addEventListener('click', (e) => {
+        // Only handle left clicks
+        if (e.button !== 0) return;
+
+        // Setup raycaster
+        const mouse = new THREE.Vector2();
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        // Check for intersection with edge markers
+        if (edgeMarkers && edgeMarkers.length > 0) {
+            const intersects = raycaster.intersectObjects(edgeMarkers);
+            if (intersects.length > 0) {
+                const marker = intersects[0].object;
+                // Skip non-interactive markers (compass circles)
+                if (marker.userData.nonInteractive) return;
+                
+                // Handle both old single neighborId and new neighborIds array
+                const neighborIds = marker.userData.neighborIds || (marker.userData.neighborId ? [marker.userData.neighborId] : null);
+                if (neighborIds && neighborIds.length > 0) {
+                    // For now, just load the first neighbor if multiple exist
+                    // Future enhancement: could show a menu for multiple neighbors
+                    const neighborId = neighborIds[0];
+                    const neighborNames = marker.userData.neighborNames || [neighborId];
+                    console.log(`Clicked neighbor marker: ${neighborNames.join(', ')} -> loading ${neighborId}`);
+                    loadRegion(neighborId);
+                }
+            }
+        }
     });
 
     // Setup camera scheme selector
@@ -1972,6 +1931,94 @@ function setupEventListeners() {
         applyHudSettingsToUI();
         bindHudSettingsHandlers();
     }
+
+    // HUD show/hide toggle
+    const showHUDCheckbox = document.getElementById('showHUD');
+    const hudElement = document.getElementById('info');
+    if (showHUDCheckbox && hudElement) {
+        showHUDCheckbox.addEventListener('change', () => {
+            hudElement.style.display = showHUDCheckbox.checked ? 'block' : 'none';
+        });
+    }
+
+    // HUD dragging functionality
+    initHudDragging();
+
+    // Load saved HUD position
+    loadHudPosition();
+}
+
+// HUD dragging - entire HUD is grabbable, instant with zero lag
+function initHudDragging() {
+    const hud = document.getElementById('info');
+    if (!hud) return;
+
+    let isDragging = false;
+    let offsetX, offsetY;
+
+    hud.addEventListener('mousedown', (e) => {
+        // Don't start drag if clicking on buttons or inputs
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') {
+            return;
+        }
+        
+        isDragging = true;
+        const rect = hud.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        // Calculate new position instantly
+        let newLeft = e.clientX - offsetX;
+        let newTop = e.clientY - offsetY;
+        
+        // Keep HUD within viewport bounds
+        const maxLeft = window.innerWidth - hud.offsetWidth - 10;
+        const maxTop = window.innerHeight - hud.offsetHeight - 10;
+        newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+        newTop = Math.max(10, Math.min(newTop, maxTop));
+        
+        // Apply instantly without any delay
+        hud.style.left = newLeft + 'px';
+        hud.style.top = newTop + 'px';
+    }, { passive: false });
+
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            saveHudPosition();
+        }
+    });
+}
+
+function saveHudPosition() {
+    const hud = document.getElementById('info');
+    if (!hud) return;
+    try {
+        const position = {
+            left: hud.style.left,
+            top: hud.style.top
+        };
+        localStorage.setItem('hudPosition', JSON.stringify(position));
+    } catch (_) { }
+}
+
+function loadHudPosition() {
+    const hud = document.getElementById('info');
+    if (!hud) return;
+    try {
+        const saved = localStorage.getItem('hudPosition');
+        if (saved) {
+            const position = JSON.parse(saved);
+            if (position.left) hud.style.left = position.left;
+            if (position.top) hud.style.top = position.top;
+        }
+    } catch (_) { }
 }
 
 // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
@@ -2148,12 +2195,13 @@ function createTerrain() {
     // Only create edge markers if they don't exist yet (prevents movement on exaggeration change)
     if (edgeMarkers.length === 0) {
         createEdgeMarkers();
+        // Create connectivity labels alongside edge markers
+        if (typeof createConnectivityLabels === 'function') {
+            createConnectivityLabels();
+        }
     }
 
     updateStats();
-
-    // Generate contour lines if enabled
-    createContourLines();
 }
 
 function createBarsTerrain(width, height, elevation, scale) {
@@ -2193,9 +2241,8 @@ function createBarsTerrain(width, height, elevation, scale) {
             barCount++;
         }
     }
-    const material = params.flatLightingEnabled
-        ? new THREE.MeshBasicMaterial({ vertexColors: true })
-        : new THREE.MeshLambertMaterial({ vertexColors: true });
+    // Always use Natural (Lambert) shading
+    const material = new THREE.MeshLambertMaterial({ vertexColors: true });
 
     const instancedMesh = new THREE.InstancedMesh(
         baseGeometry,
@@ -2415,21 +2462,15 @@ function createSurfaceTerrain(width, height, elevation, scale) {
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         // PERFORMANCE FIX: Defer expensive computeVertexNormals() to after first render
         // This makes the viewer interactive immediately (no 2-3 second freeze)
-        // Only compute normals if actually needed for lighting
-        const needsNormals = (params.shadingMode === 'natural' || params.shadingMode === 'hillshade' || params.shadingMode === 'hillshade-tinted');
-        if (!needsNormals) {
-            // Flat shading doesn't need normals - skip computation entirely
-        } else {
-            // Defer normals computation to next frame so UI becomes interactive immediately
-            setTimeout(() => {
-                if (geometry && !geometry.attributes.normal) {
-                    const t0 = performance.now();
-                    geometry.computeVertexNormals();
-                    const t1 = performance.now();
-                    console.log(`[Deferred] Computed vertex normals in ${(t1 - t0).toFixed(1)}ms`);
-                }
-            }, 0);
-        }
+        // Natural (Lambert) shading always needs normals
+        setTimeout(() => {
+            if (geometry && !geometry.attributes.normal) {
+                const t0 = performance.now();
+                geometry.computeVertexNormals();
+                const t1 = performance.now();
+                console.log(`[Deferred] Computed vertex normals in ${(t1 - t0).toFixed(1)}ms`);
+            }
+        }, 0);
     }
 
     let material;
@@ -2441,17 +2482,8 @@ function createSurfaceTerrain(width, height, elevation, scale) {
             side: THREE.DoubleSide
         });
     } else {
-        // Choose material based on shading mode
-        if (params.shadingMode === 'flat') {
-            // Flat/unlit - no lighting interaction
-            material = new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: false, side: THREE.DoubleSide });
-        } else if (params.shadingMode === 'hillshade' || params.shadingMode === 'hillshade-tinted') {
-            // Hillshade - Lambert material with special lighting (colors may be overridden by lighting)
-            material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
-        } else {
-            // Natural - Standard Lambert shading
-            material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
-        }
+        // Always use Natural (Lambert) shading
+        material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
     }
 
     terrainMesh = new THREE.Mesh(geometry, material);
@@ -2567,7 +2599,6 @@ function updateColors() {
     // Bars: update per-instance colors without rebuild
     if (params.renderMode === 'bars') {
         if (!barsInstancedMesh || !barsIndexToRow || !barsIndexToCol) { recreateTerrain(); return; }
-        // If hillshade is enabled, vertex colors are not used; nothing to update visually
         if (barsInstancedMesh.material && barsInstancedMesh.material.vertexColors) {
             const colorAttr = barsInstancedMesh.geometry.getAttribute('instanceColor');
             if (!colorAttr || !colorAttr.array) { recreateTerrain(); return; }
@@ -2589,7 +2620,7 @@ function updateColors() {
             colorAttr.needsUpdate = true;
             return;
         }
-        return; // hillshade on: colors ignored
+        return;
     }
 
     // Points: update color buffer in-place
@@ -2641,23 +2672,20 @@ function updateColors() {
 }
 
 function recreateTerrain() {
+    const startTime = performance.now();
+
+    // Log call stack to understand where recreations are coming from
+    const stack = new Error().stack;
+    const caller = stack.split('\n')[2]?.trim() || 'unknown';
+    console.log(`[TERRAIN] recreateTerrain() called from: ${caller}`);
+
     createTerrain();
+    const duration = performance.now() - startTime;
+    console.log(`[PERF] recreateTerrain() completed in ${duration.toFixed(1)}ms`);
+    return duration;
 }
 
-function updateMaterialsForShading() {
-    // Shading disabled for now
-}
-
-function updateSunLightDirection() {
-    const light = window.__sunLight;
-    if (!light) return;
-    const azRad = (params.sunAzimuthDeg % 360) * Math.PI / 180;
-    const altRad = (Math.max(0, Math.min(90, params.sunAltitudeDeg)) * Math.PI) / 180;
-    const x = Math.cos(altRad) * Math.cos(azRad);
-    const y = Math.sin(altRad);
-    const z = Math.cos(altRad) * Math.sin(azRad);
-    light.position.set(x * 200, y * 200, z * 200);
-}
+// Removed: updateMaterialsForShading() - always using Natural (Lambert) shading
 
 function updateLightingForShading() {
     const ambient = window.__ambientLight;
@@ -2665,110 +2693,13 @@ function updateLightingForShading() {
     const d2 = window.__dirLight2;
     if (!ambient || !d1 || !d2) return;
 
-    const mode = params.shadingMode || 'natural';
-
-    if (mode === 'flat') {
-        // Flat/unlit - full ambient, no directional lights
-        ambient.intensity = 1.0;
-        d1.intensity = 0.0;
-        d2.intensity = 0.0;
-    } else if (mode === 'hillshade' || mode === 'hillshade-tinted') {
-        // Hillshade - Single strong directional light from northwest, minimal ambient
-        ambient.intensity = 0.2; // Just enough to prevent pure black shadows
-        d1.intensity = 1.2; // Strong directional light
-        d2.intensity = 0.0; // Turn off second light for clean shadows
-
-        // Position light based on sun azimuth/altitude (northwest = 315deg by default)
-        const azRad = (params.sunAzimuthDeg % 360) * Math.PI / 180;
-        const altRad = (Math.max(0, Math.min(90, params.sunAltitudeDeg)) * Math.PI) / 180;
-        const x = Math.cos(altRad) * Math.cos(azRad);
-        const y = Math.sin(altRad);
-        const z = Math.cos(altRad) * Math.sin(azRad);
-        d1.position.set(x * 1000, y * 1000, z * 1000);
-
-        // For pure hillshade (grayscale), we might want to adjust color rendering
-        // but for now we'll let it work with the existing vertex colors
-    } else {
-        // Natural - Balanced multi-directional lighting
-        ambient.intensity = 0.9;
-        d1.intensity = 0.4;
-        d2.intensity = 0.2;
-    }
+    // Always use Natural (Lambert) - Balanced multi-directional lighting
+    ambient.intensity = 0.9;
+    d1.intensity = 0.4;
+    d2.intensity = 0.2;
 }
 
-
-// ===== SUN PAD INTERACTION (mouse-driven sky control) =====
-let sunPadState = { dragging: false };
-function initSunPad() {
-    const canvas = document.getElementById('sunPad');
-    if (!canvas) return;
-    const onPos = (clientX, clientY) => {
-        const rect = canvas.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const dx = clientX - cx;
-        const dy = clientY - cy;
-        const R = Math.min(rect.width, rect.height) * 0.5 - 4;
-        const r = Math.min(Math.sqrt(dx * dx + dy * dy), R);
-        // Azimuth: 0deg = right (east), 90deg = up (north-ish visual), CCW
-        let az = Math.atan2(-dy, dx) * 180 / Math.PI; // invert dy for canvas y
-        if (az < 0) az += 360;
-        // Altitude: center = 90deg, edge = 0deg
-        const alt = Math.max(0, Math.min(90, (1 - (r / R)) * 90));
-        params.sunAzimuthDeg = Math.round(az);
-        params.sunAltitudeDeg = Math.round(alt);
-        const azEl = document.getElementById('sunAzimuth');
-        const azInEl = document.getElementById('sunAzimuthInput');
-        const altEl = document.getElementById('sunAltitude');
-        const altInEl = document.getElementById('sunAltitudeInput');
-        if (azEl) azEl.value = params.sunAzimuthDeg;
-        if (azInEl) azInEl.value = params.sunAzimuthDeg;
-        if (altEl) altEl.value = params.sunAltitudeDeg;
-        if (altInEl) altInEl.value = params.sunAltitudeDeg;
-        updateSunLightDirection();
-        drawSunPad();
-    };
-    canvas.addEventListener('mousedown', (e) => { sunPadState.dragging = true; onPos(e.clientX, e.clientY); });
-    window.addEventListener('mousemove', (e) => { if (sunPadState.dragging) onPos(e.clientX, e.clientY); });
-    window.addEventListener('mouseup', () => { sunPadState.dragging = false; });
-    drawSunPad();
-}
-
-function drawSunPad() {
-    const canvas = document.getElementById('sunPad');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    const cx = w / 2, cy = h / 2;
-    const R = Math.min(w, h) * 0.5 - 4;
-    // Background
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, w, h);
-    // Horizon circle
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.strokeStyle = '#335';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Altitude rings (30deg and 60deg)
-    const r30 = R * (1 - 30 / 90);
-    const r60 = R * (1 - 60 / 90);
-    ctx.beginPath(); ctx.arc(cx, cy, r30, 0, Math.PI * 2); ctx.strokeStyle = '#233'; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, r60, 0, Math.PI * 2); ctx.strokeStyle = '#233'; ctx.stroke();
-    // Sun dot
-    const azRad = (params.sunAzimuthDeg % 360) * Math.PI / 180;
-    const altFrac = Math.max(0, Math.min(1, params.sunAltitudeDeg / 90));
-    const r = R * (1 - altFrac);
-    const sx = cx + Math.cos(azRad) * r;
-    const sy = cy - Math.sin(azRad) * r;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffcc66';
-    ctx.fill();
-    ctx.strokeStyle = '#664400';
-    ctx.stroke();
-}
+// Removed: Sun pad UI controls (initSunPad, drawSunPad, updateSunLightDirection) - no longer needed with Natural (Lambert) only
 
 // ===== DERIVED GRIDS (SLOPE/ASPECT) =====
 function computeDerivedGrids() {
@@ -2821,10 +2752,6 @@ function getAspectDegrees(i, j) {
     const w = derivedAspectDeg[0].length;
     if (i < 0 || j < 0 || i >= h || j >= w) return null;
     return derivedAspectDeg[i][j];
-}
-
-function recreateBorders() {
-    return window.BordersContours.recreateBorders();
 }
 
 function updateStats() {
@@ -2951,7 +2878,7 @@ function setTrueScale() {
     }
 
     setVertExag(clampedValue);
-    try { updateURLParameter('exag', internalToMultiplier(clampedValue)); } catch (_) { }
+    // Note: setVertExag() already updates the URL
 }
 
 function setVertExagMultiplier(multiplier) {
@@ -2969,7 +2896,7 @@ function setVertExagMultiplier(multiplier) {
     const value = trueScaleValue * multiplier;
     console.log(`Setting ${multiplier}x exaggeration (${value.toFixed(6)}x)`);
     setVertExag(value);
-    try { updateURLParameter('exag', multiplier); } catch (_) { }
+    // Note: setVertExag() already updates the URL
 }
 
 function updateVertExagButtons(activeValue) {
@@ -3162,6 +3089,79 @@ function updateRegionNavHints() {
         nextHint.textContent = nextName || '';
         nextHint.title = nextName ? `Next: ${nextName}` : '';
     }
+
+    // Update visible recent regions list
+    updateRecentRegionsList();
+}
+
+// Update the visible recent regions list in the UI
+function updateRecentRegionsList() {
+    const container = document.getElementById('recent-regions-container');
+    const listEl = document.getElementById('recent-regions-list');
+    
+    if (!listEl) return;
+
+    const validRecent = getValidRecentRegions();
+    
+    // Hide container if no recent regions
+    if (validRecent.length === 0) {
+        if (container) container.style.display = 'none';
+        return;
+    }
+
+    // Show container and populate list
+    if (container) container.style.display = 'block';
+    
+    listEl.innerHTML = '';
+    validRecent.forEach((regionId) => {
+        const regionInfo = regionsManifest?.regions[regionId];
+        if (!regionInfo) return;
+
+        const button = document.createElement('button');
+        button.textContent = regionInfo.name;
+        button.className = 'recent-region-btn';
+        button.style.cssText = `
+            display: inline-block;
+            padding: 6px 12px;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            background: rgba(85, 136, 204, 0.15);
+            border: 1px solid rgba(85, 136, 204, 0.3);
+            border-radius: 4px;
+            color: #88ccff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        `;
+        
+        // Highlight current region
+        if (regionId === currentRegionId) {
+            button.style.background = 'rgba(85, 136, 204, 0.3)';
+            button.style.borderColor = 'rgba(85, 136, 204, 0.5)';
+            button.style.fontWeight = '600';
+        }
+
+        button.addEventListener('mouseenter', () => {
+            if (regionId !== currentRegionId) {
+                button.style.background = 'rgba(85, 136, 204, 0.25)';
+            }
+        });
+
+        button.addEventListener('mouseleave', () => {
+            if (regionId !== currentRegionId) {
+                button.style.background = 'rgba(85, 136, 204, 0.15)';
+            }
+        });
+
+        button.addEventListener('click', () => {
+            if (regionId !== currentRegionId) {
+                loadRegion(regionId);
+            }
+        });
+
+        listEl.appendChild(button);
+    });
 }
 
 function onKeyDown(event) {
@@ -3201,11 +3201,11 @@ function onKeyDown(event) {
     }
     // F key: Handled by camera scheme (reframeView), don't duplicate here
 
-    // Arrow keys: Navigate between regions (up = previous, down = next)
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault(); // Prevent page scrolling
-        navigateRegions(event.key === 'ArrowDown' ? 1 : -1);
-    }
+    // Arrow keys: Disabled for now
+    // if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    //     event.preventDefault(); // Prevent page scrolling
+    //     navigateRegions(event.key === 'ArrowDown' ? 1 : -1);
+    // }
 }
 
 function onKeyUp(event) {
@@ -3372,14 +3372,12 @@ function updateCursorHUD(clientX, clientY) {
     const elevEl = document.getElementById('hud-elev');
     const slopeEl = document.getElementById('hud-slope');
     const aspectEl = document.getElementById('hud-aspect');
-    const distEl = document.getElementById('hud-dist');
     if (!elevEl || !processedData) return;
     const world = raycastToWorld(clientX, clientY);
     if (!world) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (distEl) distEl.textContent = '--';
         return;
     }
     // Ignore when cursor is outside data footprint
@@ -3387,10 +3385,6 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (distEl) {
-            const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
-            distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
-        }
         return;
     }
 
@@ -3402,10 +3396,6 @@ function updateCursorHUD(clientX, clientY) {
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
-        if (distEl) {
-            const dMetersEdge = computeDistanceToDataEdgeMeters(world.x, world.z);
-            distEl.textContent = (dMetersEdge != null && isFinite(dMetersEdge)) ? formatDistance(dMetersEdge, (hudSettings && hudSettings.units) || 'metric') : '--';
-        }
         return;
     }
     const zMeters = zCell;
@@ -3416,10 +3406,6 @@ function updateCursorHUD(clientX, clientY) {
     elevEl.textContent = elevText;
     if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
     if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
-    if (distEl) {
-        const dMeters = computeDistanceToNearestBorderMetersGeo(world.x, world.z);
-        distEl.textContent = (dMeters != null && isFinite(dMeters)) ? formatDistance(dMeters, units) : '--';
-    }
 }
 
 function loadHudSettings() {
@@ -3447,22 +3433,18 @@ function applyHudSettingsToUI() {
     const rowElev = document.getElementById('hud-row-elev');
     const rowSlope = document.getElementById('hud-row-slope');
     const rowAspect = document.getElementById('hud-row-aspect');
-    const rowDist = document.getElementById('hud-row-dist');
     const rowRelief = document.getElementById('hud-row-relief');
     if (rowElev) rowElev.style.display = hudSettings.show.elevation ? '' : 'none';
     if (rowSlope) rowSlope.style.display = hudSettings.show.slope ? '' : 'none';
     if (rowAspect) rowAspect.style.display = hudSettings.show.aspect ? '' : 'none';
-    if (rowDist) rowDist.style.display = hudSettings.show.distance ? '' : 'none';
     if (rowRelief) rowRelief.style.display = hudSettings.show.relief ? '' : 'none';
     const chkElev = document.getElementById('hud-show-elev');
     const chkSlope = document.getElementById('hud-show-slope');
     const chkAspect = document.getElementById('hud-show-aspect');
-    const chkDist = document.getElementById('hud-show-dist');
     const chkRelief = document.getElementById('hud-show-relief');
     if (chkElev) chkElev.checked = !!hudSettings.show.elevation;
     if (chkSlope) chkSlope.checked = !!hudSettings.show.slope;
     if (chkAspect) chkAspect.checked = !!hudSettings.show.aspect;
-    if (chkDist) chkDist.checked = !!hudSettings.show.distance;
     if (chkRelief) chkRelief.checked = !!hudSettings.show.relief;
 }
 
@@ -3485,7 +3467,6 @@ function bindHudSettingsHandlers() {
         { id: 'hud-show-elev', key: 'elevation' },
         { id: 'hud-show-slope', key: 'slope' },
         { id: 'hud-show-aspect', key: 'aspect' },
-        { id: 'hud-show-dist', key: 'distance' },
         { id: 'hud-show-relief', key: 'relief' }
     ];
     vis.forEach(({ id, key }) => {
@@ -3537,57 +3518,6 @@ function updateResolutionInfo() {
 
 function getMetersScalePerWorldUnit() {
     return window.GeometryUtils.getMetersScalePerWorldUnit();
-}
-
-function computeDistanceToNearestBorderMetersGeo(worldX, worldZ) {
-    if (!rawElevationData) return null;
-    if (!borderSegmentsGeo || borderSegmentsGeo.length === 0) {
-        return computeDistanceToDataEdgeMeters(worldX, worldZ);
-    }
-    const ll = worldToLonLat(worldX, worldZ);
-    if (!ll) return null;
-    const { lon, lat } = ll;
-    // Query spatial index (cell + neighbors)
-    const ix = Math.floor(lon / borderGeoCellSizeDeg);
-    const iy = Math.floor(lat / borderGeoCellSizeDeg);
-    let candidates = new Set();
-    for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-            const key = `${ix + dx},${iy + dy}`;
-            const arr = borderGeoIndex && borderGeoIndex.get(key);
-            if (arr) arr.forEach(id => candidates.add(id));
-        }
-    }
-    if (candidates.size === 0) {
-        // Fallback: widen search radius (two-ring)
-        for (let dx = -2; dx <= 2; dx++) {
-            for (let dy = -2; dy <= 2; dy++) {
-                const key = `${ix + dx},${iy + dy}`;
-                const arr = borderGeoIndex && borderGeoIndex.get(key);
-                if (arr) arr.forEach(id => candidates.add(id));
-            }
-        }
-    }
-    if (candidates.size === 0) {
-        // Fallback to data edge distance if no nearby border segments
-        return computeDistanceToDataEdgeMeters(worldX, worldZ);
-    }
-    // Local meters per degree at this latitude (equirectangular approximation)
-    const metersPerDegX = 111320 * Math.cos(lat * Math.PI / 180);
-    const metersPerDegY = 110574; // average meridional
-    const px = 0, py = 0; // we'll translate lon/lat to a local tangent plane centered at (lon, lat)
-    let best = Infinity;
-    for (const id of candidates) {
-        const seg = borderSegmentsGeo[id];
-        // Convert to local meters
-        const ax = (seg.axLon - lon) * metersPerDegX;
-        const ay = (seg.axLat - lat) * metersPerDegY;
-        const bx = (seg.bxLon - lon) * metersPerDegX;
-        const by = (seg.bxLat - lat) * metersPerDegY;
-        const d = distancePointToSegment2D(px, py, ax, ay, bx, by);
-        if (d < best) best = d;
-    }
-    return isFinite(best) ? best : null;
 }
 
 function computeDistanceToDataEdgeMeters(worldX, worldZ) {
@@ -3778,7 +3708,15 @@ function toggleControlsHelp() {
 // Update URL parameter without reloading page (for shareable links)
 function updateURLParameter(key, value) {
     const url = new URL(window.location);
-    url.searchParams.set(key, value);
+    const currentValue = url.searchParams.get(key);
+    const newValue = String(value);
+    
+    // Skip update if value hasn't changed
+    if (currentValue === newValue) {
+        return;
+    }
+    
+    url.searchParams.set(key, newValue);
     window.history.pushState({}, '', url);
     console.log(`URL updated: ${url.href}`);
 }

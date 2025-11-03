@@ -12,14 +12,12 @@ Location: `data/.opentopography_rate_limit.json`
 
 All download processes check this file before making requests and update it when they receive rate limit errors (401 responses).
 
-### Conservative Defaults
+### Simple Backoff Strategy
 
-Based on typical API limits and adding safety margin:
+- **Initial backoff**: 10 minutes after first 401
+- **Exponential backoff**: Doubles for each consecutive 401 (10min → 20min → 40min → 80min → ...)
+- **Request spacing**: 0.5 second delay between requests (only for OpenTopography)
 
-- **Initial backoff**: 1 hour after first 401 response
-- **Exponential backoff**: Doubles for each consecutive 401 (up to 24 hours max)
-- **Request spacing**: 0.5 second delay between requests to avoid bursts
-- **Daily limit**: 1,000 requests (conservative estimate of free tier quota)
 
 ### Automatic Coordination
 
@@ -33,14 +31,6 @@ if not ok:
     return False
 
 # Proceed with download...
-```
-
-**After successful download:**
-```python
-from src.downloaders.rate_limit import record_successful_request
-
-# Download completed successfully
-record_successful_request()
 ```
 
 **When receiving 401:**
@@ -70,14 +60,13 @@ Sample output:
   Consecutive violations: 2
   Backoff active: YES
   Backoff until: 2025-11-02 15:30:00
-  Time remaining: 2.3 hours
+  Time remaining: 20 minutes
 
-  Requests today: 847 / 1000
   State file: data/.opentopography_rate_limit.json (234 bytes)
 ======================================================================
 
 Recommendation: Downloads are currently blocked
-Reason: Rate limited until 2025-11-02 15:30:00 (2.3 hours remaining). Previous 401 errors: 2
+Reason: Rate limited until 2025-11-02 15:30:00 (20 minutes remaining). Consecutive 401 errors: 2
 ```
 
 ### Clear Rate Limit (Manual Override)
@@ -100,24 +89,24 @@ python check_rate_limit.py --wait
 ## Backoff Strategy
 
 ### First 401 Response
-- Wait: 1 hour
-- Message: "Please wait and try again"
+- Wait: 10 minutes
+- Next violation: 20 minutes
 
-### Second 401 Response (within same period)
-- Wait: 2 hours
-- Message: "Repeated rate limit, extending backoff"
+### Second 401 Response
+- Wait: 20 minutes (doubled)
+- Next violation: 40 minutes
 
 ### Third 401 Response
-- Wait: 4 hours
-- Message: "Multiple violations detected"
+- Wait: 40 minutes (doubled)
+- Next violation: 80 minutes (1.3 hours)
 
-### Fourth+ 401 Response
-- Wait: 24 hours (maximum)
-- Message: "Maximum backoff applied"
+### Subsequent 401 Responses
+- Continues doubling: 80min → 160min (2.7hrs) → 320min (5.3hrs) → etc.
+- No maximum cap - exponential backoff continues
 
 ### Successful Request After Violations
-- Resets consecutive violation counter
-- Returns to 1-hour initial backoff for next violation
+- Resets consecutive violation counter to 0
+- Returns to 10-minute initial backoff for next violation
 
 ## Implementation Details
 
@@ -133,13 +122,9 @@ with filelock.FileLock(LOCK_FILE, timeout=10):
     pass
 ```
 
-### Daily Request Counter
+### Request Spacing
 
-Tracks requests per day and prevents exceeding conservative daily limit (1,000 requests). Counter resets at midnight.
-
-### Small Inter-Request Delays
-
-Adds 0.5 second delay between requests to avoid triggering burst-detection rate limits. This is transparent to users but helps avoid limits.
+Adds 0.5 second delay between OpenTopography requests to avoid triggering burst-detection rate limits. This is transparent to users but helps avoid limits.
 
 ## Updated Functions
 
@@ -162,11 +147,9 @@ All OpenTopography download functions now check rate limits:
 {
   "rate_limited": true,
   "backoff_until": "2025-11-02T15:30:00",
-  "backoff_seconds": 3600,
+  "backoff_seconds": 1200,
   "consecutive_violations": 2,
   "last_request_time": "2025-11-02T13:25:00",
-  "requests_today": 847,
-  "day_started": "2025-11-02T00:00:00",
   "rate_limit_hit_time": "2025-11-02T13:30:00",
   "response_code": 401
 }
@@ -241,10 +224,10 @@ wait_if_rate_limited(verbose=True)
 - Shared state prevents duplicate violations
 - One process hitting limit protects all others
 
-### Conservative by Design
-- Errs on side of caution
-- Adds safety margin to unknown limits
-- Reduces risk of triggering stricter limits
+### Simple and Predictable
+- Exponential backoff with no artificial caps
+- Clear escalation: 10min → 20min → 40min → 80min...
+- Resets completely on successful request
 
 ### User-Friendly
 - Clear status messages

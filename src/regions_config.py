@@ -665,6 +665,15 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "uintas_wilderness": RegionConfig(
+        id="uintas_wilderness",
+        name="Uinta Mountains",
+        bounds=(-111.0, 40.3, -109.5, 41.0),
+        description="Utah - Uinta Mountains and High Uintas Wilderness, east-west trending mountain range with Kings Peak (13,528 ft)",
+        region_type=RegionType.REGION,
+        country="United States of America",
+        clip_boundary=False,
+    ),
 }
 
 

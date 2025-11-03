@@ -58,61 +58,37 @@ def summarize_pipeline_status(region_id: str, region_type: str, region_info: dic
 
 def check_export_version(region_id: str) -> Tuple[bool, str, str]:
     """
-    Check if the region's exported JSON uses the current export format version.
+    Check if the region's exported JSON exists with current format version in filename.
+    
+    Version is tracked in filename (e.g., *_v2.json), not inside the file.
 
     Returns:
-        (is_current, found_version, expected_version)
+        (version_ok, found_version, expected_version)
     """
-    # Import here to avoid circular dependency
-    from src.tile_geometry import tile_filename_from_bounds
-    bbox_filename_from_bounds = tile_filename_from_bounds
-    
     generated_dir = Path("generated/regions")
-    expected = get_current_version('export')
-    found: Optional[str] = None
+    # Current format version from filename pattern
+    expected = "v2"  # Hardcoded - matches _v2.json pattern
+    found = "none"
+    
     try:
         if not generated_dir.exists():
-            return False, (found or "<none>"), expected
-        # Get region bounds for abstract filename lookup
-        region_config = ALL_REGIONS.get(region_id)
-        if not region_config:
-            json_files = []
-        else:
-            bounds = region_config.bounds
-            # Generate abstract filenames and search for them
-            possible_json_files = []
-            for source in ['srtm_30m', 'srtm_90m', 'usa_3dep']:
-                for target_pixels in [512, 1024, 2048, 4096, 800]:
-                    resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
-                    tile_name = bbox_filename_from_bounds(bounds, resolution)
-                    base_part = tile_name[:-4]  # Remove '.tif' suffix only
-                    possible_json_files.append(generated_dir / f"{base_part}_{target_pixels}px_v2.json")
-            
-            # Check for abstract filenames
-            json_files = [f for f in possible_json_files if f.exists()]
-            json_files = [
-                f for f in json_files
-                if ('_borders' not in f.stem and '_meta' not in f.stem and 'manifest' not in f.stem)
-            ]
-        if not json_files:
-            return False, (found or "<none>"), expected
-        # Inspect all exports; if any matches current, we consider version OK
-        for jf in json_files:
-            try:
-                with open(jf, 'r', encoding='utf-8') as fh:
-                    data = json.load(fh)
-                v = str(data.get('version') or "")
-                if not v:
-                    found = found or "<missing>"
-                else:
-                    found = found or v
-                if v == expected:
-                    return True, v, expected
-            except Exception:
-                continue
-        return False, (found or "<unknown>"), expected
+            return False, found, expected
+        
+        # Find any JSON files for this region with version in filename
+        region_files = list(generated_dir.glob(f"{region_id}_*_v2.json"))
+        if not region_files:
+            # Check for old v1 files
+            old_files = list(generated_dir.glob(f"{region_id}_*_v1.json"))
+            if old_files:
+                found = "v1"
+                return False, found, expected
+            return False, found, expected
+        
+        # Has v2 file - version is current
+        return True, expected, expected
+        
     except Exception:
-        return False, (found or "<error>"), expected
+        return False, "error", expected
 
 
 def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_pixels: int,

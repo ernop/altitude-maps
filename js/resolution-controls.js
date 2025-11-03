@@ -455,6 +455,7 @@ function autoAdjustBucketSize() {
     edgeMarkers = [];
 
     // Rebucket and recreate terrain
+    console.log(`[RESOLUTION] autoAdjustBucketSize: rebucketing and recreating terrain...`);
     rebucketData();
     recreateTerrain();
     updateStats();
