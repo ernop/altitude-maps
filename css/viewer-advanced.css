@@ -28,7 +28,8 @@ body {
     white-space: nowrap;
     transition: all 0.15s ease;
     user-select: none;
-    transform: translate(-50%, 0); /* Center horizontally on anchor point */
+    transform: translate(-50%, 0);
+    /* Center horizontally on anchor point */
 }
 
 .neighbor-btn:hover {
@@ -76,9 +77,9 @@ body {
 
 /* Mobile UI toggle */
 #mobile-ui-toggle {
-    position: absolute;
-    top: 20px;
-    left: 20px;
+    position: fixed;
+    top: 50px;
+    right: 20px;
     background: linear-gradient(135deg, #ffaa66, #ff8844);
     color: #000;
     border: none;
@@ -89,11 +90,25 @@ body {
     font-size: 11px;
     box-shadow: 0 4px 15px rgba(255, 136, 68, 0.3);
     z-index: 110;
+    display: none;
+    /* Hidden by default on desktop */
 }
 
 /* Collapsed controls state */
 body.ui-collapsed #controls {
     display: none;
+}
+
+/* Show mobile toggle on tablets and phones */
+@media (max-width: 1024px) {
+    #mobile-ui-toggle {
+        display: block;
+        /* Show on mobile/tablet */
+        top: 55px;
+        right: 12px;
+        font-size: 12px;
+        padding: 8px 12px;
+    }
 }
 
 /* Make toggle especially prominent on small screens */
@@ -105,8 +120,8 @@ body.ui-collapsed #controls {
     }
 
     #mobile-ui-toggle {
-        top: 12px;
-        left: 12px;
+        top: 60px;
+        right: 12px;
         font-size: 13px;
         padding: 10px 16px;
     }
@@ -161,8 +176,8 @@ body.ui-collapsed #controls {
 
 #info {
     position: fixed;
-    top: 64px;
-    left: 20px;
+    top: 10px;
+    left: -8px;
     background: rgba(0, 0, 0, 0.92);
     padding: 10px 12px;
     border-radius: 6px;
@@ -957,20 +972,22 @@ input[type="checkbox"] {
 .recent-regions-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
+    gap: 0px;
+    margin-bottom: 0px;
+    line-height: 1;
 }
 
 .recent-region-item {
     background: rgba(85, 136, 204, 0.15);
     border: 1px solid rgba(85, 136, 204, 0.3);
-    border-radius: 4px;
-    padding: 6px 10px;
+    border-radius: 1px;
+    padding: 0px 2px;
     font-size: 11px;
     color: #fff;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    line-height: 1.2;
 }
 
 .recent-region-item:hover {

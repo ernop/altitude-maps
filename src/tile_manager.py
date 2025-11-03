@@ -57,13 +57,13 @@ def download_and_merge_tiles(
     
     tile_paths = []
     try:
-        for tile_bounds in tiles:
+        for i, tile_bounds in enumerate(tiles, 1):
             tile_filename = tile_filename_from_bounds(tile_bounds, resolution)
             tile_path = tiles_dir / tile_filename
             
             # Download if not cached
             if not tile_path.exists():
-                print(f"  Downloading {tile_filename}...", flush=True)
+                print(f"  [{i}/{len(tiles)}] Downloading: {tile_filename}", flush=True)
                 success = download_srtm(
                     f"tile_{tile_filename[:-4]}",
                     tile_bounds,
@@ -71,10 +71,10 @@ def download_and_merge_tiles(
                     api_key
                 )
                 if not success:
-                    print(f"  Failed to download {tile_filename}", flush=True)
+                    print(f"  [{i}/{len(tiles)}] Failed to download: {tile_filename}", flush=True)
                     continue
             else:
-                print(f"  Using cached {tile_filename}", flush=True)
+                print(f"  [{i}/{len(tiles)}] Using cached: {tile_filename}", flush=True)
             
             tile_paths.append(tile_path)
     except OpenTopographyRateLimitError:

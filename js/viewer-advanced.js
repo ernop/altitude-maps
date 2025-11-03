@@ -45,8 +45,8 @@ let groundPlane; // Ground plane at y=0 used for consistent ray intersections
 let currentMouseX, currentMouseY; // Tracked mouse position for HUD updates
 let hudSettings = null; // HUD configuration (units/visibility)
 
-// Recent regions tracking (max 10 most recent)
-const MAX_RECENT_REGIONS = 10;
+// Recent regions tracking (max 8 most recent)
+const MAX_RECENT_REGIONS = 8;
 let recentRegions = []; // Array of region IDs in order (most recent first)
 
 // Region adjacency data (which regions border which)
@@ -1116,7 +1116,15 @@ function rebucketData() {
 
 // Edge markers now in edge-markers.js
 function createEdgeMarkers() {
-    return window.EdgeMarkers.create();
+    const result = window.EdgeMarkers.create();
+
+    // Apply visibility state from checkbox after creation
+    const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
+    if (showEdgeMarkersCheckbox) {
+        updateEdgeMarkersVisibility(showEdgeMarkersCheckbox.checked);
+    }
+
+    return result;
 }
 
 function createTextSprite(text, color) {
@@ -1125,6 +1133,19 @@ function createTextSprite(text, color) {
 
 function updateEdgeMarkers() {
     return window.EdgeMarkers.update();
+}
+
+/**
+ * Update visibility of all edge markers
+ * @param {boolean} visible - Whether edge markers should be visible
+ */
+function updateEdgeMarkersVisibility(visible) {
+    if (edgeMarkers && edgeMarkers.length > 0) {
+        edgeMarkers.forEach(marker => {
+            marker.visible = visible;
+        });
+        console.log(`Edge markers ${visible ? 'shown' : 'hidden'}`);
+    }
 }
 
 /**
@@ -1822,13 +1843,18 @@ function setupEventListeners() {
         if (activeScheme) activeScheme.onMouseMove(e);
 
         // OPTIMIZATION: Single raycast for all hover detection (HUD + edge markers + connectivity labels)
-        // Skip entirely if HUD is hidden AND no interactive elements exist
+        // Skip entirely if HUD is hidden AND edge markers are hidden AND no other interactive elements exist
         const showHUDCheckbox = document.getElementById('showHUD');
         const hudVisible = showHUDCheckbox && showHUDCheckbox.checked;
-        const hasInteractiveElements = (edgeMarkers && edgeMarkers.length > 0) || typeof handleConnectivityClick === 'function';
 
-        if (!hudVisible && !hasInteractiveElements) {
-            return; // Skip raycasting entirely - nothing to check
+        const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
+        const edgeMarkersVisible = showEdgeMarkersCheckbox && showEdgeMarkersCheckbox.checked;
+        const hasVisibleEdgeMarkers = edgeMarkersVisible && edgeMarkers && edgeMarkers.length > 0;
+
+        const hasOtherInteractiveElements = typeof handleConnectivityClick === 'function';
+
+        if (!hudVisible && !hasVisibleEdgeMarkers && !hasOtherInteractiveElements) {
+            return; // Skip raycasting entirely - nothing needs it
         }
 
         // Single raycast against all scene objects
@@ -1847,11 +1873,11 @@ function setupEventListeners() {
             updateCursorHUDFromIntersects(e.clientX, e.clientY, intersects);
         }
 
-        // 2. Check for clickable edge markers with precise button detection
+        // 2. Check for clickable edge markers with precise button detection (only if visible)
         let hoveredMarker = null;
         let hoveredButtonIndex = -1;
 
-        if (edgeMarkers && edgeMarkers.length > 0) {
+        if (hasVisibleEdgeMarkers) {
             for (const intersect of intersects) {
                 if (edgeMarkers.includes(intersect.object)) {
                     const marker = intersect.object;
@@ -2019,6 +2045,27 @@ function setupEventListeners() {
         });
     }
 
+    // Edge Markers show/hide toggle
+    const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
+    if (showEdgeMarkersCheckbox) {
+        // Load saved preference from localStorage
+        const savedEdgeMarkersVisible = localStorage.getItem('edgeMarkersVisible');
+        if (savedEdgeMarkersVisible !== null) {
+            showEdgeMarkersCheckbox.checked = savedEdgeMarkersVisible === 'true';
+        }
+
+        // Apply initial visibility state
+        updateEdgeMarkersVisibility(showEdgeMarkersCheckbox.checked);
+
+        // Add change listener
+        showEdgeMarkersCheckbox.addEventListener('change', () => {
+            const visible = showEdgeMarkersCheckbox.checked;
+            updateEdgeMarkersVisibility(visible);
+            // Save preference to localStorage
+            localStorage.setItem('edgeMarkersVisible', String(visible));
+        });
+    }
+
     // HUD dragging functionality
     initHudDragging();
 
@@ -2095,8 +2142,16 @@ function loadHudPosition() {
             const position = JSON.parse(saved);
             if (position.left) hud.style.left = position.left;
             if (position.top) hud.style.top = position.top;
+        } else {
+            // Default position: upper left, pushed slightly off-screen left
+            hud.style.left = '-8px';
+            hud.style.top = '10px';
         }
-    } catch (_) { }
+    } catch (_) {
+        // Fallback to default position on error
+        hud.style.left = '-8px';
+        hud.style.top = '10px';
+    }
 }
 
 // OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
@@ -2832,6 +2887,62 @@ function getAspectDegrees(i, j) {
     return derivedAspectDeg[i][j];
 }
 
+/**
+ * Calculate relief (elevation range) within a given radius around a point
+ * @param {number} i - Row index in processed grid
+ * @param {number} j - Column index in processed grid
+ * @param {number} radiusMeters - Radius in meters to sample
+ * @returns {number|null} Relief (max - min elevation) in meters, or null if insufficient data
+ */
+function getRelief(i, j, radiusMeters) {
+    if (!processedData || !processedData.elevation) return null;
+
+    const h = processedData.height;
+    const w = processedData.width;
+    if (i < 0 || j < 0 || i >= h || j >= w) return null;
+
+    // Calculate real-world scale to convert meters to grid cells
+    const scale = calculateRealWorldScale();
+    if (!scale) return null;
+
+    // Convert radius in meters to grid cells
+    const radiusCellsX = Math.ceil(radiusMeters / scale.metersPerPixelX);
+    const radiusCellsY = Math.ceil(radiusMeters / scale.metersPerPixelY);
+
+    // Sample elevations within the circular region
+    let minElev = Infinity;
+    let maxElev = -Infinity;
+    let sampleCount = 0;
+
+    for (let di = -radiusCellsY; di <= radiusCellsY; di++) {
+        for (let dj = -radiusCellsX; dj <= radiusCellsX; dj++) {
+            const ni = i + di;
+            const nj = j + dj;
+
+            // Skip out of bounds
+            if (ni < 0 || nj < 0 || ni >= h || nj >= w) continue;
+
+            // Check if within circular radius
+            const distX = dj * scale.metersPerPixelX;
+            const distY = di * scale.metersPerPixelY;
+            const dist = Math.sqrt(distX * distX + distY * distY);
+            if (dist > radiusMeters) continue;
+
+            const elev = processedData.elevation[ni] && processedData.elevation[ni][nj];
+            if (elev != null && isFinite(elev)) {
+                minElev = Math.min(minElev, elev);
+                maxElev = Math.max(maxElev, elev);
+                sampleCount++;
+            }
+        }
+    }
+
+    // Need at least a few samples to calculate meaningful relief
+    if (sampleCount < 3) return null;
+
+    return maxElev - minElev;
+}
+
 function updateStats() {
     const statsDiv = document.getElementById('stats');
     if (!statsDiv) return; // Element removed from UI
@@ -3200,29 +3311,8 @@ function updateRecentRegionsList() {
 
         const button = document.createElement('button');
         button.textContent = regionInfo.name;
-        button.className = 'recent-region-btn';
-        button.style.cssText = `
-            display: inline-block;
-            padding: 6px 12px;
-            margin-right: 6px;
-            margin-bottom: 6px;
-            background: rgba(85, 136, 204, 0.15);
-            border: 1px solid rgba(85, 136, 204, 0.3);
-            border-radius: 4px;
-            color: #88ccff;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-        `;
-
-        button.addEventListener('mouseenter', () => {
-            button.style.background = 'rgba(85, 136, 204, 0.25)';
-        });
-
-        button.addEventListener('mouseleave', () => {
-            button.style.background = 'rgba(85, 136, 204, 0.15)';
-        });
+        button.className = 'recent-region-item';
+        // Styles are defined in CSS, not inline
 
         button.addEventListener('click', () => {
             loadRegion(regionId);
@@ -3437,23 +3527,39 @@ function worldToGridIndex(worldX, worldZ) {
 }
 
 function updateCursorHUD(clientX, clientY) {
+    const geocodeEl = document.getElementById('hud-geocode');
     const elevEl = document.getElementById('hud-elev');
     const slopeEl = document.getElementById('hud-slope');
     const aspectEl = document.getElementById('hud-aspect');
+    const reliefEl = document.getElementById('hud-relief');
     if (!elevEl || !processedData) return;
     const world = raycastToWorld(clientX, clientY);
     if (!world) {
+        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (reliefEl) reliefEl.textContent = '--';
         return;
     }
     // Ignore when cursor is outside data footprint
     if (!isWorldInsideData(world.x, world.z)) {
+        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (reliefEl) reliefEl.textContent = '--';
         return;
+    }
+
+    // Calculate geocode (lat/lon)
+    if (geocodeEl && window.GeometryUtils && typeof window.GeometryUtils.worldToLonLat === 'function') {
+        const latLon = window.GeometryUtils.worldToLonLat(world.x, world.z);
+        if (latLon) {
+            geocodeEl.textContent = `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}`;
+        } else {
+            geocodeEl.textContent = '--';
+        }
     }
 
     const idx = worldToGridIndex(world.x, world.z);
@@ -3461,19 +3567,30 @@ function updateCursorHUD(clientX, clientY) {
     const zCell = (processedData.elevation[idx.i] && processedData.elevation[idx.i][idx.j]);
     const hasData = (zCell != null) && isFinite(zCell);
     if (!hasData) {
+        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (reliefEl) reliefEl.textContent = '--';
         return;
     }
     const zMeters = zCell;
     const s = getSlopeDegrees(idx.i, idx.j);
     const a = getAspectDegrees(idx.i, idx.j);
+    const r = getRelief(idx.i, idx.j, 100); // 100m radius
     const units = (hudSettings && hudSettings.units) || 'metric';
     const elevText = formatElevation(zMeters, units);
     elevEl.textContent = elevText;
     if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
     if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
+    if (reliefEl) {
+        if (r != null && isFinite(r)) {
+            const reliefText = formatElevation(r, units);
+            reliefEl.textContent = reliefText;
+        } else {
+            reliefEl.textContent = '--';
+        }
+    }
 }
 
 /**
@@ -3481,9 +3598,11 @@ function updateCursorHUD(clientX, clientY) {
  * This avoids duplicate raycasting when we already have intersection results
  */
 function updateCursorHUDFromIntersects(clientX, clientY, intersects) {
+    const geocodeEl = document.getElementById('hud-geocode');
     const elevEl = document.getElementById('hud-elev');
     const slopeEl = document.getElementById('hud-slope');
     const aspectEl = document.getElementById('hud-aspect');
+    const reliefEl = document.getElementById('hud-relief');
     if (!elevEl || !processedData) return;
 
     // Extract world position from intersects (terrain mesh or ground plane)
@@ -3514,18 +3633,32 @@ function updateCursorHUDFromIntersects(clientX, clientY, intersects) {
     }
 
     if (!world) {
+        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (reliefEl) reliefEl.textContent = '--';
         return;
     }
 
     // Ignore when cursor is outside data footprint
     if (!isWorldInsideData(world.x, world.z)) {
+        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (reliefEl) reliefEl.textContent = '--';
         return;
+    }
+
+    // Calculate geocode (lat/lon)
+    if (geocodeEl && window.GeometryUtils && typeof window.GeometryUtils.worldToLonLat === 'function') {
+        const latLon = window.GeometryUtils.worldToLonLat(world.x, world.z);
+        if (latLon) {
+            geocodeEl.textContent = `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}`;
+        } else {
+            geocodeEl.textContent = '--';
+        }
     }
 
     const idx = worldToGridIndex(world.x, world.z);
@@ -3533,31 +3666,51 @@ function updateCursorHUDFromIntersects(clientX, clientY, intersects) {
     const zCell = (processedData.elevation[idx.i] && processedData.elevation[idx.i][idx.j]);
     const hasData = (zCell != null) && isFinite(zCell);
     if (!hasData) {
+        if (geocodeEl) geocodeEl.textContent = '--';
         elevEl.textContent = '--';
         if (slopeEl) slopeEl.textContent = '--';
         if (aspectEl) aspectEl.textContent = '--';
+        if (reliefEl) reliefEl.textContent = '--';
         return;
     }
     const zMeters = zCell;
     const s = getSlopeDegrees(idx.i, idx.j);
     const a = getAspectDegrees(idx.i, idx.j);
+    const r = getRelief(idx.i, idx.j, 100); // 100m radius
     const units = (hudSettings && hudSettings.units) || 'metric';
     const elevText = formatElevation(zMeters, units);
     elevEl.textContent = elevText;
     if (slopeEl) slopeEl.textContent = (s != null && isFinite(s)) ? `${s.toFixed(1)}deg` : '--';
     if (aspectEl) aspectEl.textContent = (a != null && isFinite(a)) ? `${Math.round(a)}deg` : '--';
+    if (reliefEl) {
+        if (r != null && isFinite(r)) {
+            const reliefText = formatElevation(r, units);
+            reliefEl.textContent = reliefText;
+        } else {
+            reliefEl.textContent = '--';
+        }
+    }
 }
 
 function loadHudSettings() {
+    const defaults = {
+        units: 'metric', // 'metric'|'imperial'|'both'
+        show: { geocode: true, elevation: true, slope: true, aspect: true, relief: false }
+    };
     try {
         const raw = localStorage.getItem('hudSettings');
         const parsed = raw ? JSON.parse(raw) : null;
-        hudSettings = parsed || {
-            units: 'metric', // 'metric'|'imperial'|'both'
-            show: { elevation: true, slope: true, aspect: true, distance: false }
-        };
+        if (parsed) {
+            // Merge with defaults to ensure new fields are added
+            hudSettings = {
+                units: parsed.units || defaults.units,
+                show: { ...defaults.show, ...parsed.show }
+            };
+        } else {
+            hudSettings = defaults;
+        }
     } catch (_) {
-        hudSettings = { units: 'metric', show: { elevation: true, slope: true, aspect: true, distance: false } };
+        hudSettings = defaults;
     }
 }
 
@@ -3570,18 +3723,22 @@ function applyHudSettingsToUI() {
     const u = hudSettings.units;
     const unitsRadios = document.querySelectorAll('input[name="hud-units"]');
     unitsRadios.forEach(r => { r.checked = (r.value === u); });
+    const rowGeocode = document.getElementById('hud-row-geocode');
     const rowElev = document.getElementById('hud-row-elev');
     const rowSlope = document.getElementById('hud-row-slope');
     const rowAspect = document.getElementById('hud-row-aspect');
     const rowRelief = document.getElementById('hud-row-relief');
+    if (rowGeocode) rowGeocode.style.display = hudSettings.show.geocode ? '' : 'none';
     if (rowElev) rowElev.style.display = hudSettings.show.elevation ? '' : 'none';
     if (rowSlope) rowSlope.style.display = hudSettings.show.slope ? '' : 'none';
     if (rowAspect) rowAspect.style.display = hudSettings.show.aspect ? '' : 'none';
     if (rowRelief) rowRelief.style.display = hudSettings.show.relief ? '' : 'none';
+    const chkGeocode = document.getElementById('hud-show-geocode');
     const chkElev = document.getElementById('hud-show-elev');
     const chkSlope = document.getElementById('hud-show-slope');
     const chkAspect = document.getElementById('hud-show-aspect');
     const chkRelief = document.getElementById('hud-show-relief');
+    if (chkGeocode) chkGeocode.checked = !!hudSettings.show.geocode;
     if (chkElev) chkElev.checked = !!hudSettings.show.elevation;
     if (chkSlope) chkSlope.checked = !!hudSettings.show.slope;
     if (chkAspect) chkAspect.checked = !!hudSettings.show.aspect;
@@ -3604,6 +3761,7 @@ function bindHudSettingsHandlers() {
     });
     // Visibility
     const vis = [
+        { id: 'hud-show-geocode', key: 'geocode' },
         { id: 'hud-show-elev', key: 'elevation' },
         { id: 'hud-show-slope', key: 'slope' },
         { id: 'hud-show-aspect', key: 'aspect' },

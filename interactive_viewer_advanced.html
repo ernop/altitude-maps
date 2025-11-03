@@ -25,6 +25,10 @@
 
 			<!-- Tabular data display to prevent jitter -->
 			<table id="hud-data-table">
+				<tr id="hud-row-geocode">
+					<td class="hud-label">Geocode:</td>
+					<td class="hud-value" id="hud-geocode">--</td>
+				</tr>
 				<tr id="hud-row-elev">
 					<td class="hud-label">Elevation:</td>
 					<td class="hud-value" id="hud-elev">--</td>
@@ -55,6 +59,8 @@
 				</div>
 				<div class="hud-config-section">
 					<div class="hud-config-header">Show Fields</div>
+					<label class="hud-config-label"><input type="checkbox" id="hud-show-geocode" checked>
+						Geocode</label>
 					<label class="hud-config-label"><input type="checkbox" id="hud-show-elev" checked> Elevation</label>
 					<label class="hud-config-label"><input type="checkbox" id="hud-show-slope" checked> Slope</label>
 					<label class="hud-config-label"><input type="checkbox" id="hud-show-aspect" checked> Aspect</label>
@@ -128,7 +134,8 @@
 
 			<!-- Recent Regions -->
 			<div id="recent-regions-container" style="margin-top: 12px;">
-				<div style="font-size: 11px; color: #888; margin-bottom: 6px; font-weight: 600;">RECENT</div>
+				<div style="font-size: 11px; color: #888; margin-bottom: 0px; font-weight: 600; line-height: 1;">RECENT
+				</div>
 				<div id="recent-regions-list" class="recent-regions-list"></div>
 			</div>
 
@@ -170,14 +177,8 @@
 			<div class="control-group">
 				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
 					<label style="margin: 0;">Vertical Exaggeration</label>
-					<div style="display: flex; align-items: center; gap: 6px;">
-						<input type="number" id="vertExagInput" min="1" max="100" step="1" value="1"
-							style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
-						<button id="vertExagBtnTrue" data-value="true"
-							style="font-size: 10px; padding: 3px 6px; margin: 0;"
-							title="Set real-world proportions (no exaggeration)" onclick="setTrueScale()">True Scale
-							(1:1)</button>
-					</div>
+					<input type="number" id="vertExagInput" min="1" max="100" step="1" value="1"
+						style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px;">
 					<span style="font-size: 11px; opacity: 0.6; min-width: 30px;">1x</span>
@@ -185,6 +186,9 @@
 					<span style="font-size: 11px; opacity: 0.6; min-width: 40px; text-align: right;">100x</span>
 				</div>
 				<div class="vert-ex-buttons" style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+					<button id="vertExagBtnTrue" data-value="true" style="font-size: 10px; padding: 3px 6px; margin: 0;"
+						title="Set real-world proportions (no exaggeration)" onclick="setTrueScale()">True Scale
+						(1:1)</button>
 					<button id="vertExagBtn2x" data-multiplier="2" style="font-size: 10px; padding: 3px 6px; margin: 0;"
 						onclick="setVertExagMultiplier(2)">2x</button>
 					<button id="vertExagBtn3x" data-multiplier="3" style="font-size: 10px; padding: 3px 6px; margin: 0;"
@@ -245,12 +249,14 @@
 				<div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff;"></div>
 			</div>
 
-			<h2>Display</h2>
-
 			<div class="control-group">
 				<div style="display: flex; align-items: center; gap: 8px;">
 					<input type="checkbox" id="showHUD" />
 					<label for="showHUD" style="margin: 0;">Show HUD Overlay</label>
+				</div>
+				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+					<input type="checkbox" id="showEdgeMarkers" checked />
+					<label for="showEdgeMarkers" style="margin: 0;">Show Edge Markers</label>
 				</div>
 			</div>
 
@@ -258,13 +264,11 @@
 
 			<div class="control-group">
 				<select id="cameraScheme">
-					<option value="google-earth-plane">Google Earth (Ground Plane)</option>
 					<option value="ground-plane" selected>Google Maps (Ground Plane)</option>
+					<option value="google-earth-plane">Google Earth (Ground Plane)</option>
 					<option value="roblox">Roblox Studio</option>
 					<option value="flying">Flying</option>
 					<option value="jumping">Jumping (Map-Grandpa)</option>
-					<option value="google-maps">Google Maps (Old)</option>
-					<option value="google-earth">Google Earth (Old)</option>
 					<option value="blender">Blender</option>
 					<option value="unity">Unity Editor</option>
 				</select>

@@ -19,7 +19,7 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Ground Plane (Google Earth)', 'Left = pan, Shift+Left = tilt, Alt+Left/Right = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
+        super('Ground Plane (Google Earth)', 'Left = pan, Shift+Left = tilt, Middle = height, Alt+Left/Right = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -125,6 +125,13 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.panStart = { x: event.clientX, y: event.clientY }; // Use screen coords for smooth panning
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
+
+        } else if (event.button === 1) { // Middle = Height adjustment (altitude only)
+            this.state.adjustingHeight = true;
+            this.state.heightStart = event.clientY;
+            this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
+            this.state.initialHeight = this.camera.position.y;
 
         } else if (event.button === 2) { // Right = Rotate around focus point
             this.state.rotating = true;
@@ -244,6 +251,27 @@ class GroundPlaneCamera extends CameraScheme {
             this.camera.lookAt(this.focusPoint);
             this.controls.target.copy(this.focusPoint);
         }
+
+        if (this.state.adjustingHeight) {
+            // Height adjustment: Move camera perpendicular to plane (Y-axis only)
+            const deltaY = event.clientY - this.state.heightStart;
+
+            // Convert mouse movement to height change
+            // Positive deltaY (mouse down) = move up
+            // Negative deltaY (mouse up) = move down
+            const heightChange = -deltaY * 2.0; // Scale factor for sensitivity
+
+            // Only change Y position, keep XZ the same
+            const newHeight = this.state.initialHeight + heightChange;
+
+            // Clamp to reasonable bounds
+            if (newHeight > 5 && newHeight < 50000) {
+                this.camera.position.y = newHeight;
+
+                // Keep looking at the same focus point on the plane
+                this.camera.lookAt(this.focusPoint);
+            }
+        }
     }
 
     onMouseUp(event) {
@@ -261,6 +289,8 @@ class GroundPlaneCamera extends CameraScheme {
                 this.state.rotatingWithAlt = false;
             }
             this.state.panning = false;
+        } else if (event.button === 1) {
+            this.state.adjustingHeight = false;
         } else if (event.button === 2) {
             this.state.rotating = false;
             this.state.rotatingWithAlt = false;
@@ -283,6 +313,7 @@ class GroundPlaneCamera extends CameraScheme {
 
         const newDistance = distance * factor;
         if (newDistance < 5) return; // Don't get too close
+        if (newDistance > 50000) return; // Don't zoom out too far (prevents raycast failures)
 
         // Calculate direction from camera to cursor point
         const direction = new THREE.Vector3();
@@ -487,7 +518,7 @@ class GroundPlaneCamera extends CameraScheme {
                     direction.normalize();
 
                     const newDistance = distance * zoomFactor;
-                    if (newDistance > 5 && newDistance < 100000) {
+                    if (newDistance > 5 && newDistance < 50000) {
                         const moveAmount = distance - newDistance;
                         this.camera.position.addScaledVector(direction, moveAmount);
 
@@ -603,39 +634,24 @@ class GroundPlaneCamera extends CameraScheme {
                 // Gradually increase speed while moving
                 this.currentMoveSpeed = Math.min(this.currentMoveSpeed + this.acceleration, this.maxMoveSpeed);
 
-                // WASD movement (horizontal and forward/back)
+                // WASD/QE movement - pure free flight, no constraints
                 if (this.keysPressed['w']) movement.addScaledVector(forward, this.currentMoveSpeed);
                 if (this.keysPressed['s']) movement.addScaledVector(forward, -this.currentMoveSpeed);
                 if (this.keysPressed['a']) movement.addScaledVector(right, -this.currentMoveSpeed);
                 if (this.keysPressed['d']) movement.addScaledVector(right, this.currentMoveSpeed);
+                if (this.keysPressed['q']) movement.y -= this.currentMoveSpeed;  // Down
+                if (this.keysPressed['e']) movement.y += this.currentMoveSpeed;  // Up
 
-                // Apply WASD movement to both camera and focus point
+                // Move camera - that's it, no magic
                 if (movement.length() > 0) {
                     this.camera.position.add(movement);
-                    this.focusPoint.add(movement);
-                    this.focusPoint.y = 0; // Keep focus on ground plane
-                    this.controls.target.copy(this.focusPoint);
-                }
 
-                // QE movement (vertical only) - Roblox principle: maintain viewing direction
-                // Move camera vertically, then adjust focus to maintain same viewing angle
-                if (this.keysPressed['q']) {
-                    this.camera.position.y -= this.currentMoveSpeed;  // Down
-                }
-                if (this.keysPressed['e']) {
-                    this.camera.position.y += this.currentMoveSpeed;  // Up
-                }
-
-                if (this.keysPressed['q'] || this.keysPressed['e']) {
-                    // Adjust focus point to maintain viewing direction (ground plane constraint)
+                    // Keep focus point ahead of camera for when mouse controls are used
+                    // No constraints - just project forward from current view direction
                     const cameraDir = new THREE.Vector3();
                     this.camera.getWorldDirection(cameraDir);
-                    const ray = new THREE.Ray(this.camera.position, cameraDir);
-                    const newFocus = new THREE.Vector3();
-                    if (ray.intersectPlane(this.groundPlane, newFocus)) {
-                        this.focusPoint.copy(newFocus);
-                        this.controls.target.copy(this.focusPoint);
-                    }
+                    this.focusPoint.copy(this.camera.position).addScaledVector(cameraDir, 1000);
+                    this.controls.target.copy(this.focusPoint);
                 }
             } else {
                 // Immediately reset speed when movement stops
@@ -643,11 +659,9 @@ class GroundPlaneCamera extends CameraScheme {
             }
         }
 
-        // Ensure camera always looks at focus point
-        // Skip during mouse drags - they handle lookAt directly (Roblox style)
-        if (this.enabled && this.focusPoint && !this.state.rotating && !this.state.tilting) {
-            this.camera.lookAt(this.focusPoint);
-        }
+        // Only update camera orientation during active mouse operations
+        // Mouse operations handle lookAt themselves
+        // Keyboard movement maintains camera orientation (no auto-lookAt)
     }
 }
 

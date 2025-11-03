@@ -5,6 +5,7 @@
 1. **NO EMOJIS IN RESPONSES**: Never use emojis when responding to the user. Keep all communication plain text.
 2. **NO COMPLIMENTS OR PRAISE**: Never compliment the user or their ideas:
    - NO: "Great idea!", "Brilliant question!"
+3. **NO REFLEXIVE AGREEMENT**: Don't start responses with "You're right" or "Absolutely" without first analyzing the claim. Check code/data before agreeing.
 
 This rule applies to ALL files: .md, .py, .js, .html, .css, .txt, and any other text-based files.
 
@@ -13,7 +14,7 @@ This rule applies to ALL files: .md, .py, .js, .html, .css, .txt, and any other 
 This is a landscape visualization project focused on showing altitude of various regions across the globe.
 
 
-- **Project is GLOBAL**: Supports 50 US states + 70+ international regions (countries)
+- **Project is GLOBAL**: Supports 50 US states + 8 countries + 31 custom regions (89 total configured)
 
 ## Project Organization - Documentation Structure
 
@@ -568,7 +569,16 @@ python ensure_region.py <region_id> --force-reprocess
    - Cancels smoothly if Shift released mid-drag (prevents jank)
    - Focus point stays fixed on ground plane
 
-3. **Right Drag = Rotate View (Google Earth style)**
+3. **Middle Drag = Height Adjustment (Altitude Control)**
+   - Behavior: Adjust camera altitude (Y-axis only)
+   - Drag DOWN → camera moves UP (increase height)
+   - Drag UP → camera moves DOWN (decrease height)
+   - Horizontal position (X/Z) stays fixed
+   - Focus point remains locked on ground plane
+   - Height limits: 5 to 50,000 units
+   - Sensitivity: 2.0 units per pixel
+
+4. **Right Drag or Alt + Left Drag = Rotate View (Google Earth style)**
    - Behavior: Rotate view around focus point (Google Earth style)
    - Horizontal drag → turn left/right (rotate around vertical axis)
    - Vertical drag → tilt up/down (adjust viewing angle)
@@ -576,10 +586,10 @@ python ensure_region.py <region_id> --force-reprocess
    - Rotation speed: 0.005 radians per pixel
    - Maintains constant distance from focus point
    - Same angle limits as tilt to prevent camera flipping
-   - **Alternative mapping:** Alt + Left Drag (Maya/3ds Max/Cinema 4D style - same behavior)
+   - **Alternative mappings:** Alt + Left Drag (Maya/3ds Max/Cinema 4D style - same behavior)
    - Cancels smoothly if Alt released mid-drag (prevents jank)
 
-4. **Mouse Wheel = Zoom Toward/Away From Cursor**
+5. **Mouse Wheel = Zoom Toward/Away From Cursor**
    - Behavior: Zoom toward point under cursor (Google Maps style)
    - Scroll UP (negative delta) → zoom IN = camera moves toward cursor point
    - Scroll DOWN (positive delta) → zoom OUT = camera moves away from cursor point
@@ -591,14 +601,14 @@ python ensure_region.py <region_id> --force-reprocess
      - This ensures camera AND focus move in same direction (no conflict)
    - Cursor point stays visually stable under mouse
 
-5. **WASD/QE/F Keys = Keyboard Movement**
+6. **WASD/QE/F Keys = Keyboard Movement**
    - Behavior: First-person style camera movement (always active when not typing)
    - W = move forward in view direction
    - S = move backward
    - A = strafe left
    - D = strafe right
-   - Q = move down (descend)
-   - E = move up (ascend)
+   - Q = move down (descend) - camera and focus both move down, maintaining view angle
+   - E = move up (ascend) - camera and focus both move up, maintaining view angle
    - **F = Reframe view** - Reset to fixed overhead map view:
      - Position: Fixed at (0, 2500, 2.5) looking at origin
      - Height: 2,200 units (close-up view)
@@ -611,10 +621,10 @@ python ensure_region.py <region_id> --force-reprocess
      - Perfect for getting oriented after exploring
    - Works simultaneously with all mouse controls
    - Speed: 2.0 units per frame
-   - Focus point moves with camera to maintain ground plane model
+   - Focus point moves with camera (WASD keeps focus on ground plane y=0; Q/E moves focus vertically with camera)
 - **Disabled when typing:** WASD keys don't affect camera when typing in input fields, textareas, or dropdown inputs.
 
-6. **Touch/Trackpad Gestures** (NEW - Google Maps style)
+7. **Touch/Trackpad Gestures** (NEW - Google Maps style)
    - **Single finger drag** = Pan (mobile touch)
    - **Two-finger drag** = Pan (trackpad/desktop, Google Maps style)
    - **Two-finger pinch** = Zoom in/out (pinch together = zoom in, spread apart = zoom out)
@@ -803,7 +813,7 @@ python ensure_region.py new_hampshire           # Multi-word: use underscores
 python ensure_region.py "new hampshire"         # Multi-word: or use quotes
 python ensure_region.py tennessee --force-reprocess  # Force full rebuild
 python ensure_region.py california --target-pixels 4096  # High resolution
-python ensure_region.py --list-regions          # List all available regions (50 states + 70+ countries)
+python ensure_region.py --list-regions          # List all available regions (50 US states + 8 countries + 31 regions = 89 total)
 
 # Reprocess existing state data
 python reprocess_existing_states.py --target-pixels 2048 --states ohio kentucky
@@ -815,8 +825,14 @@ python clear_caches.py
 # Check GeoTIFF orientation
 python check_geotiff_orientation.py data/your_file.tif
 
-# List available countries
-python download_borders.py --list
+# Border data management
+python download_borders.py                     # Pre-download borders (110m default)
+python download_borders.py --resolution 10m    # High detail borders
+python download_borders.py --force             # Force re-download
+python border_utils.py --list                  # List all countries
+python border_utils.py --list --search "united" # Search countries
+python border_utils.py --info "United States of America" # Country details
+python border_utils.py --bbox "-125,25,-65,50" # Find countries in region
 
 # Production deployment
 .\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun  # test
@@ -910,13 +926,19 @@ python bump_version.py major  # Major: 1.335 -> 2.0 (breaking changes, major red
 
 ## Border Features
 - **Drawing borders**: Overlay country boundaries on maps
-- **Masking data**: Clip elevation to country boundaries
-- **177 countries available** from Natural Earth (10m/50m/110m resolution)
-- **Automatic caching** of borders and masked data
+- **Masking data**: Clip elevation to country/state boundaries
+- **177 countries available** (admin_0) + **US states/provinces** (admin_1) from Natural Earth
+- **Resolutions**: 10m (detailed), 50m (medium), 110m (fast) - 10m recommended for production
+- **Automatic download**: Borders downloaded automatically when needed during clipping
+- **Pre-download option**: Use `download_borders.py` to cache borders ahead of time
+- **Automatic caching**: Borders and masked data cached in `data/.cache/borders/`
 - **Interactive viewer support**: Export borders for web viewer
+- **Query tools**: `border_utils.py` for listing/searching countries and states
 - Use `mask_country` parameter to clip data (e.g., "United States of America")
+- Use hierarchical names for states: `"United States of America/Ohio"`
 - Use `draw_borders` parameter in rendering to overlay border lines
 - Primary workflow: Interactive 3D viewer at localhost:8001
+- **Documentation**: See `learnings/BORDERS_CURRENT.md` for complete system details
 
 ### Git and Large Files
 - This project works with large geospatial data files (GeoTIFFs, HGT files, etc.)

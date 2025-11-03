@@ -77,8 +77,8 @@ function raycastToWorld(screenX, screenY) {
     const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);
     if (intersected) return planeIntersect;
 
-    // Should never happen, but just in case
-    console.warn('Raycast failed completely');
+    // Raycast miss is expected when camera is pointing away from terrain (e.g., at sky/horizon)
+    // This happens normally during zoom out or when looking up - not an error
     return null;
 }
 

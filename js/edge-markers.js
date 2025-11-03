@@ -16,7 +16,7 @@
  * DESIGN NOTES:
  * - Markers are created once and stay fixed (no updates needed on exaggeration change)
  * - Each marker is a canvas-based sprite with colored border
- * - Markers use depthTest=false to always be visible
+ * - Markers respect depth (can be obscured by terrain)
  * - Clicking a marker loads the corresponding region
  * 
  * DEPENDS ON:
@@ -84,13 +84,16 @@ function createEdgeMarkers() {
     console.log('[EDGE MARKERS] Region adjacency loaded:', regionAdjacency ? 'YES' : 'NO');
     console.log('[EDGE MARKERS] Neighbors for this region:', neighbors);
 
+    // Spread multiplier to push markers away from terrain edges
+    const spreadMultiplier = 1.25;
+
     if (!neighbors) {
         // No adjacency data - show fallback compass directions
         const fallbackMarkers = [
-            { text: 'N', direction: null, x: 0, z: -zExtent, color: 0xff4444 },
-            { text: 'S', direction: null, x: 0, z: zExtent, color: 0x4488ff },
-            { text: 'E', direction: null, x: xExtent, z: 0, color: 0x44ff44 },
-            { text: 'W', direction: null, x: -xExtent, z: 0, color: 0xffff44 }
+            { text: 'N', direction: null, x: 0, z: -zExtent * spreadMultiplier, color: 0xff4444 },
+            { text: 'S', direction: null, x: 0, z: zExtent * spreadMultiplier, color: 0x4488ff },
+            { text: 'E', direction: null, x: xExtent * spreadMultiplier, z: 0, color: 0x44ff44 },
+            { text: 'W', direction: null, x: -xExtent * spreadMultiplier, z: 0, color: 0xffff44 }
         ];
 
         fallbackMarkers.forEach(markerData => {
@@ -106,10 +109,10 @@ function createEdgeMarkers() {
 
     // Create markers for each direction with neighbor names
     const directions = [
-        { key: 'north', letter: 'N', x: 0, z: -zExtent, color: 0xff4444 },
-        { key: 'south', letter: 'S', x: 0, z: zExtent, color: 0x4488ff },
-        { key: 'east', letter: 'E', x: xExtent, z: 0, color: 0x44ff44 },
-        { key: 'west', letter: 'W', x: -xExtent, z: 0, color: 0xffff44 }
+        { key: 'north', letter: 'N', x: 0, z: -zExtent * spreadMultiplier, color: 0xff4444 },
+        { key: 'south', letter: 'S', x: 0, z: zExtent * spreadMultiplier, color: 0x4488ff },
+        { key: 'east', letter: 'E', x: xExtent * spreadMultiplier, z: 0, color: 0x44ff44 },
+        { key: 'west', letter: 'W', x: -xExtent * spreadMultiplier, z: 0, color: 0xffff44 }
     ];
 
     directions.forEach(dir => {
@@ -178,8 +181,8 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
     canvas.width = 512;
     canvas.height = 512;
 
-    const compassFontSize = 80; // Larger for compass letter
-    const stateFontSize = 50;   // Smaller for state names
+    const compassFontSize = 112; // Larger for compass letter (40% increase from 80)
+    const stateFontSize = 70;   // Smaller for state names (40% increase from 50)
     const padding = 20;
     const buttonPadding = 10;
     const buttonSpacing = 8;
@@ -211,8 +214,9 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
     const rectY = (canvas.height - rectHeight) / 2;
     const radius = 8;
 
-    // Draw main container background
-    context.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    // Draw main container background with light color-coded background
+    const bgColor = getCompassBackgroundColor(color, false);
+    context.fillStyle = bgColor;
     context.beginPath();
     context.moveTo(rectX + radius, rectY);
     context.lineTo(rectX + rectWidth - radius, rectY);
@@ -225,11 +229,6 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
     context.quadraticCurveTo(rectX, rectY, rectX + radius, rectY);
     context.closePath();
     context.fill();
-
-    // Draw colored border
-    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 3;
-    context.stroke();
 
     // Draw compass letter (centered, larger)
     context.font = `Bold ${compassFontSize}px Arial`;
@@ -260,8 +259,8 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
                 name: name
             });
 
-            // Draw button background
-            context.fillStyle = 'rgba(40, 40, 40, 0.9)';
+            // Draw button background with same light color (no border)
+            context.fillStyle = bgColor;
             context.beginPath();
             context.moveTo(buttonX + buttonRadius, buttonY);
             context.lineTo(buttonX + buttonWidth - buttonRadius, buttonY);
@@ -274,11 +273,6 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
             context.quadraticCurveTo(buttonX, buttonY, buttonX + buttonRadius, buttonY);
             context.closePath();
             context.fill();
-
-            // Draw button border
-            context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-            context.lineWidth = 2;
-            context.stroke();
 
             // Draw state name (left-aligned)
             context.font = `Bold ${stateFontSize}px Arial`;
@@ -297,7 +291,7 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
     const spriteMaterial = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
-        depthTest: false,
+        depthTest: true,  // Allow terrain to obscure markers
         depthWrite: false
     });
     const sprite = new THREE.Sprite(spriteMaterial);
@@ -350,7 +344,7 @@ function createTextSprite(text, color, neighborId) {
     const spriteMaterial = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
-        depthTest: false, // Always visible
+        depthTest: true, // Allow terrain to obscure markers
         depthWrite: false
     });
     const sprite = new THREE.Sprite(spriteMaterial);
@@ -426,7 +420,7 @@ function createNeighborButtonSprite(name, color) {
     const spriteMaterial = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
-        depthTest: false,
+        depthTest: true, // Allow terrain to obscure markers
         depthWrite: false
         // sizeAttenuation defaults to true - sprites scale with distance
     });
@@ -523,6 +517,23 @@ function lightenColor(color, factor) {
 }
 
 /**
+ * Get background color for a compass direction
+ * @param {number} color - Hex color (0xff4444=red, 0x4488ff=blue, 0x44ff44=green, 0xffff44=yellow)
+ * @param {boolean} hover - Whether this is for hover state
+ * @returns {string} RGBA color string
+ */
+function getCompassBackgroundColor(color, hover = false) {
+    const opacity = hover ? 0.25 : 0.15;
+
+    switch (color) {
+        case 0xff4444: return `rgba(255, 68, 68, ${opacity})`;    // North - red
+        case 0x4488ff: return `rgba(68, 136, 255, ${opacity})`;   // South - blue
+        case 0x44ff44: return `rgba(68, 255, 68, ${opacity})`;    // East - green
+        case 0xffff44: return `rgba(255, 255, 68, ${opacity})`;   // West - yellow
+    }
+}
+
+/**
  * Update edge marker positions (currently a no-op)
  * Markers stay at fixed height - no update needed when vertical exaggeration changes
  * This function is kept for compatibility but doesn't change marker heights
@@ -558,8 +569,8 @@ function updateHoverState(sprite, hoveredIndex) {
     canvas.width = 512;
     canvas.height = 512;
 
-    const compassFontSize = 80;
-    const stateFontSize = 50;
+    const compassFontSize = 112; // 40% increase from 80
+    const stateFontSize = 70;    // 40% increase from 50
     const padding = 20;
     const buttonPadding = 10;
     const buttonSpacing = 8;
@@ -588,8 +599,9 @@ function updateHoverState(sprite, hoveredIndex) {
     const rectY = (canvas.height - rectHeight) / 2;
     const radius = 8;
 
-    // Draw main container background
-    context.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    // Draw main container background with light color-coded background
+    const bgColor = getCompassBackgroundColor(color, false);
+    context.fillStyle = bgColor;
     context.beginPath();
     context.moveTo(rectX + radius, rectY);
     context.lineTo(rectX + rectWidth - radius, rectY);
@@ -602,11 +614,6 @@ function updateHoverState(sprite, hoveredIndex) {
     context.quadraticCurveTo(rectX, rectY, rectX + radius, rectY);
     context.closePath();
     context.fill();
-
-    // Draw colored border
-    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 3;
-    context.stroke();
 
     // Draw compass letter (centered, larger)
     context.font = `Bold ${compassFontSize}px Arial`;
@@ -627,8 +634,9 @@ function updateHoverState(sprite, hoveredIndex) {
             const buttonWidth = rectWidth - padding * 2;
             const buttonRadius = 6;
 
-            // Draw button background (brighter if hovered)
-            context.fillStyle = isHovered ? 'rgba(70, 70, 70, 0.95)' : 'rgba(40, 40, 40, 0.9)';
+            // Draw button background with same light color (slightly brighter if hovered, no border)
+            const buttonBgColor = isHovered ? getCompassBackgroundColor(color, true) : bgColor;
+            context.fillStyle = buttonBgColor;
             context.beginPath();
             context.moveTo(buttonX + buttonRadius, buttonY);
             context.lineTo(buttonX + buttonWidth - buttonRadius, buttonY);
@@ -641,11 +649,6 @@ function updateHoverState(sprite, hoveredIndex) {
             context.quadraticCurveTo(buttonX, buttonY, buttonX + buttonRadius, buttonY);
             context.closePath();
             context.fill();
-
-            // Draw button border (thicker if hovered)
-            context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-            context.lineWidth = isHovered ? 3 : 2;
-            context.stroke();
 
             // Draw state name (left-aligned)
             context.font = `Bold ${stateFontSize}px Arial`;

@@ -77,6 +77,8 @@ def compute_adjacency():
     # Load US state boundaries
     print("Loading US state boundaries...")
     states_gdf = border_manager.load_state_borders(resolution='10m')
+    # Filter to US states only (exclude territories and foreign regions with same names)
+    states_gdf = states_gdf[states_gdf['iso_3166_2'].str.startswith('US-', na=False)].copy()
     
     # Load country boundaries  
     print("Loading country boundaries...")
@@ -149,6 +151,15 @@ def compute_adjacency():
             
             # Check if they share a border (touches or intersects)
             if geom.touches(other_geom) or (geom.intersects(other_geom) and not geom.equals(other_geom)):
+                # Compute the intersection to check if it's more than a point
+                intersection = geom.intersection(other_geom)
+                
+                # Exclude single-point touches (quadripoints like Four Corners)
+                # Only count as adjacent if they share a line segment or area
+                if intersection.geom_type in ['Point', 'MultiPoint']:
+                    print(f"  Skipping {other_data['name']} (point-only touch)")
+                    continue
+                
                 # Determine direction
                 other_centroid = other_geom.centroid
                 direction = get_cardinal_direction(centroid, other_centroid)
