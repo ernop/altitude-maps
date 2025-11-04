@@ -15,7 +15,7 @@ import pytest
 from pathlib import Path
 
 # Load generated adjacency data
-ADJACENCY_FILE = Path('generated/region_adjacency.json')
+ADJACENCY_FILE = Path('generated/regions/region_adjacency.json')
 
 @pytest.fixture
 def adjacency_data():

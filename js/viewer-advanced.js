@@ -35,7 +35,7 @@ const VIEWER_VERSION = '1.362';
 
 // Global variables
 let scene, camera, renderer, controls;
-let terrainMesh, gridHelper;
+let terrainMesh, terrainGroup, gridHelper;
 let rawElevationData; // Original full-resolution data
 let processedData; // Bucketed/aggregated data
 let derivedSlopeDeg = null; // 2D array of slope (degrees)
@@ -379,28 +379,38 @@ const USE_CACHE = (() => {
 })();
 
 async function loadElevationData(url) {
-    // Respect caching toggle: only bust cache when USE_CACHE is false
-    const urlWithBuster = USE_CACHE ? url : (url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`);
+    // Always use gzipped version (smaller, faster)
+    const gzUrl = url.endsWith('.json') ? url + '.gz' : url;
+    if (!gzUrl.endsWith('.gz')) {
+        throw new Error(`Elevation data URL must end with .json or .gz, got: ${url}`);
+    }
+    const gzUrlWithBuster = USE_CACHE ? gzUrl : (gzUrl.includes('?') ? `${gzUrl}&_t=${Date.now()}` : `${gzUrl}?_t=${Date.now()}`);
     const tStart = performance.now();
-    const response = await fetch(urlWithBuster);
+    const response = await fetch(gzUrlWithBuster);
+    const finalUrl = gzUrl;
+
+    if (!response.ok) {
+        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
+    }
 
     // Extract filename from URL
-    const filename = url.split('/').pop();
+    const filename = finalUrl.split('/').pop();
 
     // Log response details for debugging
     console.log(`Loading JSON file: ${filename}`);
-    console.log(` Full URL: ${url}`);
+    console.log(` Full URL: ${finalUrl}`);
     console.log(` HTTP Status: ${response.status} ${response.statusText}`);
     console.log(` Content-Type: ${response.headers.get('content-type')}`);
     console.log(` Content-Encoding: ${response.headers.get('content-encoding')}`);
     console.log(` Content-Length: ${response.headers.get('content-length')}`);
 
     if (!response.ok) {
-        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusCode} for ${url}`);
+        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusCode} for ${finalUrl}`);
     }
 
     // Detect cache hit using Performance API
-    const perfEntries = performance.getEntriesByName(urlWithBuster, 'resource');
+    const actualUrl = finalUrl === gzUrl ? gzUrlWithBuster : (USE_CACHE ? url : (url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`));
+    const perfEntries = performance.getEntriesByName(actualUrl, 'resource');
     const isCacheHit = perfEntries.length > 0 && perfEntries[0].transferSize === 0;
 
     if (isCacheHit) {
@@ -413,12 +423,29 @@ async function loadElevationData(url) {
     const contentLength = response.headers.get('content-length');
     const totalBytes = contentLength ? parseInt(contentLength) : 0;
 
+    // Check if file is gzipped and server didn't decompress it
+    const contentEncoding = response.headers.get('content-encoding');
+    const serverDecompressed = contentEncoding && contentEncoding.includes('gzip');
+    const isGzipped = finalUrl.endsWith('.gz') && !serverDecompressed;
+
     let data;
 
     if (isCacheHit || !totalBytes || !response.body) {
         // Cache hit or no content length - just parse directly (fast)
         console.log(` Parsing JSON...`);
-        data = await response.json();
+        if (isGzipped) {
+            // Need to decompress gzipped data
+            const arrayBuffer = await response.arrayBuffer();
+            const stream = new DecompressionStream('gzip');
+            const writer = stream.writable.getWriter();
+            writer.write(new Uint8Array(arrayBuffer));
+            writer.close();
+            const decompressedResponse = new Response(stream.readable);
+            const text = await decompressedResponse.text();
+            data = JSON.parse(text);
+        } else {
+            data = await response.json();
+        }
     } else {
         // Real download - stream with progress tracking
         console.log(` Downloading with progress tracking...`);
@@ -444,11 +471,27 @@ async function loadElevationData(url) {
             }
         }
 
-        // Combine chunks and parse
+        // Combine chunks
         const blob = new Blob(chunks);
-        const text = await blob.text();
-        console.log(` Parsing JSON...`);
-        data = JSON.parse(text);
+
+        if (isGzipped) {
+            // Decompress gzipped data
+            console.log(` Decompressing gzipped data...`);
+            const arrayBuffer = await blob.arrayBuffer();
+            const stream = new DecompressionStream('gzip');
+            const writer = stream.writable.getWriter();
+            writer.write(new Uint8Array(arrayBuffer));
+            writer.close();
+            const decompressedResponse = new Response(stream.readable);
+            const text = await decompressedResponse.text();
+            console.log(` Parsing JSON...`);
+            data = JSON.parse(text);
+        } else {
+            // Parse uncompressed JSON
+            const text = await blob.text();
+            console.log(` Parsing JSON...`);
+            data = JSON.parse(text);
+        }
     }
 
     // Log final size
@@ -460,42 +503,77 @@ async function loadElevationData(url) {
     const fileVersion = versionMatch ? versionMatch[1] : 'unknown';
     appendActivityLog(`[OK] Data format v${fileVersion} from filename`);
 
-    try { logResourceTiming(urlWithBuster, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
+    try { logResourceTiming(actualUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
     return data;
 }
 
 async function loadRegionsManifest() {
-    try {
-        const base = `generated/regions/regions_manifest.json`;
-        // Always cache-bust manifest requests to pick up latest regions
-        const url = base.includes('?') ? `${base}&_t=${Date.now()}` : `${base}?_t=${Date.now()}`;
-        const tStart = performance.now();
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            console.warn('Regions manifest not found, using default single region');
-            return null;
-        }
+    const timestamp = Date.now();
+    const gzUrl = `generated/regions/regions_manifest.json.gz?_t=${timestamp}`;
+    const tStart = performance.now();
+    const response = await fetch(gzUrl, { cache: 'no-store' });
+
+    if (!response.ok) {
+        throw new Error(`Failed to load regions manifest. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
+    }
+
+    // Check if response is already decompressed by server (Content-Encoding header)
+    const contentEncoding = response.headers.get('content-encoding');
+    const serverDecompressed = contentEncoding && contentEncoding.includes('gzip');
+
+    if (serverDecompressed) {
+        // Server already decompressed it (Content-Encoding header set)
         const json = await response.json();
-        try { logResourceTiming(url, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
+        try { logResourceTiming(gzUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
         return json;
-    } catch (error) {
-        console.warn('Could not load regions manifest:', error);
-        return null;
+    } else {
+        // Server is serving raw compressed bytes, we need to decompress
+        const arrayBuffer = await response.arrayBuffer();
+        const stream = new DecompressionStream('gzip');
+        const writer = stream.writable.getWriter();
+
+        // Write compressed data to decompression stream
+        writer.write(new Uint8Array(arrayBuffer));
+        writer.close();
+
+        // Read decompressed data from the readable side
+        const decompressedResponse = new Response(stream.readable);
+        const text = await decompressedResponse.text();
+        const json = JSON.parse(text);
+        try { logResourceTiming(gzUrl, 'Loaded manifest (gzipped)', tStart, performance.now()); } catch (e) { }
+        return json;
     }
 }
 
 async function loadAdjacencyData() {
-    try {
-        const url = 'generated/region_adjacency.json';
-        const response = await fetch(url);
-        if (!response.ok) {
-            console.warn('Region adjacency data not found');
-            return null;
-        }
+    const gzUrl = 'generated/regions/region_adjacency.json.gz';
+    const response = await fetch(gzUrl);
+
+    if (!response.ok) {
+        throw new Error(`Failed to load region adjacency data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
+    }
+
+    // Check if response is already decompressed by server (Content-Encoding header)
+    const contentEncoding = response.headers.get('content-encoding');
+    const serverDecompressed = contentEncoding && contentEncoding.includes('gzip');
+
+    if (serverDecompressed) {
+        // Server already decompressed it (Content-Encoding header set)
         return await response.json();
-    } catch (error) {
-        console.warn('Could not load region adjacency data:', error);
-        return null;
+    } else {
+        // Server is serving raw compressed bytes, we need to decompress
+        const arrayBuffer = await response.arrayBuffer();
+        const stream = new DecompressionStream('gzip');
+        const writer = stream.writable.getWriter();
+
+        // Write compressed data to decompression stream
+        writer.write(new Uint8Array(arrayBuffer));
+        writer.close();
+
+        // Read decompressed data from the readable side
+        const decompressedResponse = new Response(stream.readable);
+        const text = await decompressedResponse.text();
+        return JSON.parse(text);
     }
 }
 
@@ -666,9 +744,8 @@ async function populateRegionSelector() {
     regionsManifest = await loadRegionsManifest();
     regionAdjacency = await loadAdjacencyData();
 
-    if (!regionsManifest || !regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
-        // No manifest - cannot load any region
-        throw new Error('No regions manifest found. Cannot load elevation data.');
+    if (!regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
+        throw new Error('Regions manifest is empty. Cannot load elevation data.');
     }
 
     // Check for URL parameter to specify initial region (e.g., ?region=ohio)
@@ -838,6 +915,9 @@ async function loadRegion(regionId) {
         trueScaleValue = 1.0 / scale.metersPerPixelX;
         console.log(`True scale for this region: ${trueScaleValue.toFixed(6)}x`);
 
+        // Update button highlighting now that trueScaleValue is known
+        updateVertExagButtons(params.verticalExaggeration);
+
         // Save to localStorage so we remember this region next time
         localStorage.setItem('lastViewedRegion', regionId);
 
@@ -862,7 +942,9 @@ async function loadRegion(regionId) {
         }
 
         // Clear edge markers so they get recreated for new region
-        edgeMarkers.forEach(marker => scene.remove(marker));
+        if (terrainGroup) {
+            edgeMarkers.forEach(marker => terrainGroup.remove(marker));
+        }
         edgeMarkers = [];
 
         // Processing steps with detailed progress tracking
@@ -962,6 +1044,9 @@ function syncUIControls() {
     const multiplier = internalToMultiplier(params.verticalExaggeration);
     document.getElementById('vertExag').value = multiplier;
     document.getElementById('vertExagInput').value = multiplier;
+
+    // Update button highlighting
+    updateVertExagButtons(params.verticalExaggeration);
 
     // Render mode
     document.getElementById('renderMode').value = params.renderMode;
@@ -1617,7 +1702,9 @@ function setupControls() {
             console.log(` Aggregation: ${params.aggregation} -> ${e.target.value}`);
             params.aggregation = e.target.value;
             // Clear edge markers so they get recreated at new positions
-            edgeMarkers.forEach(marker => scene.remove(marker));
+            if (terrainGroup) {
+                edgeMarkers.forEach(marker => terrainGroup.remove(marker));
+            }
             edgeMarkers = [];
             rebucketData();
             recreateTerrain();
@@ -1637,7 +1724,9 @@ function setupControls() {
         }
         params.renderMode = nextMode;
         // Clear edge markers so they get recreated at new positions for new render mode
-        edgeMarkers.forEach(marker => scene.remove(marker));
+        if (terrainGroup) {
+            edgeMarkers.forEach(marker => terrainGroup.remove(marker));
+        }
         edgeMarkers = [];
         recreateTerrain();
         // Remove focus from dropdown so keyboard navigation works
@@ -2270,9 +2359,15 @@ function createTerrain() {
     const t0 = performance.now();
 
     // Remove old terrain and DISPOSE geometry/materials
-    if (terrainMesh) {
-        scene.remove(terrainMesh);
+    if (terrainGroup) {
+        scene.remove(terrainGroup);
     }
+
+    // Create new terrain group (centered at world origin for rotation)
+    terrainGroup = new THREE.Group();
+    terrainGroup.position.set(0, 0, 0);
+    scene.add(terrainGroup);
+    window.terrainGroup = terrainGroup; // Expose for camera controls
 
     const { width, height, elevation } = processedData;
 
@@ -2478,7 +2573,7 @@ function createBarsTerrain(width, height, elevation, scale) {
     };
 
     terrainMesh = instancedMesh;
-    scene.add(terrainMesh);
+    terrainGroup.add(terrainMesh); // Add to group instead of scene directly
     window.terrainMesh = terrainMesh; // Expose for camera controls
     stats.bars = barCount;
     // Record the internal exaggeration used when building bars and reset uniform to 1.0
@@ -2567,7 +2662,7 @@ function createPointCloudTerrain(width, height, elevation, scale) {
     };
 
     terrainMesh = points;
-    scene.add(terrainMesh);
+    terrainGroup.add(terrainMesh); // Add to group instead of scene directly
     window.terrainMesh = terrainMesh; // Expose for camera controls
     lastPointsExaggerationInternal = params.verticalExaggeration;
     if (terrainMesh.material && terrainMesh.material.userData && terrainMesh.material.userData.uExaggerationUniform) {
@@ -2635,7 +2730,7 @@ function createSurfaceTerrain(width, height, elevation, scale) {
 
     terrainMesh = new THREE.Mesh(geometry, material);
     terrainMesh.rotation.x = -Math.PI / 2;
-    scene.add(terrainMesh);
+    terrainGroup.add(terrainMesh); // Add to group instead of scene directly
     window.terrainMesh = terrainMesh; // Expose for camera controls
 }
 
@@ -3129,11 +3224,23 @@ function resetCamera() {
 
     // Standard up vector for normal camera controls
     camera.up.set(0, 1, 0);
+
+    // Reset camera quaternion to identity (clear any rotation state)
+    camera.quaternion.set(0, 0, 0, 1);
+
+    // Apply lookAt AFTER quaternion reset
     camera.lookAt(0, 0, 0);
 
+    // Reset terrain group rotation (the map itself can be rotated)
+    if (window.terrainGroup) {
+        window.terrainGroup.rotation.set(0, 0, 0);
+        console.log('Terrain rotation reset to (0, 0, 0)');
+    }
+
+    // Sync OrbitControls with new camera state
     controls.update();
 
-    console.log(`Camera reset: fixed position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin`);
+    console.log(`Camera fully reset: position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin, terrain rotation and all state cleared`);
 }
 
 function exportImage() {

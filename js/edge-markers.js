@@ -43,7 +43,9 @@
  */
 function createEdgeMarkers() {
     // Remove old markers (3D sprites)
-    edgeMarkers.forEach(marker => scene.remove(marker));
+    edgeMarkers.forEach(marker => {
+        window.terrainGroup.remove(marker);
+    });
     edgeMarkers = [];
 
     if (!rawElevationData || !processedData) return;
@@ -106,7 +108,8 @@ function createEdgeMarkers() {
             const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
             sprite.visible = !showEdgeMarkersCheckbox || showEdgeMarkersCheckbox.checked;
 
-            scene.add(sprite);
+            // Add to terrain group so markers rotate with terrain
+            window.terrainGroup.add(sprite);
             edgeMarkers.push(sprite);
         });
         return;
@@ -168,7 +171,8 @@ function createEdgeMarkers() {
         const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
         combinedSprite.visible = !showEdgeMarkersCheckbox || showEdgeMarkersCheckbox.checked;
 
-        scene.add(combinedSprite);
+        // Add to terrain group so markers rotate with terrain
+        window.terrainGroup.add(combinedSprite);
         edgeMarkers.push(combinedSprite);
 
         console.log(`[EDGE MARKERS] Added combined marker for ${dir.key} with neighbors:`, neighborNames);

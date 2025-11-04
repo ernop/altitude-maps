@@ -4,6 +4,7 @@ Determines which regions border each other and in which cardinal direction.
 """
 from pathlib import Path
 import json
+import gzip
 import geopandas as gpd
 from shapely.geometry import Point
 from src.borders import get_border_manager
@@ -194,14 +195,26 @@ def compute_adjacency():
         adjacency[region_id] = {k: v for k, v in adjacency[region_id].items() if v is not None}
     
     # Write output
-    output_file = Path('generated/region_adjacency.json')
+    output_file = Path('generated/regions/region_adjacency.json')
+    output_file_gz = Path('generated/regions/region_adjacency.json.gz')
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
+    # Write uncompressed JSON
     with open(output_file, 'w') as f:
         json.dump(adjacency, f, indent=2)
     
+    # Write gzipped version
+    with gzip.open(output_file_gz, 'wt', encoding='utf-8') as f:
+        json.dump(adjacency, f, indent=2)
+    
+    # Get file sizes
+    json_size = output_file.stat().st_size
+    gz_size = output_file_gz.stat().st_size
+    compression_ratio = (1 - gz_size / json_size) * 100
+    
     print(f"\n✓ Computed adjacency for {len(adjacency)} regions")
     print(f"✓ Saved to {output_file}")
+    print(f"✓ File sizes: {json_size:,} bytes (uncompressed), {gz_size:,} bytes (gzipped, {compression_ratio:.1f}% compression)")
     
     # Print summary
     total_connections = sum(
