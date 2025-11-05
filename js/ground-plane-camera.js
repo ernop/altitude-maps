@@ -19,7 +19,7 @@
 
 class GroundPlaneCamera extends CameraScheme {
     constructor() {
-        super('Custom (Default)', 'Left = rotate head (look around), Right = rotate map (board game physics), Middle = rotate camera, Shift+Left = tilt, Alt+Left = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
+        super('Custom (Default)', 'Left = pan, Right = rotate map (board game physics), Middle = rotate head (look around), Shift+Left = tilt, Alt+Left = rotate, Scroll = zoom, WASD/QE = fly, F = reframe');
         this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         this.focusPoint = new THREE.Vector3(0, 0, 0); // Point ON the ground plane
         this.raycaster = new THREE.Raycaster();
@@ -120,17 +120,13 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.cameraStart = this.camera.position.clone();
             this.state.focusStart = this.focusPoint.clone();
 
-        } else if (event.button === 0) { // Left = Rotate Head (your head moves, camera position fixed)
-            this.state.rotatingHead = true;
-            this.state.rotateHeadStart = { x: event.clientX, y: event.clientY };
+        } else if (event.button === 0) { // Left = Pan (standard map grab and drag)
+            this.state.panning = true;
+            this.state.panStart = { x: event.clientX, y: event.clientY };
+            this.state.focusStart = this.focusPoint.clone();
+            this.state.cameraStart = this.camera.position.clone();
 
-            // Store initial camera orientation as Euler angles (YXZ order)
-            const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-            euler.setFromQuaternion(this.camera.quaternion);
-            this.state.startYawHead = euler.y;
-            this.state.startPitchHead = euler.x;
-
-        } else if (event.button === 1) { // Middle = Rotate Camera (you turn your head, camera position fixed)
+        } else if (event.button === 1) { // Middle = Rotate Head (your head moves, camera position fixed)
             this.state.rotatingCamera = true;
             this.state.rotateCameraStart = { x: event.clientX, y: event.clientY };
 
@@ -155,45 +151,70 @@ class GroundPlaneCamera extends CameraScheme {
             // Top of screen = smaller Y values (screen coordinates are top-to-bottom)
             this.state.rotateDirectionMultiplier = (clickYRelativeToRenderer < rendererCenterY) ? 1 : -1;
 
-            // Store initial terrain group rotation if terrain exists
+            // Store initial terrain group rotation as quaternion for local-space rotations
+            // This allows rotations around the terrain's current local axes, not fixed world axes
             if (window.terrainGroup) {
-                this.state.terrainStartRotationY = window.terrainGroup.rotation.y;
-                this.state.terrainStartRotationX = window.terrainGroup.rotation.x;
+                this.state.terrainStartRotationQuaternion = window.terrainGroup.quaternion.clone();
             }
 
         }
     }
 
     onMouseMove(event) {
-        if (this.state.rotatingHead) {
-            // LMB: Rotate Head (egocentric - you turn your head)
-            // Camera position stays completely fixed, only orientation changes
-            // This is PURE HEAD MOVEMENT - nothing else changes
-            const deltaX = event.clientX - this.state.rotateHeadStart.x;
-            const deltaY = event.clientY - this.state.rotateHeadStart.y;
+        if (this.state.panning && this.state.panStart) {
+            // Pan: Camera moves incrementally with mouse
+            // Calculate delta from LAST position (not initial click)
+            const deltaX = event.clientX - this.state.panStart.x;
+            const deltaY = event.clientY - this.state.panStart.y;
 
-            // Rotation sensitivity
-            const sensitivity = 0.005;
+            // Natural head movement: only pitch and yaw, NO ROLL
+            // Use world up vector (0,1,0) to ensure no roll is introduced
+            const worldUp = new THREE.Vector3(0, 1, 0);
 
-            // Calculate new yaw and pitch from initial values
-            // Mouse left (negative deltaX) → positive yaw (turn left)
-            // Mouse up (negative deltaY) → positive pitch (look up)
-            // Negate deltaX so mouse left = turn left (positive yaw)
-            const yaw = this.state.startYawHead + (-deltaX * sensitivity);
-            let pitch = this.state.startPitchHead + (-deltaY * sensitivity);
+            // Get camera forward direction (view direction)
+            const forward = new THREE.Vector3();
+            this.camera.getWorldDirection(forward);
 
-            // Clamp pitch to prevent gimbal lock (don't look straight up/down)
-            const maxPitch = Math.PI / 2 - 0.01;
-            pitch = Math.max(-maxPitch, Math.min(maxPitch, pitch));
+            // Calculate right vector using world up (prevents roll)
+            // Match existing codebase pattern: crossVectors(forward, up) gives left vector
+            // We'll use it as-is for consistency with existing code
+            const right = new THREE.Vector3();
+            right.crossVectors(forward, worldUp).normalize();
 
-            // Apply rotation using Euler angles (YXZ order prevents roll)
-            const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
-            this.camera.quaternion.setFromEuler(euler);
-            this.camera.up.set(0, 1, 0); // Maintain world up
+            // Recalculate forward as horizontal projection (for ground plane movement)
+            const forwardHorizontal = new THREE.Vector3();
+            forwardHorizontal.copy(forward);
+            forwardHorizontal.y = 0; // Project onto ground plane
+            forwardHorizontal.normalize();
 
-            // Focus point stays locked - don't recalculate it
-            // This prevents exponential drift where each rotation recalculates
-            // focus point based on current orientation, causing distance to grow
+            // Calculate movement speed based on distance from focus point
+            const distance = this.camera.position.distanceTo(this.focusPoint);
+            const moveSpeed = distance * 0.0005; // Adaptive speed (50% slower than before)
+
+            // Calculate incremental movement
+            // Mouse left → camera moves right (reversed sense)
+            // Mouse up → camera moves up (already working correctly)
+            const movement = new THREE.Vector3();
+            movement.addScaledVector(right, -deltaX * moveSpeed);      // Mouse left = camera right (reversed)
+            movement.addScaledVector(forwardHorizontal, deltaY * moveSpeed);    // Mouse down = camera back (was already correct)
+            movement.y = 0; // Keep movement on ground plane
+
+            // Apply incremental movement
+            this.focusPoint.add(movement);
+            this.focusPoint.y = 0; // Keep on plane
+
+            this.camera.position.add(movement);
+
+            // Update controls target
+            this.controls.target.copy(this.focusPoint);
+
+            // Ensure camera up vector stays aligned with world up (prevents roll accumulation)
+            // This maintains natural head orientation (no tilt/roll)
+            this.camera.up.copy(worldUp);
+
+            // Update pan start to current position for next frame (incremental)
+            this.state.panStart.x = event.clientX;
+            this.state.panStart.y = event.clientY;
         }
 
         if (this.state.tilting) {
@@ -281,8 +302,9 @@ class GroundPlaneCamera extends CameraScheme {
         }
 
         if (this.state.rotatingCamera) {
-            // MMB: Rotate Camera (egocentric - you turn your head)
+            // MMB: Rotate Head (egocentric - you turn your head)
             // Camera position stays completely fixed, only orientation changes
+            // This is PURE HEAD MOVEMENT - nothing else changes
             const deltaX = event.clientX - this.state.rotateCameraStart.x;
             const deltaY = event.clientY - this.state.rotateCameraStart.y;
 
@@ -290,9 +312,10 @@ class GroundPlaneCamera extends CameraScheme {
             const sensitivity = 0.005;
 
             // Calculate new yaw and pitch from initial values
-            // Mouse left (negative deltaX) → negative yaw (turn left, counterclockwise)
+            // Mouse left (negative deltaX) → positive yaw (turn left)
             // Mouse up (negative deltaY) → positive pitch (look up)
-            const yaw = this.state.startYaw + (deltaX * sensitivity);
+            // Negate deltaX so mouse left = turn left (positive yaw)
+            const yaw = this.state.startYaw + (-deltaX * sensitivity);
             let pitch = this.state.startPitch + (-deltaY * sensitivity);
 
             // Clamp pitch to prevent gimbal lock (don't look straight up/down)
@@ -312,6 +335,7 @@ class GroundPlaneCamera extends CameraScheme {
         if (this.state.rotatingTerrain) {
             // RMB: Rotate Terrain (exocentric - the map/TV rotates)
             // Camera stays completely still, terrain group rotates around center (0,0,0)
+            // Rotations are in LOCAL SPACE - around the terrain's current X/Y axes, not fixed world axes
             if (!window.terrainGroup) return;
 
             const deltaX = event.clientX - this.state.rotateTerrainStart.x;
@@ -320,21 +344,38 @@ class GroundPlaneCamera extends CameraScheme {
             // Rotation speed
             const rotationSpeed = 0.005;
 
-            // Y-axis (horizontal spin): Unlimited rotation
-            // Direction depends on where user grabbed (upper vs lower half of screen)
+            // Start from initial rotation (stored as quaternion)
+            const currentRotation = this.state.terrainStartRotationQuaternion.clone();
+
+            // Get terrain's local axes in world space (from current rotation)
+            const localUp = new THREE.Vector3(0, 1, 0);      // Terrain's local Y axis (up)
+            const localRight = new THREE.Vector3(1, 0, 0);   // Terrain's local X axis (right)
+            localUp.applyQuaternion(currentRotation);
+            localRight.applyQuaternion(currentRotation);
+
+            // Calculate delta rotations around local axes
+            // Horizontal drag (deltaX): rotate around terrain's local UP axis
+            // Vertical drag (deltaY): rotate around terrain's local RIGHT axis
             const dirMultiplier = this.state.rotateDirectionMultiplier || 1;
-            const desiredRotationY = this.state.terrainStartRotationY - (deltaX * rotationSpeed * dirMultiplier);
+            const horizontalAngle = -deltaX * rotationSpeed * dirMultiplier;
+            const verticalAngle = deltaY * rotationSpeed;
 
-            // X-axis (vertical tilt): Prevent viewing map underside
-            const desiredRotationX = this.state.terrainStartRotationX + (deltaY * rotationSpeed);
+            // Apply delta rotations in local space
+            const horizontalRotation = new THREE.Quaternion();
+            horizontalRotation.setFromAxisAngle(localUp, horizontalAngle);
 
-            // Test if this rotation would show the underside
-            // Create quaternion for proposed rotation
+            const verticalRotation = new THREE.Quaternion();
+            verticalRotation.setFromAxisAngle(localRight, verticalAngle);
+
+            // Compose rotations: first horizontal, then vertical
+            const deltaRotation = new THREE.Quaternion();
+            deltaRotation.multiplyQuaternions(verticalRotation, horizontalRotation);
+
+            // Apply to initial rotation
             const testQuaternion = new THREE.Quaternion();
-            const eulerRotation = new THREE.Euler(desiredRotationX, desiredRotationY, 0, 'XYZ');
-            testQuaternion.setFromEuler(eulerRotation);
+            testQuaternion.multiplyQuaternions(deltaRotation, currentRotation);
 
-            // Transform terrain's up vector to world space
+            // Transform terrain's up vector to world space for validation
             const terrainUp = new THREE.Vector3(0, 1, 0);
             terrainUp.applyQuaternion(testQuaternion);
 
@@ -358,8 +399,11 @@ class GroundPlaneCamera extends CameraScheme {
             const cameraUnderBoard = lookingUpward && boardRightSideUp;
 
             // COMPREHENSIVE DEBUG LOGGING
-            console.log(`[RMB ROTATION]
-  Desired terrain rotation: X=${THREE.MathUtils.radToDeg(desiredRotationX).toFixed(1)}°, Y=${THREE.MathUtils.radToDeg(desiredRotationY).toFixed(1)}°
+            const euler = new THREE.Euler(0, 0, 0, 'XYZ');
+            euler.setFromQuaternion(testQuaternion);
+            console.log(`[RMB ROTATION - LOCAL SPACE]
+  Delta: X=${deltaX.toFixed(1)}px, Y=${deltaY.toFixed(1)}px
+  Rotation angles: X=${THREE.MathUtils.radToDeg(euler.x).toFixed(1)}°, Y=${THREE.MathUtils.radToDeg(euler.y).toFixed(1)}°
   Terrain up.y: ${terrainUp.y.toFixed(3)} (1.0=flat, 0.0=vertical, <0=upside-down)
   Camera view dir.y: ${cameraViewDir.y.toFixed(3)} (${lookingUpward ? 'looking UP' : 'looking DOWN'})
   Check 1 - Board orientation: terrain.up.y >= ${minUpY} ? ${terrainUp.y >= minUpY}
@@ -368,16 +412,19 @@ class GroundPlaneCamera extends CameraScheme {
             if (terrainUp.y >= minUpY && !cameraUnderBoard) {
                 // Both checks pass - apply rotation
                 console.log(`  -> ACCEPTED`);
-                window.terrainGroup.rotation.y = desiredRotationY;
-                window.terrainGroup.rotation.x = desiredRotationX;
+                window.terrainGroup.quaternion.copy(testQuaternion);
             } else {
                 // One or both checks failed - reject rotation
                 let reason = '';
                 if (terrainUp.y < minUpY) reason += 'board too vertical/inverted';
                 if (cameraUnderBoard) reason += (reason ? ' AND ' : '') + 'camera under board';
                 console.log(`  -> REJECTED (${reason})`);
-                window.terrainGroup.rotation.y = desiredRotationY;
-                // Don't update rotation.x
+                // Only apply horizontal rotation if vertical is blocked
+                if (terrainUp.y < minUpY || cameraUnderBoard) {
+                    const horizontalOnly = new THREE.Quaternion();
+                    horizontalOnly.multiplyQuaternions(horizontalRotation, currentRotation);
+                    window.terrainGroup.quaternion.copy(horizontalOnly);
+                }
             }
         }
     }
@@ -391,7 +438,7 @@ class GroundPlaneCamera extends CameraScheme {
                 this.state.rotating = false;
                 this.state.rotatingWithAlt = false;
             }
-            this.state.rotatingHead = false;
+            this.state.panning = false;
         } else if (event.button === 1) {
             this.state.rotatingCamera = false;
         } else if (event.button === 2) {

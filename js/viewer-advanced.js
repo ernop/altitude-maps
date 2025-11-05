@@ -150,7 +150,7 @@ let params = {
     aggregation: 'max',
     renderMode: 'bars',
     verticalExaggeration: 0.03, // Default: good balance of detail and scale
-    colorScheme: 'elevation-enhanced',
+    colorScheme: 'high-contrast',
     showGrid: false,
     autoRotate: false,
     // Shading: Always use Natural (Lambert) - no UI control needed
@@ -592,6 +592,12 @@ function loadRecentRegions() {
         console.warn('Could not load recent regions:', e);
     }
     recentRegions = [];
+
+    // If no recent regions, populate with default personal history
+    if (recentRegions.length === 0) {
+        recentRegions = ['new_mexico', 'san_francisco', 'faroe_islands'];
+        saveRecentRegions();
+    }
 }
 
 function saveRecentRegions() {
@@ -2383,6 +2389,7 @@ function createTerrain() {
     }
 
     // Center terrain - different centering for different modes
+    // Note: Position is preserved in recreateTerrain() to keep map fixed when bucket size changes
     if (terrainMesh) {
         if (params.renderMode === 'bars') {
             // Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
@@ -2914,6 +2921,9 @@ function updateColors() {
     }
 }
 
+// Store original terrain position to keep it fixed when bucket size changes
+let originalTerrainPosition = null;
+
 function recreateTerrain() {
     const startTime = performance.now();
 
@@ -2922,7 +2932,32 @@ function recreateTerrain() {
     const caller = stack.split('\n')[2]?.trim() || 'unknown';
     console.log(`[TERRAIN] recreateTerrain() called from: ${caller}`);
 
+    // Preserve terrain position and rotation before recreating
+    let oldTerrainPos = null;
+    let oldTerrainGroupRotation = null;
+
+    if (terrainMesh) {
+        oldTerrainPos = terrainMesh.position.clone();
+    }
+    if (terrainGroup) {
+        oldTerrainGroupRotation = terrainGroup.rotation.clone();
+    }
+
     createTerrain();
+
+    // Restore terrain position if it existed before (keeps map in same place when bucket size changes)
+    if (oldTerrainPos && terrainMesh) {
+        terrainMesh.position.copy(oldTerrainPos);
+    } else if (terrainMesh) {
+        // First time - store the original position for future recreations
+        originalTerrainPosition = terrainMesh.position.clone();
+    }
+
+    // Restore terrain group rotation if it was rotated
+    if (oldTerrainGroupRotation && terrainGroup) {
+        terrainGroup.rotation.copy(oldTerrainGroupRotation);
+    }
+
     const duration = performance.now() - startTime;
     console.log(`[PERF] recreateTerrain() completed in ${duration.toFixed(1)}ms`);
     return duration;
