@@ -2,36 +2,88 @@
 
 **Canonical reference for the complete data pipeline from region definition to viewer-ready output.**
 
-This document defines the exact steps, file paths, naming conventions, and rules for processing elevation data regions. Every region must belong to a class/group that makes its requirements clear.
+This document defines the exact steps, file paths, naming conventions, and rules for processing elevation data regions.
+
+---
+
+## Region Type System (CRITICAL)
+
+**ALL regions MUST use the `RegionType` enum from `src/types.py`. Never use ad-hoc strings.**
+
+```python
+from src.types import RegionType
+
+class RegionType(str, Enum):
+    USA_STATE = "usa_state"  # US states
+    COUNTRY = "country"      # Countries  
+    REGION = "region"        # Islands, ranges, custom areas
+```
+
+**Enforcement**: Any code checking region types MUST:
+1. Use the enum values (e.g., `RegionType.USA_STATE`)
+2. Check all three cases exhaustively
+3. Raise ValueError for unknown types (never silently default)
+
+**Violation Example (FORBIDDEN)**:
+```python
+# DON'T DO THIS
+if region_type == 'us_state':  # Wrong - string literal
+    ...
+elif region_type == 'international':  # Wrong - not an enum value
+    ...
+else:
+    boundary_name = None  # Wrong - silent fallback
+```
+
+**Correct Pattern**:
+```python
+# DO THIS
+if region_type == RegionType.USA_STATE:
+    boundary_name = f"United States of America/{state_name}"
+    boundary_type = "state"
+elif region_type == RegionType.COUNTRY:
+    boundary_name = country_name
+    boundary_type = "country"
+elif region_type == RegionType.REGION:
+    boundary_name = None if not clip_boundary else region_name
+    boundary_type = None
+else:
+    raise ValueError(f"Unknown region type: {region_type}")
+```
 
 ---
 
 ## Region Classes
 
-Every region must be classified into one of these groups:
+Every region is classified using the `RegionType` enum:
 
-### US State
-- **Definition location**: `src/regions_config.py` → `US_STATES`
-- **Source**: USGS 3DEP (10m resolution)
-- **Clipping**: Always `clip_boundary=True` → clips to `"United States of America/<StateName>"`
-- **Boundary source**: Natural Earth administrative boundaries (10m recommended)
-- **Downloader**: `download_all_us_states_highres.py`
+### USA_STATE (RegionType.USA_STATE)
+- **Enum value**: `RegionType.USA_STATE` (string value: `"usa_state"`)
+- **Definition location**: `src/regions_config.py` -> `US_STATES`
+- **Resolution**: **Dynamic** - 10m, 30m, or 90m based on Nyquist sampling rule
+- **Available sources**: USGS 3DEP (10m), SRTM (30m/90m via OpenTopography)
+- **Clipping**: Always `clip_boundary=True` -> clips to `"United States of America/<StateName>"`
+- **Boundary type**: `"state"` (hierarchical Natural Earth boundary)
+- **Boundary source**: Natural Earth admin_1 boundaries (10m recommended)
 
-### Country
-- **Definition location**: `src/regions_config.py` → `COUNTRIES`
-- **Source**: SRTMGL1 (30m) within 60°N-56°S, or COP30 (30m) outside that range
-- **Clipping**: Usually `clip_boundary=True` → clips to `"<CountryName>"`
-- **Boundary source**: Natural Earth country boundaries (10m recommended)
-- **Downloader**: OpenTopography GlobalDEM API
+### COUNTRY (RegionType.COUNTRY)
+- **Enum value**: `RegionType.COUNTRY` (string value: `"country"`)
+- **Definition location**: `src/regions_config.py` -> `COUNTRIES`
+- **Resolution**: **Dynamic** - 30m or 90m based on Nyquist sampling rule
+- **Available sources**: SRTM (30m/90m), Copernicus DEM (30m/90m via OpenTopography)
+- **Clipping**: Usually `clip_boundary=True` -> clips to `"<CountryName>"`
+- **Boundary type**: `"country"` (Natural Earth country boundary)
+- **Boundary source**: Natural Earth admin_0 boundaries (10m recommended)
 
-### Region (Islands/Peninsulas/Ranges)
-- **Definition location**: `src/regions_config.py` → `REGIONS`
-- **Source**: SRTMGL1 (30m) within 60°N-56°S, or COP30 (30m) outside that range (unless overridden)
-- **Clipping**: Usually `clip_boundary=False` → no boundary clipping (uses bbox)
-- **Boundary source**: N/A (free-form regions)
-- **Downloader**: OpenTopography GlobalDEM API
+### REGION (RegionType.REGION)
+- **Enum value**: `RegionType.REGION` (string value: `"region"`)
+- **Definition location**: `src/regions_config.py` -> `REGIONS`
+- **Resolution**: **Dynamic** - 30m or 90m based on Nyquist sampling rule
+- **Available sources**: SRTM (30m/90m), Copernicus DEM (30m/90m via OpenTopography)
+- **Clipping**: Usually `clip_boundary=False` (free-form bbox, no boundaries)
+- **Boundary source**: N/A (some may have custom boundaries if `clip_boundary=True`)
 
-**Note**: Some regions may have `clip_boundary=True` if they correspond to territories with known boundaries (e.g., Iceland).
+**Note**: Some REGION types may have `clip_boundary=True` for territories with known boundaries (e.g., Iceland island).
 
 ---
 
@@ -47,85 +99,154 @@ Every region must be classified into one of these groups:
 
 ---
 
-### 2. Determine Dataset & Resolution (Overrides First)
+### 2. Determine Required Resolution (Nyquist Sampling Rule)
 
-**Rule**: Check if region has hardcoded high-resolution requirements.
+**CRITICAL**: Resolution is NEVER hardcoded by region type. It is dynamically determined based on target output size.
 
-**US States**: Always use USGS 3DEP at 10m resolution (hardcoded in downloader).
+**Rule**: Calculate minimum required resolution using Nyquist sampling theorem (2x oversampling minimum).
 
-**Other regions**: Check `RegionConfig.recommended_dataset` field:
-- If set to a specific dataset (e.g., `"COP30"`, `"AW3D30"`), use that
-- If not set, continue to step 2b for latitude-based selection
+**Process**:
+1. Calculate visible pixel size: `visible_m_per_pixel = geographic_span_meters / target_pixels`
+2. Apply Nyquist rule: `min_resolution <= visible_m_per_pixel / 2.0`
+3. Select coarsest available resolution that meets requirement (minimizes download size)
 
-**Location**: Defined in `src/regions_config.py` per region.
+**Available Resolutions by Region Type**:
+- `RegionType.USA_STATE`: `[10m, 30m, 90m]` (USGS 3DEP + OpenTopography)
+- `RegionType.COUNTRY`: `[30m, 90m]` (OpenTopography only)
+- `RegionType.REGION`: `[30m, 90m]` (OpenTopography only)
 
-**Rationale**: High-resolution overrides must be explicit in region definition, not inferred by download code.
+**Example (Idaho @ different target_pixels)**:
+```
+target_pixels=512:  visible=1292m/px -> requires 90m source (1292/90=14x > 2x)
+target_pixels=2048: visible=323m/px  -> requires 90m source (323/90=3.6x > 2x)
+target_pixels=4096: visible=162m/px  -> requires 30m source (162/30=5.4x > 2x)
+target_pixels=8192: visible=81m/px   -> requires 10m source (81/10=8.1x > 2x) [US only]
+```
+
+**Implementation**: `src/downloaders/orchestrator.determine_min_required_resolution()`
+
+**Validation**: If no available resolution meets Nyquist requirement, raise ValueError with clear message.
 
 ---
 
-### 3. Dataset Selection by Latitude (if no override)
+### 3. Determine Dataset (Source Selection)
 
-**Rule**: For regions using OpenTopography (non-US), select dataset based on latitude:
+**Rule**: For each region type, select appropriate data source based on resolution + latitude.
 
-- **If `north > 60.0` OR `south < -56.0`**: Use `COP30` (Copernicus DEM 30m)
-- **Otherwise**: Use `SRTMGL1` (SRTM 30m)
+**USA_STATE** (`RegionType.USA_STATE`):
+- If requires 10m: Use `USA_3DEP` (USGS 3D Elevation Program)
+- If requires 30m: Use `SRTMGL1` (OpenTopography)
+- If requires 90m: Use `SRTMGL3` (OpenTopography)
 
-**Location**: This logic is embedded in download functions (see `ensure_region.py` lines 342-351).
+**COUNTRY/REGION** (international):
+- Check `RegionConfig.recommended_dataset` override first
+- If north > 60°N OR south < -56°S:
+  - 30m: Use `COP30` (Copernicus DEM)
+  - 90m: Use `COP90` (Copernicus DEM)
+- Otherwise (SRTM coverage area):
+  - 30m: Use `SRTMGL1` (SRTM)
+  - 90m: Use `SRTMGL3` (SRTM)
 
-**Note**: This is only applied when step 2 did not produce a specific dataset.
+**Implementation**: `src/downloaders/orchestrator.determine_dataset_override()`
+
+**Key Point**: Dataset selection is the OUTPUT of resolution determination, not an input.
 
 ---
 
-### 4. Acquire Raw Elevation (GeoTIFF)
+### 4. Check for Existing Files (Quality-First)
 
-**Output paths** (by source):
-- **US states (3DEP)**: `data/raw/usa_3dep/<region_id>_3dep_10m.tif`
-- **International (OpenTopography)**: `data/raw/srtm_30m/<region_id>_bbox_30m.tif`
+**Implementation**: `src/validation.find_raw_file(region_id, min_required_resolution_meters)`
 
-**File format**: Single-band GeoTIFF with CRS and transform metadata.
+**Rule**: Search for ANY existing file that meets or exceeds quality requirement.
 
-**Resolution**:
-- US states: 10m (from USGS 3DEP)
-- International: 30m (SRTMGL1 or COP30 depending on latitude from step 2b)
+**Quality Logic**:
+- Need 90m: Can use 10m, 30m, OR 90m (all meet requirement)
+- Need 30m: Can use 10m OR 30m (won't use 90m - insufficient quality)
+- Need 10m: Can ONLY use 10m
+
+**Search Locations** (abstract bounds-based naming):
+```
+data/raw/usa_3dep/bbox_{bounds}_usa_3dep_10m.tif
+data/raw/srtm_30m/bbox_{bounds}_srtm_30m_30m.tif  
+data/raw/srtm_90m/bbox_{bounds}_srtm_90m_90m.tif
+```
+
+**Behavior**:
+- If suitable file found: Skip to Stage 6 (Clipping)
+- If no suitable file: Continue to Stage 5 (Download)
+
+---
+
+### 5. Acquire Raw Elevation (Download if needed)
+
+**Tile-Based System**: All downloads use 1×1 degree tiles for reusability.
+
+**Tile Naming** (content-based, SRTM-style):
+```
+tile_{NS}{lat:02d}_{EW}{lon:03d}_{dataset}_{resolution}.tif
+
+Examples:
+tile_N35_W090_srtm_30m_30m.tif  (35°N, 90°W, SRTM 30m)
+tile_N40_W110_usa_3dep_10m.tif  (40°N, 110°W, USGS 3DEP 10m)
+tile_S05_E120_cop_30m_30m.tif   (5°S, 120°E, Copernicus 30m)
+```
+
+**Tile Storage** (shared pool by source):
+```
+data/raw/usa_3dep/tiles/tile_*.tif
+data/raw/srtm_30m/tiles/tile_*.tif
+data/raw/srtm_90m/tiles/tile_*.tif
+```
+
+**Process**:
+1. Calculate integer-degree tile grid covering region bounds
+2. For each tile: Check if exists, download if missing
+3. Merge tiles into single bbox file: `data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif`
+
+**Merged Output Naming** (abstract, bounds-based):
+```
+bbox_N##W###_N##W###_{dataset}_{res}.tif
+
+Example:
+bbox_N42W114_N45W111_srtm_30m_30m.tif  (Idaho bounds, SRTM 30m)
+```
+
+**Why Abstract Naming**: Same geographic bounds → same filename → automatic reuse across regions.
 
 **Validation** (auto-run):
 - File size > 1KB (catches corrupted downloads)
 - Rasterio can open the file
 - Has CRS and transform
-- Can read a sample window (confirms data accessible)
-- **Auto-cleanup**: Corrupted files are automatically deleted
-
-**Metadata**: Raw downloads save metadata JSON at `data/metadata/<region_id>_raw.json` with bounds, download date, source, file hash.
-
----
-
-### 5. Automatic Tiling for Large Areas (invisible)
-
-**Trigger**: 
-- OpenTopography request would exceed ~420,000 km² area, OR
-- Width or height > ~4 degrees, AND
-- Using SRTMGL1 dataset (COP30 has different limits)
-
-**Process**:
-1. Calculate tile grid (approximately 3.5° per tile)
-2. Download each tile to `data/raw/srtm_30m/tiles/<region_id>/<region_id>_tile_NN.tif`
-3. Validate each tile (same checks as step 2)
-4. Merge all tiles into single output: `data/raw/srtm_30m/<region_id>_bbox_30m.tif`
-5. Save metadata indicating tiling was used (tile count, bounds)
-
-**User experience**: This happens automatically during download. User sees "Downloading tile 1/4..." but final output is a single file.
-
-**Important**: If region bounds change (detected via metadata comparison), stale raw file is deleted and re-downloaded to include new area.
+- Can read sample window (confirms data accessible)
+- **Auto-cleanup**: Corrupted files deleted automatically
 
 ---
 
 ### 6. Clip to Administrative Boundary (if `clip_boundary=True`)
 
-**Decision rule**: Based on region class and `RegionConfig.clip_boundary`:
+**Implementation**: `src/pipeline.clip_to_boundary()`
 
-- **US State**: Always clips to `"United States of America/<StateName>"` (state boundary)
-- **Country**: Clips to `"<CountryName>"` if `clip_boundary=True` (default True)
-- **Region**: Usually `clip_boundary=False` (free-form regions, no boundary available)
+**Decision Rule** (using RegionType enum):
+
+```python
+if region_type == RegionType.USA_STATE:
+    boundary_name = f"United States of America/{state_name}"
+    boundary_type = "state"
+elif region_type == RegionType.COUNTRY:
+    if config.clip_boundary:  # Usually True
+        boundary_name = country_name
+        boundary_type = "country"
+    else:
+        skip_clipping = True
+elif region_type == RegionType.REGION:
+    if config.clip_boundary:  # Usually False
+        boundary_name = region_name
+        boundary_type = "country"  # Or custom
+    else:
+        skip_clipping = True
+else:
+    raise ValueError(f"Unknown region type: {region_type}")
+```
 
 **Boundary source**: Natural Earth (10m/50m/110m) via `src/borders.get_border_manager()`
 
@@ -163,8 +284,8 @@ Every region must be classified into one of these groups:
 1. Check if input CRS is EPSG:4326
 2. If yes, calculate average latitude from clipped bounds
 3. Reproject to metric CRS:
-   - Mid-latitudes (|lat| < 85°): EPSG:3857 (Web Mercator)
-   - High latitudes (|lat| ≥ 85°): EPSG:3413 (Arctic) or EPSG:3031 (Antarctic)
+   - Mid-latitudes (|lat| < 85deg): EPSG:3857 (Web Mercator)
+   - High latitudes (|lat| >= 85deg): EPSG:3413 (Arctic) or EPSG:3031 (Antarctic)
 4. Initialize destination array with nodata
 5. Use bilinear resampling with `src_nodata` and `dst_nodata` parameters
 6. Validate elevation range post-reproject (fail hard if hyperflat detected)
@@ -349,80 +470,100 @@ Each pipeline stage has a version:
 
 ## File Path Summary
 
-### Raw Data
-- US states: `data/raw/usa_3dep/<region_id>_3dep_10m.tif`
-- International: `data/raw/srtm_30m/<region_id>_bbox_30m.tif`
+### Raw Data (Abstract Bounds-Based Naming)
+```
+data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif
 
-### Clipped Data
-- `data/clipped/<source>/<region_id>_clipped_<source>_v1.tif`
+Examples:
+data/raw/usa_3dep/bbox_N42W114_N45W111_usa_3dep_10m.tif
+data/raw/srtm_30m/bbox_N42W114_N45W111_srtm_30m_30m.tif
+data/raw/srtm_90m/bbox_N42W114_N45W111_srtm_90m_90m.tif
+```
 
-### Processed Data
-- `data/processed/<source>/<region_id>_<source>_<target_pixels>px_v2.tif`
+### Tiles (Shared Pool, Content-Based Names)
+```
+data/raw/{source}/tiles/tile_{NS}{lat}_{EW}{lon}_{dataset}_{res}.tif
 
-### Exported Data
-- JSON: `generated/regions/<region_id>_<source>_<target_pixels>px_v2.json`
-- Gzip: `generated/regions/<region_id>_<source>_<target_pixels>px_v2.json.gz`
-- Manifest: `generated/regions/regions_manifest.json`
+Examples:
+data/raw/usa_3dep/tiles/tile_N42_W114_usa_3dep_10m.tif
+data/raw/srtm_30m/tiles/tile_N42_W114_srtm_30m_30m.tif
+```
 
-### Metadata
-- `data/metadata/<region_id>_raw.json`
-- `data/metadata/<region_id>_clipped.json`
-- `data/metadata/<region_id>_processed.json`
-- `data/metadata/<region_id>_export.json`
+### Processed & Exported (Region-Specific Names)
+```
+data/processed/{source}/bbox_{bounds}_processed_{pixels}px_v2.tif
+generated/regions/{region_id}_{source}_{pixels}px_v2.json
+generated/regions/{region_id}_{source}_{pixels}px_v2.json.gz
+```
+
+### Manifest
+```
+generated/regions/regions_manifest.json
+```
 
 ---
 
-## Region Class Summary Table
+## Region Type Summary Table
 
-| Class | Source | Resolution | Clip Boundary | Boundary Type | Boundary Source |
-|-------|--------|------------|---------------|---------------|-----------------|
-| US State | USGS 3DEP | 10m | Always True | `"United States of America/<StateName>"` | Natural Earth 10m |
-| Country | SRTMGL1/COP30 | 30m | Usually True | `"<CountryName>"` | Natural Earth 10m |
-| Region | SRTMGL1/COP30 | 30m | Usually False | N/A | N/A |
+| Type | Enum | Resolution | Sources | Clip | Boundary Format |
+|------|------|------------|---------|------|-----------------|
+| USA_STATE | `RegionType.USA_STATE` | Dynamic (10/30/90m) | USGS 3DEP + SRTM | Always | `"United States of America/<State>"` |
+| COUNTRY | `RegionType.COUNTRY` | Dynamic (30/90m) | SRTM + Copernicus | Usually | `"<CountryName>"` |
+| REGION | `RegionType.REGION` | Dynamic (30/90m) | SRTM + Copernicus | Rarely | N/A or custom |
 
 ---
 
 ## Quick Reference: Decision Flow
 
 ```
-1. Region defined? (src/regions_config.py)
-   NO → Error: use --list-regions
-   YES → Continue
+1. Validate region definition
+   Check: src/regions_config.py -> ALL_REGIONS
+   Fail: "Unknown region" error
 
-2. Dataset & resolution override?
-   US State → Use USGS 3DEP 10m
-   If `recommended_dataset` set → Use that dataset
-   Otherwise → Continue to 3
+2. Determine required resolution (Nyquist rule)
+   visible_m_per_pixel = geographic_span / target_pixels
+   min_resolution = visible_m_per_pixel / 2.0
+   Select: Coarsest available that meets requirement
 
-3. Latitude-based dataset?
-   north > 60° OR south < -56° → COP30
-   Otherwise → SRTMGL1
+3. Determine dataset
+   USA_STATE: 10m=USA_3DEP, 30m=SRTMGL1, 90m=SRTMGL3
+   COUNTRY/REGION: Check override, then latitude-based selection
 
-4. Download raw data
-   Large area? → Auto-tile (5) and merge
-   Save to: data/raw/<source>/<region_id>_*.tif
+4. Check existing files
+   Search: data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif
+   Quality: Use any file with resolution <= min_required
+   Found: Skip to stage 6
+   Missing: Continue to stage 5
 
-6. Clip boundary?
-   clip_boundary=True → Clip to boundary (Natural Earth 10m)
-   clip_boundary=False → Skip clipping, use raw
-   Save to: data/clipped/<source>/<region_id>_clipped_*.tif
+5. Download (tile-based)
+   Split into 1×1 degree tiles
+   Download missing tiles -> data/raw/{source}/tiles/tile_*.tif
+   Merge -> data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif
 
-7. Process/downsample
-   Reproject if EPSG:4326 → Metric CRS
-   Downsample to target_pixels (preserve aspect)
-   Save to: data/processed/<source>/<region_id>_*_px_v2.tif
+6. Clip to boundary (if applicable)
+   USA_STATE: ALWAYS clip to "United States of America/<State>"
+   COUNTRY: Usually clip to "<CountryName>"
+   REGION: Usually skip (free-form bbox)
+   
+7. Reproject (fix latitude distortion)
+   Check: Is CRS EPSG:4326?
+   Yes: Reproject to EPSG:3857 (Web Mercator) or polar
+   No: Already metric, skip
+   Critical: ALL regions reprojected if needed
 
-8. Export JSON
-   Convert to 2D array with nulls
-   Save to: generated/regions/<region_id>_*_v2.json
+8. Downsample (preserve aspect)
+   Target: --target-pixels (default 2048)
+   Rule: Same step size for both dimensions
+   Output: data/processed/{source}/bbox_{bounds}_processed_{pixels}px_v2.tif
 
-9. Gzip
-   Compress JSON
-   Save to: generated/regions/<region_id>_*_v2.json.gz
+9. Export JSON
+   Convert to 2D array with nulls for nodata
+   Convert bounds to EPSG:4326 for metadata
+   Output: generated/regions/{region_id}_{source}_{pixels}px_v2.json
 
-10. Update manifest
-   Scan all JSON files
-   Update: generated/regions/regions_manifest.json
+10. Compress + Update Manifest
+    Gzip level 9: {region_id}_{source}_{pixels}px_v2.json.gz
+    Update: generated/regions/regions_manifest.json
 ```
 
 ---
@@ -434,9 +575,16 @@ Each pipeline stage has a version:
 - **Versioning System**: `src/versioning.py` - Version definitions and compatibility
 - **Implementation**: `src/pipeline.py` - Pipeline implementation
 - **Entry Point**: `ensure_region.py` - Command-line interface
+- **Quick Start**: `tech/DOWNLOAD_GUIDE.md` - User-friendly quick reference
 
 ---
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-11-03  
 **Status**: Canonical reference - all data processing must follow these stages and rules.
+
+**CRITICAL ENFORCEMENT**:
+1. Always use `RegionType` enum - never ad-hoc strings
+2. Resolution is ALWAYS dynamic (Nyquist rule) - never hardcoded by region type  
+3. Check all three enum cases exhaustively - never silent fallbacks
+4. When in doubt, defer to this document as the single source of truth
 

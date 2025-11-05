@@ -2,7 +2,7 @@
 
 **Quick reference for downloading and processing regions.**
 
-For complete pipeline specification, see **[DATA_PIPELINE.md](DATA_PIPELINE.md)**.
+For complete pipeline specification, see **[DATA_PIPELINE.md](DATA_PIPELINE.md)** - the canonical reference.
 
 ---
 
@@ -29,13 +29,39 @@ python ensure_region.py tennessee --force-reprocess
 ```
 
 **That's it!** The `ensure_region.py` script handles:
-- Region validation
-- Data source selection (USGS 3DEP for US, OpenTopography for international)
+- Region validation (checks `src/regions_config.py`)
+- **Dynamic resolution selection** (Nyquist sampling rule - NOT hardcoded!)
+- Data source selection based on resolution needs
 - Automatic tiling for large areas
-- Boundary clipping
+- Boundary clipping (using `RegionType` enum)
 - Reprojection and downsampling
 - JSON export and compression
 - Manifest updates
+
+---
+
+## How Resolution Works (CRITICAL)
+
+**Resolution is NEVER hardcoded by region type. It's dynamically determined.**
+
+The system calculates minimum required resolution using Nyquist sampling (2x oversampling):
+
+```
+visible_m_per_pixel = geographic_span_meters / target_pixels
+min_resolution <= visible_m_per_pixel / 2.0
+```
+
+**Example: Idaho with different target_pixels**:
+- `--target-pixels 512`: needs 90m source (1292m/px visible)
+- `--target-pixels 2048`: needs 90m source (323m/px visible)
+- `--target-pixels 4096`: needs 30m source (162m/px visible)
+- `--target-pixels 8192`: needs 10m source (81m/px visible) [US only]
+
+**Available resolutions**:
+- US states: 10m, 30m, or 90m (USGS 3DEP + OpenTopography)
+- International: 30m or 90m (OpenTopography)
+
+See **[DATA_PIPELINE.md](DATA_PIPELINE.md)** Stage 2 for full details.
 
 ---
 
@@ -73,9 +99,9 @@ Shows current pipeline status without downloading or processing.
 
 1. Edit `src/regions_config.py`
 2. Add `RegionConfig` to appropriate category:
-   - `US_STATES` - US states (always uses USGS 3DEP 10m)
-   - `COUNTRIES` - Countries (uses OpenTopography SRTMGL1/COP30)
-   - `REGIONS` - Islands, peninsulas, mountain ranges
+   - `US_STATES` - US states (enum: `RegionType.USA_STATE`, dynamic resolution 10/30/90m)
+   - `COUNTRIES` - Countries (enum: `RegionType.COUNTRY`, dynamic resolution 30/90m)
+   - `REGIONS` - Islands, peninsulas, mountain ranges (enum: `RegionType.REGION`, dynamic 30/90m)
 3. Run `python ensure_region.py --list-regions` to verify
 
 Example:
@@ -85,10 +111,12 @@ Example:
     name="Iceland",
     bounds=(-24.5, 63.4, -13.5, 66.6),
     description="Iceland - volcanic terrain",
-    category="region",
+    region_type=RegionType.COUNTRY,  # Use enum!
     clip_boundary=True,  # Iceland has known boundaries
 ),
 ```
+
+**CRITICAL**: Always use `RegionType` enum values, never strings like `"country"` or `"usa_state"`.
 
 ---
 
@@ -135,7 +163,7 @@ python regenerate_manifest.py
 
 For detailed information about:
 - Exact file paths and naming conventions
-- Pipeline stages (download → clip → process → export)
+- Pipeline stages (download -> clip -> process -> export)
 - Region classes and their requirements
 - Versioning and cache management
 

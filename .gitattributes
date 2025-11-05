@@ -1,0 +1,32 @@
+# Line ending handling for all files
+* text=auto eol=lf
+
+# Explicitly set LF for text files
+*.md text eol=lf
+*.py text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.ps1 text eol=lf
+*.sh text eol=lf
+
+# Binary files (no line ending conversion)
+*.tif binary
+*.tiff binary
+*.hgt binary
+*.img binary
+*.zip binary
+*.gz binary
+*.pkl binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+
+# Don't modify specific files
+.gitignore text eol=lf
+LICENSE text eol=lf
+Makefile text eol=lf
+

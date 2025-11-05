@@ -17,9 +17,9 @@ Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Wh
 
 ### Camera Control Enhancements (October 28, 2025)
 Major updates to interactive viewer controls:
--**WASD/QE flythrough** - Unity/Unreal-style first-person camera movement
--**F key reframe** - Instantly center view on terrain bounds (like Maya/Blender)
--**Touch & trackpad gestures** - Pinch zoom, two-finger pan (Google Maps style)
+-**WASD/QE flythrough** - First-person camera movement
+-**F key reframe** - Instantly center view on terrain bounds
+-**Touch & trackpad gestures** - Pinch zoom, two-finger pan
 -**Alt+Left rotate** - Maya/3ds Max style tumble (same as right-drag)
 -**Smart typing detection** - Keyboard shortcuts disabled while typing in inputs
 - All controls work simultaneously with no conflicts
@@ -46,6 +46,23 @@ Vertical exaggeration now uses**intuitive meter-based scale**:
 -**Country masking** - Clip data to specific nations
 -**Auto-caching** - Borders download once and reuse automatically
 - Export with: `python export_for_web_viewer.py data/usa.tif --export-borders`
+
+## Smart Resolution Selection
+
+The system automatically selects optimal data resolution based on region size:
+
+- **Large regions** (e.g., China, Russia, Brazil): Automatically uses SRTM 90m data
+  - Downloads via tile-by-tile system (1-degree tiles)
+  - Efficient caching with content-based naming
+  - Example: N40_W111_90m.tif stored in `data/raw/srtm_90m/tiles/`
+  
+- **Small regions** (e.g., Iceland, Costa Rica): Uses SRTM 30m data
+  - Higher detail for smaller areas
+  - Same tile-based architecture
+
+**Why this matters**: For a large country at 2048px output, visible pixels might be 400m each. Using 90m source data gives 4.4x oversampling (optimal), while 30m would give 13.3x oversampling (wasteful with no visual benefit). The Nyquist sampling rule ensures clean downsampling without aliasing.
+
+See `tech/DATA_PIPELINE.md` for complete technical details.
 
 ## What Can You Do With It?
 
@@ -108,12 +125,12 @@ See borders documentation in `tech/TECHNICAL_REFERENCE.md`.
 
 ### 3. Work With Real Data
 
-Download elevation data from:
--**USA**: 1-10 meter resolution (USGS 3DEP)
--**Global**: 30-90 meter resolution (SRTM, ASTER, ALOS)
+Download elevation data with dynamic resolution selection:
+-**USA**: 10/30/90m resolution (USGS 3DEP + OpenTopography) - selected automatically based on output size
+-**Global**: 30/90m resolution (SRTM, Copernicus DEM) - selected automatically based on output size
 -**Europe, Japan, Australia**: High-quality national datasets
 
-All data is cached locally - download once, use forever.
+All data is cached locally - download once, use forever. Resolution is determined by Nyquist sampling rule.
 
 ## Who Is This For?
 
@@ -130,9 +147,9 @@ All data is cached locally - download once, use forever.
 .\setup.ps1
 
 # 2. Download a region (US state OR international)
-python ensure_region.py ohio# US state (10m resolution, USGS)
-python ensure_region.py iceland# International (30m, SRTM)
-python ensure_region.py --list-regions# See all 50 states + 70+ countries
+python ensure_region.py ohio           # US state (dynamic resolution: 10/30/90m)
+python ensure_region.py iceland        # International (dynamic resolution: 30/90m)
+python ensure_region.py --list-regions # See all 50 states + 70+ countries
 
 # 3. Start interactive viewer
 python serve_viewer.py
@@ -154,7 +171,7 @@ See [User Guide](tech/USER_GUIDE.md) for more details.
 - Generate multiple viewpoints with `--gen-nine`
 
 ###**Global Coverage**
-- USA: 10m resolution via USGS 3DEP
+- USA: Dynamic resolution (10/30/90m) via USGS 3DEP + OpenTopography
 - 60+ pre-configured regions worldwide
 - Support for any GeoTIFF elevation data
 - Add custom regions as needed
@@ -220,7 +237,7 @@ altitude-maps/
 - `interactive_viewer_advanced.html` - Full-featured viewer
 - Real-time bucketing and aggregation
 - Multiple render modes and color schemes
-- Roblox Studio-inspired camera controls
+- Multiple camera control schemes (Custom default + 6 alternatives)
 
 ### Data Download Tools
 - `download_continental_usa.py` - Full USA download
@@ -260,7 +277,8 @@ Images include:
 ## Requirements
 
 -**Windows** (PowerShell for setup script) / Mac / Linux
--**Python 3.13** (or 3.10+)
+-**Python 3.13** (required - setup script installs automatically on Windows if winget is available)
+-**winget** (Windows Package Manager - for automatic Python installation on Windows, or install Python 3.13 manually from python.org)
 -**Modern web browser** (Chrome, Firefox, Edge, Safari) for interactive viewer
 -**~500MB disk space** for data cache
 

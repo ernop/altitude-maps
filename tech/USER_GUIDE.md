@@ -108,16 +108,18 @@ Then open http://localhost:8001 in your browser. Select your region from the dro
 
 ## Data Sources
 
-### USA - USGS 3DEP (1-10m)
--**Best quality** for USA
--**10m resolution** available for all states
--**Download**: `python downloaders/usa_3dep.py california --auto`
-- Or follow manual download instructions for 10m data
+### USA - USGS 3DEP + OpenTopography (10/30/90m)
+-**Dynamic resolution selection**: System automatically chooses 10m, 30m, or 90m based on target output size (Nyquist sampling)
+-**Best quality for USA**: Up to 10m resolution available (USGS 3DEP)
+-**Download**: `python ensure_region.py california` (resolution determined automatically)
+- Resolution examples: 512px→90m, 2048px→90m, 4096px→30m, 8192px→10m
+- See `tech/DATA_PIPELINE.md` for technical details
 
-### Global - SRTM (30m)
+### Global - SRTM (30m/90m)
+-**Dynamic resolution**: System chooses 30m or 90m based on output size
 -**Good coverage**: 60degN to 56degS (most populated areas)
 -**Works everywhere**: Automatic download via OpenTopography
--**Download**: `python ensure_region.py <region>`
+-**Download**: `python ensure_region.py <region>` (resolution determined automatically)
 
 ### Japan - ALOS World 3D (30m)
 -**Best for Japan** and mountain regions

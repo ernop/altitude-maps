@@ -29,8 +29,11 @@ Since the server is Dreamhost (Apache), we can enable compression with an `.htac
 
 **Option 1: Automated (using rsync/SSH)**
 ```bash
-# From venv
-python deploy_htaccess.py
+# From venv (if script still needed)
+python legacy/deploy_htaccess.py
+
+# Or use standard deployment scripts which handle .htaccess:
+# deploy.ps1 (Windows) or deploy.sh (Linux/Mac)
 ```
 
 **Option 2: Manual (FTP/SFTP)**
@@ -121,7 +124,8 @@ If you see `7.6 MB / 7.6 MB`, compression is NOT working.
 ## Related Files
 
 - `.htaccess` - Apache configuration (deploy this)
-- `test_nebraska_compression.py` - Test compression on production
-- `deploy_htaccess.py` - Automated deployment script
+- `test_nebraska_compression.py` - Test compression on production (if needed)
+- `deploy.ps1` / `deploy.sh` - Current deployment scripts (handle .htaccess as part of deployment)
+- `legacy/deploy_htaccess.py` - Legacy one-off deployment script (preserved for reference)
 - `serve_viewer.py` - Dev server with compression (already working)
 

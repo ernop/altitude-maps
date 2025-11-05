@@ -3,15 +3,9 @@
     "api_key": "YOUR_API_KEY_HERE",
     "base_url": "https://portal.opentopography.org/API/globaldem"
   },
-  "download": {
-    "default_max_size": 1024,
-    "cache_dir": "data/cache",
-    "regions_dir": "data/regions",
-    "output_dir": "generated/regions"
-  },
-  "rendering": {
-    "default_bucket_size": 4,
-    "default_vertical_exaggeration": 4.0
+  "deployment": {
+    "remote_host": "example.com",
+    "remote_path": "/var/www/maps",
+    "remote_user": "deploy"
   }
 }
-

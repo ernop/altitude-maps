@@ -1,0 +1,139 @@
+Function Analysis - viewer-advanced.js (4,323 lines total)
+
+=== INITIALIZATION & LIFECYCLE (8 functions, ~600 lines) ===
+init()                          245-425    (180 lines) - Main initialization
+applyParamsFromURL()            164-243    (79 lines)  - Parse URL parameters  
+setupScene()                    1362-1538  (176 lines) - Three.js scene setup
+setupControls()                 1539-1938  (399 lines) - UI controls initialization
+setupEventListeners()           2335-2440  (105 lines) - Event binding
+animate()                       4261-4277  (16 lines)  - Main render loop
+onWindowResize()                3648-3664  (16 lines)  - Window resize handler
+switchCameraScheme()            3665-3685  (20 lines)  - Switch camera controls
+
+=== REGION & DATA LOADING (8 functions, ~400 lines) ===
+loadRegion()                    664-764    (100 lines) - Load region data
+loadElevationData()             426-481    (55 lines)  - Load elevation JSON
+loadBorderData()                482-505    (23 lines)  - Load border data
+loadRegionsManifest()           506-525    (19 lines)  - Load manifest
+populateRegionSelector()        526-635    (109 lines) - Build region dropdown
+resolveRegionIdFromInput()      636-648    (12 lines)  - Resolve region name
+updateRegionInfo()              649-663    (14 lines)  - Update region UI
+rebucketData()                  889-1003   (114 lines) - Aggregate data
+
+=== TERRAIN RENDERING (9 functions, ~450 lines) ===
+createTerrain()                 2539-2620  (81 lines)  - Main terrain creator
+createBarsTerrain()             2621-2786  (165 lines) - 3D bars rendering
+createPointCloudTerrain()       2787-2845  (58 lines)  - Point cloud rendering
+createSurfaceTerrain()          2846-2923  (77 lines)  - Surface mesh rendering
+recreateTerrain()               3105-3108  (3 lines)   - Rebuild wrapper
+updateTerrainHeight()           2984-3021  (37 lines)  - Height updates
+updateColors()                  3022-3104  (82 lines)  - Color updates
+getColorForElevation()          2924-2979  (55 lines)  - Color calculation
+computeDerivedGrids()           3236-3271  (35 lines)  - Slope/aspect computation
+
+=== LIGHTING & SHADING (4 functions, ~120 lines) ===
+updateMaterialsForShading()     3109-3112  (3 lines)   - Material updates
+updateSunLightDirection()       3113-3123  (10 lines)  - Sun position
+updateLightingForShading()      3124-3163  (39 lines)  - Light setup
+initSunPad()                    3164-3198  (34 lines)  - Sun control UI
+drawSunPad()                    3199-3235  (36 lines)  - Sun UI rendering
+
+=== BORDERS & CONTOURS (4 functions, ~250 lines) ===
+recreateBorders()               3288-3429  (141 lines) - Border rendering
+createContourLines()            1112-1185  (73 lines)  - Contour generation
+traceContourLevel()             1186-1287  (101 lines) - Contour tracing
+exportBordersForViewer()        (external) - Export logic
+
+=== EDGE MARKERS (3 functions, ~100 lines) ===
+createEdgeMarkers()             1004-1062  (58 lines)  - Create N/E/S/W markers
+createTextSprite()              1063-1100  (37 lines)  - Text sprite creation
+updateEdgeMarkers()             1101-1111  (10 lines)  - Update marker positions
+
+=== HUD & CURSOR TRACKING (7 functions, ~150 lines) ===
+updateCursorHUD()               3884-3937  (53 lines)  - Update HUD values
+loadHudSettings()               3938-3950  (12 lines)  - Load HUD preferences
+saveHudSettings()               3951-3954  (3 lines)   - Save HUD preferences
+applyHudSettingsToUI()          3955-3981  (26 lines)  - Apply HUD settings
+bindHudSettingsHandlers()       3982-4015  (33 lines)  - Bind HUD events
+getSlopeDegrees()               3272-3279  (7 lines)   - Slope calculation
+getAspectDegrees()              3280-3287  (7 lines)   - Aspect calculation
+
+=== RESOLUTION CONTROLS (8 functions, ~250 lines) ===
+initResolutionScale()           1983-2169  (186 lines) - Resolution slider init
+updateResolutionScaleUI()       1969-1982  (13 lines)  - Update slider UI
+adjustBucketSize()              2170-2216  (46 lines)  - Adjust resolution
+setMaxResolution()              2217-2257  (40 lines)  - Set to max detail
+setDefaultResolution()          2258-2280  (22 lines)  - Set to default
+autoAdjustBucketSize()          2281-2334  (53 lines)  - Auto-calculate optimal
+bucketSizeToPercent()           1954-1960  (6 lines)   - Convert to percent
+percentToBucketSize()           1961-1968  (7 lines)   - Convert from percent
+showResolutionLoading()         1939-1945  (6 lines)   - Show loading overlay
+hideResolutionLoading()         1946-1953  (7 lines)   - Hide loading overlay
+
+=== CAMERA CONTROLS (8 functions, ~200 lines) ===
+resetCamera()                   3612-3634  (22 lines)  - Reset to default view
+setView()                       3469-3519  (50 lines)  - Set preset views
+onKeyDown()                     3686-3723  (37 lines)  - Keyboard input
+onKeyUp()                       3724-3741  (17 lines)  - Keyboard release
+handleKeyboardMovement()        3742-3806  (64 lines)  - WASD movement
+isCameraMoving()                3807-3822  (15 lines)  - Check if moving
+onMouseDown()                   4149-4178  (29 lines)  - Mouse press (old system)
+onMouseMove()                   4179-4243  (64 lines)  - Mouse move (old system)
+onMouseUp()                     4244-4260  (16 lines)  - Mouse release (old system)
+
+=== VERTICAL EXAGGERATION (5 functions, ~80 lines) ===
+setVertExag()                   3520-3536  (16 lines)  - Set exaggeration value
+setTrueScale()                  3537-3556  (19 lines)  - Set to 1:1 scale
+setVertExagMultiplier()         3557-3574  (17 lines)  - Set by multiplier
+updateVertExagButtons()         3575-3611  (36 lines)  - Update button states
+multiplierToInternal()          70-82      (12 lines)  - Convert multiplier
+internalToMultiplier()          83-90      (7 lines)   - Convert to multiplier
+
+=== PERFORMANCE & GPU (6 functions, ~100 lines) ===
+detectGPU()                     1288-1291  (3 lines)   - Wrapper
+benchmarkGPU()                  1292-1300  (8 lines)   - Wrapper
+testFrustumCulling()            1301-1336  (35 lines)  - Test culling
+measureFPS()                    1337-1361  (24 lines)  - FPS measurement
+updateFPS()                     3823-3841  (18 lines)  - Update FPS counter
+autoReduceResolution()          3842-3872  (30 lines)  - Auto reduce on lag
+
+=== COORDINATE CONVERSIONS (Already extracted - wrappers only)
+calculateRealWorldScale()       2535-2538  (3 lines)   - Wrapper
+raycastToWorld()                3873-3875  (2 lines)   - Wrapper
+worldToLonLat()                 3876-3879  (3 lines)   - Wrapper
+worldToGridIndex()              3880-3883  (3 lines)   - Wrapper
+getMetersScalePerWorldUnit()    4051-4054  (3 lines)   - Wrapper
+distancePointToSegment2D()      4141-4144  (3 lines)   - Wrapper
+isWorldInsideData()             4145-4148  (3 lines)   - Wrapper
+
+=== DISTANCE CALCULATIONS (2 functions, ~70 lines) ===
+computeDistanceToNearestBorderMetersGeo() 4055-4105 (50 lines) - Border distance
+computeDistanceToDataEdgeMeters()         4106-4140 (34 lines) - Edge distance
+
+=== DATA FORMATTING (Already extracted - wrappers only)
+formatFileSize()                794-797    (3 lines)   - Wrapper
+formatElevation()               4016-4019  (3 lines)   - Wrapper
+formatDistance()                4020-4023  (3 lines)   - Wrapper
+formatFootprint()               4024-4027  (3 lines)   - Wrapper
+formatPixelSize()               4028-4031  (3 lines)   - Wrapper
+updateResolutionInfo()          4032-4050  (18 lines)  - Update resolution display
+
+=== UI LOADING STATES (3 functions, ~30 lines) ===
+showLoading()                   765-782    (17 lines)  - Show loading screen
+hideLoading()                   798-803    (5 lines)   - Hide loading screen
+updateLoadingProgress()         783-793    (10 lines)  - Update progress bar
+
+=== UTILITY FUNCTIONS (7 functions, ~50 lines) ===
+debounce()                      91-100     (9 lines)   - Debounce helper
+appendActivityLog()             101-105    (4 lines)   - Wrapper
+logResourceTiming()             106-163    (57 lines)  - Resource timing
+syncUIControls()                804-862    (58 lines)  - Sync UI state
+computeAutoStretchStats()       863-888    (25 lines)  - Auto-stretch percentiles
+updateStats()                   3430-3468  (38 lines)  - Update stats display
+updateURLParameter()            4292-4299  (7 lines)   - Update URL
+copyShareLink()                 4300-4323  (23 lines)  - Copy share link
+exportImage()                   3635-3647  (12 lines)  - Screenshot export
+toggleControlsHelp()            4278-4291  (13 lines)  - Toggle help
+createPivotMarker()             2500-2534  (34 lines)  - Debug pivot marker
+linearZoom_OLD()                2441-2499  (58 lines)  - Old zoom (unused?)
+

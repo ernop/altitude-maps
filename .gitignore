@@ -8,6 +8,7 @@ __pycache__/
 
 # Data files
 data/
+!data/borders/README.md
 *.nc
 *.tif
 *.tiff
@@ -22,6 +23,7 @@ data/
 *.7z
 *.tar
 *.rar
+.vscode
 
 # Output
 output/
@@ -43,7 +45,6 @@ Thumbs.db
 
 # Cache and temp files
 110m/
-data/.cache/
 debug.log
 *.log
 

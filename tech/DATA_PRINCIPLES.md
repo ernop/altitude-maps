@@ -168,16 +168,14 @@ diagnostics = validate_export_data(
 
 ### Manual Checking
 
-```bash
-# Check which regions have incorrect proportions
-python fix_all_regions_aspect_ratio.py --check-only
-```
-
-### Regeneration
+To regenerate regions with correct proportions, use the unified pipeline:
 
 ```bash
-# Fix all regions with bad proportions
-python fix_all_regions_aspect_ratio.py --fix-all
+# Regenerate a specific region
+python ensure_region.py <region_id> --force-reprocess
+
+# Regenerate multiple regions
+python reprocess_existing_states.py --states <region1> <region2> ...
 ```
 
 ---
@@ -187,7 +185,7 @@ python fix_all_regions_aspect_ratio.py --fix-all
 - **Complete Pipeline**: `tech/DATA_PIPELINE.md` - Full process specification (stages, paths, rules)
 - **Implementation**: `src/borders.py` (masking), `js/viewer-advanced.js` (rendering)
 - **Validation**: `src/validation.py`
-- **Fix Tool**: `fix_all_regions_aspect_ratio.py`
+- **Regeneration**: `ensure_region.py` (unified pipeline for all regions)
 - **Historical Context**: `learnings/ASPECT_RATIO_BOUNDING_BOX_FIX.md`
 
 ---

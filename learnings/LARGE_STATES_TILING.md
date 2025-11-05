@@ -45,9 +45,9 @@ Boundary: Still clips to actual state shape
 ## Files Created
 
 During download:
-  data/raw/srtm_30m/tiles/california/california_tile_00.tif
-  data/raw/srtm_30m/tiles/california/california_tile_01.tif
-  ... (9 tiles total for California)
+  data/raw/srtm_30m/tiles/tile_N34_W125_srtm_30m_30m.tif
+  data/raw/srtm_30m/tiles/tile_N34_W122_srtm_30m_30m.tif
+  ... (9 tiles total for California using content-based naming)
 
 After merge:
   data/raw/srtm_30m/california_bbox_30m.tif (merged)

@@ -8,13 +8,8 @@ from typing import Optional, Union, List, Tuple
 import numpy as np
 import rasterio
 from rasterio.mask import mask as rasterio_mask
-
-try:
-    import geopandas as gpd
-    from shapely.geometry import mapping
-    HAS_GEOPANDAS = True
-except ImportError:
-    HAS_GEOPANDAS = False
+import geopandas as gpd
+from shapely.geometry import mapping
 
 
 class BorderManager:
@@ -23,12 +18,12 @@ class BorderManager:
     Provides caching, querying, and visualization utilities.
     """
     
-    def __init__(self, cache_dir: str = "data/.cache/borders"):
+    def __init__(self, cache_dir: str = "data/borders"):
         """
         Initialize the border manager.
         
         Args:
-            cache_dir: Directory to cache downloaded border data
+            cache_dir: Directory for cached Natural Earth border data (canonical reference data)
         """
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -51,9 +46,6 @@ class BorderManager:
         Returns:
             GeoDataFrame with country borders
         """
-        if not HAS_GEOPANDAS:
-            raise ImportError("geopandas is required for border operations. Install with: pip install geopandas")
-        
         cache_file = self.cache_dir / f"ne_{resolution}_countries.pkl"
         
         # Return cached data if available and not forcing reload
@@ -268,9 +260,6 @@ class BorderManager:
         Returns:
             GeoDataFrame with state/province borders
         """
-        if not HAS_GEOPANDAS:
-            raise ImportError("geopandas is required for border operations. Install with: pip install geopandas")
-        
         cache_file = self.cache_dir / f"ne_{resolution}_admin_1.pkl"
         
         # Return cached data if available and not forcing reload

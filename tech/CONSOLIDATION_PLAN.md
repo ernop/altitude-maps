@@ -5,8 +5,8 @@
 ### Current Structure:
 ```
 ensure_region.py (CLI + Stages 1-5)
-  └─> process_region() (boundary logic wrapper)
-       └─> src/pipeline.run_pipeline() (Stages 6-11)
+  -> process_region() (boundary logic wrapper)
+       -> src/pipeline.run_pipeline() (Stages 6-11)
 ```
 
 **Issues:**
@@ -29,21 +29,21 @@ ensure_region.py (CLI + Stages 1-5)
 ### Architecture:
 ```
 ensure_region.py (thin CLI wrapper, ~100 lines)
-  └─> src/pipeline.run_full_pipeline(region_id, ...) (ALL stages 1-11, single interface)
+  -> src/pipeline.run_full_pipeline(region_id, ...) (ALL stages 1-11, single interface)
 
 src/pipeline.py (unified pipeline module)
-  ├─> run_full_pipeline() - Main entry point (stages 1-11)
-  ├─> Individual stage functions (for advanced users/hooks):
-  │   ├─> stage_1_validate_region()
-  │   ├─> stage_2_determine_dataset()
-  │   ├─> stage_4_download_raw()
-  │   ├─> stage_6_clip_boundary()
-  │   ├─> stage_7_reproject_to_metric_crs()  [NEW - extract from clip/process]
-  │   ├─> stage_8_downsample_for_viewer()
-  │   ├─> stage_9_export_to_json()
-  │   ├─> stage_10_gzip()
-  │   └─> stage_11_update_manifest()
-  └─> Helper utilities (download, validation, etc.)
+  -> run_full_pipeline() - Main entry point (stages 1-11)
+  -> Individual stage functions (for advanced users/hooks):
+      -> stage_1_validate_region()
+      -> stage_2_determine_dataset()
+      -> stage_4_download_raw()
+      -> stage_6_clip_boundary()
+      -> stage_7_reproject_to_metric_crs()  [NEW - extract from clip/process]
+      -> stage_8_downsample_for_viewer()
+      -> stage_9_export_to_json()
+      -> stage_10_gzip()
+      -> stage_11_update_manifest()
+  -> Helper utilities (download, validation, etc.)
 ```
 
 ### Benefits:

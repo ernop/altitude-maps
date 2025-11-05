@@ -6,50 +6,46 @@
 
 **Root Cause**: No versioning system to detect when cached/exported data is stale.
 
+**Solution**: Filename-based versioning + strict regeneration policy
+
+---
+
+## Versioning Strategy
+
+### Filename-Based Versioning
+
+**Format versions are encoded in filenames:**
+- `ohio_srtm_30m_2048px_v2.json` - Version 2 format
+- `ohio_srtm_30m_2048px_v3.json` - Version 3 format (if we change format)
+
+**Why filenames?**
+- Single source of truth
+- No duplication (version isn't also inside the file)
+- Easy to see what version a file is
+- Filesystem naturally prevents mixing versions
+- Works with existing manifest system
+
+**Version History**:
+- **v2** (2025-10-22): Natural GeoTIFF orientation, no transformations
+- **v1** (legacy): Had `fliplr()` + `rot90()` transformations (DEPRECATED)
+
+### Strict Regeneration Policy
+
+**"Never patchwork, never hack together"**
+
+When format changes:
+1. Bump version in filename pattern (v2 → v3)
+2. Regenerate ALL region files with new version
+3. Never mix old and new format files
+4. Delete old version files after confirming new ones work
+
+This ensures consistency across all regions.
+
 ---
 
 ## Safeguards Implemented
 
-### 1. **Format Versioning**
-
-#### In Export Script (`export_for_web_viewer.py`)
-```python
-DATA_FORMAT_VERSION = 2  # Increment when changing transformations/structure
-```
-
-Every exported JSON now includes:
-```json
-{
-  "format_version": 2,
-  "exported_at": "2025-10-22T10:30:00Z",
-  "source_file": "japan.tif",
-  "orientation": {
-    "description": "Natural GeoTIFF orientation",
-    "transformations": "None"
-  },
-  ...
-}
-```
-
-**Format History**:
-- **v2** (2025-10-22): Natural GeoTIFF orientation, no transformations
-- **v1** (legacy): Had `fliplr()` + `rot90()` transformations (DEPRECATED)
-
-#### In Viewer (`interactive_viewer_advanced.html`)
-```javascript
-const EXPECTED_FORMAT_VERSION = 2;
-
-// Validates on load and shows clear error if mismatch
-if (data.format_version !== EXPECTED_FORMAT_VERSION) {
-  throw new Error("Data format mismatch! Please re-export...");
-}
-```
-
-**Result**: If you try to load old data with new code, you get an immediate, clear error message.
-
----
-
-### 2. **Cache Clearing Utility**
+### 1. **Cache Clearing Utility**
 
 Created `clear_caches.py` to safely clear all cached/generated data:
 
@@ -74,7 +70,7 @@ python clear_caches.py --yes
 
 ---
 
-### 3. **Orientation Diagnostic Tool**
+### 2. **Orientation Diagnostic Tool**
 
 Created `check_geotiff_orientation.py` to verify GeoTIFF orientation:
 
@@ -105,7 +101,7 @@ DATA ORIENTATION:
 
 ---
 
-### 4. **Documentation in `.cursorrules`**
+### 3. **Documentation in `.cursorrules`**
 
 Added a dedicated section on cache invalidation:
 
@@ -124,25 +120,30 @@ Added a dedicated section on cache invalidation:
 
 ### Step-by-Step Process
 
-1. **Make your changes** to data processing code
+1. **Make your changes** to data processing code in `src/pipeline.py`
    ```python
    # Example: Change how elevation data is transformed
    elevation_viz = some_new_transformation(elevation)
    ```
 
-2. **Update format version** in `export_for_web_viewer.py`
-   ```python
-   DATA_FORMAT_VERSION = 3  # Was 2, now 3
-   ```
+2. **Update filename version pattern** throughout codebase
+   - Search for: `_v2.json`
+   - Replace with: `_v3.json`
+   - Update in: `src/pipeline.py`, filename generation logic
 
-3. **Document the change** in format history
+3. **Update version history** in `src/versioning.py`
    ```python
-   """
-   FORMAT VERSION HISTORY:
-   - v3 (2025-XX-XX): [Describe what changed]
-   - v2 (2025-10-22): Natural GeoTIFF orientation, no transformations
-   - v1 (legacy): Had fliplr() + rot90() transformations (DEPRECATED)
-   """
+   EXPORT_VERSION = "export_v3"  # Was export_v2
+   
+   VERSION_HISTORY = {
+       ...
+       "export_v3": {
+           "date": "2025-XX-XX",
+           "changes": "[Describe what changed]",
+           "breaking": True,
+           "incompatible_with": ["export_v2", "export_v1"]
+       }
+   }
    ```
 
 4. **Clear all caches**
@@ -150,25 +151,30 @@ Added a dedicated section on cache invalidation:
    python clear_caches.py
    ```
 
-5. **Re-export all data**
+5. **Regenerate ALL regions** with new format
    ```powershell
-   # Default data
-   python export_for_web_viewer.py
-   
-   # All regions
-   python download_regions.py  # Or manually export each
+   # Regenerate all regions - ensures consistency
+   # For each region:
+   python ensure_region.py <region_id> --force-reprocess
    ```
 
-6. **Test with multiple regions** to ensure consistency
+6. **Delete old v2 files** after confirming v3 works
+   ```powershell
+   Remove-Item generated/regions/*_v2.json
+   Remove-Item generated/regions/*_v2.json.gz
+   ```
+
+7. **Test with multiple regions** to ensure consistency
    ```powershell
    python serve_viewer.py
-   # Load USA, Japan, California, etc. - verify all look correct
+   # Visit http://localhost:8001
+   # Load multiple regions - verify all look correct
    ```
 
-7. **Commit changes** with clear description
+8. **Commit changes** with clear description
    ```bash
    git add .
-   git commit -m "Change data format to [describe]: bump to v3, re-exported all data"
+   git commit -m "Change data format to [describe]: bump to v3, regenerated all data"
    ```
 
 ---
@@ -226,24 +232,28 @@ python check_geotiff_orientation.py data/your_file.tif
 # Clear all caches
 python clear_caches.py
 
-# Re-export single file
-python export_for_web_viewer.py data/your_file.tif -o generated/your_file.json
+# Regenerate single region
+python ensure_region.py <region_id> --force-reprocess
+
+# Regenerate multiple regions
+python ensure_region.py ohio kentucky tennessee --force-reprocess
 
 # View in browser
 python serve_viewer.py
+# Then visit: http://localhost:8001/interactive_viewer_advanced.html
 ```
 
 ### File Locations
-- **Export script**: `export_for_web_viewer.py`
-- **Viewer**: `interactive_viewer_advanced.html`
-- **Data processing**: `src/data_processing.py`
+- **Export pipeline**: `src/pipeline.py` (export_for_viewer function)
+- **Viewer**: `interactive_viewer_advanced.html` and `js/viewer-advanced.js`
+- **Versioning system**: `src/versioning.py` (backend pipeline tracking)
 - **Cache utility**: `clear_caches.py`
 - **Diagnostic**: `check_geotiff_orientation.py`
 
-### Key Constants
-- **Python**: `DATA_FORMAT_VERSION` in `export_for_web_viewer.py`
-- **JavaScript**: `EXPECTED_FORMAT_VERSION` in `interactive_viewer_advanced.html`
-- **Must match**: Both must be the same for data to load
+### Version Tracking
+- **Filenames**: `<region>_<source>_<pixels>px_v2.json` (v2 is the version)
+- **Backend**: `EXPORT_VERSION = "export_v2"` in `src/versioning.py`
+- **No in-file version field** - filename is the source of truth
 
 ---
 

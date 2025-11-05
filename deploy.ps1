@@ -141,10 +141,10 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "=" -NoNewline -ForegroundColor Green
     Write-Host ("=" * 69) -ForegroundColor Green
     if ($DryRun) {
-        Write-Host "[✓] Dry run completed successfully!" -ForegroundColor Green
+        Write-Host "[OK] Dry run completed successfully!" -ForegroundColor Green
         Write-Host "    Run without -DryRun to perform actual deployment" -ForegroundColor Yellow
     } else {
-        Write-Host "[✓] Deployment completed successfully!" -ForegroundColor Green
+        Write-Host "[OK] Deployment completed successfully!" -ForegroundColor Green
         Write-Host "`nViewer deployed to: ${RemotePath}" -ForegroundColor Yellow
         Write-Host "  Your web server should now serve:" -ForegroundColor Gray
         Write-Host "  - ${RemotePath}/interactive_viewer_advanced.html (main viewer)" -ForegroundColor Cyan

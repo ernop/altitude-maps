@@ -10,6 +10,7 @@ seaborn==0.13.2
 # Data acquisition
 requests==2.32.3
 beautifulsoup4==4.12.3
+filelock==3.13.1  # Thread-safe file locking for rate limit coordination
 
 # Geospatial data (lighter weight, Windows-compatible)
 xarray==2024.10.0
@@ -25,7 +26,9 @@ Pillow==11.0.0
 # Geospatial data handling
 geopandas==1.0.1
 rasterio==1.4.3
+shapely  # Dependency of geopandas, explicitly listed for clarity
 
 # Note: For cartopy and netCDF4 on Windows, consider using conda:
 # conda install -c conda-forge cartopy netCDF4
 
+pytest==8.3.3
