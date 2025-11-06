@@ -271,6 +271,7 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
         depthWrite: false
     });
     const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.renderOrder = 100; // Render after terrain but before connectivity labels
 
     // Attach data for click detection and hover state regeneration
     sprite.userData.buttonBounds = buttonBounds;
@@ -282,7 +283,7 @@ function createCombinedDirectionSprite(directionLetter, neighborNames, color) {
 }
 
 /**
- * Create a text sprite with solid colored square background for compass directions
+ * Create a text sprite with solid colored circular background for compass directions
  * Uses canvas to render text onto a texture
  * 
  * @param {string} text - Text to display (single letter: N, E, S, W)
@@ -297,26 +298,15 @@ function createTextSprite(text, color, neighborId) {
     canvas.height = 256;
 
     const fontSize = 140;
-    const padding = 32;
-    const rectSize = 220;
-    const rectX = (canvas.width - rectSize) / 2;
-    const rectY = (canvas.height - rectSize) / 2;
-    const radius = 8;
+    const circleRadius = 110; // Radius of the circle
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
 
-    // Draw solid colored rounded rectangle background
+    // Draw solid colored circle background
     const bgColor = getCompassBackgroundColor(color, false);
     context.fillStyle = bgColor;
     context.beginPath();
-    context.moveTo(rectX + radius, rectY);
-    context.lineTo(rectX + rectSize - radius, rectY);
-    context.quadraticCurveTo(rectX + rectSize, rectY, rectX + rectSize, rectY + radius);
-    context.lineTo(rectX + rectSize, rectY + rectSize - radius);
-    context.quadraticCurveTo(rectX + rectSize, rectY + rectSize, rectX + rectSize - radius, rectY + rectSize);
-    context.lineTo(rectX + radius, rectY + rectSize);
-    context.quadraticCurveTo(rectX, rectY + rectSize, rectX, rectY + rectSize - radius);
-    context.lineTo(rectX, rectY + radius);
-    context.quadraticCurveTo(rectX, rectY, rectX + radius, rectY);
-    context.closePath();
+    context.arc(centerX, centerY, circleRadius, 0, Math.PI * 2);
     context.fill();
 
     // Draw text in white
@@ -324,7 +314,7 @@ function createTextSprite(text, color, neighborId) {
     context.fillStyle = '#ffffff';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(text, canvas.width / 2, canvas.height / 2);
+    context.fillText(text, centerX, centerY);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
@@ -338,6 +328,7 @@ function createTextSprite(text, color, neighborId) {
         depthWrite: false
     });
     const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.renderOrder = 100; // Render after terrain but before connectivity labels
 
     return sprite;
 }
@@ -415,6 +406,7 @@ function createNeighborButtonSprite(name, color) {
         // sizeAttenuation defaults to true - sprites scale with distance
     });
     const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.renderOrder = 100; // Render after terrain but before connectivity labels
 
     return sprite;
 }

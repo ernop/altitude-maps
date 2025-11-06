@@ -382,6 +382,13 @@
 				<div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff;"></div>
 			</div>
 
+			<div id="bandEditor" class="control-group" style="display: none;">
+				<label>Band Boundaries (% of elevation range)</label>
+				<div style="font-size: 10px; color: #88bbff; margin-bottom: 8px;">Drag sliders to adjust where bands start</div>
+				<div id="bandEditorSliders" style="display: flex; flex-direction: column; gap: 8px;"></div>
+				<button id="resetBands" style="margin-top: 8px; padding: 6px; font-size: 11px; width: 100%;">Reset to Default</button>
+			</div>
+
 			<div class="control-group">
 				<div style="display: flex; align-items: center; gap: 8px;">
 					<input type="checkbox" id="showHUD" />
@@ -394,6 +401,10 @@
 				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
 					<input type="checkbox" id="showColorScale" checked />
 					<label for="showColorScale" style="margin: 0;">Show Scale</label>
+				</div>
+				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+					<input type="checkbox" id="useGlobalScale" />
+					<label for="useGlobalScale" style="margin: 0;" title="Use consistent elevation range across all regions for comparison">Global Scale</label>
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
 					<input type="checkbox" id="showCameraControls" />
@@ -474,6 +485,9 @@
 
 	<!-- Color schemes -->
 	<script src="js/color-schemes.js?v=1.368"></script>
+
+	<!-- Band editor for hypsometric-banded -->
+	<script src="js/band-editor.js?v=1.368"></script>
 
 	<!-- Color scale legend -->
 	<script src="js/color-legend.js?v=1.368"></script>

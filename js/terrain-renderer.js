@@ -53,12 +53,31 @@
 
         // Remove old terrain and DISPOSE geometry/materials
         if (window.terrainGroup) {
+            // CRITICAL: Properly dispose of all children before removing group
+            // This prevents stale objects from persisting
+            window.terrainGroup.traverse((obj) => {
+                if (obj.geometry) {
+                    obj.geometry.dispose();
+                }
+                if (obj.material) {
+                    if (obj.material.map) {
+                        obj.material.map.dispose();
+                    }
+                    obj.material.dispose();
+                }
+            });
+            
+            // Clear all children from the group
+            while (window.terrainGroup.children.length > 0) {
+                window.terrainGroup.remove(window.terrainGroup.children[0]);
+            }
+            
+            // Remove the group from scene
             window.scene.remove(window.terrainGroup);
         }
 
-        // CRITICAL: Clear edge markers and connectivity labels arrays when destroying terrainGroup
-        // The old sprites are children of the old terrainGroup, so they're already removed from scene
-        // But we need to clear the arrays so new markers will be created for the new terrain
+        // CRITICAL: Clear edge markers and connectivity labels arrays
+        // Objects are already disposed and removed above
         if (window.edgeMarkers) {
             window.edgeMarkers.length = 0;
         }
@@ -329,25 +348,28 @@
     }
 
     /**
-     * Recreate terrain (preserves position and rotation)
+     * Recreate terrain (optionally preserves position and rotation)
+     * @param {boolean} preserveTransform - If true, preserve position and rotation (default: true)
      */
-    function recreate() {
+    function recreate(preserveTransform = true) {
         const startTime = performance.now();
 
         // Log call stack to understand where recreations are coming from
         const stack = new Error().stack;
         const caller = stack.split('\n')[2]?.trim() || 'unknown';
-        console.log(`[TERRAIN] recreateTerrain() called from: ${caller}`);
+        console.log(`[TERRAIN] recreateTerrain() called from: ${caller} (preserveTransform=${preserveTransform})`);
 
-        // Preserve terrain position and rotation before recreating
+        // Preserve terrain position and rotation before recreating (only if requested)
         let oldTerrainPos = null;
         let oldTerrainGroupRotation = null;
 
-        if (window.terrainMesh) {
-            oldTerrainPos = window.terrainMesh.position.clone();
-        }
-        if (window.terrainGroup) {
-            oldTerrainGroupRotation = window.terrainGroup.rotation.clone();
+        if (preserveTransform) {
+            if (window.terrainMesh) {
+                oldTerrainPos = window.terrainMesh.position.clone();
+            }
+            if (window.terrainGroup) {
+                oldTerrainGroupRotation = window.terrainGroup.rotation.clone();
+            }
         }
 
         create();

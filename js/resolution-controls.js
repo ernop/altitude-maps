@@ -440,11 +440,38 @@ function setDefaultResolution() {
 /**
  * Automatically calculate and set optimal bucket size for performance
  * Targets ~3,900 buckets for good balance of detail and speed
+ * 
+ * PRESERVATION RULE: If bucketSize is explicitly set in URL, respect it.
+ * Only auto-adjust if no explicit URL parameter exists.
+ * 
+ * @param {boolean} preserveTransform - If true, preserve position and rotation (default: true)
  */
-function autoAdjustBucketSize() {
+function autoAdjustBucketSize(preserveTransform = true) {
     if (!rawElevationData) {
         console.warn('[WARN] No data loaded, cannot auto-adjust bucket size');
         return;
+    }
+
+    // Check if bucketSize was explicitly set in URL parameters
+    // If so, preserve it and skip auto-adjustment
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('bucketSize')) {
+        const urlBucketSize = parseInt(urlParams.get('bucketSize'), 10);
+        if (!isNaN(urlBucketSize) && urlBucketSize >= 1 && urlBucketSize <= 500) {
+            console.log(`[RESOLUTION] Preserving explicit bucketSize from URL: ${urlBucketSize}x`);
+            params.bucketSize = urlBucketSize;
+            try { updateResolutionScaleUI(urlBucketSize); } catch (_) { }
+            
+            // Clear edge markers so they get recreated at new positions
+            edgeMarkers.forEach(marker => scene.remove(marker));
+            edgeMarkers = [];
+            
+            // Rebucket and recreate terrain with preserved bucket size
+            rebucketData();
+            recreateTerrain(preserveTransform);
+            updateStats();
+            return; // Skip auto-calculation
+        }
     }
 
     const { width, height } = rawElevationData;
@@ -479,8 +506,8 @@ function autoAdjustBucketSize() {
     appendActivityLog(`Optimal bucket size: ${optimalSize}x -> ${bucketedWidth}x${bucketedHeight} grid (${totalBuckets.toLocaleString()} buckets)`);
     appendActivityLog(`Constraint: ${totalBuckets <= TARGET_BUCKET_COUNT ? '' : ''} ${totalBuckets} / ${TARGET_BUCKET_COUNT.toLocaleString()} buckets`);
 
-    // Update params and UI (only increase small values; never reduce user-chosen larger values)
-    params.bucketSize = Math.max(params.bucketSize || 1, optimalSize);
+    // Update params and UI
+    params.bucketSize = optimalSize;
     try { updateResolutionScaleUI(optimalSize); } catch (_) { }
     // tag UI updated via updateResolutionScaleUI
 
@@ -489,9 +516,9 @@ function autoAdjustBucketSize() {
     edgeMarkers = [];
 
     // Rebucket and recreate terrain
-    console.log(`[RESOLUTION] autoAdjustBucketSize: rebucketing and recreating terrain...`);
+    console.log(`[RESOLUTION] autoAdjustBucketSize: rebucketing and recreating terrain (preserveTransform=${preserveTransform})...`);
     rebucketData();
-    recreateTerrain();
+    recreateTerrain(preserveTransform);
     updateStats();
     try { updateURLParameter('bucketSize', optimalSize); } catch (_) { }
 }
@@ -507,6 +534,6 @@ window.ResolutionControls = {
     adjust: adjustBucketSize,
     setMax: setMaxResolution,
     setDefault: setDefaultResolution,
-    autoAdjust: autoAdjustBucketSize
+    autoAdjust: autoAdjustBucketSize // Function signature: (preserveTransform = true)
 };
 

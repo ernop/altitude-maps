@@ -1,4 +1,4 @@
-# Region Switching Lifecycle
+anRegion Switching Lifecycle
 
 **Date**: November 6, 2025  
 **Topic**: What gets recreated and what persists when switching regions

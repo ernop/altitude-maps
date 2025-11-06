@@ -1168,6 +1168,23 @@ Always ignore these directories and file types to keep git lean:
 
 ### Color Schemes
 - Include `auto-stretch`: computes percentile bounds client-side; honors gamma.
+- **Global Scale toggle**: Located right below "Show Scale" checkbox in Display section.
+  - Purpose: Use consistent elevation range across all regions for visual comparison
+  - Default: OFF (per-region auto-scaling for best contrast within each region)
+  - When ON: Uses global min/max computed from all regions in manifest
+  - Behavior:
+    - Applies to all elevation-based color schemes (elevation, high-contrast, hypsometric, etc.)
+    - Also applies to auto-stretch mode (uses global autoLow/autoHigh percentiles)
+    - Does NOT apply to derived modes (slope, aspect) which use data-driven ranges
+  - Updates: When toggled, immediately updates terrain colors and color legend
+  - Persistence: Saved to localStorage as `useGlobalScale` preference
+  - UI: Checkbox with tooltip "Use consistent elevation range across all regions for comparison"
+  - Implementation:
+    - Global stats computed once at manifest load (`computeGlobalElevationStats()`)
+    - Exposed as `window.globalElevationStats` for modules
+    - Color mapping (`map-shading.js`) checks `params.useGlobalScale` flag
+    - Color legend (`color-legend.js`) shows global range when enabled
+  - Use case: Compare relative elevations between regions (e.g., comparing mountain heights across states/countries)
 
 ### Removed UI
 - Shading controls (sun/azimuth/altitude/contrast) and water simulation UI are not present.

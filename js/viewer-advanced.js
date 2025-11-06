@@ -86,6 +86,10 @@ let recentRegions = [];
 let regionsManifest = null;
 let currentRegionId = null;
 let regionAdjacency = null;
+let globalElevationStats = null; // Global min/max for global scale mode
+
+// Expose global stats on window for modules
+window.globalElevationStats = null;
 
 //-------UI STATE-------
 let currentMouseX, currentMouseY;
@@ -155,7 +159,8 @@ let     params = {
     showGrid: false,
     autoRotate: false,
     // Shading: Always use Natural (Lambert) - no UI control needed
-    colorGamma: 1.0
+    colorGamma: 1.0,
+    useGlobalScale: false // Default: per-region auto-scaling
 };
 
 // Expose params on window for modules
@@ -280,14 +285,6 @@ async function init() {
         } else {
             console.log('Keeping vertical exaggeration from URL parameter');
         }
-        // Initialize HUD toggle
-        const hudMin = document.getElementById('hud-minimize');
-        const hudExp = document.getElementById('hud-expand');
-        const hud = document.getElementById('info');
-        if (hudMin && hudExp && hud) {
-            hudMin.addEventListener('click', () => { hud.style.display = 'none'; hudExp.style.display = 'block'; });
-            hudExp.addEventListener('click', () => { hud.style.display = ''; hudExp.style.display = 'none'; });
-        }
         
         // Initialize shortcuts overlay
         initShortcutsOverlay();
@@ -371,6 +368,71 @@ async function loadElevationData(url) {
     return data;
 }
 
+/**
+ * Compute global elevation statistics across all regions
+ * Used for global scale mode to ensure consistent color mapping
+ * @param {Object} manifest - Regions manifest object
+ */
+function computeGlobalElevationStats(manifest) {
+    if (!manifest || !manifest.regions) {
+        console.warn('[computeGlobalElevationStats] No regions in manifest');
+        return;
+    }
+
+    let globalMin = Infinity;
+    let globalMax = -Infinity;
+    let globalAutoLow = Infinity;
+    let globalAutoHigh = -Infinity;
+    let regionsProcessed = 0;
+    let regionsWithAutoStats = 0;
+
+    for (const [regionId, regionInfo] of Object.entries(manifest.regions)) {
+        if (regionInfo.stats) {
+            regionsProcessed++;
+            
+            // Track min/max
+            if (typeof regionInfo.stats.min === 'number') {
+                globalMin = Math.min(globalMin, regionInfo.stats.min);
+            }
+            if (typeof regionInfo.stats.max === 'number') {
+                globalMax = Math.max(globalMax, regionInfo.stats.max);
+            }
+            
+            // Track auto-stretch percentiles if available
+            if (typeof regionInfo.stats.autoLow === 'number' && typeof regionInfo.stats.autoHigh === 'number') {
+                regionsWithAutoStats++;
+                globalAutoLow = Math.min(globalAutoLow, regionInfo.stats.autoLow);
+                globalAutoHigh = Math.max(globalAutoHigh, regionInfo.stats.autoHigh);
+            }
+        }
+    }
+
+    // Only set if we found valid data
+    if (regionsProcessed > 0 && isFinite(globalMin) && isFinite(globalMax)) {
+        globalElevationStats = {
+            min: globalMin,
+            max: globalMax,
+            autoLow: isFinite(globalAutoLow) ? globalAutoLow : globalMin,
+            autoHigh: isFinite(globalAutoHigh) ? globalAutoHigh : globalMax,
+            regionsProcessed,
+            regionsWithAutoStats
+        };
+        
+        // Expose on window for modules
+        window.globalElevationStats = globalElevationStats;
+        
+        console.log('[computeGlobalElevationStats] ======== GLOBAL ELEVATION STATS ========');
+        console.log(`  Min elevation: ${globalMin.toFixed(1)}m`);
+        console.log(`  Max elevation: ${globalMax.toFixed(1)}m`);
+        console.log(`  Auto-stretch low: ${globalElevationStats.autoLow.toFixed(1)}m`);
+        console.log(`  Auto-stretch high: ${globalElevationStats.autoHigh.toFixed(1)}m`);
+        console.log(`  Regions processed: ${regionsProcessed}`);
+        console.log(`  Regions with auto-stretch: ${regionsWithAutoStats}`);
+    } else {
+        console.warn('[computeGlobalElevationStats] Failed to compute valid global stats');
+    }
+}
+
 async function loadRegionsManifest() {
     const gzUrl = `generated/regions/regions_manifest.json.gz?v=${VIEWER_VERSION}`;
     const jsonUrl = `generated/regions/regions_manifest.json?v=${VIEWER_VERSION}`;
@@ -450,6 +512,9 @@ async function loadRegionsManifest() {
     }
     
     console.log(`[loadRegionsManifest] ======== MANIFEST READY ========`);
+    
+    // Compute global elevation statistics for global scale mode
+    computeGlobalElevationStats(json);
     
     return json;
 }
@@ -711,6 +776,9 @@ async function populateRegionSelector() {
     regionOptions = buildRegionOptions();
     window.regionOptions = regionOptions;
 
+    // Update recent regions UI now that manifest and maps are ready
+    updateRecentRegionsList();
+
     console.log('[populateRegionSelector] ======== DETERMINING INITIAL REGION ========');
     // Determine which region to load initially
     // Priority: URL parameter > DEFAULT_REGION > localStorage > first region
@@ -804,9 +872,26 @@ async function loadRegion(regionId) {
         console.log('[BUCKETING] Cleared cache for new region');
 
         // Calculate true scale for this data
+        // CRITICAL: Preserve the user's multiplier choice across region changes
+        // Store the current multiplier before recalculating trueScaleValue
+        const oldTrueScale = trueScaleValue;
+        const currentMultiplier = oldTrueScale !== null ? params.verticalExaggeration / oldTrueScale : null;
+        
         const scale = calculateRealWorldScale();
         trueScaleValue = 1.0 / scale.metersPerPixelX;
         console.log(`True scale for this region: ${trueScaleValue.toFixed(6)}x`);
+        
+        // If we had a previous multiplier, apply it to the new trueScaleValue
+        // This keeps the user's chosen "10x" at 10x even when switching regions
+        if (currentMultiplier !== null && currentMultiplier > 0) {
+            params.verticalExaggeration = trueScaleValue * currentMultiplier;
+            console.log(`Preserved vertical exaggeration multiplier: ${currentMultiplier.toFixed(1)}x`);
+            
+            // Update URL to reflect preserved multiplier
+            try { 
+                updateURLParameter('exag', currentMultiplier); 
+            } catch (_) { }
+        }
 
         // Update button highlighting now that trueScaleValue is known
         updateVertExagButtons(params.verticalExaggeration);
@@ -816,6 +901,9 @@ async function loadRegion(regionId) {
 
         // Add to recent regions list
         addToRecentRegions(regionId);
+
+        // Update recent regions UI to reflect new order
+        updateRecentRegionsList();
 
         // Update URL parameter so the link is shareable
         updateURLParameter('region', regionId);
@@ -842,7 +930,8 @@ async function loadRegion(regionId) {
         stepStart = performance.now();
         // autoAdjustBucketSize() calls rebucketData() + recreateTerrain() internally
         // No need to call them again after this
-        autoAdjustBucketSize();
+        // Pass false to NOT preserve old rotation when loading new region
+        autoAdjustBucketSize(false);
         console.log(`autoAdjustBucketSize: ${(performance.now() - stepStart).toFixed(1)}ms (includes rebucket + terrain creation)`);
 
         // Pregenerate common bucket sizes for instant switching (after initial bucketing)
@@ -878,6 +967,13 @@ async function loadRegion(regionId) {
         }
 
         hideLoading();
+        
+        // Verify HUD visibility state after region loads
+        if (window.HUDSystem && typeof window.HUDSystem.verifyState === 'function') {
+            setTimeout(() => {
+                window.HUDSystem.verifyState();
+            }, 100);
+        }
         appendActivityLog(`Loaded ${regionId}`);
         try { logSignificant(`Region loaded: ${regionId}`); } catch (_) { }
 
@@ -1216,13 +1312,24 @@ function createTextSprite(text, color) {
 }
 
 // Update 3D connectivity label hover state
+// Uses dynamic width based on text measurement (matches createNeighborLabel)
 function updateLabelHoverState(label, isHovered) {
     if (!label || !label.userData.neighborName) return;
     
     const neighborName = label.userData.neighborName;
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    canvas.width = 400;
+    
+    const fontSize = 28;
+    const padding = 8; // Minimal padding - matches createNeighborLabel
+    
+    // Measure text to determine canvas width (same as createNeighborLabel)
+    context.font = `Bold ${fontSize}px Arial`;
+    const textMetrics = context.measureText(neighborName);
+    const textWidth = textMetrics.width;
+    
+    // Canvas size based on text width + minimal padding (matches createNeighborLabel)
+    canvas.width = Math.ceil(textWidth + padding * 2);
     canvas.height = 64;
 
     // Bluish background - brighter when hovered
@@ -1238,8 +1345,8 @@ function updateLabelHoverState(label, isHovered) {
     context.lineWidth = 1;
     context.strokeRect(0, 0, canvas.width, canvas.height);
 
-    // Text
-    context.font = 'Bold 28px Arial';
+    // Text - need to set font again after canvas resize
+    context.font = `Bold ${fontSize}px Arial`;
     context.fillStyle = '#ffffff';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
@@ -1447,8 +1554,8 @@ function setDefaultResolution() {
     return window.ResolutionControls.setDefault();
 }
 
-function autoAdjustBucketSize() {
-    return window.ResolutionControls.autoAdjust();
+function autoAdjustBucketSize(preserveTransform = true) {
+    return window.ResolutionControls.autoAdjust(preserveTransform);
 }
 
 function setupEventListeners() {
@@ -1658,6 +1765,33 @@ function setupEventListeners() {
             }
             // Save preference to localStorage
             localStorage.setItem('colorScaleVisible', String(visible));
+        });
+    }
+
+    // Global Scale toggle - use consistent elevation range across all regions
+    const useGlobalScaleCheckbox = document.getElementById('useGlobalScale');
+    if (useGlobalScaleCheckbox) {
+        // Load saved preference from localStorage (default: false)
+        const savedGlobalScale = localStorage.getItem('useGlobalScale');
+        if (savedGlobalScale !== null) {
+            useGlobalScaleCheckbox.checked = savedGlobalScale === 'true';
+            params.useGlobalScale = useGlobalScaleCheckbox.checked;
+        }
+
+        // Add change listener
+        useGlobalScaleCheckbox.addEventListener('change', () => {
+            params.useGlobalScale = useGlobalScaleCheckbox.checked;
+            // Update all terrain colors to apply new scale
+            if (typeof updateColors === 'function') {
+                updateColors();
+            }
+            // Update color legend to show new scale range
+            if (typeof updateColorLegend === 'function') {
+                updateColorLegend();
+            }
+            // Save preference to localStorage
+            localStorage.setItem('useGlobalScale', String(params.useGlobalScale));
+            console.log(`[Global Scale] ${params.useGlobalScale ? 'Enabled' : 'Disabled'} - using ${params.useGlobalScale ? 'global' : 'per-region'} scale`);
         });
     }
 

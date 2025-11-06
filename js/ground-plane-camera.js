@@ -136,23 +136,11 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.startYaw = euler.y;
             this.state.startPitch = euler.x;
 
-        } else if (event.button === 2) { // Right = Rotate Map (map spins, camera stays still)
+        } else if (event.button === 2) { // Right = Rotate Map (steering wheel / roll physics)
             this.state.rotatingTerrain = true;
             this.state.rotateTerrainStart = { x: event.clientX, y: event.clientY };
 
-            // Determine rotation direction based on camera's view of top/bottom
-            // Use screen coordinates which directly correspond to what appears at top/bottom
-            // of the camera's view (regardless of world orientation)
-            const rect = this.renderer.domElement.getBoundingClientRect();
-            const clickYRelativeToRenderer = event.clientY - rect.top;
-            const rendererCenterY = rect.height / 2;
-
-            // If clicked above center of screen, it's in top half of camera's view
-            // Top of screen = smaller Y values (screen coordinates are top-to-bottom)
-            this.state.rotateDirectionMultiplier = (clickYRelativeToRenderer < rendererCenterY) ? 1 : -1;
-
-            // Store initial terrain group rotation as quaternion for local-space rotations
-            // This allows rotations around the terrain's current local axes, not fixed world axes
+            // Store initial terrain group rotation as quaternion
             if (window.terrainGroup) {
                 this.state.terrainStartRotationQuaternion = window.terrainGroup.quaternion.clone();
             }
@@ -333,87 +321,33 @@ class GroundPlaneCamera extends CameraScheme {
         }
 
         if (this.state.rotatingTerrain) {
-            // RMB: Rotate Terrain (exocentric - the map/TV rotates)
-            // Camera stays completely still, terrain group rotates around center (0,0,0)
-            // Rotations are in LOCAL SPACE - around the terrain's current X/Y axes, not fixed world axes
+            // RMB: Rotate Terrain (turntable physics)
+            // Camera stays still, terrain spins around its own Y axis
+            // Like a map on a rotating table
             if (!window.terrainGroup) return;
 
             const deltaX = event.clientX - this.state.rotateTerrainStart.x;
-            const deltaY = event.clientY - this.state.rotateTerrainStart.y;
 
             // Rotation speed
             const rotationSpeed = 0.005;
 
-            // Start from initial rotation (stored as quaternion)
-            const currentRotation = this.state.terrainStartRotationQuaternion.clone();
+            // Rotation axis: terrain's own Y axis (0, 1, 0) in world space
+            const rotationAxis = new THREE.Vector3(0, 1, 0);
 
-            // Get terrain's local axes in world space (from current rotation)
-            const localUp = new THREE.Vector3(0, 1, 0);      // Terrain's local Y axis (up)
-            const localRight = new THREE.Vector3(1, 0, 0);   // Terrain's local X axis (right)
-            localUp.applyQuaternion(currentRotation);
-            localRight.applyQuaternion(currentRotation);
+            // Horizontal mouse movement = rotation around Y axis
+            // Mouse LEFT = counter-clockwise, Mouse RIGHT = clockwise (from above)
+            const angle = -deltaX * rotationSpeed;
 
-            // Calculate delta rotations around local axes
-            // Horizontal drag (deltaX): rotate around terrain's local UP axis
-            // Vertical drag (deltaY): rotate around terrain's local RIGHT axis
-            const dirMultiplier = this.state.rotateDirectionMultiplier || 1;
-            const horizontalAngle = -deltaX * rotationSpeed * dirMultiplier;
-            const verticalAngle = deltaY * rotationSpeed;
-
-            // Apply delta rotations in local space
-            const horizontalRotation = new THREE.Quaternion();
-            horizontalRotation.setFromAxisAngle(localUp, horizontalAngle);
-
-            const verticalRotation = new THREE.Quaternion();
-            verticalRotation.setFromAxisAngle(localRight, verticalAngle);
-
-            // Compose rotations: first horizontal, then vertical
-            const deltaRotation = new THREE.Quaternion();
-            deltaRotation.multiplyQuaternions(verticalRotation, horizontalRotation);
+            // Create rotation quaternion around Y axis
+            const rotation = new THREE.Quaternion();
+            rotation.setFromAxisAngle(rotationAxis, angle);
 
             // Apply to initial rotation
-            const testQuaternion = new THREE.Quaternion();
-            testQuaternion.multiplyQuaternions(deltaRotation, currentRotation);
+            const newRotation = new THREE.Quaternion();
+            newRotation.multiplyQuaternions(rotation, this.state.terrainStartRotationQuaternion);
 
-            // Transform terrain's up vector to world space for validation
-            const terrainUp = new THREE.Vector3(0, 1, 0);
-            terrainUp.applyQuaternion(testQuaternion);
-
-            // Camera view direction: from camera toward terrain center
-            const terrainCenter = window.terrainGroup.position;
-            const cameraViewDir = new THREE.Vector3();
-            cameraViewDir.subVectors(terrainCenter, this.camera.position).normalize();
-
-            // TWO CONSTRAINTS:
-            // 1. BOARD ORIENTATION: Prevent board from going vertical or flipping over
-            //    - Pieces can slide on steep boards (that's OK)
-            //    - Pieces fall off if board is vertical or upside-down (NOT OK)
-            const minUpY = 0.05;  // Allow steep angles, only block near-vertical/upside-down
-
-            // 2. CAMERA POSITION: Prevent camera from going under the board
-            //    - If cameraViewDir.y > 0, camera is looking upward
-            //    - If terrainUp.y > 0, board is right-side up
-            //    - Both together = looking up at board from below (NOT OK)
-            const lookingUpward = cameraViewDir.y > 0;
-            const boardRightSideUp = terrainUp.y > 0;
-            const cameraUnderBoard = lookingUpward && boardRightSideUp;
-
-            // COMPREHENSIVE DEBUG LOGGING
-            const euler = new THREE.Euler(0, 0, 0, 'XYZ');
-            // Debug logging removed - too verbose during rotation
-            // Rotation validation: prevent terrain from flipping upside down or camera going under board
-            if (terrainUp.y >= minUpY && !cameraUnderBoard) {
-                // Both checks pass - apply rotation
-                window.terrainGroup.quaternion.copy(testQuaternion);
-            } else {
-                // One or both checks failed - reject rotation
-                // Only apply horizontal rotation if vertical is blocked
-                if (terrainUp.y < minUpY || cameraUnderBoard) {
-                    const horizontalOnly = new THREE.Quaternion();
-                    horizontalOnly.multiplyQuaternions(horizontalRotation, currentRotation);
-                    window.terrainGroup.quaternion.copy(horizontalOnly);
-                }
-            }
+            // Apply rotation
+            window.terrainGroup.quaternion.copy(newRotation);
         }
     }
 

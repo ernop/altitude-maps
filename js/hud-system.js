@@ -98,8 +98,47 @@
         // Bind settings handlers
         bindSettingsHandlers();
 
+        // Final verification: Ensure visibility state is correctly applied
+        // Run after page load completes and first region is rendered
+        window.addEventListener('load', () => {
+            verifyAndFixVisibilityState();
+        });
+        
+        // Also verify after a short delay to catch any late-running init code
+        setTimeout(() => {
+            verifyAndFixVisibilityState();
+        }, 500);
+
         initialized = true;
         console.log('[HUDSystem] Initialized successfully');
+    }
+
+    /**
+     * Verify and fix HUD visibility state
+     * Ensures checkbox and display style are in sync
+     */
+    function verifyAndFixVisibilityState() {
+        const showHUDCheckbox = document.getElementById('showHUD');
+        if (!showHUDCheckbox || !hudElement) {
+            return;
+        }
+        
+        const checkboxState = showHUDCheckbox.checked;
+        const displayState = hudElement.style.display;
+        const hudExpand = document.getElementById('hud-expand');
+        
+        // If checkbox and display are out of sync, fix it
+        if (checkboxState && displayState === 'none') {
+            console.warn('[HUDSystem] Fixing visibility mismatch: checkbox is checked but HUD is hidden');
+            hudElement.style.display = 'block';
+            if (hudExpand) hudExpand.style.display = 'none';
+        } else if (!checkboxState && displayState !== 'none') {
+            console.warn('[HUDSystem] Fixing visibility mismatch: checkbox is unchecked but HUD is visible');
+            hudElement.style.display = 'none';
+            if (hudExpand) hudExpand.style.display = 'block';
+        }
+        
+        console.log(`[HUDSystem] Visibility verification: checkbox=${checkboxState}, display=${hudElement.style.display}, expandButton=${hudExpand ? hudExpand.style.display : 'N/A'}`);
     }
 
     /**
@@ -154,9 +193,24 @@
     function setupShowHideToggle() {
         const showHUDCheckbox = document.getElementById('showHUD');
         if (showHUDCheckbox && hudElement) {
+            // Load saved visibility state from localStorage (default: hidden)
+            const savedVisible = localStorage.getItem('hudVisible');
+            const isVisible = savedVisible === 'true';
+            
+            // Apply saved state BEFORE setting up event listener
+            showHUDCheckbox.checked = isVisible;
+            hudElement.style.display = isVisible ? 'block' : 'none';
+            console.log(`[HUDSystem] Restored HUD visibility: ${isVisible ? 'visible' : 'hidden'}, display=${hudElement.style.display}, checked=${showHUDCheckbox.checked}`);
+            
+            // Save state when checkbox changes
             showHUDCheckbox.addEventListener('change', () => {
-                hudElement.style.display = showHUDCheckbox.checked ? 'block' : 'none';
+                const visible = showHUDCheckbox.checked;
+                hudElement.style.display = visible ? 'block' : 'none';
+                localStorage.setItem('hudVisible', String(visible));
+                console.log(`[HUDSystem] HUD visibility changed: ${visible ? 'visible' : 'hidden'}, display=${hudElement.style.display}`);
             });
+        } else {
+            console.warn(`[HUDSystem] setupShowHideToggle failed - checkbox=${!!showHUDCheckbox}, hudElement=${!!hudElement}`);
         }
     }
 
@@ -167,19 +221,25 @@
         const hudMin = document.getElementById('hud-minimize');
         const hudExp = document.getElementById('hud-expand');
         if (hudMin && hudExp && hudElement) {
+            // Set initial expand button visibility based on HUD visibility
+            const isHudVisible = hudElement.style.display !== 'none';
+            hudExp.style.display = isHudVisible ? 'none' : 'block';
+            
             hudMin.addEventListener('click', () => {
                 hudElement.style.display = 'none';
                 hudExp.style.display = 'block';
-                // Uncheck showHUD checkbox
+                // Uncheck showHUD checkbox and save state
                 const showHUDCheckbox = document.getElementById('showHUD');
                 if (showHUDCheckbox) showHUDCheckbox.checked = false;
+                localStorage.setItem('hudVisible', 'false');
             });
             hudExp.addEventListener('click', () => {
                 hudElement.style.display = '';
                 hudExp.style.display = 'none';
-                // Check showHUD checkbox
+                // Check showHUD checkbox and save state
                 const showHUDCheckbox = document.getElementById('showHUD');
                 if (showHUDCheckbox) showHUDCheckbox.checked = true;
+                localStorage.setItem('hudVisible', 'true');
             });
         }
     }
@@ -439,6 +499,7 @@
             hudElement.style.display = 'block';
             const showHUDCheckbox = document.getElementById('showHUD');
             if (showHUDCheckbox) showHUDCheckbox.checked = true;
+            localStorage.setItem('hudVisible', 'true');
         }
     }
 
@@ -450,6 +511,7 @@
             hudElement.style.display = 'none';
             const showHUDCheckbox = document.getElementById('showHUD');
             if (showHUDCheckbox) showHUDCheckbox.checked = false;
+            localStorage.setItem('hudVisible', 'false');
         }
     }
 
@@ -469,7 +531,8 @@
         hide: hide,
         isVisible: isVisible,
         loadSettings: loadSettings,
-        saveSettings: saveSettings
+        saveSettings: saveSettings,
+        verifyState: verifyAndFixVisibilityState
     };
 
 })();

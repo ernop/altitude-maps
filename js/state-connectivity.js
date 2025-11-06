@@ -113,6 +113,7 @@ function createNeighborLabel(neighborName, neighborId, onClick) {
         depthWrite: false
     });
     const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.renderOrder = 200; // Render after compass markers (which use 100)
     
     // Ensure sprite is visible and raycastable
     sprite.visible = true;
@@ -134,18 +135,24 @@ function createNeighborLabel(neighborName, neighborId, onClick) {
  */
 function positionLabelsForDirection(direction, neighbors, baseX, baseZ, xExtent, zExtent, avgSize) {
     const labels = [];
-    const baseScale = avgSize * 0.035; // Compact size for height
-    const labelSpacing = 0; // No gaps - edge to edge
-    
-    // Position labels BELOW the direction letter (negative Y)
-    // Direction letter is at ground level (y=0), so we go negative
-    const yOffset = -avgSize * 0.08; // Fixed Y position below marker
+    const baseScale = avgSize * 0.035; // Compact size
     
     // Create all sprites first to measure their widths
     const sprites = neighbors.map(neighbor => {
         const sprite = createNeighborLabel(neighbor.name, neighbor.id, () => {
             // Click handler: load the neighbor state
+            // Preserve current bucketSize in URL when navigating to adjacent region
             if (neighbor.id && neighbor.id !== currentRegionId) {
+                const currentBucketSize = window.params?.bucketSize;
+                if (currentBucketSize) {
+                    try {
+                        const url = new URL(window.location);
+                        url.searchParams.set('bucketSize', currentBucketSize);
+                        window.history.pushState({}, '', url);
+                    } catch (e) {
+                        console.warn('Failed to preserve bucketSize in URL:', e);
+                    }
+                }
                 loadRegion(neighbor.id);
             }
         });
@@ -158,7 +165,6 @@ function positionLabelsForDirection(direction, neighbors, baseX, baseZ, xExtent,
         const aspectRatio = sprite.userData.canvasAspectRatio || 6.25;
         totalWidth += baseScale * aspectRatio;
     });
-    totalWidth += labelSpacing * (sprites.length - 1);
     
     // Start from the left edge, centered on the marker
     let xOffset = -totalWidth / 2;
@@ -183,10 +189,12 @@ function positionLabelsForDirection(direction, neighbors, baseX, baseZ, xExtent,
             z = baseZ + xOffset + spriteWidth / 2;
         }
 
+        // Position below marker (negative Y)
+        const yOffset = -avgSize * 0.08;
         sprite.position.set(x, yOffset, z);
 
         labels.push(sprite);
-        xOffset += spriteWidth + labelSpacing; // Move to next position (no gap)
+        xOffset += spriteWidth; // Move to next position (edge to edge)
     });
 
     return labels;
@@ -206,17 +214,65 @@ function getColorForDirection(direction) {
 }
 
 /**
+ * Update the visual appearance of a label when hover state changes
+ */
+function updateLabelHoverState(sprite, isHovered) {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    const fontSize = 28;
+    const padding = 8; // Minimal padding - matches top/bottom
+    
+    // Measure text to determine canvas width (same as createNeighborLabel)
+    context.font = `Bold ${fontSize}px Arial`;
+    const textMetrics = context.measureText(sprite.userData.neighborName);
+    const textWidth = textMetrics.width;
+    
+    canvas.width = Math.ceil(textWidth + padding * 2);
+    canvas.height = 64;
+
+    // Draw background - brighter when hovered
+    if (isHovered) {
+        context.fillStyle = 'rgba(40, 70, 100, 0.95)'; // Brighter bluish
+    } else {
+        context.fillStyle = 'rgba(20, 40, 60, 0.85)'; // Normal bluish
+    }
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw border
+    context.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    context.lineWidth = 1;
+    context.strokeRect(0, 0, canvas.width, canvas.height);
+
+    // Draw text - need to set font again after canvas resize
+    context.font = `Bold ${fontSize}px Arial`;
+    context.fillStyle = '#ffffff';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(sprite.userData.neighborName, canvas.width / 2, canvas.height / 2);
+
+    // Update texture
+    const texture = new THREE.CanvasTexture(canvas);
+    sprite.material.map = texture;
+    sprite.material.needsUpdate = true;
+}
+
+/**
  * Populate "Contains" column in lower-left navigation panel
  */
 function populateContainsColumn(containedData) {
     const containsList = document.getElementById('contains-list');
+    const containsColumn = document.getElementById('contains-column');
     
-    if (!containsList) return;
+    if (!containsList || !containsColumn) return;
     
     // Clear existing items
     containsList.innerHTML = '';
     
-    if (!containedData) return;
+    if (!containedData) {
+        containsColumn.style.display = 'none';
+        return;
+    }
     
     // Handle both single and multiple contained areas
     const rawIds = Array.isArray(containedData) ? containedData : [containedData];
@@ -229,7 +285,13 @@ function populateContainsColumn(containedData) {
             name: regionIdToName[id] || id
         }));
 
-    if (validAreas.length === 0) return;
+    if (validAreas.length === 0) {
+        containsColumn.style.display = 'none';
+        return;
+    }
+    
+    // Show column and add items
+    containsColumn.style.display = 'block';
     
     // Add each contained area as clickable item
     validAreas.forEach(area => {
@@ -239,6 +301,17 @@ function populateContainsColumn(containedData) {
         item.title = `Jump to ${area.name}`;
         item.addEventListener('click', () => {
             if (area.id && area.id !== currentRegionId) {
+                // Preserve current bucketSize in URL when navigating to contained area
+                const currentBucketSize = window.params?.bucketSize;
+                if (currentBucketSize) {
+                    try {
+                        const url = new URL(window.location);
+                        url.searchParams.set('bucketSize', currentBucketSize);
+                        window.history.pushState({}, '', url);
+                    } catch (e) {
+                        console.warn('Failed to preserve bucketSize in URL:', e);
+                    }
+                }
                 loadRegion(area.id);
             }
         });
@@ -253,13 +326,17 @@ function populateContainsColumn(containedData) {
  */
 function populateContainedByColumn(withinData) {
     const containedByList = document.getElementById('contained-by-list');
+    const containedByColumn = document.getElementById('contained-by-column');
     
-    if (!containedByList) return;
+    if (!containedByList || !containedByColumn) return;
     
     // Clear existing items
     containedByList.innerHTML = '';
     
-    if (!withinData) return;
+    if (!withinData) {
+        containedByColumn.style.display = 'none';
+        return;
+    }
     
     // Handle both single and multiple parent regions
     const rawIds = Array.isArray(withinData) ? withinData : [withinData];
@@ -272,7 +349,13 @@ function populateContainedByColumn(withinData) {
             name: regionIdToName[id] || id
         }));
 
-    if (validParents.length === 0) return;
+    if (validParents.length === 0) {
+        containedByColumn.style.display = 'none';
+        return;
+    }
+    
+    // Show column and add items
+    containedByColumn.style.display = 'block';
     
     // Add each parent region as clickable item
     validParents.forEach(parent => {
@@ -282,6 +365,17 @@ function populateContainedByColumn(withinData) {
         item.title = `Jump to ${parent.name}`;
         item.addEventListener('click', () => {
             if (parent.id && parent.id !== currentRegionId) {
+                // Preserve current bucketSize in URL when navigating to parent region
+                const currentBucketSize = window.params?.bucketSize;
+                if (currentBucketSize) {
+                    try {
+                        const url = new URL(window.location);
+                        url.searchParams.set('bucketSize', currentBucketSize);
+                        window.history.pushState({}, '', url);
+                    } catch (e) {
+                        console.warn('Failed to preserve bucketSize in URL:', e);
+                    }
+                }
                 loadRegion(parent.id);
             }
         });
@@ -313,9 +407,13 @@ function createConnectivityLabels() {
     const navigationPanel = document.getElementById('region-navigation');
     const containsList = document.getElementById('contains-list');
     const containedByList = document.getElementById('contained-by-list');
+    const containsColumn = document.getElementById('contains-column');
+    const containedByColumn = document.getElementById('contained-by-column');
     
     if (containsList) containsList.innerHTML = '';
     if (containedByList) containedByList.innerHTML = '';
+    if (containsColumn) containsColumn.style.display = 'none';
+    if (containedByColumn) containedByColumn.style.display = 'none';
     if (navigationPanel) navigationPanel.style.display = 'none';
 
     if (!window.connectivityLabels) {

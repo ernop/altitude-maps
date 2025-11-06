@@ -117,9 +117,17 @@
 
         // Standard elevation-based color schemes
         const useAuto = (window.params && window.params.colorScheme === 'auto-stretch');
-        const stats = window.processedData && window.processedData.stats
-            ? window.processedData.stats
-            : (window.rawElevationData && window.rawElevationData.stats ? window.rawElevationData.stats : null);
+        const useGlobalScale = (window.params && window.params.useGlobalScale);
+        
+        // Select stats source: global stats if enabled, otherwise per-region stats
+        let stats = null;
+        if (useGlobalScale && window.globalElevationStats) {
+            stats = window.globalElevationStats;
+        } else {
+            stats = window.processedData && window.processedData.stats
+                ? window.processedData.stats
+                : (window.rawElevationData && window.rawElevationData.stats ? window.rawElevationData.stats : null);
+        }
 
         if (!stats) {
             // Fallback if no stats available

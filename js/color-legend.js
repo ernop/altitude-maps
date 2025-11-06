@@ -234,17 +234,26 @@ function initColorLegend() {
  * Update the color legend with current data
  */
 function updateColorLegend() {
-    if (!colorLegend || !rawElevationData || !rawElevationData.stats) {
-        return;
-    }
-
     // Check if legend should be visible (respect toggle state)
     const showColorScaleCheckbox = document.getElementById('showColorScale');
     if (showColorScaleCheckbox && !showColorScaleCheckbox.checked) {
         return; // Don't update if hidden
     }
 
-    const stats = rawElevationData.stats;
+    // Select stats source: global stats if enabled, otherwise per-region stats
+    let stats = null;
+    const useGlobalScale = (params && params.useGlobalScale);
+    
+    if (useGlobalScale && window.globalElevationStats) {
+        stats = window.globalElevationStats;
+    } else if (rawElevationData && rawElevationData.stats) {
+        stats = rawElevationData.stats;
+    }
+    
+    if (!colorLegend || !stats) {
+        return;
+    }
+
     const colorScheme = params.colorScheme || 'high-contrast';
 
     // Determine value range based on color scheme
