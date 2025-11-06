@@ -166,6 +166,10 @@ def compute_adjacency():
             'contained': []  # AREA regions within this region
         }
         
+        # Track border lengths for deduplication
+        # Format: neighbor_id -> {direction: border_length}
+        border_lengths = {}
+        
         geom = region_data['geometry']
         centroid = geom.centroid
         
@@ -187,6 +191,12 @@ def compute_adjacency():
                     print(f"  Skipping {other_data['name']} (point-only touch)")
                     continue
                 
+                # Calculate shared border length
+                if hasattr(intersection, 'length'):
+                    border_length = intersection.length
+                else:
+                    border_length = 0
+                
                 # Determine direction
                 other_centroid = other_geom.centroid
                 direction = get_cardinal_direction(centroid, other_centroid)
@@ -194,17 +204,47 @@ def compute_adjacency():
                 # Simplify to cardinal
                 cardinal = simplify_to_cardinal(direction)
                 
+                # Track border length for each direction this neighbor appears in
+                if other_id not in border_lengths:
+                    border_lengths[other_id] = {}
+                
                 if isinstance(cardinal, tuple):
-                    # Diagonal - add to both directions
+                    # Diagonal - track for both directions
                     for d in cardinal:
-                        if other_id not in adjacency[region_id][d]:
+                        if d not in border_lengths[other_id]:
+                            border_lengths[other_id][d] = border_length
                             adjacency[region_id][d].append(other_id)
-                            print(f"  {d}: {other_data['name']}")
+                            print(f"  {d}: {other_data['name']} (border length: {border_length:.4f})")
                 else:
                     # Pure cardinal
-                    if other_id not in adjacency[region_id][cardinal]:
+                    if cardinal not in border_lengths[other_id]:
+                        border_lengths[other_id][cardinal] = border_length
                         adjacency[region_id][cardinal].append(other_id)
-                        print(f"  {cardinal}: {other_data['name']}")
+                        print(f"  {cardinal}: {other_data['name']} (border length: {border_length:.4f})")
+        
+        # Deduplicate neighbors - keep only the direction with longest shared border
+        for neighbor_id, directions in border_lengths.items():
+            if len(directions) > 1:
+                # This neighbor appears in multiple directions
+                # Find the direction with the longest border
+                best_direction = max(directions.items(), key=lambda x: x[1])
+                best_dir_name = best_direction[0]
+                best_length = best_direction[1]
+                
+                neighbor_name = next(
+                    (data['name'] for oid, data in region_geometries.items() if oid == neighbor_id),
+                    neighbor_id
+                )
+                
+                print(f"  DEDUP: {neighbor_name} appears in {list(directions.keys())}")
+                print(f"         Keeping {best_dir_name} (border length: {best_length:.4f})")
+                
+                # Remove from all other directions
+                for direction in directions.keys():
+                    if direction != best_dir_name:
+                        if neighbor_id in adjacency[region_id][direction]:
+                            adjacency[region_id][direction].remove(neighbor_id)
+                            print(f"         Removed from {direction} (border length: {directions[direction]:.4f})")
         
         # Check for contained AREA regions
         for area_id, area_data in area_regions.items():

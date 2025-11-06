@@ -71,25 +71,35 @@ function getNeighborsInDirection(stateId, direction) {
 }
 
 /**
- * Create a clickable neighbor label sprite (smaller, for display below direction markers)
+ * Create a clickable neighbor label sprite (compact, for display below direction markers)
  */
-function createNeighborLabel(neighborName, neighborId, color, onClick) {
+function createNeighborLabel(neighborName, neighborId, onClick) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    canvas.width = 384;
-    canvas.height = 80;
+    
+    const fontSize = 28;
+    const padding = 8; // Minimal padding - matches top/bottom
+    
+    // Measure text to determine canvas width
+    context.font = `Bold ${fontSize}px Arial`;
+    const textMetrics = context.measureText(neighborName);
+    const textWidth = textMetrics.width;
+    
+    // Canvas size based on text width + minimal padding
+    canvas.width = Math.ceil(textWidth + padding * 2);
+    canvas.height = 64;
 
-    // Draw semi-transparent background
-    context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    // Draw semi-transparent bluish background (matches navigation panel)
+    context.fillStyle = 'rgba(20, 40, 60, 0.85)';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw border with direction color
-    context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 2;
+    // Draw subtle border
+    context.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    context.lineWidth = 1;
     context.strokeRect(0, 0, canvas.width, canvas.height);
 
-    // Draw text (smaller font)
-    context.font = 'Bold 32px Arial';
+    // Draw text - need to set font again after canvas resize
+    context.font = `Bold ${fontSize}px Arial`;
     context.fillStyle = '#ffffff';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
@@ -108,51 +118,75 @@ function createNeighborLabel(neighborName, neighborId, color, onClick) {
     sprite.visible = true;
     sprite.frustumCulled = false; // Always render regardless of camera position
     
-    // Store metadata for click handling
+    // Store metadata for click handling and hover
     sprite.userData.neighborId = neighborId;
     sprite.userData.neighborName = neighborName;
     sprite.userData.isConnectivityLabel = true;
     sprite.userData.onClick = onClick;
+    sprite.userData.isHovered = false;
+    sprite.userData.canvasAspectRatio = canvas.width / canvas.height; // Store for proper scaling
 
     return sprite;
 }
 
 /**
- * Position labels for a given direction (below edge markers)
+ * Position labels for a given direction (below edge markers, in a horizontal line)
  */
 function positionLabelsForDirection(direction, neighbors, baseX, baseZ, xExtent, zExtent, avgSize) {
     const labels = [];
-    const baseScale = avgSize * 0.045; // Slightly larger for readability
-    const labelHeight = baseScale; 
-    const labelSpacing = labelHeight * 2.5; // More vertical space between labels
+    const baseScale = avgSize * 0.035; // Compact size for height
+    const labelSpacing = 0; // No gaps - edge to edge
     
-    // Position labels clearly BELOW the direction letter
+    // Position labels BELOW the direction letter (negative Y)
     // Direction letter is at ground level (y=0), so we go negative
-    const verticalStartOffset = -avgSize * 0.12; // Start lower
-    const totalHeight = (neighbors.length - 1) * labelSpacing;
-    let yOffset = verticalStartOffset - totalHeight / 2;
-
-    neighbors.forEach((neighbor, index) => {
-        const color = getColorForDirection(direction);
-        const sprite = createNeighborLabel(neighbor.name, neighbor.id, color, () => {
+    const yOffset = -avgSize * 0.08; // Fixed Y position below marker
+    
+    // Create all sprites first to measure their widths
+    const sprites = neighbors.map(neighbor => {
+        const sprite = createNeighborLabel(neighbor.name, neighbor.id, () => {
             // Click handler: load the neighbor state
             if (neighbor.id && neighbor.id !== currentRegionId) {
                 loadRegion(neighbor.id);
             }
         });
+        return sprite;
+    });
+    
+    // Calculate total width based on actual sprite aspect ratios
+    let totalWidth = 0;
+    sprites.forEach(sprite => {
+        const aspectRatio = sprite.userData.canvasAspectRatio || 6.25;
+        totalWidth += baseScale * aspectRatio;
+    });
+    totalWidth += labelSpacing * (sprites.length - 1);
+    
+    // Start from the left edge, centered on the marker
+    let xOffset = -totalWidth / 2;
 
-        // Position at same XZ as direction marker, but below (negative Y)
-        let x = baseX;
-        let z = baseZ;
-        let y = yOffset;
+    sprites.forEach((sprite, index) => {
+        // Scale to maintain proper aspect ratio (no squishing!)
+        const aspectRatio = sprite.userData.canvasAspectRatio || 6.25;
+        const spriteWidth = baseScale * aspectRatio;
+        
+        sprite.scale.set(spriteWidth, baseScale, 1.0);
 
-        sprite.position.set(x, y, z);
+        // Position in a horizontal line below the marker
+        // Adjust X/Z based on direction to keep labels readable
+        let x, z;
+        if (direction === 'N' || direction === 'S') {
+            // North/South: offset in X direction
+            x = baseX + xOffset + spriteWidth / 2;
+            z = baseZ;
+        } else {
+            // East/West: offset in Z direction  
+            x = baseX;
+            z = baseZ + xOffset + spriteWidth / 2;
+        }
 
-        // Scale for labels - wider for readability
-        sprite.scale.set(baseScale * 5, baseScale * 1.0, baseScale);
+        sprite.position.set(x, yOffset, z);
 
         labels.push(sprite);
-        yOffset += labelSpacing; // Stack downward
+        xOffset += spriteWidth + labelSpacing; // Move to next position (no gap)
     });
 
     return labels;
@@ -172,9 +206,18 @@ function getColorForDirection(direction) {
 }
 
 /**
- * Create labels for contained AREA regions (displayed in center of map)
+ * Populate "Contains" column in lower-left navigation panel
  */
-function createContainedAreaLabels(containedData, avgSize) {
+function populateContainsColumn(containedData) {
+    const containsList = document.getElementById('contains-list');
+    
+    if (!containsList) return;
+    
+    // Clear existing items
+    containsList.innerHTML = '';
+    
+    if (!containedData) return;
+    
     // Handle both single and multiple contained areas
     const rawIds = Array.isArray(containedData) ? containedData : [containedData];
     
@@ -187,42 +230,37 @@ function createContainedAreaLabels(containedData, avgSize) {
         }));
 
     if (validAreas.length === 0) return;
-
-    // Position contained areas in the center of the map
-    const baseScale = avgSize * 0.05; // Slightly larger for visibility
-    const labelHeight = baseScale;
-    const labelSpacing = labelHeight * 2.5;
-    const totalHeight = (validAreas.length - 1) * labelSpacing;
-    let yOffset = totalHeight / 2; // Start from top and go down
-
-    validAreas.forEach((area, index) => {
-        const color = 0xff88ff; // Purple/magenta for contained areas
-        const sprite = createNeighborLabel(area.name, area.id, color, () => {
-            // Click handler: load the contained area
+    
+    // Add each contained area as clickable item
+    validAreas.forEach(area => {
+        const item = document.createElement('div');
+        item.className = 'region-nav-item';
+        item.textContent = area.name;
+        item.title = `Jump to ${area.name}`;
+        item.addEventListener('click', () => {
             if (area.id && area.id !== currentRegionId) {
                 loadRegion(area.id);
             }
         });
-
-        // Position at center of map, slightly elevated
-        sprite.position.set(0, yOffset + avgSize * 0.15, 0);
-
-        // Scale for readability
-        sprite.scale.set(baseScale * 5, baseScale * 1.0, baseScale);
-
-        scene.add(sprite);
-        connectivityLabels.push(sprite);
-        
-        yOffset -= labelSpacing; // Stack downward
+        containsList.appendChild(item);
     });
-
-    console.log(`[Connectivity] Added ${validAreas.length} contained area labels`);
+    
+    console.log(`[Connectivity] Added ${validAreas.length} items to Contains column`);
 }
 
 /**
- * Create labels for "within" relationships (AREA regions showing their parent regions)
+ * Populate "Contained By" column in lower-left navigation panel
  */
-function createWithinLabels(withinData, avgSize) {
+function populateContainedByColumn(withinData) {
+    const containedByList = document.getElementById('contained-by-list');
+    
+    if (!containedByList) return;
+    
+    // Clear existing items
+    containedByList.innerHTML = '';
+    
+    if (!withinData) return;
+    
     // Handle both single and multiple parent regions
     const rawIds = Array.isArray(withinData) ? withinData : [withinData];
     
@@ -235,64 +273,78 @@ function createWithinLabels(withinData, avgSize) {
         }));
 
     if (validParents.length === 0) return;
-
-    // Position "within" labels in the center, below the terrain
-    const baseScale = avgSize * 0.05;
-    const labelHeight = baseScale;
-    const labelSpacing = labelHeight * 2.5;
-    const totalHeight = (validParents.length - 1) * labelSpacing;
-    let yOffset = -totalHeight / 2 - avgSize * 0.20; // Below center
-
-    validParents.forEach((parent, index) => {
-        const color = 0x44ffff; // Cyan for parent/container regions
-        const sprite = createNeighborLabel(parent.name, parent.id, color, () => {
-            // Click handler: load the parent region
+    
+    // Add each parent region as clickable item
+    validParents.forEach(parent => {
+        const item = document.createElement('div');
+        item.className = 'region-nav-item';
+        item.textContent = parent.name;
+        item.title = `Jump to ${parent.name}`;
+        item.addEventListener('click', () => {
             if (parent.id && parent.id !== currentRegionId) {
                 loadRegion(parent.id);
             }
         });
-
-        // Position at center of map, below terrain
-        sprite.position.set(0, yOffset, 0);
-
-        // Scale for readability
-        sprite.scale.set(baseScale * 5, baseScale * 1.0, baseScale);
-
-        scene.add(sprite);
-        connectivityLabels.push(sprite);
-        
-        yOffset -= labelSpacing; // Stack downward
+        containedByList.appendChild(item);
     });
-
-    console.log(`[Connectivity] Added ${validParents.length} "within" labels`);
+    
+    console.log(`[Connectivity] Added ${validParents.length} items to Contained By column`);
 }
 
 /**
  * Create connectivity labels for the current region
  * 
- * Displays clickable navigation labels:
- * - Cardinal directions (N/S/E/W): Below edge markers - adjacent regions
- * - "Contained" (purple): Center, above terrain - AREA regions within this region
- * - "Within" (cyan): Center, below terrain - Parent regions containing this AREA
+ * Displays clickable navigation:
+ * - Cardinal directions (N/S/E/W): 3D labels below edge markers - adjacent regions
+ * - "Contains" / "Part of": 2D panel in lower-left corner - containment navigation
  * 
  * Provides full bidirectional navigation between all region types.
+ * 
+ * CRITICAL: 3D labels MUST be added to terrainGroup (not scene) so they:
+ * - Rotate with terrain when terrain is rotated
+ * - Stay positioned correctly relative to terrain mesh
+ * - Match edge markers coordinate space (which are also in terrainGroup)
  */
 function createConnectivityLabels() {
-    // Remove old labels
-    connectivityLabels.forEach(label => scene.remove(label));
-    connectivityLabels.length = 0; // Clear array while keeping reference
+    // Note: Array is already cleared by terrain-renderer.js when terrainGroup was destroyed
+    // We just need to create new labels for the new terrain
+    
+    // Reset navigation panel - always clear both columns
+    const navigationPanel = document.getElementById('region-navigation');
+    const containsList = document.getElementById('contains-list');
+    const containedByList = document.getElementById('contained-by-list');
+    
+    if (containsList) containsList.innerHTML = '';
+    if (containedByList) containedByList.innerHTML = '';
+    if (navigationPanel) navigationPanel.style.display = 'none';
+
+    if (!window.connectivityLabels) {
+        console.error('[Connectivity] window.connectivityLabels array not initialized');
+        return;
+    }
 
     // Only show for regions with adjacency data
-    if (!currentRegionId) return;
+    if (!currentRegionId) {
+        console.log('[Connectivity] Skipping: no current region');
+        return;
+    }
     
     // Get neighbors from regionAdjacency (unified system for all region types)
     const neighbors = currentRegionId && regionAdjacency && regionAdjacency[currentRegionId];
-    if (!neighbors) return;
+    if (!neighbors) {
+        console.log('[Connectivity] Skipping: no adjacency data for', currentRegionId);
+        return;
+    }
 
-    if (!rawElevationData || !processedData) return;
+    if (!rawElevationData || !processedData) {
+        console.log('[Connectivity] Skipping: no elevation data available');
+        return;
+    }
 
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
+    
+    console.log(`[Connectivity] Creating labels for ${currentRegionId} with grid: ${gridWidth}x${gridHeight}`);
 
     // Calculate extents - only bars mode is supported
     const bucketMultiplier = params.bucketSize;
@@ -319,19 +371,24 @@ function createConnectivityLabels() {
         'west': 'W'
     };
 
+    // Track if we have any containment relationships
+    let hasContainmentData = false;
+
     // Create labels for each direction that has neighbors
     for (const [direction, neighborData] of Object.entries(neighbors)) {
         if (!neighborData) continue;
         
-        // Handle contained areas separately (displayed in center, above)
+        // Handle contained areas in 2D panel (lower-left, left column)
         if (direction === 'contained') {
-            createContainedAreaLabels(neighborData, avgSize);
+            populateContainsColumn(neighborData);
+            hasContainmentData = true;
             continue;
         }
         
-        // Handle within relationships separately (displayed in center, below)
+        // Handle within relationships in 2D panel (lower-left, right column)
         if (direction === 'within') {
-            createWithinLabels(neighborData, avgSize);
+            populateContainedByColumn(neighborData);
+            hasContainmentData = true;
             continue;
         }
         
@@ -363,12 +420,20 @@ function createConnectivityLabels() {
         );
 
         labels.forEach(label => {
-            scene.add(label);
-            connectivityLabels.push(label);
+            window.terrainGroup.add(label); // Add to terrainGroup, not scene
+            if (window.connectivityLabels) {
+                window.connectivityLabels.push(label);
+            }
         });
     }
 
-    console.log(`[Connectivity] Created ${connectivityLabels.length} labels for ${currentRegionId}`);
+    // Show navigation panel if we have any containment relationships
+    if (hasContainmentData && navigationPanel) {
+        navigationPanel.style.display = 'block';
+    }
+
+    const labelCount = window.connectivityLabels ? window.connectivityLabels.length : 0;
+    console.log(`[Connectivity] Created ${labelCount} 3D labels for ${currentRegionId}`);
 }
 
 /**

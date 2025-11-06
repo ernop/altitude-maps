@@ -56,6 +56,16 @@
             window.scene.remove(window.terrainGroup);
         }
 
+        // CRITICAL: Clear edge markers and connectivity labels arrays when destroying terrainGroup
+        // The old sprites are children of the old terrainGroup, so they're already removed from scene
+        // But we need to clear the arrays so new markers will be created for the new terrain
+        if (window.edgeMarkers) {
+            window.edgeMarkers.length = 0;
+        }
+        if (window.connectivityLabels) {
+            window.connectivityLabels.length = 0;
+        }
+
         // Create new terrain group (centered at world origin for rotation)
         window.terrainGroup = new THREE.Group();
         window.terrainGroup.position.set(0, 0, 0);
@@ -108,19 +118,18 @@
         }
 
         // PRODUCT REQUIREMENT: Edge markers must stay fixed when vertical exaggeration changes
-        // Only create edge markers if they don't exist yet (prevents movement on exaggeration change)
-        if (window.edgeMarkers && window.edgeMarkers.length === 0) {
-            if (typeof createEdgeMarkers === 'function') {
-                createEdgeMarkers();
-            }
-            // Update compass rose when markers are recreated
-            if (window.CompassRose && typeof window.CompassRose.update === 'function') {
-                window.CompassRose.update();
-            }
-            // Create connectivity labels alongside edge markers
-            if (typeof createConnectivityLabels === 'function') {
-                createConnectivityLabels();
-            }
+        // ALWAYS create edge markers when terrain is created (new region loaded)
+        // Arrays were cleared above when terrainGroup was destroyed
+        if (typeof createEdgeMarkers === 'function') {
+            createEdgeMarkers();
+        }
+        // Update compass rose when markers are created
+        if (window.CompassRose && typeof window.CompassRose.update === 'function') {
+            window.CompassRose.update();
+        }
+        // Create connectivity labels alongside edge markers
+        if (typeof createConnectivityLabels === 'function') {
+            createConnectivityLabels();
         }
 
         if (typeof updateStats === 'function') {

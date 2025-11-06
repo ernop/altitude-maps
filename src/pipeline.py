@@ -736,6 +736,7 @@ def export_for_viewer(
             
             # Create export data
             export_data = {
+                "version": "export_v2",  # CRITICAL: Required for manifest validation
                 "region_id": region_id,
                 "source": source,
                 "name": region_id.replace('_', ' ').title(),

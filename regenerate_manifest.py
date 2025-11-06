@@ -73,19 +73,49 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                 print(f"      [SKIP] Region '{region_id}' missing region_type in regions_config - skipping", flush=True)
                 continue
             
-            # Find matching JSON file(s) - use first available
+            # Find matching JSON file(s) - ONLY accept v2 format (NO FALLBACKS)
             json_file = None
             json_data = None
             if region_id in json_files_by_region:
-                for candidate_file in json_files_by_region[region_id]:
+                candidates = json_files_by_region[region_id]
+                
+                # Filter to ONLY v2 files with proper version field
+                v2_candidates = []
+                for candidate_file in candidates:
                     try:
                         with open(candidate_file, 'r', encoding='utf-8') as f:
                             candidate_data = json.load(f)
-                        json_file = candidate_file
-                        json_data = candidate_data
-                        break
-                    except Exception:
+                        
+                        # CRITICAL: Only accept files with version field
+                        # NO SILENT FALLBACKS to old format files
+                        version = candidate_data.get('version')
+                        if version == 'export_v2':
+                            v2_candidates.append((candidate_file, candidate_data))
+                        else:
+                            # Warn about files without proper version
+                            print(f"      [!] SKIP {region_id}: {candidate_file.name} (version={version}, expected 'export_v2')", flush=True)
+                    except Exception as e:
+                        print(f"      [!] SKIP {region_id}: {candidate_file.name} (failed to load: {e})", flush=True)
                         continue
+                
+                # If no v2 files found, skip this region entirely (fail fast)
+                if not v2_candidates:
+                    if candidates:
+                        print(f"      [X] SKIP {region_id}: No v2 files found (had {len(candidates)} non-v2 files)", flush=True)
+                    continue
+                
+                # Warn if multiple v2 files exist (should not happen in normal operation)
+                if len(v2_candidates) > 1:
+                    print(f"      [!] WARNING {region_id}: Multiple v2 files found:", flush=True)
+                    for cf, _ in v2_candidates:
+                        print(f"          - {cf.name} (modified: {cf.stat().st_mtime})", flush=True)
+                    # Pick newest by modification time
+                    v2_candidates.sort(key=lambda x: x[0].stat().st_mtime, reverse=True)
+                    print(f"          Selected: {v2_candidates[0][0].name} (newest)", flush=True)
+                
+                # Use the v2 file (first if only one, newest if multiple)
+                json_file = v2_candidates[0][0]
+                json_data = v2_candidates[0][1]
             
             # SKIP regions without data files - only include regions with actual data
             if not json_file or not json_data:

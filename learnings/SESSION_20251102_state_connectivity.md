@@ -159,6 +159,22 @@ Added script tag (line ~325):
    - Historical border notes
 4. **UI Toggle**: Allow users to hide/show connectivity labels
 
+## Bug Fix (November 6, 2025)
+
+**Issue**: Connectivity labels were misaligned and not positioned at terrain edges.
+
+**Root Cause**: Labels were added to `scene` instead of `window.terrainGroup`, causing position mismatch:
+- Edge markers: Added to `terrainGroup` ✓
+- Connectivity labels: Added to `scene` ✗ (wrong coordinate space)
+
+**Fix**: Changed all label additions to use `window.terrainGroup.add(sprite)` instead of `scene.add(sprite)`. This ensures:
+- Labels use same coordinate space as edge markers
+- Labels rotate with terrain when terrain is rotated
+- Labels stay correctly positioned relative to terrain mesh
+
+**Files Changed**:
+- `js/state-connectivity.js` - Fixed all `scene.add()` calls to `window.terrainGroup.add()`
+
 ## Files Modified/Created
 
 **New Files**:
@@ -170,6 +186,7 @@ Added script tag (line ~325):
 **Modified Files**:
 - `interactive_viewer_advanced.html` - Added script tag
 - `js/viewer-advanced.js` - Integration hooks
+- `js/state-connectivity.js` - Bug fix: labels now added to terrainGroup (Nov 6, 2025)
 
 ## Testing Checklist
 

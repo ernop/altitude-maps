@@ -701,6 +701,14 @@ python ensure_region.py <region_id> --force-reprocess
 - **See**: `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` for complete documentation
 - Runtime validation logs errors if ratio exceeds safe limits
 
+**CRITICAL - Coordinate Space Architecture**:
+- The viewer uses hierarchical scene graph: `scene → terrainGroup → terrainMesh → bars`
+- **ALL objects that rotate with terrain MUST be added to `terrainGroup`, NOT `scene`**
+- Edge markers, connectivity labels, terrain-relative objects → `window.terrainGroup.add(object)`
+- Camera, lights, world-fixed UI → `scene.add(object)`
+- Bug symptom: Objects added to `scene` instead of `terrainGroup` appear misaligned and don't rotate with terrain
+- **See**: `learnings/COORDINATE_SPACE_ARCHITECTURE.md` for complete documentation
+
 #### Performance Tuning
 - **Default bucket size**: Auto-adjust targets ~3,900 buckets (not 10,000) for better initial performance
 - **User can refine**: Provide granular controls (-10/-5/-1/+1/+5/+10) for users who want more detail

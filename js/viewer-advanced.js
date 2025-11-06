@@ -38,7 +38,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.367';
+const VIEWER_VERSION = '1.368';
 
 // RegionType enum is defined in state-connectivity.js (loaded before this file)
 // Values: RegionType.USA_STATE, RegionType.COUNTRY, RegionType.AREA
@@ -1215,6 +1215,45 @@ function createTextSprite(text, color) {
     return window.EdgeMarkers.createTextSprite(text, color);
 }
 
+// Update 3D connectivity label hover state
+function updateLabelHoverState(label, isHovered) {
+    if (!label || !label.userData.neighborName) return;
+    
+    const neighborName = label.userData.neighborName;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.width = 400;
+    canvas.height = 64;
+
+    // Bluish background - brighter when hovered
+    if (isHovered) {
+        context.fillStyle = 'rgba(40, 70, 100, 0.95)'; // Brighter
+    } else {
+        context.fillStyle = 'rgba(20, 40, 60, 0.85)'; // Normal
+    }
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Subtle border
+    context.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    context.lineWidth = 1;
+    context.strokeRect(0, 0, canvas.width, canvas.height);
+
+    // Text
+    context.font = 'Bold 28px Arial';
+    context.fillStyle = '#ffffff';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(neighborName, canvas.width / 2, canvas.height / 2);
+
+    // Update texture
+    const texture = new THREE.CanvasTexture(canvas);
+    if (label.material.map) {
+        label.material.map.dispose();
+    }
+    label.material.map = texture;
+    label.material.needsUpdate = true;
+}
+
 function updateEdgeMarkers() {
     return window.EdgeMarkers.update();
 }
@@ -1497,16 +1536,18 @@ function setupEventListeners() {
             // Raycast specifically against connectivity labels
             const intersects = raycaster.intersectObjects(window.connectivityLabels, false);
 
-            let overLabel = intersects.length > 0;
-            if (overLabel && intersects[0].object.userData.neighborName) {
-                // Only log occasionally to avoid spam
-                if (Math.random() < 0.01) {
-                    console.log('[Connectivity] Hover detected:', {
-                        label: intersects[0].object.userData.neighborName,
-                        distance: intersects[0].distance
-                    });
+            // Update hover state for all labels
+            window.connectivityLabels.forEach(label => {
+                const wasHovered = label.userData.isHovered;
+                const isHovered = intersects.length > 0 && intersects[0].object === label;
+                
+                if (isHovered !== wasHovered) {
+                    label.userData.isHovered = isHovered;
+                    updateLabelHoverState(label, isHovered);
                 }
-            }
+            });
+
+            let overLabel = intersects.length > 0;
             renderer.domElement.style.cursor = overLabel ? 'pointer' : 'default';
         }
     });

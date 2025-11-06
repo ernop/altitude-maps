@@ -42,16 +42,23 @@
  * @global regionsManifest - Manifest of available regions
  */
 function createEdgeMarkers() {
-    // Remove old markers (3D sprites)
-    edgeMarkers.forEach(marker => {
-        window.terrainGroup.remove(marker);
-    });
-    edgeMarkers = [];
-
-    if (!rawElevationData || !processedData) return;
+    // Note: Array is already cleared by terrain-renderer.js when terrainGroup was destroyed
+    // We just need to create new markers for the new terrain
+    
+    if (!rawElevationData || !processedData) {
+        console.log('[EDGE MARKERS] Skipping: no data available');
+        return;
+    }
+    
+    if (!window.edgeMarkers) {
+        console.error('[EDGE MARKERS] window.edgeMarkers array not initialized');
+        return;
+    }
 
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
+    
+    console.log(`[EDGE MARKERS] Creating markers for grid: ${gridWidth}x${gridHeight}`);
 
     // Position markers at ground level (y=0) so they sit on the terrain surface
     // They stay at this fixed height regardless of vertical exaggeration changes
@@ -95,8 +102,12 @@ function createEdgeMarkers() {
 
             // Add to terrain group so markers rotate with terrain
             window.terrainGroup.add(sprite);
-            edgeMarkers.push(sprite);
+            if (window.edgeMarkers) {
+                window.edgeMarkers.push(sprite);
+            }
         });
+        
+        console.log(`[EDGE MARKERS] Created ${window.edgeMarkers ? window.edgeMarkers.length : 0} fallback markers`);
         return;
     }
 
@@ -123,8 +134,12 @@ function createEdgeMarkers() {
 
         // Add to terrain group so markers rotate with terrain
         window.terrainGroup.add(sprite);
-        edgeMarkers.push(sprite);
+        if (window.edgeMarkers) {
+            window.edgeMarkers.push(sprite);
+        }
     });
+    
+    console.log(`[EDGE MARKERS] Created ${window.edgeMarkers ? window.edgeMarkers.length : 0} total markers for ${currentRegionId}`);
 }
 
 /**
