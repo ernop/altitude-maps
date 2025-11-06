@@ -52,8 +52,11 @@ let derivedAspectDeg = null;
 let trueScaleValue = null;
 
 //-------REGION STATE-------
-const MAX_RECENT_REGIONS = 10;
+const MAX_RECENT_REGIONS = 12;
+const DEFAULT_REGION = 'california';
 let recentRegions = [];
+let regionsManifest = null;
+let currentRegionId = null;
 let regionAdjacency = null;
 
 //-------UI STATE-------
@@ -196,39 +199,20 @@ async function init() {
 
             console.log = (...args) => {
                 origLog(...args);
-                const msg = args.join(' ');
-                const first = msg.split(' ')[0];
-                if (first === '[OK]' || first === '[INFO]' || first === '[JSON]' ||
-                    msg.startsWith('Bucket size') || msg.startsWith('Resolution set') ||
-                    msg.startsWith('Setting TRUE') || msg.startsWith('Setting ') && msg.includes('x exaggeration') ||
-                    msg.startsWith('Camera reset') || msg.startsWith('True scale') ||
-                    msg.startsWith('Loading region') || msg.startsWith('Loading JSON') ||
-                    msg.startsWith('Aggregation:') || msg.startsWith('Already at') ||
-                    msg.startsWith('Switching to') || msg.startsWith('Pivot marker') ||
-                    msg.startsWith('Bars centered') || msg.startsWith('Points centered') ||
-                    msg.startsWith('PURE 2D') || msg.startsWith('Created') && msg.includes('instanced bars')) {
-                    try { appendActivityLog(msg); } catch (_) { }
-                }
+                try { appendActivityLog(args.join(' ')); } catch (_) { }
             };
             console.warn = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) { } origWarn(...args); };
             console.error = (...args) => { try { appendActivityLog(args.join(' ')); } catch (_) { } origError(...args); };
             window.__consolePatched = true;
         }
 
-        // Display version number
         document.getElementById('version-display').textContent = `v${VIEWER_VERSION}`;
         appendActivityLog(`Altitude Maps Viewer v${VIEWER_VERSION}`);
 
-        // Populate region selector (loads manifest and populates dropdown)
         const firstRegionId = await populateRegionSelector();
 
-        // Load state adjacency data (US states only)
-        if (typeof loadStateAdjacency === 'function') {
-            await loadStateAdjacency();
-        }
+        await loadStateAdjacency();
 
-        // Initialize Select2 and all UI controls BEFORE loading any region data
-        // This ensures the region selector is completely loaded and interactive
         setupControls();
 
         // Apply any parameters from URL before first load so initial render matches query
@@ -272,9 +256,6 @@ async function init() {
         // Rebuild dropdown for initial interaction (uses rebuildRegionDropdown function)
         rebuildRegionDropdown();
 
-        // Update navigation hints for initial region
-        updateRegionNavHints();
-
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
         trueScaleValue = 1.0 / scale.metersPerPixelX;
@@ -312,187 +293,56 @@ async function init() {
     }
 }
 
-let regionsManifest = null;
-let currentRegionId = null;
-
-// Data caching toggle: when true (default), do NOT add cache-busting params
-// Enable dev busting with URL: ?useCache=0 (or useCache=false)
-const USE_CACHE = (() => {
-    try {
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('useCache')) {
-            const v = params.get('useCache')?.toLowerCase();
-            return !(v === '0' || v === 'false' || v === 'off' || v === 'no');
-        }
-    } catch (e) { }
-    return true; // default on (production-friendly)
-})();
-
 async function loadElevationData(url) {
-    // Always use gzipped version (smaller, faster)
     const gzUrl = url.endsWith('.json') ? url + '.gz' : url;
     if (!gzUrl.endsWith('.gz')) {
         throw new Error(`Elevation data URL must end with .json or .gz, got: ${url}`);
     }
-    const gzUrlWithBuster = USE_CACHE ? gzUrl : (gzUrl.includes('?') ? `${gzUrl}&_t=${Date.now()}` : `${gzUrl}?_t=${Date.now()}`);
     const tStart = performance.now();
-    const response = await fetch(gzUrlWithBuster);
-    const finalUrl = gzUrl;
+    const response = await fetch(gzUrl);
 
     if (!response.ok) {
         throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
     }
 
-    // Extract filename from URL
-    const filename = finalUrl.split('/').pop();
+    const filename = gzUrl.split('/').pop();
+    const arrayBuffer = await response.arrayBuffer();
+    const stream = new DecompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    writer.write(new Uint8Array(arrayBuffer));
+    writer.close();
+    const decompressedResponse = new Response(stream.readable);
+    const text = await decompressedResponse.text();
+    const data = JSON.parse(text);
 
-    // Log response details for debugging
-    console.log(`Loading JSON file: ${filename}`);
-    console.log(` Full URL: ${finalUrl}`);
-    console.log(` HTTP Status: ${response.status} ${response.statusText}`);
-    console.log(` Content-Type: ${response.headers.get('content-type')}`);
-    console.log(` Content-Encoding: ${response.headers.get('content-encoding')}`);
-    console.log(` Content-Length: ${response.headers.get('content-length')}`);
-
-    if (!response.ok) {
-        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusCode} for ${finalUrl}`);
-    }
-
-    // Detect cache hit using Performance API
-    const actualUrl = finalUrl === gzUrl ? gzUrlWithBuster : (USE_CACHE ? url : (url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`));
-    const perfEntries = performance.getEntriesByName(actualUrl, 'resource');
-    const isCacheHit = perfEntries.length > 0 && perfEntries[0].transferSize === 0;
-
-    if (isCacheHit) {
-        console.log(` Cache hit! Loading from browser cache.`);
-        appendActivityLog(`Loading ${filename} from cache`);
-        updateLoadingProgress(0, 0, 1, 'Loading from cache...');
-    }
-
-    // Get content length for progress tracking
-    const contentLength = response.headers.get('content-length');
-    const totalBytes = contentLength ? parseInt(contentLength) : 0;
-
-    // Check if file is gzipped and server didn't decompress it
-    const contentEncoding = response.headers.get('content-encoding');
-    const serverDecompressed = contentEncoding && contentEncoding.includes('gzip');
-    const isGzipped = finalUrl.endsWith('.gz') && !serverDecompressed;
-
-    let data;
-
-    if (isCacheHit || !totalBytes || !response.body) {
-        // Cache hit or no content length - just parse directly (fast)
-        console.log(` Parsing JSON...`);
-        if (isGzipped) {
-            // Need to decompress gzipped data
-            const arrayBuffer = await response.arrayBuffer();
-            const stream = new DecompressionStream('gzip');
-            const writer = stream.writable.getWriter();
-            writer.write(new Uint8Array(arrayBuffer));
-            writer.close();
-            const decompressedResponse = new Response(stream.readable);
-            const text = await decompressedResponse.text();
-            data = JSON.parse(text);
-        } else {
-            data = await response.json();
-        }
-    } else {
-        // Real download - stream with progress tracking
-        console.log(` Downloading with progress tracking...`);
-        const reader = response.body.getReader();
-        const chunks = [];
-        let receivedBytes = 0;
-        let lastProgressUpdate = 0;
-
-        while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) break;
-
-            chunks.push(value);
-            receivedBytes += value.length;
-
-            // Update progress (throttle to every 100ms to avoid UI spam)
-            const now = performance.now();
-            if (now - lastProgressUpdate > 100) {
-                const percent = Math.floor((receivedBytes / totalBytes) * 100);
-                updateLoadingProgress(percent, receivedBytes, totalBytes, 'Downloading...');
-                lastProgressUpdate = now;
-            }
-        }
-
-        // Combine chunks
-        const blob = new Blob(chunks);
-
-        if (isGzipped) {
-            // Decompress gzipped data
-            console.log(` Decompressing gzipped data...`);
-            const arrayBuffer = await blob.arrayBuffer();
-            const stream = new DecompressionStream('gzip');
-            const writer = stream.writable.getWriter();
-            writer.write(new Uint8Array(arrayBuffer));
-            writer.close();
-            const decompressedResponse = new Response(stream.readable);
-            const text = await decompressedResponse.text();
-            console.log(` Parsing JSON...`);
-            data = JSON.parse(text);
-        } else {
-            // Parse uncompressed JSON
-            const text = await blob.text();
-            console.log(` Parsing JSON...`);
-            data = JSON.parse(text);
-        }
-    }
-
-    // Log final size
-    const sizeMB = totalBytes ? (totalBytes / 1024 / 1024).toFixed(2) : '?';
-    appendActivityLog(`Loaded ${filename}: ${sizeMB} MB`);
-
-    // Extract version from filename for logging (e.g., ohio_srtm_30m_2048px_v2.json -> v2)
     const versionMatch = filename.match(/_v(\d+)\.json/);
     const fileVersion = versionMatch ? versionMatch[1] : 'unknown';
     appendActivityLog(`[OK] Data format v${fileVersion} from filename`);
 
-    try { window.ActivityLog.logResourceTiming(actualUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
+    try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
     return data;
 }
 
 async function loadRegionsManifest() {
-    const timestamp = Date.now();
-    const gzUrl = `generated/regions/regions_manifest.json.gz?_t=${timestamp}`;
+    const gzUrl = `generated/regions/regions_manifest.json.gz`;
     const tStart = performance.now();
-    const response = await fetch(gzUrl, { cache: 'no-store' });
+    const response = await fetch(gzUrl);
 
     if (!response.ok) {
         throw new Error(`Failed to load regions manifest. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
     }
 
-    // Check if response is already decompressed by server (Content-Encoding header)
-    const contentEncoding = response.headers.get('content-encoding');
-    const serverDecompressed = contentEncoding && contentEncoding.includes('gzip');
+    const arrayBuffer = await response.arrayBuffer();
+    const stream = new DecompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    writer.write(new Uint8Array(arrayBuffer));
+    writer.close();
+    const decompressedResponse = new Response(stream.readable);
+    const text = await decompressedResponse.text();
+    const json = JSON.parse(text);
 
-    if (serverDecompressed) {
-        // Server already decompressed it (Content-Encoding header set)
-        const json = await response.json();
-        try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
-        return json;
-    } else {
-        // Server is serving raw compressed bytes, we need to decompress
-        const arrayBuffer = await response.arrayBuffer();
-        const stream = new DecompressionStream('gzip');
-        const writer = stream.writable.getWriter();
-
-        // Write compressed data to decompression stream
-        writer.write(new Uint8Array(arrayBuffer));
-        writer.close();
-
-        // Read decompressed data from the readable side
-        const decompressedResponse = new Response(stream.readable);
-        const text = await decompressedResponse.text();
-        const json = JSON.parse(text);
-        try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded manifest (gzipped)', tStart, performance.now()); } catch (e) { }
-        return json;
-    }
+    try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
+    return json;
 }
 
 async function loadAdjacencyData() {
@@ -503,28 +353,14 @@ async function loadAdjacencyData() {
         throw new Error(`Failed to load region adjacency data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
     }
 
-    // Check if response is already decompressed by server (Content-Encoding header)
-    const contentEncoding = response.headers.get('content-encoding');
-    const serverDecompressed = contentEncoding && contentEncoding.includes('gzip');
-
-    if (serverDecompressed) {
-        // Server already decompressed it (Content-Encoding header set)
-        return await response.json();
-    } else {
-        // Server is serving raw compressed bytes, we need to decompress
-        const arrayBuffer = await response.arrayBuffer();
-        const stream = new DecompressionStream('gzip');
-        const writer = stream.writable.getWriter();
-
-        // Write compressed data to decompression stream
-        writer.write(new Uint8Array(arrayBuffer));
-        writer.close();
-
-        // Read decompressed data from the readable side
-        const decompressedResponse = new Response(stream.readable);
-        const text = await decompressedResponse.text();
-        return JSON.parse(text);
-    }
+    const arrayBuffer = await response.arrayBuffer();
+    const stream = new DecompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    writer.write(new Uint8Array(arrayBuffer));
+    writer.close();
+    const decompressedResponse = new Response(stream.readable);
+    const text = await decompressedResponse.text();
+    return JSON.parse(text);
 }
 
 // Recent regions management
@@ -581,65 +417,43 @@ function getValidRecentRegions() {
     return recentRegions.filter(id => regionsManifest.regions[id]);
 }
 
-function rebuildRegionDropdown() {
-    // Rebuild regionOptions array with current recent regions
-    if (!regionsManifest || !regionsManifest.regions) return;
+function buildRegionOptions() {
+    if (!regionsManifest || !regionsManifest.regions) return [];
 
-    regionOptions = [];
-
-    // Build groups again
-    const internationalCountries = [];
-    const nonCountryRegions = [];
-    const unitedStates = [];
+    const regionTypeGroups = {
+        'country': { header: 'COUNTRIES', regions: [] },
+        'region': { header: 'REGIONS', regions: [] },
+        'usa_state': { header: 'US STATES', regions: [] }
+    };
 
     for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
-        const id = regionId;
-        const region_type = (regionInfo && regionInfo.region_type) ? String(regionInfo.region_type).toLowerCase() : null;
-        if (region_type === 'usa_state') {
-            unitedStates.push({ id, info: regionInfo });
-        } else if (region_type === 'country') {
-            internationalCountries.push({ id, info: regionInfo });
-        } else if (region_type === 'region') {
-            nonCountryRegions.push({ id, info: regionInfo });
-        } else {
-            nonCountryRegions.push({ id, info: regionInfo });
-        }
+        const region_type = (regionInfo?.region_type) ? String(regionInfo.region_type).toLowerCase() : null;
+        const type = region_type === 'usa_state' ? 'usa_state' : (region_type === 'country' ? 'country' : 'region');
+        regionTypeGroups[type].regions.push({ id: regionId, name: regionInfo.name });
     }
 
-    // Recent regions are shown separately above the dropdown, not in the dropdown list
+    const options = [];
+    const typeOrder = ['country', 'region', 'usa_state'];
+    const groups = typeOrder.map(type => regionTypeGroups[type]).filter(g => g.regions.length > 0);
 
-    // 1) Countries (alpha)
-    if (internationalCountries.length > 0) {
-        regionOptions.push({ id: '__header__', name: 'COUNTRIES' });
-        internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of internationalCountries) {
-            regionOptions.push({ id, name: info.name });
+    groups.forEach((group, index) => {
+        group.regions.sort((a, b) => a.name.localeCompare(b.name));
+        options.push({ id: '__header__', name: group.header });
+        group.regions.forEach(({ id, name }) => {
+            options.push({ id, name });
+        });
+        if (index < groups.length - 1) {
+            options.push({ id: '__divider__', name: '' });
         }
-        if (nonCountryRegions.length || unitedStates.length) {
-            regionOptions.push({ id: '__divider__', name: '' });
-        }
-    }
+    });
 
-    // 2) Regions (alpha)
-    if (nonCountryRegions.length > 0) {
-        regionOptions.push({ id: '__header__', name: 'REGIONS' });
-        nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of nonCountryRegions) {
-            regionOptions.push({ id, name: info.name });
-        }
-        if (unitedStates.length) {
-            regionOptions.push({ id: '__divider__', name: '' });
-        }
-    }
+    return options;
+}
 
-    // 3) US states (alpha)
-    if (unitedStates.length > 0) {
-        regionOptions.push({ id: '__header__', name: 'US STATES' });
-        unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of unitedStates) {
-            regionOptions.push({ id, name: info.name });
-        }
-    }
+function rebuildRegionDropdown() {
+    if (!regionsManifest || !regionsManifest.regions) return;
+
+    regionOptions = buildRegionOptions();
 
     // Rebuild the DOM dropdown
     const dropdown = document.getElementById('regionDropdown');
@@ -649,9 +463,7 @@ function rebuildRegionDropdown() {
             if (opt.id === '__divider__') {
                 const div = document.createElement('div');
                 div.setAttribute('data-divider', 'true');
-                div.style.margin = '6px 0';
-                div.style.borderTop = '1px solid rgba(85,136,204,0.35)';
-                div.style.opacity = '0.8';
+                div.className = 'region-dropdown-divider';
                 dropdown.appendChild(div);
                 return;
             }
@@ -659,25 +471,14 @@ function rebuildRegionDropdown() {
                 const header = document.createElement('div');
                 header.setAttribute('data-header', 'true');
                 header.textContent = opt.name;
-                header.style.padding = '8px 10px';
-                header.style.fontSize = '11px';
-                header.style.fontWeight = '700';
-                header.style.color = '#888';
-                header.style.textTransform = 'uppercase';
-                header.style.letterSpacing = '0.5px';
-                header.style.backgroundColor = 'rgba(85,136,204,0.08)';
-                header.style.cursor = 'default';
-                header.style.userSelect = 'none';
+                header.className = 'region-dropdown-header';
                 dropdown.appendChild(header);
                 return;
             }
             const row = document.createElement('div');
             row.textContent = opt.name;
             row.setAttribute('data-id', opt.id);
-            row.style.padding = '8px 10px';
-            row.style.cursor = 'pointer';
-            row.style.fontSize = '12px';
-            row.style.borderBottom = '1px solid rgba(85,136,204,0.12)';
+            row.className = 'region-dropdown-item';
 
             row.addEventListener('mousedown', (e) => {
                 e.preventDefault();
@@ -722,77 +523,19 @@ async function populateRegionSelector() {
         regionNameToId[regionInfo.name.toLowerCase()] = regionId;
     }
 
-    // Build options for custom dropdown
-    regionOptions = [];
-
-    // Build groups using manifest-provided region_type:
-    // Desired order in dropdown: 0) Recent, 1) Countries (international), 2) Regions (non-country), 3) US states
-    const internationalCountries = [];
-    const nonCountryRegions = [];
-    const unitedStates = [];
-
-    for (const [regionId, regionInfo] of Object.entries(regionsManifest.regions)) {
-        const id = regionId;
-        const region_type = (regionInfo && regionInfo.region_type) ? String(regionInfo.region_type).toLowerCase() : null;
-        if (region_type === 'usa_state') {
-            unitedStates.push({ id, info: regionInfo });
-        } else if (region_type === 'country') {
-            internationalCountries.push({ id, info: regionInfo });
-        } else if (region_type === 'region') {
-            nonCountryRegions.push({ id, info: regionInfo });
-        } else {
-            // Fallback: treat unknown region_type as generic regions
-            nonCountryRegions.push({ id, info: regionInfo });
-        }
-    }
-
-    // Recent regions are shown separately above the dropdown, not in the dropdown list
-
-    // 1) Countries (alpha)
-    if (internationalCountries.length > 0) {
-        regionOptions.push({ id: '__header__', name: 'COUNTRIES' });
-        internationalCountries.sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of internationalCountries) {
-            regionOptions.push({ id, name: info.name });
-        }
-        if (nonCountryRegions.length || unitedStates.length) {
-            regionOptions.push({ id: '__divider__', name: '' });
-        }
-    }
-
-    // 2) Regions (alpha)
-    if (nonCountryRegions.length > 0) {
-        regionOptions.push({ id: '__header__', name: 'REGIONS' });
-        nonCountryRegions.sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of nonCountryRegions) {
-            regionOptions.push({ id, name: info.name });
-        }
-        if (unitedStates.length) {
-            regionOptions.push({ id: '__divider__', name: '' });
-        }
-    }
-
-    // 3) US states (alpha)
-    if (unitedStates.length > 0) {
-        regionOptions.push({ id: '__header__', name: 'US STATES' });
-        unitedStates.sort((a, b) => a.info.name.localeCompare(b.info.name));
-        for (const { id, info } of unitedStates) {
-            regionOptions.push({ id, name: info.name });
-        }
-    }
+    regionOptions = buildRegionOptions();
 
     // Determine which region to load initially
-    // Priority: URL parameter > California > localStorage > first region
+    // Priority: URL parameter > DEFAULT_REGION > localStorage > first region
     let firstRegionId;
 
     if (urlRegion && regionsManifest.regions[urlRegion]) {
         // URL parameter takes highest priority (e.g., ?region=ohio)
         firstRegionId = urlRegion;
         console.log(` Loading region from URL: ${urlRegion}`);
-    } else if (regionsManifest.regions['california']) {
-        // Default to California if available
-        firstRegionId = 'california';
-        console.log(` Loading default region: california`);
+    } else if (regionsManifest.regions[DEFAULT_REGION]) {
+        firstRegionId = DEFAULT_REGION;
+        console.log(` Loading default region: ${DEFAULT_REGION}`);
     } else if (lastRegion && regionsManifest.regions[lastRegion]) {
         // Remember last viewed region from localStorage
         firstRegionId = lastRegion;
@@ -809,7 +552,6 @@ async function populateRegionSelector() {
     currentRegionId = firstRegionId;
     updateRegionInfo(firstRegionId);
 
-    // NOTE: Select2 initialization happens in setupControls(), not here
     return firstRegionId;
 }
 
@@ -842,9 +584,11 @@ function updateRegionInfo(regionId) {
 }
 
 async function loadRegion(regionId) {
-    // Fallback to california if no region specified or invalid
     if (!regionId || !regionsManifest?.regions[regionId]) {
-        regionId = 'california';
+        regionId = regionsManifest?.regions[DEFAULT_REGION] ? DEFAULT_REGION : Object.keys(regionsManifest?.regions || {})[0];
+        if (!regionId) {
+            throw new Error('No regions available');
+        }
     }
 
     appendActivityLog(`Loading region: ${regionId}`);
@@ -860,8 +604,6 @@ async function loadRegion(regionId) {
         }
         const dataUrl = `generated/regions/${filename}`;
 
-        // loadElevationData now handles progress updates intelligently
-        // (shows "Loading from cache..." for cached data or "Downloading..." with progress for real downloads)
         rawElevationData = await loadElevationData(dataUrl);
         currentRegionId = regionId;
         updateRegionInfo(regionId);
@@ -879,12 +621,6 @@ async function loadRegion(regionId) {
 
         // Add to recent regions list
         addToRecentRegions(regionId);
-
-        // Rebuild dropdown to reflect updated recent regions
-        rebuildRegionDropdown();
-
-        // Update navigation hints
-        updateRegionNavHints();
 
         // Update URL parameter so the link is shareable
         updateURLParameter('region', regionId);
@@ -1406,8 +1142,6 @@ function setupScene() {
     try { updateLightingForShading(); } catch (_) { }
 }
 
-// (Removed Select2 formatters; using native datalist)
-
 // Track if controls have been set up to prevent duplicate initialization
 let controlsInitialized = false;
 let suppressRegionChange = false; // Prevent change handler during programmatic updates
@@ -1580,7 +1314,7 @@ function setupControls() {
         });
     }
 
-    // Color scheme uses native select; no Select2 initialization
+    // Color scheme uses native select
 
     // Update bucket size range label
     function updateBucketSizeLabel(value) {
@@ -3314,54 +3048,6 @@ function navigateRegions(direction) {
     }
 }
 
-// Get the name of the region that would be navigated to
-function getNavigationTarget(direction) {
-    if (!regionOptions || regionOptions.length === 0 || !currentRegionId) {
-        return null;
-    }
-
-    const validOptions = regionOptions.filter(opt => opt.id !== '__divider__');
-    if (validOptions.length === 0) return null;
-
-    const currentIndex = validOptions.findIndex(opt => opt.id === currentRegionId);
-    if (currentIndex === -1) return validOptions[0]?.name || null;
-
-    let nextIndex = currentIndex + direction;
-    if (nextIndex < 0) {
-        nextIndex = validOptions.length - 1;
-    } else if (nextIndex >= validOptions.length) {
-        nextIndex = 0;
-    }
-
-    return validOptions[nextIndex]?.name || null;
-}
-
-// Update the region navigation hints
-function updateRegionNavHints() {
-    const prevHint = document.getElementById('region-prev-hint');
-    const nextHint = document.getElementById('region-next-hint');
-    const currentDisplay = document.getElementById('region-nav-current');
-
-    if (currentDisplay && currentRegionId) {
-        const currentName = regionIdToName[currentRegionId] || currentRegionId;
-        currentDisplay.textContent = currentName;
-    }
-
-    if (prevHint) {
-        const prevName = getNavigationTarget(-1);
-        prevHint.textContent = prevName || '';
-        prevHint.title = prevName ? `Previous: ${prevName}` : '';
-    }
-
-    if (nextHint) {
-        const nextName = getNavigationTarget(1);
-        nextHint.textContent = nextName || '';
-        nextHint.title = nextName ? `Next: ${nextName}` : '';
-    }
-
-    // Update visible recent regions list
-    updateRecentRegionsList();
-}
 
 // Update the visible recent regions list in the UI
 function updateRecentRegionsList() {
@@ -3432,8 +3118,7 @@ function onKeyDown(event) {
         activeElement.tagName === 'INPUT' ||
         activeElement.tagName === 'TEXTAREA' ||
         activeElement.tagName === 'SELECT' ||
-        activeElement.isContentEditable ||
-        activeElement.classList.contains('select2-search__field') // Select2 search box
+        activeElement.isContentEditable
     );
 
     if (isTyping) {

@@ -1112,3 +1112,29 @@ input[type="checkbox"] {
     background: #5588cc;
     color: #ffffff;
 }
+
+/* Region Dropdown Styles */
+.region-dropdown-divider {
+    margin: 6px 0;
+    border-top: 1px solid rgba(85,136,204,0.35);
+    opacity: 0.8;
+}
+
+.region-dropdown-header {
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background-color: rgba(85,136,204,0.08);
+    cursor: default;
+    user-select: none;
+}
+
+.region-dropdown-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(85,136,204,0.12);
+}

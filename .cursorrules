@@ -2,10 +2,15 @@
 
 **ABSOLUTE RULE: NEVER use emojis in documentation files, code comments, print statements, or any text content.**
 **ABSOLUTE RULE: NEVER use phrases like "code smell", "bloat" etc.
+**ABSOLUTE RULE: NEVER include API keys, passwords, tokens, or any credentials in documentation, code comments, or example files.**
 1. **NO EMOJIS IN RESPONSES**: Never use emojis when responding to the user. Keep all communication plain text.
 2. **NO COMPLIMENTS OR PRAISE**: Never compliment the user or their ideas:
    - NO: "Great idea!", "Brilliant question!"
 3. **NO REFLEXIVE AGREEMENT**: Don't start responses with "You're right" or "Absolutely" without first analyzing the claim. Check code/data before agreeing.
+4. **NO CREDENTIALS IN DOCUMENTATION**: Never include actual API keys, passwords, or tokens in documentation files, README files, or code examples:
+   - Use placeholders like `YOUR_API_KEY_HERE` or `<insert-your-key>`
+   - Reference configuration files without exposing their contents
+   - Document where to obtain keys, not the keys themselves
 
 This rule applies to ALL files: .md, .py, .js, .html, .css, .txt, and any other text-based files.
 
@@ -195,6 +200,7 @@ function onMouseMove(e) {
   - Reload window after setup if IDE doesn't recognize packages
 
 ### Code Style
+- **Python indentation**: This project uses 1-space indentation (non-standard) for compactness - maintain consistency
 - Use type hints for function parameters and returns
 - Keep functions focused and single-purpose
 - Document complex data transformations with inline comments
