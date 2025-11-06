@@ -284,6 +284,51 @@ def abstract_filename_from_raw(raw_path: Path, stage: str, source: str,
 
 
 
+def group_tiles_into_chunks(tiles: List[Tuple[float, float, float, float]], 
+                            chunk_degrees: int = 1) -> List[Tuple[Tuple[float, float, float, float], List[Tuple[float, float, float, float]]]]:
+    """
+    Group 1-degree tiles into larger download chunks.
+    
+    For efficiency, multiple 1-degree tiles can be downloaded together in a single API request.
+    This is especially useful for 90m data where each tile is small (~12MB).
+    
+    Args:
+        tiles: List of 1-degree tile bounds
+        chunk_degrees: Size of download chunks (1, 2, 3, or 4 degrees)
+        
+    Returns:
+        List of (chunk_bounds, tiles_in_chunk) tuples
+        
+    Example (chunk_degrees=2):
+        Input tiles:  [(40,110,41,111), (40,111,41,112), (41,110,42,111), (41,111,42,112)]
+        Output: [((40,110,42,112), [all four tiles])]  # Single 2x2 chunk
+    """
+    if chunk_degrees == 1:
+        # No chunking - each tile is its own chunk
+        return [(tile, [tile]) for tile in tiles]
+    
+    # Group tiles into chunks
+    chunk_dict = {}
+    
+    for tile in tiles:
+        west, south, east, north = tile
+        
+        # Calculate which chunk this tile belongs to
+        chunk_west = math.floor(west / chunk_degrees) * chunk_degrees
+        chunk_south = math.floor(south / chunk_degrees) * chunk_degrees
+        chunk_east = chunk_west + chunk_degrees
+        chunk_north = chunk_south + chunk_degrees
+        
+        chunk_key = (chunk_west, chunk_south, chunk_east, chunk_north)
+        
+        if chunk_key not in chunk_dict:
+            chunk_dict[chunk_key] = []
+        chunk_dict[chunk_key].append(tile)
+    
+    # Return list of (chunk_bounds, tiles_in_chunk)
+    return [(chunk_bounds, tiles_list) for chunk_bounds, tiles_list in chunk_dict.items()]
+
+
 def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
     """Calculate final visible pixel size in meters after downsampling to target_pixels.
     

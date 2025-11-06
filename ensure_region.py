@@ -283,9 +283,6 @@ This script will:
     parser.add_argument('region_id', nargs='?', help='Region ID (e.g., ohio, iceland, japan)')
     parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS,
                         help=f'Target resolution (default: {DEFAULT_TARGET_PIXELS})')
-    parser.add_argument('--border-resolution', type=str, default='10m',
-                        choices=['10m', '50m', '110m'],
-                        help='Border detail level: 10m=high detail (recommended), 50m=medium, 110m=low (default: 10m)')
     parser.add_argument('--force-reprocess', action='store_true',
                         help='Force reprocessing even if files exist')
     parser.add_argument('--check-only', action='store_true',

@@ -73,10 +73,44 @@ window.copyActivityLogs = async function () {
     }
 };
 
+/**
+ * Log resource loading timing with performance metrics
+ * Uses Performance API to extract file size, compression, and timing data
+ * 
+ * @param {string} resourceUrl - URL of the resource that was loaded
+ * @param {string} label - Label for the log entry (e.g., "Loaded JSON")
+ * @param {number} startTimeMs - Start time in milliseconds (from performance.now())
+ * @param {number} endTimeMs - End time in milliseconds (from performance.now())
+ */
+function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
+    let entry = null;
+    try {
+        const entries = performance.getEntriesByName(resourceUrl);
+        if (entries && entries.length) {
+            entry = entries[entries.length - 1];
+        }
+    } catch (e) {
+        // Ignore - performance API might not be available
+    }
+    const encodedKb = entry && typeof entry.encodedBodySize === 'number' ? (entry.encodedBodySize / 1024) : null;
+    const decodedKb = entry && typeof entry.decodedBodySize === 'number' ? (entry.decodedBodySize / 1024) : null;
+    const transferKb = entry && typeof entry.transferSize === 'number' ? (entry.transferSize / 1024) : null;
+    const compressed = (encodedKb !== null && decodedKb !== null) ? (decodedKb > encodedKb) : null;
+    const parts = [];
+    if (decodedKb !== null) parts.push(`${decodedKb.toFixed(1)} KB decoded`);
+    if (encodedKb !== null) parts.push(`${encodedKb.toFixed(1)} KB encoded`);
+    if (transferKb !== null) parts.push(`${transferKb.toFixed(1)} KB transfer`);
+    if (compressed !== null) parts.push(compressed ? 'compressed' : 'uncompressed');
+    const duration = Math.max(0, Math.round((endTimeMs ?? performance.now()) - (startTimeMs ?? performance.now())));
+    parts.push(`${duration} ms`);
+    appendActivityLog(`${label}: ${resourceUrl} | ${parts.join(' | ')}`);
+}
+
 // Export module
 window.ActivityLog = {
     append: appendActivityLog,
     logSignificant: window.logSignificant,
-    copyAll: window.copyActivityLogs
+    copyAll: window.copyActivityLogs,
+    logResourceTiming: logResourceTiming
 };
 

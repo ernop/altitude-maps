@@ -19,6 +19,7 @@ The following tile-related docs have been **deleted** and consolidated into `TIL
 - `SRTM_90M_DOWNLOADER.md` - 90m downloader specifics (DELETED)
 - `TESTING_90M_DOWNLOADER.md` - Testing notes (DELETED)
 - `learnings/TILE_NAMING_DESIGN.md` - Tile naming design alternatives (DELETED)
+- `learnings/LARGE_STATES_TILING.md` - Large state handling (DELETED - unified system, no special cases)
 
 **Why keep them?**: Historical context for future developers wondering "why was it done this way?"
 

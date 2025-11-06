@@ -2,6 +2,7 @@
  * Data Formatting Utilities
  * Pure functions for converting data to human-readable formats
  * Handles units (metric/imperial/both), file sizes, distances, etc.
+ * Also includes general utility functions (debounce, etc.)
  */
 
 /**
@@ -99,12 +100,27 @@ function formatPixelSize(meters) {
     }
 }
 
+/**
+ * Simple debounce utility for coalescing rapid UI events
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Milliseconds to wait before calling func
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait) {
+    let timeoutId;
+    return function (...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
 // Export to window for global access
 window.FormatUtils = {
     formatFileSize,
     formatElevation,
     formatDistance,
     formatFootprint,
-    formatPixelSize
+    formatPixelSize,
+    debounce
 };
 

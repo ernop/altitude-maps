@@ -199,6 +199,8 @@ function onMouseMove(e) {
 - Keep functions focused and single-purpose
 - Document complex data transformations with inline comments
 - Use meaningful variable names (prefer `elevation_data` over `ed`)
+- Use compact section headers: `//-------SECTION NAME-------` (not verbose box-style headers)
+- Avoid repetitive comments that just restate parameter names (if param is `colorScheme`, don't add `// Color scheme`)
 
 ### Type Safety and Enums
 - **Use enums for closed sets**: When you have a fixed set of string values (types, categories, states), use `enum.Enum`

@@ -27,16 +27,8 @@ class RegionConfig:
     """
     Configuration for a single region.
     
-    The tiles field specifies tiling configuration for large regions that exceed
-    API size limits (typically >4deg in any dimension). Format is (columns, rows).
-    For example, tiles=(3, 2) means split into a 3-column by 2-row grid.
-    
-    Tiling is used when downloading from OpenTopography or similar APIs that
-    reject requests for areas larger than ~4deg. The downloader will automatically
-    split the region into the specified grid, download each tile, and merge them.
-    
-    Only set tiles for regions that actually need tiling. Leave as None for regions
-    that can be downloaded in a single API request.
+    Tile count is automatically calculated from bounds using the unified 1-degree
+    tile system (see src/tile_geometry.calculate_1degree_tiles).
     """
     id: str  # Unique identifier (lowercase with underscores)
     name: str  # Display name
@@ -48,7 +40,6 @@ class RegionConfig:
     # If set (e.g., 'SRTMGL1' or 'COP30'), this overrides latitude-based selection.
     # Default None means: choose dataset by latitude (SRTM within 60degN-56degS; COP30 otherwise).
     recommended_dataset: Optional[str] = None
-    tiles: Optional[Tuple[int, int]] = None  # Tiling configuration (cols, rows) for large regions that need downloading in parts
 
 
 # ============================================================================
@@ -73,7 +64,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),  # Spans international date line
     ),
     "arizona": RegionConfig(
         id="arizona",
@@ -83,7 +73,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "arkansas": RegionConfig(
         id="arkansas",
@@ -102,7 +91,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "colorado": RegionConfig(
         id="colorado",
@@ -112,7 +100,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "connecticut": RegionConfig(
         id="connecticut",
@@ -140,7 +127,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "georgia": RegionConfig(
         id="georgia",
@@ -159,7 +145,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "idaho": RegionConfig(
         id="idaho",
@@ -169,7 +154,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "illinois": RegionConfig(
         id="illinois",
@@ -197,7 +181,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "kansas": RegionConfig(
         id="kansas",
@@ -207,7 +190,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "kentucky": RegionConfig(
         id="kentucky",
@@ -217,7 +199,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "louisiana": RegionConfig(
         id="louisiana",
@@ -263,7 +244,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "minnesota": RegionConfig(
         id="minnesota",
@@ -273,7 +253,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "mississippi": RegionConfig(
         id="mississippi",
@@ -292,7 +271,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "montana": RegionConfig(
         id="montana",
@@ -302,7 +280,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "nebraska": RegionConfig(
         id="nebraska",
@@ -312,7 +289,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "nevada": RegionConfig(
         id="nevada",
@@ -322,7 +298,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "new_hampshire": RegionConfig(
         id="new_hampshire",
@@ -350,7 +325,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "new_york": RegionConfig(
         id="new_york",
@@ -360,7 +334,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "north_carolina": RegionConfig(
         id="north_carolina",
@@ -370,7 +343,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "north_dakota": RegionConfig(
         id="north_dakota",
@@ -380,7 +352,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "ohio": RegionConfig(
         id="ohio",
@@ -399,7 +370,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "oregon": RegionConfig(
         id="oregon",
@@ -409,7 +379,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "pennsylvania": RegionConfig(
         id="pennsylvania",
@@ -419,7 +388,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "rhode_island": RegionConfig(
         id="rhode_island",
@@ -447,7 +415,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "tennessee": RegionConfig(
         id="tennessee",
@@ -457,7 +424,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "texas": RegionConfig(
         id="texas",
@@ -467,7 +433,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "utah": RegionConfig(
         id="utah",
@@ -477,7 +442,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "vermont": RegionConfig(
         id="vermont",
@@ -496,7 +460,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(3, 3),
     ),
     "washington": RegionConfig(
         id="washington",
@@ -506,7 +469,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "west_virginia": RegionConfig(
         id="west_virginia",
@@ -525,7 +487,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
     "wyoming": RegionConfig(
         id="wyoming",
@@ -535,7 +496,6 @@ US_STATES: Dict[str, RegionConfig] = {
         region_type=RegionType.USA_STATE,
         country="United States of America",
         clip_boundary=True,
-        tiles=(2, 2),
     ),
 }
 
@@ -590,7 +550,6 @@ COUNTRIES: Dict[str, RegionConfig] = {
         region_type=RegionType.COUNTRY,
         country="Sudan",
         clip_boundary=True,
-        tiles=(4, 3),  # Large country: 16.8deg x 13.3deg -> 4x3 tiles
     ),
     "turkiye": RegionConfig(
         id="turkiye",
@@ -871,7 +830,6 @@ REGIONS: Dict[str, RegionConfig] = {
         region_type=RegionType.REGION,
         country="Mexico",
         clip_boundary=False,
-        tiles=(2, 3),  # 7.7deg x 9.9deg -> 2x3 tiles for API friendliness
     ),
     "massanutten_mountain": RegionConfig(
         id="massanutten_mountain",
@@ -908,7 +866,33 @@ REGIONS: Dict[str, RegionConfig] = {
         region_type=RegionType.REGION,
         country="United States of America",
         clip_boundary=False,
-        tiles=(2, 2),  # 6.5deg x 3.7deg -> 2x2 tiles for better API handling
+    ),
+    "corsica": RegionConfig(
+        id="corsica",
+        name="Corsica",
+        bounds=(8.5, 41.3, 9.6, 43.0),
+        description="France - Corsica, Mediterranean island north of Sardinia",
+        region_type=RegionType.REGION,
+        country="France",
+        clip_boundary=False,
+    ),
+    "ibiza": RegionConfig(
+        id="ibiza",
+        name="Ibiza",
+        bounds=(1.2, 38.8, 1.6, 39.1),
+        description="Spain - Ibiza, Balearic Islands in the Mediterranean",
+        region_type=RegionType.REGION,
+        country="Spain",
+        clip_boundary=False,
+    ),
+    "sicily": RegionConfig(
+        id="sicily",
+        name="Sicily",
+        bounds=(12.4, 36.6, 15.7, 38.8),
+        description="Italy - Sicily, largest island in the Mediterranean",
+        region_type=RegionType.REGION,
+        country="Italy",
+        clip_boundary=False,
     ),
 }
 

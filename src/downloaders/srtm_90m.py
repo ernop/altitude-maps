@@ -24,6 +24,103 @@ from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
 from load_settings import get_api_key as get_opentopography_api_key
 
 
+def download_chunk_90m(
+    chunk_bounds: Tuple[float, float, float, float],
+    output_path: Path,
+    api_key: str,
+    dataset: str = 'SRTMGL3'
+) -> bool:
+    """
+    Download a multi-degree chunk of 90m elevation data.
+    
+    Used for downloading 2x2 or larger degree chunks to reduce API calls.
+    The chunk is downloaded as a single file, then split into 1-degree tiles.
+    
+    Args:
+        chunk_bounds: (west, south, east, north) in degrees (can be 1x1, 2x2, etc.)
+        output_path: Path to save the downloaded chunk
+        api_key: OpenTopography API key
+        dataset: 'SRTMGL3' (SRTM 90m) or 'COP90' (Copernicus DEM 90m)
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    west, south, east, north = chunk_bounds
+    width = east - west
+    height = north - south
+    
+    # Create output directory
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Check shared rate limit state before attempting download
+    ok, reason = check_rate_limit()
+    if not ok:
+        print(f"\n  Rate limit active: {reason}", flush=True)
+        print(f"  Skipping download until rate limit clears", flush=True)
+        return False
+    
+    url = "https://portal.opentopography.org/API/globaldem"
+    params = {
+        'demtype': dataset,
+        'south': south,
+        'north': north,
+        'west': west,
+        'east': east,
+        'outputFormat': 'GTiff',
+        'API_Key': api_key
+    }
+    
+    try:
+        response = requests.get(url, params=params, stream=True, timeout=300)
+        
+        # Check for 401 (Unauthorized) - rate limit or quota exceeded
+        if response.status_code == 401:
+            # Record rate limit hit in shared state file
+            record_rate_limit_hit(response.status_code)
+            
+            print(f"\n  ERROR: OpenTopography returned 401 Unauthorized", flush=True)
+            print(f"  This usually means rate limit or quota exceeded.", flush=True)
+            print(f"  Rate limit recorded in shared state file.", flush=True)
+            print(f"  All download processes will respect this limit.", flush=True)
+            print(f"  STOPPING download to respect their limits.", flush=True)
+            raise OpenTopographyRateLimitError("OpenTopography rate limit exceeded (401 Unauthorized)")
+        
+        response.raise_for_status()
+        
+        total_size = int(response.headers.get('content-length', 0))
+        
+        with open(output_path, 'wb') as f:
+            with tqdm(
+                desc=f"{width:.0f}x{height:.0f}deg chunk",
+                total=total_size,
+                unit='B',
+                unit_scale=True,
+                unit_divisor=1024
+            ) as pbar:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        pbar.update(len(chunk))
+        
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        print(f"    Downloaded chunk: {file_size_mb:.1f} MB")
+        
+        # Record successful request in shared state
+        record_successful_request()
+        
+        return True
+    
+    except OpenTopographyRateLimitError:
+        # Re-raise to stop all downloads
+        raise
+    
+    except Exception as e:
+        print(f"    ERROR: {e}")
+        if output_path.exists():
+            output_path.unlink()
+        return False
+
+
 def download_single_tile_90m(
     tile_bounds: Tuple[float, float, float, float],
     output_path: Path,

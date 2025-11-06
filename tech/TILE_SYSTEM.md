@@ -113,18 +113,41 @@ Shared: N36_W089_30m.tif (downloaded once, used by both)
 ### Unified Workflow (All Regions)
 
 1. **Calculate tiles**: Snap bounds to 1° grid, calculate covering tiles
-2. **Check cache**: For each tile, check if exists in shared pool
-3. **Download missing**: Download only tiles that don't exist
-4. **Merge tiles**: Combine tiles into single region file
-5. **Process**: Clip, reproject, downsample as usual
+2. **Group into chunks**: For 90m data, group tiles into 2×2 degree chunks (optimization)
+3. **Check cache**: For each tile, check if exists in shared pool
+4. **Download missing**: Download chunks and split into tiles
+5. **Merge tiles**: Combine tiles into single region file
+6. **Process**: Clip, reproject, downsample as usual
 
-### No Special Cases
+### Download Optimization (Chunking)
+
+For **90m data only**, tiles are downloaded in 2×2 degree chunks to reduce API calls:
+
+**Why chunk for 90m?**
+- Each 1-degree tile is tiny (~12 MB)
+- Downloading 100 tiles = 100 API requests
+- Downloading 25 chunks of 2×2 degrees = 25 API requests (4× reduction!)
+
+**Process**:
+1. Download 2×2 degree chunk (~48 MB)
+2. Split chunk into four 1×1 degree tiles
+3. Save tiles to shared pool
+4. Clean up temporary chunk file
+
+**Configuration**: `src/download_config.py` defines chunk sizes:
+- 10m: 1×1 degree (tiles are large ~300MB, no benefit from chunking)
+- 30m: 1×1 degree (tiles are moderate ~50MB, current behavior)
+- 90m: 2×2 degree (tiles are tiny ~12MB, 4× reduction in API calls)
+
+**Storage remains unchanged**: All tiles stored as 1×1 degrees for maximum reuse.
+
+### No Special Cases by Region
 
 - **Small regions** (< 1°): Download 1-4 tiles
 - **Medium regions** (1-4°): Download 4-16 tiles
-- **Large regions** (> 4°): Download 16+ tiles
+- **Large regions** (> 4°): Download 16+ tiles (or 4-16 chunks for 90m)
 
-**Same process for all!**
+**Same process for all!** Only the download chunk size varies by resolution.
 
 ---
 
@@ -166,14 +189,20 @@ Bounds expanded **outward** to nearest integer degree boundaries:
 
 **Core functions** (`src/tile_geometry.py`):
 - `calculate_1degree_tiles(bounds)` - Calculate tiles covering region
+- `group_tiles_into_chunks(tiles, chunk_degrees)` - Group tiles into download chunks
 - `tile_filename_from_bounds(bounds, resolution)` - Generate tile names
 - `snap_bounds_to_grid(bounds)` - Expand bounds to grid
 - `merged_filename_from_region(region_id, bounds, resolution)` - Merged file names
 
+**Download configuration** (`src/download_config.py`):
+- `CHUNK_SIZE_BY_RESOLUTION` - Chunk sizes for each resolution (10m→1, 30m→1, 90m→2)
+- `get_chunk_size(resolution_m)` - Get chunk size for a resolution
+- Single source of truth for download strategy
+
 **Downloaders** (all use unified tile system):
 - `src/downloaders/usgs_3dep_10m.py` - 10m USGS 3DEP tiles
-- `src/downloaders/srtm_90m.py` - 90m SRTM/Copernicus tiles
-- `src/tile_manager.py` - 30m SRTM/Copernicus tiles
+- `src/downloaders/srtm_90m.py` - 90m SRTM/Copernicus (chunks + tiles)
+- `src/tile_manager.py` - 30m/90m/10m tile orchestration with chunking
 
 **Orchestration**:
 - `src/downloaders/orchestrator.py` - Route downloads to correct source
@@ -182,6 +211,8 @@ Bounds expanded **outward** to nearest integer degree boundaries:
 ### Key Rule
 
 **NO non-tile approaches**. Everything uses 1-degree tiles.
+
+**Download optimization**: Only chunk size varies by resolution (storage always 1-degree).
 
 ---
 

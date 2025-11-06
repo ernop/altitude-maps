@@ -181,3 +181,4 @@ Small regions (<1 degree) now download 1-4 tiles instead of exact bbox:
 
 **COMPLETE** - Code now rigorously follows documented unified 1-degree tile architecture for all resolutions.
 
+

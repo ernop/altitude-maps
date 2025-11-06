@@ -5,16 +5,19 @@
  * MODULAR ARCHITECTURE:
  * This file coordinates between specialized modules, each handling a specific domain:
  * 
- * - color-schemes.js        → Color palettes and descriptions
- * - camera-schemes.js       → Camera control implementations (Google Maps, Blender, etc.)
- * - ground-plane-camera.js  → Ground plane camera system (default)
- * - bucketing.js            → Data aggregation and downsampling
- * - geometry-utils.js       → Spatial calculations and coordinate conversions
- * - format-utils.js         → Data formatting (units, distances, file sizes)
- * - activity-log.js         → UI activity log (timestamped events, copy to clipboard)
- * - edge-markers.js         → Directional markers (N/E/S/W labels at terrain edges)
- * - ui-loading.js           → Loading screen and progress bar management
- * - resolution-controls.js  → Resolution slider, bucket size presets (MAX/DEFAULT)
+ * - activity-log.js              → UI activity log (timestamped events, copy to clipboard)
+ * - bucketing.js                 → Data aggregation and downsampling
+ * - camera-schemes.js            → Camera control implementations (Google Maps, Blender, etc.)
+ * - color-legend.js              → Color scale legend UI component
+ * - color-schemes.js             → Color palettes and descriptions
+ * - edge-markers.js              → Directional markers (N/E/S/W labels at terrain edges)
+ * - format-utils.js              → Data formatting (units, distances, file sizes)
+ * - geometry-utils.js            → Spatial calculations and coordinate conversions
+ * - ground-plane-camera.js       → Ground plane camera system (default)
+ * - ground-plane-google-earth.js → Google Earth camera variant
+ * - resolution-controls.js       → Resolution slider, bucket size presets (MAX/DEFAULT)
+ * - state-connectivity.js        → Region adjacency and connectivity visualization
+ * - ui-loading.js                → Loading screen and progress bar management
  * 
  * This main file handles:
  * - Application initialization and lifecycle
@@ -33,40 +36,35 @@ const VIEWER_VERSION = '1.362';
 
 // All console logs use plain ASCII - no sanitizer needed
 
-// Global variables
+//-------CORE THREE.JS STATE-------
 let scene, camera, renderer, controls;
 let terrainMesh, terrainGroup, gridHelper;
-let rawElevationData; // Original full-resolution data
-let processedData; // Bucketed/aggregated data
-let derivedSlopeDeg = null; // 2D array of slope (degrees)
-let derivedAspectDeg = null; // 2D array of aspect (0-360 degrees)
-let raycaster; // Three.js raycaster for HUD and camera interactions
-let groundPlane; // Ground plane at y=0 used for consistent ray intersections
-let currentMouseX, currentMouseY; // Tracked mouse position for HUD updates
-let hudSettings = null; // HUD configuration (units/visibility)
+let raycaster;
+let groundPlane;
+let edgeMarkers = []; // N/E/S/W markers (must not move with vertical exaggeration changes)
+const __tmpColor = new THREE.Color(); // Reused to avoid per-vertex allocations
 
-// Recent regions tracking (max 10 most recent)
-const MAX_RECENT_REGIONS = 10;
-let recentRegions = []; // Array of region IDs in order (most recent first)
-
-// Region adjacency data (which regions border which)
-let regionAdjacency = null;
-
-// Temporary color reused to avoid per-vertex allocations
-const __tmpColor = new THREE.Color();
-let stats = {};
-let frameCount = 0;
-let lastTime = performance.now();
-let isCurrentlyLoading = false; // Track if region is being loaded/reloaded
-
-// Directional edge markers (N, E, S, W)
-// PRODUCT REQUIREMENT: These markers must NOT move when user adjusts vertical exaggeration slider
-// Implementation: Create once at current exaggeration, don't recreate on exaggeration changes
-let edgeMarkers = [];
-
-// True scale value for current data (calculated after data loads)
+//-------DATA STATE-------
+let rawElevationData;
+let processedData;
+let derivedSlopeDeg = null;
+let derivedAspectDeg = null;
 let trueScaleValue = null;
 
+//-------REGION STATE-------
+const MAX_RECENT_REGIONS = 10;
+let recentRegions = [];
+let regionAdjacency = null;
+
+//-------UI STATE-------
+let currentMouseX, currentMouseY;
+let hudSettings = null;
+let isCurrentlyLoading = false;
+
+//-------PERFORMANCE TRACKING-------
+let terrainStats = {};
+let frameCount = 0;
+let lastFpsUpdateTime = performance.now();
 
 // Helper functions to convert between UI (multiplier) and internal (absolute) values
 function multiplierToInternal(multiplier) {
@@ -89,67 +87,31 @@ function internalToMultiplier(internalValue) {
     return Math.round(internalValue / trueScaleValue);
 }
 
-// Simple debounce utility for coalescing rapid UI events
-function debounce(func, wait) {
-    let timeoutId;
-    return function (...args) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => func.apply(this, args), wait);
-    };
-}
-
-// Activity log utilities now in js/activity-log.js
-// These are re-exported globally by the module, but keep wrapper for internal use
 function appendActivityLog(message) {
     return window.ActivityLog.append(message);
 }
-// window.logSignificant and window.copyActivityLogs are defined in activity-log.js
 
-function logResourceTiming(resourceUrl, label, startTimeMs, endTimeMs) {
-    let entry = null;
-    try {
-        const entries = performance.getEntriesByName(resourceUrl);
-        if (entries && entries.length) {
-            entry = entries[entries.length - 1];
-        }
-    } catch (e) {
-        // Ignore
-    }
-    const encodedKb = entry && typeof entry.encodedBodySize === 'number' ? (entry.encodedBodySize / 1024) : null;
-    const decodedKb = entry && typeof entry.decodedBodySize === 'number' ? (entry.decodedBodySize / 1024) : null;
-    const transferKb = entry && typeof entry.transferSize === 'number' ? (entry.transferSize / 1024) : null;
-    const compressed = (encodedKb !== null && decodedKb !== null) ? (decodedKb > encodedKb) : null;
-    const parts = [];
-    if (decodedKb !== null) parts.push(`${decodedKb.toFixed(1)} KB decoded`);
-    if (encodedKb !== null) parts.push(`${encodedKb.toFixed(1)} KB encoded`);
-    if (transferKb !== null) parts.push(`${transferKb.toFixed(1)} KB transfer`);
-    if (compressed !== null) parts.push(compressed ? 'compressed' : 'uncompressed');
-    const duration = Math.max(0, Math.round((endTimeMs ?? performance.now()) - (startTimeMs ?? performance.now())));
-    parts.push(`${duration} ms`);
-    appendActivityLog(`${label}: ${resourceUrl} | ${parts.join(' | ')}`);
-}
-
-// Bars/Points fast-update state
+//-------RENDER MODE STATE-------
 let barsInstancedMesh = null;
-let barsIndexToRow = null; // Int32Array mapping: instanceIndex -> row
-let barsIndexToCol = null; // Int32Array mapping: instanceIndex -> col
+let barsIndexToRow = null;
+let barsIndexToCol = null;
 let barsTileSize = 0;
 const barsDummy = new THREE.Object3D();
-let pendingVertExagRaf = null; // Coalesce rapid exaggeration updates to the latest frame
-let lastBarsExaggerationInternal = null; // Internal value used when bars were last (re)built
-let lastPointsExaggerationInternal = null; // Internal value used when points were last (re)built
-let lastBarsTileSize = 1.0; // Tile size used when bars were last (re)built
-let pendingTileGapRaf = null; // Coalesce tile gap updates to latest frame
-let pendingBucketTimeout = null; // Debounce for bucket size rebuilds
-let lastAutoResolutionAdjustTime = 0; // Track last auto-resolution adjustment to debounce
+let pendingVertExagRaf = null;
+let pendingTileGapRaf = null;
+let pendingBucketTimeout = null;
+let lastBarsExaggerationInternal = null;
+let lastPointsExaggerationInternal = null;
+let lastBarsTileSize = 1.0;
+let lastAutoResolutionAdjustTime = 0;
 
-// Parameters
+//-------PARAMETERS-------
 let params = {
     bucketSize: 4, // Integer multiplier of pixel spacing (1x, 2x, 3x, etc.)
     tileGap: 0, // Gap between tiles as percentage (0-99%)
     aggregation: 'max',
     renderMode: 'bars',
-    verticalExaggeration: 0.03, // Default: good balance of detail and scale
+    verticalExaggeration: 0.04, // Default: good balance of detail and scale
     colorScheme: 'high-contrast',
     showGrid: false,
     autoRotate: false,
@@ -188,31 +150,24 @@ function applyParamsFromURL() {
         return v;
     };
 
-    // Resolution (bucket size)
     const bs = getInt('bucketSize', 1, 500);
     if (bs !== null) params.bucketSize = bs;
 
-    // Tile gap percentage
     const tg = getInt('tileGap', 0, 99);
     if (tg !== null) params.tileGap = tg;
 
-    // Aggregation
     const agg = getStr('aggregation', ['max', 'mean', 'min']);
     if (agg) params.aggregation = agg;
 
-    // Render mode
     const rm = getStr('renderMode', ['bars', 'points', 'surface']);
     if (rm) params.renderMode = rm;
 
-    // Vertical exaggeration as user-facing multiplier (exag=6 => 6x)
     const ex = getFloat('exag', 1, 100);
     if (ex !== null) params.verticalExaggeration = multiplierToInternal(ex);
 
-    // Color scheme
     const cs = getStr('colorScheme');
     if (cs) params.colorScheme = cs;
 
-    // Shading: Always Natural (Lambert) - no URL parameter needed
     const gamma = getFloat('gamma', 0.5, 2.0);
     if (gamma !== null) params.colorGamma = gamma;
 }
@@ -239,21 +194,19 @@ async function init() {
             const origWarn = console.warn.bind(console);
             const origError = console.error.bind(console);
 
-            // Mirror significant console.log messages to activity log
-            // Skip verbose/debug-only messages that would spam the UI
             console.log = (...args) => {
                 origLog(...args);
                 const msg = args.join(' ');
-                // Only mirror significant messages (not verbose debug details)
-                if (msg.includes('[OK]') || msg.includes('[INFO]') || msg.includes('[JSON]') ||
-                    msg.includes('Bucket size adjusted') || msg.includes('Resolution set') ||
-                    msg.includes('Setting TRUE SCALE') || (msg.includes('Setting ') && msg.includes('x exaggeration')) ||
-                    msg.includes('Camera reset') || msg.includes('True scale for') ||
-                    msg.includes('Loading region') || msg.includes('Loading JSON file') ||
-                    msg.includes('Aggregation:') || msg.includes('Already at') ||
-                    msg.includes('Switching to') || msg.includes('Pivot marker created') ||
-                    msg.includes('Bars centered') || msg.includes('Points centered') ||
-                    msg.includes('PURE 2D GRID') || (msg.includes('Created') && msg.includes('instanced bars'))) {
+                const first = msg.split(' ')[0];
+                if (first === '[OK]' || first === '[INFO]' || first === '[JSON]' ||
+                    msg.startsWith('Bucket size') || msg.startsWith('Resolution set') ||
+                    msg.startsWith('Setting TRUE') || msg.startsWith('Setting ') && msg.includes('x exaggeration') ||
+                    msg.startsWith('Camera reset') || msg.startsWith('True scale') ||
+                    msg.startsWith('Loading region') || msg.startsWith('Loading JSON') ||
+                    msg.startsWith('Aggregation:') || msg.startsWith('Already at') ||
+                    msg.startsWith('Switching to') || msg.startsWith('Pivot marker') ||
+                    msg.startsWith('Bars centered') || msg.startsWith('Points centered') ||
+                    msg.startsWith('PURE 2D') || msg.startsWith('Created') && msg.includes('instanced bars')) {
                     try { appendActivityLog(msg); } catch (_) { }
                 }
             };
@@ -263,10 +216,7 @@ async function init() {
         }
 
         // Display version number
-        const versionDisplay = document.getElementById('version-display');
-        if (versionDisplay) {
-            versionDisplay.textContent = `v${VIEWER_VERSION}`;
-        }
+        document.getElementById('version-display').textContent = `v${VIEWER_VERSION}`;
         appendActivityLog(`Altitude Maps Viewer v${VIEWER_VERSION}`);
 
         // Populate region selector (loads manifest and populates dropdown)
@@ -503,7 +453,7 @@ async function loadElevationData(url) {
     const fileVersion = versionMatch ? versionMatch[1] : 'unknown';
     appendActivityLog(`[OK] Data format v${fileVersion} from filename`);
 
-    try { logResourceTiming(actualUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
+    try { window.ActivityLog.logResourceTiming(actualUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
     return data;
 }
 
@@ -524,7 +474,7 @@ async function loadRegionsManifest() {
     if (serverDecompressed) {
         // Server already decompressed it (Content-Encoding header set)
         const json = await response.json();
-        try { logResourceTiming(gzUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
+        try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
         return json;
     } else {
         // Server is serving raw compressed bytes, we need to decompress
@@ -540,7 +490,7 @@ async function loadRegionsManifest() {
         const decompressedResponse = new Response(stream.readable);
         const text = await decompressedResponse.text();
         const json = JSON.parse(text);
-        try { logResourceTiming(gzUrl, 'Loaded manifest (gzipped)', tStart, performance.now()); } catch (e) { }
+        try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded manifest (gzipped)', tStart, performance.now()); } catch (e) { }
         return json;
     }
 }
@@ -1244,7 +1194,7 @@ function updateEdgeMarkers() {
  * @returns {Promise<Object>} Performance comparison
  */
 async function testFrustumCulling() {
-    if (!barsInstancedMesh || stats.bars === 0) {
+    if (!barsInstancedMesh || terrainStats.bars === 0) {
         console.warn('Cannot test frustum culling: no bars loaded');
         return null;
     }
@@ -1743,7 +1693,7 @@ function setupControls() {
     // Vertical exaggeration - immediate updates while dragging
 
     // Sync slider -> input (update immediately)
-    const debouncedNormalsRecompute = debounce(() => {
+    const debouncedNormalsRecompute = window.FormatUtils.debounce(() => {
         if (terrainMesh && terrainMesh.geometry && params.renderMode === 'surface') {
             terrainMesh.geometry.computeVertexNormals();
             updateEdgeMarkers();
@@ -2413,8 +2363,8 @@ function createTerrain() {
     const t1 = performance.now();
     appendActivityLog(`Terrain created in ${(t1 - t0).toFixed(1)}ms`);
 
-    stats.vertices = width * height;
-    stats.bucketedVertices = width * height;
+    terrainStats.vertices = width * height;
+    terrainStats.bucketedVertices = width * height;
 
     // Update camera scheme with terrain bounds for F key reframing
     if (controls && controls.activeScheme && controls.activeScheme.setTerrainBounds) {
@@ -2582,7 +2532,7 @@ function createBarsTerrain(width, height, elevation, scale) {
     terrainMesh = instancedMesh;
     terrainGroup.add(terrainMesh); // Add to group instead of scene directly
     window.terrainMesh = terrainMesh; // Expose for camera controls
-    stats.bars = barCount;
+    terrainStats.bars = barCount;
     // Record the internal exaggeration used when building bars and reset uniform to 1.0
     lastBarsExaggerationInternal = params.verticalExaggeration;
     lastBarsTileSize = tileSize;
@@ -3066,7 +3016,7 @@ function updateStats() {
  </div>
  <div class="stat-line">
  <span class="stat-label">Bars Rendered:</span>
- <span class="stat-value">${stats.bars?.toLocaleString() || 'N/A'}</span>
+ <span class="stat-value">${terrainStats.bars?.toLocaleString() || 'N/A'}</span>
  </div>
  `;
 }
@@ -3623,8 +3573,8 @@ function isCameraMoving() {
 function updateFPS() {
     frameCount++;
     const currentTime = performance.now();
-    if (currentTime >= lastTime + 1000) {
-        const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+    if (currentTime >= lastFpsUpdateTime + 1000) {
+        const fps = Math.round((frameCount * 1000) / (currentTime - lastFpsUpdateTime));
         const fpsEl = document.getElementById('fps-display');
         if (fpsEl) fpsEl.textContent = `FPS: ${fps}`;
 
@@ -3634,7 +3584,7 @@ function updateFPS() {
         }
 
         frameCount = 0;
-        lastTime = currentTime;
+        lastFpsUpdateTime = currentTime;
     }
 }
 
