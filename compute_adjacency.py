@@ -70,6 +70,7 @@ def simplify_to_cardinal(direction):
 def compute_adjacency():
     """
     Compute adjacency relationships from actual geographic boundaries.
+    Also detects containment - when area-type regions are within other regions.
     """
     print("Computing region adjacency from geographic boundaries...")
     
@@ -90,6 +91,7 @@ def compute_adjacency():
     
     # Build a mapping of region_id -> geometry
     region_geometries = {}
+    area_regions = {}  # Separate dict for AREA types (use bounding box)
     
     # Process all regions based on their type
     for region in all_regions:
@@ -100,7 +102,8 @@ def compute_adjacency():
             if not state_row.empty:
                 region_geometries[region.id] = {
                     'geometry': state_row.iloc[0].geometry,
-                    'name': region.name
+                    'name': region.name,
+                    'type': RegionType.USA_STATE
                 }
             else:
                 print(f"Warning: Could not find boundary for US state {region.name}")
@@ -119,23 +122,39 @@ def compute_adjacency():
             if not country_row.empty:
                 region_geometries[region.id] = {
                     'geometry': country_row.iloc[0].geometry,
-                    'name': region.name
+                    'name': region.name,
+                    'type': RegionType.COUNTRY
                 }
             else:
                 print(f"Warning: Could not find boundary for country {region.name}")
         
         elif region.region_type == RegionType.AREA:
-            # REGION types (islands, mountain ranges, etc.) don't have boundaries in Natural Earth
-            # Skip them for adjacency computation
-            print(f"Skipping REGION type '{region.name}' - no boundary data available")
+            # AREA types (islands, mountain ranges, etc.) use bounding box for containment checks
+            from shapely.geometry import box
+            west, south, east, north = region.bounds
+            bbox_geom = box(west, south, east, north)
+            area_regions[region.id] = {
+                'geometry': bbox_geom,
+                'name': region.name,
+                'type': RegionType.AREA,
+                'centroid': bbox_geom.centroid
+            }
+            print(f"Added AREA type '{region.name}' for containment checks")
         
         else:
             raise ValueError(f"Unknown region type for {region.id}: {region.region_type}")
     
     print(f"\nFound geometries for {len(region_geometries)} regions")
+    print(f"Found {len(area_regions)} AREA regions for containment checks")
     
     # Compute adjacency
     adjacency = {}
+    
+    # Also initialize adjacency for AREA regions (they won't have borders, but can have "within")
+    for area_id in area_regions.keys():
+        adjacency[area_id] = {
+            'within': []  # Which regions contain this area
+        }
     
     for region_id, region_data in region_geometries.items():
         print(f"\nProcessing {region_data['name']} ({region_id})...")
@@ -143,7 +162,8 @@ def compute_adjacency():
             'north': [],
             'south': [],
             'east': [],
-            'west': []
+            'west': [],
+            'contained': []  # AREA regions within this region
         }
         
         geom = region_data['geometry']
@@ -186,13 +206,68 @@ def compute_adjacency():
                         adjacency[region_id][cardinal].append(other_id)
                         print(f"  {cardinal}: {other_data['name']}")
         
+        # Check for contained AREA regions
+        for area_id, area_data in area_regions.items():
+            area_geom = area_data['geometry']
+            
+            # Check if the area is contained or intersects with this region
+            # Two conditions:
+            # 1. Centroid is within the region (fully contained)
+            # 2. Bounding box intersects the region (partial overlap)
+            centroid_inside = geom.contains(area_data['centroid'])
+            bbox_intersects = geom.intersects(area_geom) and not geom.touches(area_geom)
+            
+            if centroid_inside or bbox_intersects:
+                # Add to this region's contained list
+                adjacency[region_id]['contained'].append(area_id)
+                # Add reverse relationship - this region contains the area
+                adjacency[area_id]['within'].append(region_id)
+                
+                if centroid_inside and bbox_intersects:
+                    print(f"  contained: {area_data['name']} (centroid + overlap)")
+                elif centroid_inside:
+                    print(f"  contained: {area_data['name']} (centroid)")
+                else:
+                    print(f"  contained: {area_data['name']} (intersects)")
+        
         # Clean up empty directions
         adjacency[region_id] = {
             k: v if len(v) > 1 else (v[0] if len(v) == 1 else None)
             for k, v in adjacency[region_id].items()
         }
+        # Remove None values (but keep 'contained' even if empty for consistency)
+        adjacency[region_id] = {
+            k: v for k, v in adjacency[region_id].items() 
+            if v is not None or k == 'contained'
+        }
+        # Convert empty contained list to None for consistency with other directions
+        if not adjacency[region_id].get('contained'):
+            adjacency[region_id].pop('contained', None)
+    
+    # Clean up AREA regions
+    for area_id in area_regions.keys():
+        print(f"\nProcessing AREA: {area_regions[area_id]['name']} ({area_id})...")
+        # Clean up empty directions
+        adjacency[area_id] = {
+            k: v if len(v) > 1 else (v[0] if len(v) == 1 else None)
+            for k, v in adjacency[area_id].items()
+        }
         # Remove None values
-        adjacency[region_id] = {k: v for k, v in adjacency[region_id].items() if v is not None}
+        adjacency[area_id] = {
+            k: v for k, v in adjacency[area_id].items() 
+            if v is not None
+        }
+        # If no relationships at all, remove the entry
+        if not adjacency[area_id]:
+            del adjacency[area_id]
+            print(f"  (no relationships - removed from adjacency data)")
+        else:
+            if 'within' in adjacency[area_id]:
+                within_list = adjacency[area_id]['within']
+                if isinstance(within_list, list):
+                    print(f"  within: {', '.join(within_list)}")
+                else:
+                    print(f"  within: {within_list}")
     
     # Write output
     output_file = Path('generated/regions/region_adjacency.json')
@@ -212,9 +287,9 @@ def compute_adjacency():
     gz_size = output_file_gz.stat().st_size
     compression_ratio = (1 - gz_size / json_size) * 100
     
-    print(f"\n✓ Computed adjacency for {len(adjacency)} regions")
-    print(f"✓ Saved to {output_file}")
-    print(f"✓ File sizes: {json_size:,} bytes (uncompressed), {gz_size:,} bytes (gzipped, {compression_ratio:.1f}% compression)")
+    print(f"\n[SUCCESS] Computed adjacency for {len(adjacency)} regions")
+    print(f"[SUCCESS] Saved to {output_file}")
+    print(f"[SUCCESS] File sizes: {json_size:,} bytes (uncompressed), {gz_size:,} bytes (gzipped, {compression_ratio:.1f}% compression)")
     
     # Print summary
     total_connections = sum(
@@ -222,7 +297,15 @@ def compute_adjacency():
         for region in adjacency.values()
         for neighbors in region.values()
     )
-    print(f"✓ Total connections: {total_connections}")
+    print(f"[SUCCESS] Total connections: {total_connections}")
+    
+    # Count contained areas
+    contained_count = sum(
+        len(region.get('contained', [])) if isinstance(region.get('contained'), list) 
+        else (1 if region.get('contained') else 0)
+        for region in adjacency.values()
+    )
+    print(f"[SUCCESS] Total contained areas: {contained_count}")
 
 if __name__ == '__main__':
     compute_adjacency()

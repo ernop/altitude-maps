@@ -211,6 +211,18 @@ function onMouseMove(e) {
   - Search exclusions: `generated/**` and `.vscode/**` excluded from search results
   - Reload window after setup if IDE doesn't recognize packages
 
+### Configuration Management
+
+**PREFER configuration files over environment variables.**
+
+- **Primary pattern**: Use never-checked-in config files (e.g., `settings.json`) with gitignored templates (e.g., `settings.example.json`)
+- **Why avoid environment variables**: Hard to debug (invisible in code), platform-specific setup, easy to misconfigure
+- **When environment variables are OK**: Deployment environments, CI/CD pipelines, Docker - only when absolutely necessary
+- **This project's pattern**:
+  - API keys and secrets go in `settings.json` (gitignored)
+  - Template provided as `settings.example.json` (checked in)
+  - Code reads from config file, not from `os.environ`
+
 ### Code Style
 - **Python indentation**: This project uses 1-space indentation (non-standard) for compactness - maintain consistency
 - Use type hints for function parameters and returns
@@ -629,14 +641,13 @@ downsampled = elevation[::step_y, ::step_x]  # Distorts!
 - Tile gap (bars):
   - Scale X/Z in the shader with `uTileScale = currentTileSize / baselineTileSize`.
   - Update per frame during drag; rebuild bars only when the baseline changes (bucket size or aggregation change).
-- Points: apply exaggeration with a uniform; avoid per-vertex CPU updates during drags.
-- Surface: defer normals recompute to input "change"; optional future improvement is shader displacement for instant drags.
+- Only bars mode is supported - all exaggeration updates use GPU uniforms.
 
 ### Render Modes Product Guidance
-- Bars: Instanced meshes with GPU uniforms for exaggeration and tile gap; never rebuild for those sliders.
-- Points: GPU uniform for Y scaling.
-- Surface: CPU updates acceptable; compute normals once on settle.
-- Wireframe: Not supported in product due to poor UX and build cost; if selected, map to surface.
+- Bars: Only render mode supported. Instanced meshes with GPU uniforms for exaggeration and tile gap; never rebuild for those sliders.
+- Points: Removed from product - no longer supported.
+- Wireframe: Not supported in product due to poor UX and build cost; if selected, map to bars.
+- Surface: Removed from product - no longer supported.
 
 ### Implementation Patterns
 - Store shader uniform references in `material.userData` for fast updates.
@@ -1154,4 +1165,4 @@ Always ignore these directories and file types to keep git lean:
 - Shading controls (sun/azimuth/altitude/contrast) and water simulation UI are not present.
 - Contour lines (elevation isolines) removed completely - no UI controls, no rendering code.
 - Region navigation arrows (prev/next) hidden by default.
-- Render mode selector (bars/surface/points) hidden by default.
+- Render mode selector hidden by default (only bars mode supported).

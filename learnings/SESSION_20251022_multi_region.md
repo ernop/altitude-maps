@@ -31,7 +31,7 @@ The interactive 3D elevation viewer now supports multiple regions worldwide with
 ### Features
 - Real-time bucketing (1-50 pixels)
 - Multiple aggregation methods (MAX, AVG, MIN, MEDIAN)
-- Render modes (Bars, Surface, Wireframe, Points)
+- Render mode: Bars only
 - Vertical exaggeration control (0.0001x to 5x)
 - Color schemes (6 options)
 - Camera presets
@@ -137,7 +137,7 @@ interactive_viewer_advanced.html
 
 ### Tips
 - Increase bucket size if laggy
-- Use Surface mode for very large regions
+- Increase bucket size for very large regions
 - Shift = 2.5x faster movement
 - Ctrl = 0.3x slower (precise)
 - Alt = 4x faster (rapid)
@@ -242,7 +242,7 @@ python download_regions.py --regions usa_full
 
 ### "Viewer is laggy"
 - Increase bucket size (12 -> 20)
-- Switch to Points render mode
+- Increase bucket size further
 - Lower vertical exaggeration
 - Check console for bar count warnings
 

@@ -85,8 +85,16 @@ function rebucketData(rawElevationData, params) {
             }
 
             // Aggregate based on method
+            // BOUNDARY PRESERVATION: Only create a bar if enough pixels in the bucket are valid
+            // This preserves clipped state/country boundaries during bucketing
             let value = null;
-            if (count > 0) {
+            const maxPossiblePixels = bucketSize * bucketSize;
+            const validPixelRatio = count / maxPossiblePixels;
+            
+            // Require at least 50% of bucket pixels to be valid (not None/nodata)
+            // This prevents "healing" of clipped boundaries where edge buckets
+            // would otherwise fill in with aggregated values from sparse valid pixels
+            if (validPixelRatio >= 0.5) {
                 switch (params.aggregation) {
                     case 'max':
                         value = buffer[0];
@@ -131,8 +139,25 @@ function rebucketData(rawElevationData, params) {
         bucketSizeMetersY: bucketSizeMetersY
     };
 
+    // Count None values to verify boundary preservation
+    let noneCount = 0;
+    let validCount = 0;
+    for (let by = 0; by < bucketedHeight; by++) {
+        for (let bx = 0; bx < bucketedWidth; bx++) {
+            if (bucketedElevation[by][bx] === null || bucketedElevation[by][bx] === undefined) {
+                noneCount++;
+            } else {
+                validCount++;
+            }
+        }
+    }
+    const totalBuckets = bucketedWidth * bucketedHeight;
+    const nonePercentage = (100 * noneCount / totalBuckets).toFixed(2);
+
     const duration = (performance.now() - startTime).toFixed(2);
     const reduction = (100 * (1 - (bucketedWidth * bucketedHeight) / (width * height))).toFixed(1);
+    
+    console.log(`[BUCKETING] Boundary preservation: ${noneCount.toLocaleString()} None buckets (${nonePercentage}% of ${totalBuckets.toLocaleString()} total)`);
 
     return processedData;
 }

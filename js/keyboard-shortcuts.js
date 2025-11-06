@@ -15,6 +15,9 @@
  * - R: Reset camera
  * - + or =: Increase sharpness (decrease bucket size by 1)
  * - - or _: Decrease sharpness / blur (increase bucket size by 1)
+ * - Shift + +: Zoom in (simulates mouse wheel scroll up)
+ * - Shift + -: Zoom out (simulates mouse wheel scroll down)
+ * - ? or /: Toggle keyboard shortcuts help overlay
  * - F: Reframe view (handled by camera scheme)
  * - WASD/QE: Movement (handled by camera scheme, but tracked here)
  * 
@@ -80,8 +83,26 @@ function handleGlobalShortcuts(event, keyboard) {
         return;
     }
 
-    // + key: Increase sharpness (decrease bucket size by 1)
-    if (event.key === '+' || event.key === '=') {
+    // Shift + + key: Zoom in (simulates mouse wheel scroll up)
+    if (event.shiftKey && (event.key === '+' || event.key === '=')) {
+        event.preventDefault();
+        if (typeof keyboardZoom === 'function') {
+            keyboardZoom(-1); // Negative = zoom in
+        }
+        return;
+    }
+
+    // Shift + - key: Zoom out (simulates mouse wheel scroll down)
+    if (event.shiftKey && (event.key === '-' || event.key === '_')) {
+        event.preventDefault();
+        if (typeof keyboardZoom === 'function') {
+            keyboardZoom(1); // Positive = zoom out
+        }
+        return;
+    }
+
+    // + key: Increase sharpness (decrease bucket size by 1) - ONLY without Shift
+    if (!event.shiftKey && (event.key === '+' || event.key === '=')) {
         event.preventDefault();
         if (window.ResolutionControls && typeof window.ResolutionControls.adjust === 'function') {
             window.ResolutionControls.adjust(-1);
@@ -89,11 +110,20 @@ function handleGlobalShortcuts(event, keyboard) {
         return;
     }
 
-    // - key: Decrease sharpness / blur (increase bucket size by 1)
-    if (event.key === '-' || event.key === '_') {
+    // - key: Decrease sharpness / blur (increase bucket size by 1) - ONLY without Shift
+    if (!event.shiftKey && (event.key === '-' || event.key === '_')) {
         event.preventDefault();
         if (window.ResolutionControls && typeof window.ResolutionControls.adjust === 'function') {
             window.ResolutionControls.adjust(1);
+        }
+        return;
+    }
+
+    // ? or / key: Toggle shortcuts help overlay
+    if (event.key === '?' || event.key === '/') {
+        event.preventDefault();
+        if (typeof toggleShortcutsOverlay === 'function') {
+            toggleShortcutsOverlay();
         }
         return;
     }

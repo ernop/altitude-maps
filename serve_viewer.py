@@ -37,15 +37,16 @@ class GzipHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     content = f.read()
                 
                 self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Encoding', 'gzip')
+                self.send_header('Content-Type', 'application/gzip')  # Changed to gzip
+                # DO NOT send Content-Encoding: gzip header
+                # This would make browser auto-decompress, breaking our JS DecompressionStream
                 self.send_header('Content-Length', len(content))
                 # In development, avoid stale JSON by disabling caching
                 self.send_header('Cache-Control', 'no-store, must-revalidate')
                 self.end_headers()
                 self.wfile.write(content)
                 
-                print(f"[GZIP] Served pre-compressed: {Path(path).name} ({len(content)/1024:.1f} KB)")
+                print(f"[GZIP] Served pre-compressed (binary): {Path(path).name} ({len(content)/1024:.1f} KB)")
                 return
             except Exception as e:
                 # Fall back to standard handler if serving fails

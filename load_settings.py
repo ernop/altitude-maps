@@ -61,7 +61,7 @@ def get_setting(key_path: str, default: Any = None) -> Any:
 def get_download_settings() -> Dict[str, Any]:
     settings = load_settings()
     return settings.get('download', {
-        'default_max_size': 1024,
+        'default_max_size': 2048,
         'cache_dir': 'data/cache',
         'regions_dir': 'data/regions',
         'output_dir': 'generated/regions'

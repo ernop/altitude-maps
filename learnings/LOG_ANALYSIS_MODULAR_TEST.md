@@ -57,7 +57,7 @@ All performance metrics are excellent - well under 100ms for critical path.
 ```
 Very high bar count (181,039)! Consider:
  - Increase bucket multiplier to 5x+
- - Switch to 'Points' render mode for better performance
+ - Increase bucket size further for better performance
  - Current: 81% of bucketed grid has data
 ```
 This is expected for Oregon - it's a large state with high data density. The warning is informational, not an error.

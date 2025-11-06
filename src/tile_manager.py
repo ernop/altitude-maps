@@ -24,6 +24,7 @@ from src.download_config import get_chunk_size
 from src.downloaders.opentopography import download_srtm, OpenTopographyRateLimitError
 from src.downloaders.srtm_90m import download_single_tile_90m, download_chunk_90m
 from src.downloaders.usgs_3dep_10m import download_single_tile_10m
+from src.downloaders.rate_limit import check_rate_limit
 
 
 def split_chunk_into_tiles(
@@ -154,6 +155,15 @@ def download_and_merge_tiles(
         print(f"Using {chunk_degrees}x{chunk_degrees} degree chunks ({len(chunks)} API requests instead of {len(tiles)})", flush=True)
     print(f"Bounds: {bounds}", flush=True)
     print(f"Output: {output_path}", flush=True)
+    
+    # Check rate limit BEFORE starting download loop
+    # Bail out early instead of checking per-chunk
+    ok, reason = check_rate_limit()
+    if not ok:
+        print(f"\n  Rate limit active: {reason}", flush=True)
+        print(f"  Skipping all downloads until rate limit clears", flush=True)
+        print(f"  Use 'python check_rate_limit.py' to check status", flush=True)
+        return False
     
     # Download chunks and extract tiles
     tiles_dir = Path(f"data/raw/{source}/tiles")

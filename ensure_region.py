@@ -485,7 +485,7 @@ This script will:
     # International: 30m/90m via OpenTopography API only
     if region_type == RegionType.USA_STATE:
         available_downloads = [10, 30, 90]  # USGS 3DEP 10m + SRTM/Copernicus 30m/90m
-    elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:
+    elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:
         available_downloads = [30, 90]  # SRTM/Copernicus via OpenTopography API only
     else:
         raise ValueError(f"Unknown region type: {region_type}")

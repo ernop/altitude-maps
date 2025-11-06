@@ -7,7 +7,7 @@
  * 
  * FEATURES:
  * - Color lookup for elevation values
- * - Update all terrain colors (bars, points)
+ * - Update all terrain colors (bars mode only)
  * - Support derived modes (slope, aspect)
  * - Auto-stretch color calculation
  * - Gamma correction
@@ -170,7 +170,7 @@
 
     /**
      * Update all terrain colors
-     * Handles different render modes (bars, points)
+     * Only bars mode is supported
      */
     function updateAll() {
         if (!window.terrainMesh || !window.processedData || !window.rawElevationData) {
@@ -181,8 +181,8 @@
             return;
         }
 
-        // Bars: update per-instance colors without rebuild
-        if (window.params && window.params.renderMode === 'bars') {
+        // Bars mode: update per-instance colors without rebuild
+        if (window.params) {
             if (!window.barsInstancedMesh || !window.barsIndexToRow || !window.barsIndexToCol) {
                 if (typeof recreateTerrain === 'function') {
                     recreateTerrain();
@@ -218,37 +218,8 @@
             return;
         }
 
-        // Points: update color buffer in-place
-        if (window.params && window.params.renderMode === 'points') {
-            const geom = window.terrainMesh.geometry;
-            const colorAttr = geom.getAttribute('color');
-            if (!colorAttr || !colorAttr.array) {
-                if (typeof recreateTerrain === 'function') {
-                    recreateTerrain();
-                }
-                return;
-            }
-
-            const width = window.processedData.width;
-            const height = window.processedData.height;
-            const arr = colorAttr.array;
-            let k = 0;
-            for (let i = 0; i < height; i++) {
-                for (let j = 0; j < width; j++) {
-                    let z = (window.processedData.elevation[i] && window.processedData.elevation[i][j]);
-                    if (z === null || z === undefined) z = 0;
-                    const c = getColor(z, i, j);
-                    arr[k++] = c.r;
-                    arr[k++] = c.g;
-                    arr[k++] = c.b;
-                }
-            }
-            colorAttr.needsUpdate = true;
-            return;
-        }
-
-        // Unknown render mode - fallback to recreation
-        console.warn(`Unknown render mode '${window.params?.renderMode}' in updateAll, recreating terrain`);
+        // Only bars mode is supported - if we get here, something is wrong
+        console.error(`Unexpected state in updateAll - bars mode should have been handled above`);
         if (typeof recreateTerrain === 'function') {
             recreateTerrain();
         }
@@ -273,6 +244,11 @@
 
         // Update all colors
         updateAll();
+
+        // Update color legend to match new scheme
+        if (typeof updateColorLegend === 'function') {
+            updateColorLegend();
+        }
     }
 
     /**
@@ -287,6 +263,11 @@
 
         window.params.colorGamma = Math.max(0.1, Math.min(10, gamma));
         updateAll();
+
+        // Update color legend to reflect gamma changes
+        if (typeof updateColorLegend === 'function') {
+            updateColorLegend();
+        }
     }
 
     /**

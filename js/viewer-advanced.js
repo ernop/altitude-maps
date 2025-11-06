@@ -10,7 +10,7 @@
  * - camera-schemes.js            → Camera control implementations (Google Maps, Blender, etc.)
  * - color-legend.js              → Color scale legend UI component
  * - color-schemes.js             → Color palettes and descriptions
- * - terrain-renderer.js          → Terrain geometry creation (bars, points, surface)
+ * - terrain-renderer.js          → Terrain geometry creation (bars mode only)
  * - map-shading.js              → Visual appearance (colors, materials, lighting)
  * - compass-rose.js            → Edge markers + click handling (extends edge-markers.js)
  * - edge-markers.js              → Directional markers (N/E/S/W labels at terrain edges) - marker creation only
@@ -28,7 +28,7 @@
  * This main file handles:
  * - Application initialization and lifecycle
  * - Scene setup (Three.js renderer, camera, lights)
- * - Terrain rendering (bars, surface, points)
+ * - Terrain rendering (bars mode only)
  * - UI event handling and state management
  * - Region loading and data processing
  * - HUD updates and user interactions
@@ -38,7 +38,10 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.362';
+const VIEWER_VERSION = '1.367';
+
+// RegionType enum is defined in state-connectivity.js (loaded before this file)
+// Values: RegionType.USA_STATE, RegionType.COUNTRY, RegionType.AREA
 
 // All console logs use plain ASCII - no sanitizer needed
 
@@ -122,7 +125,7 @@ function appendActivityLog(message) {
     return window.ActivityLog.append(message);
 }
 
-//-------RENDER MODE STATE-------
+//-------TERRAIN STATE-------
 let barsInstancedMesh = null;
 let barsIndexToRow = null;
 let barsIndexToCol = null;
@@ -131,17 +134,15 @@ const barsDummy = new THREE.Object3D();
 let pendingVertExagRaf = null;
 let pendingBucketTimeout = null;
 let lastBarsExaggerationInternal = null;
-let lastPointsExaggerationInternal = null;
 let lastAutoResolutionAdjustTime = 0;
 
-// Expose render mode state on window for modules
+// Expose terrain state on window for modules
 window.barsInstancedMesh = null;
 window.barsIndexToRow = null;
 window.barsIndexToCol = null;
 window.barsTileSize = 0;
 window.barsDummy = barsDummy;
 window.lastBarsExaggerationInternal = null;
-window.lastPointsExaggerationInternal = null;
 window.lastBarsTileSize = null;
 
 //-------PARAMETERS-------
@@ -196,8 +197,8 @@ function applyParamsFromURL() {
 
     // Tile gap always 0%, aggregation always 'max' - no URL params needed
 
-    const rm = getStr('renderMode', ['bars', 'points']);
-    if (rm) params.renderMode = rm;
+    // Only bars mode is supported - ignore renderMode URL param
+    params.renderMode = 'bars';
 
     const ex = getFloat('exag', 1, 100);
     if (ex !== null) params.verticalExaggeration = multiplierToInternal(ex);
@@ -287,6 +288,10 @@ async function init() {
             hudMin.addEventListener('click', () => { hud.style.display = 'none'; hudExp.style.display = 'block'; });
             hudExp.addEventListener('click', () => { hud.style.display = ''; hudExp.style.display = 'none'; });
         }
+        
+        // Initialize shortcuts overlay
+        initShortcutsOverlay();
+        
         // Rebuild dropdown for initial interaction (uses rebuildRegionDropdown function)
         rebuildRegionDropdown();
 
@@ -333,7 +338,16 @@ async function loadElevationData(url) {
         throw new Error(`Elevation data URL must end with .json or .gz, got: ${url}`);
     }
     const tStart = performance.now();
-    const response = await fetch(gzUrl);
+    
+    // Force fresh fetch - no browser caching allowed
+    const response = await fetch(gzUrl, {
+        cache: 'no-store',
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    });
 
     if (!response.ok) {
         throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
@@ -358,15 +372,24 @@ async function loadElevationData(url) {
 }
 
 async function loadRegionsManifest() {
-    const gzUrl = `generated/regions/regions_manifest.json.gz`;
-    const jsonUrl = `generated/regions/regions_manifest.json`;
+    const gzUrl = `generated/regions/regions_manifest.json.gz?v=${VIEWER_VERSION}`;
+    const jsonUrl = `generated/regions/regions_manifest.json?v=${VIEWER_VERSION}`;
     const tStart = performance.now();
     
-    // Log the manifest path being loaded
-    console.log(`[loadRegionsManifest] Loading manifest from: ${gzUrl}`);
-    console.log(`[loadRegionsManifest] Fallback path: ${jsonUrl}`);
+    console.log(`[loadRegionsManifest] ======== LOADING MANIFEST ========`);
+    console.log(`[loadRegionsManifest] Primary URL: ${gzUrl}`);
+    console.log(`[loadRegionsManifest] Fallback URL: ${jsonUrl}`);
     
-    let response = await fetch(gzUrl);
+    // Force fresh fetch - no browser caching allowed
+    let response = await fetch(gzUrl, {
+        cache: 'no-store',
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    });
+    let actualUrl = gzUrl;
 
     if (!response.ok) {
         throw new Error(`Failed to load regions manifest. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
@@ -381,28 +404,69 @@ async function loadRegionsManifest() {
     const text = await decompressedResponse.text();
     const json = JSON.parse(text);
 
-    try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
+    console.log(`[loadRegionsManifest] Successfully loaded from: ${actualUrl}`);
+    try { window.ActivityLog.logResourceTiming(actualUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
     
-    // Log manifest details
+    // Log detailed manifest statistics
     const totalRegions = Object.keys(json?.regions || {}).length;
-    const sampleRegion = json?.regions?.['arizona'];
-    console.log(`[loadRegionsManifest] Successfully loaded manifest:`, {
-        path: gzUrl,
-        totalRegions: totalRegions,
-        sampleRegion: sampleRegion ? {
-            id: 'arizona',
-            name: sampleRegion.name,
-            regionType: sampleRegion.regionType,
-            hasFile: 'file' in sampleRegion
-        } : 'NOT FOUND'
+    console.log(`[loadRegionsManifest] ======== MANIFEST LOADED ========`);
+    console.log(`[loadRegionsManifest] Total regions in manifest: ${totalRegions}`);
+    console.log(`[loadRegionsManifest] Manifest version: ${json?.version || 'unknown'}`);
+    
+    // Count by regionType
+    const typeCounts = {};
+    const samplesByType = {};
+    
+    for (const [regionId, regionInfo] of Object.entries(json?.regions || {})) {
+        const regionType = regionInfo.regionType || 'undefined';
+        typeCounts[regionType] = (typeCounts[regionType] || 0) + 1;
+        
+        if (!samplesByType[regionType]) {
+            samplesByType[regionType] = [];
+        }
+        if (samplesByType[regionType].length < 3) {
+            samplesByType[regionType].push({ id: regionId, name: regionInfo.name });
+        }
+    }
+    
+    console.log(`[loadRegionsManifest] ======== REGION TYPE COUNTS ========`);
+    Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).forEach(([type, count]) => {
+        console.log(`  ${type}: ${count} regions`);
+        console.log(`    Samples: ${samplesByType[type].map(r => r.name).join(', ')}`);
     });
+    
+    // Check for any regions without files
+    const missingFiles = [];
+    for (const [regionId, regionInfo] of Object.entries(json?.regions || {})) {
+        if (!regionInfo.file) {
+            missingFiles.push(regionId);
+        }
+    }
+    
+    if (missingFiles.length > 0) {
+        console.warn(`[loadRegionsManifest] ${missingFiles.length} regions without file paths:`, missingFiles);
+    } else {
+        console.log(`[loadRegionsManifest] All regions have file paths`);
+    }
+    
+    console.log(`[loadRegionsManifest] ======== MANIFEST READY ========`);
     
     return json;
 }
 
 async function loadAdjacencyData() {
-    const gzUrl = 'generated/regions/region_adjacency.json.gz';
-    const response = await fetch(gzUrl);
+    const gzUrl = `generated/regions/region_adjacency.json.gz?v=${VIEWER_VERSION}`;
+    console.log(`[loadAdjacencyData] Loading from: ${gzUrl}`);
+    
+    // Force fresh fetch - no browser caching allowed
+    const response = await fetch(gzUrl, {
+        cache: 'no-store',
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    });
 
     if (!response.ok) {
         throw new Error(`Failed to load region adjacency data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
@@ -415,6 +479,7 @@ async function loadAdjacencyData() {
     writer.close();
     const decompressedResponse = new Response(stream.readable);
     const text = await decompressedResponse.text();
+    console.log(`[loadAdjacencyData] Successfully loaded from: ${gzUrl}`);
     return JSON.parse(text);
 }
 
@@ -480,45 +545,67 @@ function buildRegionOptions() {
         return [];
     }
 
-    console.log(`[buildRegionOptions] Building options from manifest with ${Object.keys(manifest.regions).length} regions`);
+    const totalRegions = Object.keys(manifest.regions).length;
+    console.log(`[buildRegionOptions] ======== STARTING REGION GROUPING ========`);
+    console.log(`[buildRegionOptions] Total regions in manifest: ${totalRegions}`);
 
+    // Group regions by their RegionType enum value
     const regionTypeGroups = {
-        'country': { header: 'COUNTRIES', regions: [] },
-        'area': { header: 'AREAS', regions: [] },
-        'usa_state': { header: 'US STATES', regions: [] }
+        [RegionType.COUNTRY]: { header: 'COUNTRIES', regions: [] },
+        [RegionType.AREA]: { header: 'AREAS', regions: [] },
+        [RegionType.USA_STATE]: { header: 'US STATES', regions: [] }
     };
 
+    // Track for detailed logging
+    const classificationLog = [];
+
     for (const [regionId, regionInfo] of Object.entries(manifest.regions)) {
-        // Debug: log the actual structure of regionInfo
-        if (regionId === 'arizona' || regionId === 'california' || regionId === 'nevada') {
-            console.log(`[buildRegionOptions] DEBUG ${regionId}:`, {
-                hasRegionType: 'regionType' in regionInfo,
-                regionTypeValue: regionInfo?.regionType,
-                allKeys: Object.keys(regionInfo || {}),
-                fullRegionInfo: regionInfo
-            });
+        let regionType = regionInfo.regionType;
+        
+        // Validate regionType is one of the enum values
+        if (regionType !== RegionType.USA_STATE && 
+            regionType !== RegionType.COUNTRY && 
+            regionType !== RegionType.AREA) {
+            console.error(`[buildRegionOptions] Invalid regionType for ${regionId}: "${regionType}". Must be one of: ${Object.values(RegionType).join(', ')}`);
+            // Default to AREA for invalid values
+            regionType = RegionType.AREA;
         }
-        const region_type = (regionInfo?.regionType) ? String(regionInfo.regionType).toLowerCase() : null;
-        let type;
-        if (region_type === 'usa_state') {
-            type = 'usa_state';
-        } else if (region_type === 'country') {
-            type = 'country';
-        } else {
-            type = 'area';
-        }
-        // Debug logging for states being misclassified
-        if (regionId === 'arizona' || regionId === 'california' || regionId === 'nevada') {
-            console.log(`[buildRegionOptions] ${regionId}: regionType="${regionInfo?.regionType}", normalized="${region_type}", classified as="${type}"`);
-        }
-        regionTypeGroups[type].regions.push({ id: regionId, name: regionInfo.name });
+        
+        regionTypeGroups[regionType].regions.push({ id: regionId, name: regionInfo.name });
+        
+        // Log every single region
+        classificationLog.push({
+            id: regionId,
+            name: regionInfo.name,
+            regionType: regionType,
+            hasFile: !!regionInfo.file
+        });
     }
 
+    // Log detailed classification info
+    console.log(`[buildRegionOptions] ======== REGION CLASSIFICATION DETAILS ========`);
+    console.table(classificationLog);
+    
+    console.log(`[buildRegionOptions] ======== GROUP COUNTS ========`);
+    console.log(`  COUNTRIES: ${regionTypeGroups[RegionType.COUNTRY].regions.length} regions`);
+    console.log(`  AREAS: ${regionTypeGroups[RegionType.AREA].regions.length} regions`);
+    console.log(`  USA STATES: ${regionTypeGroups[RegionType.USA_STATE].regions.length} regions`);
+    
+    // Log sample regions from each group
+    console.log(`[buildRegionOptions] ======== SAMPLE REGIONS PER GROUP ========`);
+    Object.values(RegionType).forEach(regionType => {
+        const samples = regionTypeGroups[regionType].regions.slice(0, 3);
+        console.log(`  ${regionType.toUpperCase()}: ${samples.map(r => r.name).join(', ')}${regionTypeGroups[regionType].regions.length > 3 ? '...' : ''}`);
+    });
+
     const options = [];
-    const typeOrder = ['country', 'area', 'usa_state'];
+    // Order: COUNTRY, AREA, USA_STATE
+    const typeOrder = [RegionType.COUNTRY, RegionType.AREA, RegionType.USA_STATE];
     const groups = typeOrder.map(type => regionTypeGroups[type]).filter(g => g.regions.length > 0);
 
-    console.log(`[buildRegionOptions] Groups: countries=${regionTypeGroups.country.regions.length}, areas=${regionTypeGroups.area.regions.length}, usa_states=${regionTypeGroups.usa_state.regions.length}`);
+    console.log(`[buildRegionOptions] ======== BUILDING DROPDOWN OPTIONS ========`);
+    console.log(`  Number of groups (should be 3): ${groups.length}`);
+    console.log(`  Groups that will be shown: ${groups.map(g => g.header).join(', ')}`);
 
     groups.forEach((group, index) => {
         group.regions.sort((a, b) => a.name.localeCompare(b.name));
@@ -530,6 +617,9 @@ function buildRegionOptions() {
             options.push({ id: '__divider__', name: '' });
         }
     });
+
+    console.log(`[buildRegionOptions] Total dropdown options created: ${options.length} (includes headers, dividers, regions)`);
+    console.log(`[buildRegionOptions] ======== REGION GROUPING COMPLETE ========`);
 
     return options;
 }
@@ -586,19 +676,12 @@ async function populateRegionSelector() {
     const inputEl = document.getElementById('regionSelect');
     const listEl = document.getElementById('regionList');
 
+    console.log('[populateRegionSelector] ======== POPULATING REGION SELECTOR ========');
+    
     regionsManifest = await loadRegionsManifest();
     window.regionsManifest = regionsManifest; // Expose for ui-controls-manager.js
     
-    // Debug: log what was actually loaded
-    console.log('[populateRegionSelector] Loaded manifest:', {
-        totalRegions: Object.keys(regionsManifest?.regions || {}).length,
-        sampleRegion: regionsManifest?.regions?.['arizona'] ? {
-            hasRegionType: 'regionType' in regionsManifest.regions['arizona'],
-            regionType: regionsManifest.regions['arizona'].regionType,
-            keys: Object.keys(regionsManifest.regions['arizona'])
-        } : 'NOT FOUND'
-    });
-    
+    console.log('[populateRegionSelector] Loading adjacency data...');
     regionAdjacency = await loadAdjacencyData();
 
     if (!regionsManifest.regions || Object.keys(regionsManifest.regions).length === 0) {
@@ -615,6 +698,7 @@ async function populateRegionSelector() {
     // Load recent regions from localStorage
     loadRecentRegions();
 
+    console.log('[populateRegionSelector] Building region name maps...');
     // Build maps first (needed for all regions)
     regionIdToName = {};
     regionNameToId = {};
@@ -623,9 +707,11 @@ async function populateRegionSelector() {
         regionNameToId[regionInfo.name.toLowerCase()] = regionId;
     }
 
+    console.log('[populateRegionSelector] Building region options for dropdown...');
     regionOptions = buildRegionOptions();
     window.regionOptions = regionOptions;
 
+    console.log('[populateRegionSelector] ======== DETERMINING INITIAL REGION ========');
     // Determine which region to load initially
     // Priority: URL parameter > DEFAULT_REGION > localStorage > first region
     let firstRegionId;
@@ -633,18 +719,18 @@ async function populateRegionSelector() {
     if (urlRegion && regionsManifest.regions[urlRegion]) {
         // URL parameter takes highest priority (e.g., ?region=ohio)
         firstRegionId = urlRegion;
-        console.log(` Loading region from URL: ${urlRegion}`);
+        console.log(`[populateRegionSelector] Loading region from URL: ${urlRegion}`);
     } else if (regionsManifest.regions[DEFAULT_REGION]) {
         firstRegionId = DEFAULT_REGION;
-        console.log(` Loading default region: ${DEFAULT_REGION}`);
+        console.log(`[populateRegionSelector] Loading default region: ${DEFAULT_REGION}`);
     } else if (lastRegion && regionsManifest.regions[lastRegion]) {
         // Remember last viewed region from localStorage
         firstRegionId = lastRegion;
-        console.log(` Loading last viewed region: ${lastRegion}`);
+        console.log(`[populateRegionSelector] Loading last viewed region: ${lastRegion}`);
     } else {
         // Fallback to first available region
         firstRegionId = Object.keys(regionsManifest.regions)[0];
-        console.log(` Loading first available region: ${firstRegionId}`);
+        console.log(`[populateRegionSelector] Loading first available region: ${firstRegionId}`);
     }
 
     if (inputEl) {
@@ -652,6 +738,9 @@ async function populateRegionSelector() {
     }
     currentRegionId = firstRegionId;
     updateRegionInfo(firstRegionId);
+
+    console.log('[populateRegionSelector] ======== REGION SELECTOR READY ========');
+    console.log(`[populateRegionSelector] Initial region: ${firstRegionId} (${regionIdToName[firstRegionId]})`);
 
     return firstRegionId;
 }
@@ -856,8 +945,9 @@ function syncUIControls() {
     // Update button highlighting
     updateVertExagButtons(params.verticalExaggeration);
 
-    // Render mode
-    document.getElementById('renderMode').value = params.renderMode;
+    // Render mode (always bars)
+    const renderModeSelect = document.getElementById('renderMode');
+    if (renderModeSelect) renderModeSelect.value = 'bars';
 
     // Aggregation always 'max' - no UI needed
 
@@ -955,8 +1045,16 @@ function computeBucketedData(bucketSize) {
             }
 
             // Always use 'max' aggregation (highest point in bucket)
+            // BOUNDARY PRESERVATION: Only create a bar if enough pixels in the bucket are valid
+            // This preserves clipped state/country boundaries during bucketing
             let value = null;
-            if (count > 0) {
+            const maxPossiblePixels = bucketSize * bucketSize;
+            const validPixelRatio = count / maxPossiblePixels;
+            
+            // Require at least 50% of bucket pixels to be valid (not None/nodata)
+            // This prevents "healing" of clipped boundaries where edge buckets
+            // would otherwise fill in with aggregated values from sparse valid pixels
+            if (validPixelRatio >= 0.5) {
                 value = buffer[0];
                 for (let i = 1; i < count; i++) {
                     if (buffer[i] > value) value = buffer[i];
@@ -967,6 +1065,23 @@ function computeBucketedData(bucketSize) {
         }
         bucketedElevation[by] = row;
     }
+
+    // Count None values to verify boundary preservation
+    let noneCount = 0;
+    let validCount = 0;
+    for (let by = 0; by < bucketedHeight; by++) {
+        for (let bx = 0; bx < bucketedWidth; bx++) {
+            if (bucketedElevation[by][bx] === null || bucketedElevation[by][bx] === undefined) {
+                noneCount++;
+            } else {
+                validCount++;
+            }
+        }
+    }
+    const totalBuckets = bucketedWidth * bucketedHeight;
+    const nonePercentage = (100 * noneCount / totalBuckets).toFixed(2);
+    
+    console.log(`[BUCKETING] Boundary preservation: ${noneCount.toLocaleString()} None buckets (${nonePercentage}% of ${totalBuckets.toLocaleString()} total)`);
 
     return {
         width: bucketedWidth,
@@ -1002,6 +1117,14 @@ function rebucketData() {
         window.processedData = processedData; // Sync to window
         computeDerivedGrids();
         computeAutoStretchStats();
+        
+        // Update color legend if using derived color schemes (aspect/slope)
+        if (params.colorScheme === 'aspect' || params.colorScheme === 'slope') {
+            if (typeof updateColorLegend === 'function') {
+                updateColorLegend();
+            }
+        }
+        
         const duration = (performance.now() - startTime).toFixed(2);
         appendActivityLog(`Bucketing ${bucketSize}x (cached) in ${duration}ms`);
         updateResolutionInfo();
@@ -1020,6 +1143,13 @@ function rebucketData() {
 
     computeDerivedGrids();
     computeAutoStretchStats();
+
+    // Update color legend if using derived color schemes (aspect/slope)
+    if (params.colorScheme === 'aspect' || params.colorScheme === 'slope') {
+        if (typeof updateColorLegend === 'function') {
+            updateColorLegend();
+        }
+    }
 
     const duration = (performance.now() - startTime).toFixed(2);
     const bucketedWidth = processedData.width;
@@ -1305,49 +1435,43 @@ function setupEventListeners() {
 
     // Handle clicks on connectivity labels (US state neighbors)
     renderer.domElement.addEventListener('click', (e) => {
-        if (typeof handleConnectivityClick === 'function' && window.connectivityLabels && window.connectivityLabels.length > 0) {
-            // Use raycaster to check for sprite clicks
-            const rect = renderer.domElement.getBoundingClientRect();
-            const mouse = new THREE.Vector2();
-            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        // Only process if connectivity labels exist (US states only)
+        if (!window.connectivityLabels || window.connectivityLabels.length === 0) {
+            return;
+        }
 
-            raycaster.setFromCamera(mouse, camera);
-            // Raycast specifically against connectivity labels (like compass rose does with edgeMarkers)
-            const intersects = raycaster.intersectObjects(window.connectivityLabels, false);
-            
-            console.log('[Connectivity] Click detected:', {
-                mouseNDC: { x: mouse.x.toFixed(3), y: mouse.y.toFixed(3) },
-                labelCount: window.connectivityLabels.length,
-                intersects: intersects.length,
-                labels: window.connectivityLabels.map(l => ({ 
-                    name: l.userData.neighborName, 
-                    position: l.position.toArray(),
-                    scale: l.scale.toArray()
-                }))
+        // Use raycaster to check for sprite clicks
+        const rect = renderer.domElement.getBoundingClientRect();
+        const mouse = new THREE.Vector2();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        // Raycast specifically against connectivity labels (like compass rose does with edgeMarkers)
+        const intersects = raycaster.intersectObjects(window.connectivityLabels, false);
+        
+        console.log('[Connectivity] Click detected:', {
+            mouseNDC: { x: mouse.x.toFixed(3), y: mouse.y.toFixed(3) },
+            labelCount: window.connectivityLabels.length,
+            intersects: intersects.length,
+            labels: window.connectivityLabels.map(l => ({ 
+                name: l.userData.neighborName, 
+                position: l.position.toArray(),
+                scale: l.scale.toArray()
+            }))
+        });
+
+        for (const intersect of intersects) {
+            console.log('[Connectivity] Intersection found:', {
+                object: intersect.object,
+                userData: intersect.object.userData,
+                distance: intersect.distance
             });
-
-            for (const intersect of intersects) {
-                console.log('[Connectivity] Intersection found:', {
-                    object: intersect.object,
-                    userData: intersect.object.userData,
-                    distance: intersect.distance
-                });
-                if (handleConnectivityClick(intersect.object)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return; // Stop after first handled click
-                }
-            }
-        } else {
-            // Only log if labels should exist but don't (debugging connectivity issues)
-            // Check if current region is a US state by checking manifest
-            const isUSState = currentRegionId && regionsManifest?.regions?.[currentRegionId]?.regionType === 'usa_state';
-            if (typeof handleConnectivityClick === 'function' && isUSState) {
-                console.debug('[Connectivity] Click handler: no labels available (this is normal if region just loaded)', {
-                    regionId: currentRegionId,
-                    labelCount: window.connectivityLabels?.length || 0
-                });
+            // handleConnectivityClick is defined in state-connectivity.js (required module)
+            if (handleConnectivityClick(intersect.object)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return; // Stop after first handled click
             }
         }
     });
@@ -1677,21 +1801,6 @@ function createBarsTerrain(width, height, elevation, scale) {
     }
 }
 
-function createPointCloudTerrain(width, height, elevation, scale) {
-    // Delegated to TerrainRenderer.create() which calls createPoints internally
-    console.warn('[createPointCloudTerrain] This function is deprecated - use TerrainRenderer.create()');
-    if (window.TerrainRenderer && typeof window.TerrainRenderer.create === 'function') {
-        window.TerrainRenderer.create();
-    }
-}
-
-function createSurfaceTerrain(width, height, elevation, scale) {
-    // Delegated to TerrainRenderer.create() which calls createSurface internally
-    console.warn('[createSurfaceTerrain] This function is deprecated - use TerrainRenderer.create()');
-    if (window.TerrainRenderer && typeof window.TerrainRenderer.create === 'function') {
-        window.TerrainRenderer.create();
-    }
-}
 
 // Old terrain creation implementations removed - now in terrain-renderer.js module
 
@@ -1869,17 +1978,10 @@ function setView(preset) {
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
 
-    // Use pixel-grid extents for all modes to preserve proportions established by the pipeline
-    let xExtent, zExtent;
-    if (params.renderMode === 'bars') {
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketMultiplier;
-        zExtent = (gridHeight - 1) * bucketMultiplier;
-    } else if (params.renderMode === 'points') {
-        const bucketSize = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketSize;
-        zExtent = (gridHeight - 1) * bucketSize;
-    }
+    // Use pixel-grid extents to preserve proportions established by the pipeline
+    const bucketMultiplier = params.bucketSize;
+    const xExtent = (gridWidth - 1) * bucketMultiplier;
+    const zExtent = (gridHeight - 1) * bucketMultiplier;
 
     const maxDim = Math.max(xExtent, zExtent);
     const distance = maxDim * 2.0; // Increased from 0.8 for better overview
@@ -2417,19 +2519,9 @@ function computeDistanceToDataEdgeMeters(worldX, worldZ) {
     const w = processedData.width;
     const h = processedData.height;
     let xMin, xMax, zMin, zMax;
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
-        zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
-    } else if (params.renderMode === 'points') {
-        xMin = -(w - 1) / 2; xMax = (w - 1) / 2;
-        zMin = -(h - 1) / 2; zMax = (h - 1) / 2;
-    } else {
-        // Fallback to bars mode bounds if unknown render mode
-        const bucket = params.bucketSize;
-        xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
-        zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
-    }
+    const bucket = params.bucketSize;
+    xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
+    zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
     const { mx, mz } = getMetersScalePerWorldUnit();
     const x = worldX, z = worldZ;
     const insideX = (x >= xMin && x <= xMax);
@@ -2599,6 +2691,70 @@ function toggleControlsHelp() {
         window.classList.add('open');
         button.textContent = 'Close';
     }
+}
+
+// Toggle keyboard shortcuts overlay
+function toggleShortcutsOverlay() {
+    const overlay = document.getElementById('shortcuts-overlay');
+    if (!overlay) return;
+    
+    if (overlay.style.display === 'none' || !overlay.style.display) {
+        overlay.style.display = 'flex';
+    } else {
+        overlay.style.display = 'none';
+    }
+}
+
+// Keyboard zoom (Shift + +/-) - simulates mouse wheel scroll
+function keyboardZoom(direction) {
+    // direction: -1 = zoom in (like scroll up), 1 = zoom out (like scroll down)
+    if (!activeScheme || !activeScheme.enabled) return;
+    
+    // Create fake wheel event at screen center
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    
+    // Standard wheel deltaY: positive = scroll down (zoom out), negative = scroll up (zoom in)
+    // We use 100 as a typical deltaY value (matches standard mouse wheel)
+    const fakeWheelEvent = {
+        clientX: centerX,
+        clientY: centerY,
+        deltaY: direction * 100, // -100 for zoom in, +100 for zoom out
+        preventDefault: () => {}
+    };
+    
+    // Delegate to active camera scheme's wheel handler
+    if (typeof activeScheme.onWheel === 'function') {
+        activeScheme.onWheel(fakeWheelEvent);
+    }
+}
+
+// Initialize shortcuts overlay event handlers
+function initShortcutsOverlay() {
+    const overlay = document.getElementById('shortcuts-overlay');
+    const closeBtn = document.getElementById('shortcuts-close');
+    
+    if (!overlay || !closeBtn) return;
+    
+    // Close button
+    closeBtn.addEventListener('click', () => {
+        overlay.style.display = 'none';
+    });
+    
+    // Click outside modal to close
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.style.display = 'none';
+        }
+    });
+    
+    // ESC key to close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay.style.display !== 'none') {
+            e.preventDefault();
+            overlay.style.display = 'none';
+        }
+    });
 }
 
 // Update URL parameter without reloading page (for shareable links)

@@ -273,7 +273,7 @@ python -m http.server 8001
 - **Region Switching**: Dropdown selector for all processed regions
 - **Real-Time Bucketing**: Adjust grid resolution on the fly (1-50 pixels)
 - **Aggregation Methods**: MAX, AVERAGE, MIN, MEDIAN
-- **Render Modes**: Bars, Points
+- **Render Mode**: Bars only
 - **Color Schemes**: 6 options (terrain, earth, ocean, viridis, plasma, grayscale)
 - **Camera Presets**: Overhead, cardinal directions, isometric
 - **Performance**: Instanced rendering for 10,000+ blocks at 60 FPS
@@ -365,9 +365,8 @@ The viewer uses several optimizations:
 
 **If Laggy**:
 1. Increase bucket size to 16-25
-2. Switch to Points render mode for better performance
-3. Reduce grid resolution to 50-75%
-4. Close other browser tabs
+2. Reduce grid resolution to 50-75%
+3. Close other browser tabs
 
 ### Adding New Regions
 

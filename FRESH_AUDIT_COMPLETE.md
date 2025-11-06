@@ -95,7 +95,7 @@ if region_type == RegionType.USA_STATE:
 elif region_type == RegionType.COUNTRY:
     boundary_name = country_name if clip_boundary else None
     boundary_type = "country" if clip_boundary else None
-elif region_type == RegionType.REGION:
+elif region_type == RegionType.AREA:
     boundary_name = region_name if clip_boundary else None
     boundary_type = None
 else:

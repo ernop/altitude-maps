@@ -3,12 +3,11 @@
  * 
  * PURPOSE:
  * Centralized setup and coordination of all UI controls.
- * Handles all user input controls: region selector, render mode, vertical exaggeration,
+ * Handles all user input controls: region selector, vertical exaggeration,
  * color scheme, and other UI toggles.
  * 
  * FEATURES:
  * - Region selector dropdown with search/filter
- * - Render mode selector
  * - Vertical exaggeration controls (slider + input + buttons)
  * - Color scheme selector + quick jump buttons
  * - Grid toggle, auto-rotate toggle
@@ -57,7 +56,7 @@
         // Region selector dropdown
         setupRegionSelector();
 
-        // Render mode selector
+        // Render mode selector (hidden, always bars mode)
         setupRenderMode();
 
         // Vertical exaggeration controls
@@ -269,21 +268,16 @@
         if (!renderModeSelect) return;
 
         renderModeSelect.addEventListener('change', (e) => {
-            let nextMode = e.target.value;
-            if (nextMode === 'wireframe' || nextMode === 'surface') {
-                // Wireframe and surface disabled: fallback to bars
-                nextMode = 'bars';
-                e.target.value = 'bars';
-            }
-
+            // Only bars mode is supported - force to bars
+            e.target.value = 'bars';
             if (!window.params) {
                 console.error('[UIControlsManager] window.params not available');
                 return;
             }
 
-            window.params.renderMode = nextMode;
+            window.params.renderMode = 'bars';
 
-            // Clear edge markers so they get recreated at new positions for new render mode
+            // Clear edge markers so they get recreated at new positions
             if (window.terrainGroup && window.edgeMarkers) {
                 window.edgeMarkers.forEach(marker => window.terrainGroup.remove(marker));
             }
@@ -291,7 +285,7 @@
                 window.edgeMarkers.length = 0;
             }
 
-            // Recreate terrain with new render mode
+            // Recreate terrain
             if (typeof recreateTerrain === 'function') {
                 recreateTerrain();
             }
@@ -301,7 +295,7 @@
 
             // Update URL
             if (typeof updateURLParameter === 'function') {
-                updateURLParameter('renderMode', window.params.renderMode);
+                updateURLParameter('renderMode', 'bars');
             }
         });
     }
@@ -314,7 +308,7 @@
         const vertExagInput = document.getElementById('vertExagInput');
         if (!vertExagSlider || !vertExagInput || !window.params) return;
 
-        // Debounced updates (no longer needed for surface mode, but kept for potential future use)
+        // Debounced updates (reserved for future use if needed)
         const debouncedUpdate = window.FormatUtils && window.FormatUtils.debounce
             ? window.FormatUtils.debounce(() => {
                 // Reserved for future debounced updates if needed
@@ -406,6 +400,9 @@
                 if (typeof updateColorSchemeDescription === 'function') {
                     updateColorSchemeDescription();
                 }
+                if (typeof updateColorLegend === 'function') {
+                    updateColorLegend();
+                }
             });
         } else {
             // Fallback to native addEventListener
@@ -422,6 +419,9 @@
                 }
                 if (typeof updateColorSchemeDescription === 'function') {
                     updateColorSchemeDescription();
+                }
+                if (typeof updateColorLegend === 'function') {
+                    updateColorLegend();
                 }
             });
         }
@@ -461,10 +461,10 @@
     function syncFromParams() {
         if (!window.params) return;
 
-        // Sync render mode
+        // Sync render mode (always bars)
         const renderModeSelect = document.getElementById('renderMode');
-        if (renderModeSelect && window.params.renderMode) {
-            renderModeSelect.value = window.params.renderMode;
+        if (renderModeSelect) {
+            renderModeSelect.value = 'bars';
         }
 
         // Sync vertical exaggeration
@@ -495,7 +495,7 @@
     function syncToURL() {
         if (!window.params || typeof updateURLParameter !== 'function') return;
 
-        updateURLParameter('renderMode', window.params.renderMode);
+        updateURLParameter('renderMode', 'bars');
         if (typeof internalToMultiplier === 'function') {
             updateURLParameter('exag', internalToMultiplier(window.params.verticalExaggeration));
         }

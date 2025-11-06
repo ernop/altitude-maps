@@ -6,23 +6,25 @@ This document defines the exact steps, file paths, naming conventions, and rules
 
 ---
 
-## Region Type System (CRITICAL)
+## Region Type System
 
-**ALL regions MUST use the `RegionType` enum from `src/types.py`. Never use ad-hoc strings.**
+**Three types classify all regions:**
 
 ```python
 from src.types import RegionType
 
 class RegionType(str, Enum):
-    USA_STATE = "usa_state"  # US states
-    COUNTRY = "country"      # Countries  
-    AREA = "area"            # Islands, ranges, custom areas
+    USA_STATE = "usa_state"  # US states (50 total)
+    COUNTRY = "country"      # Countries (Iceland, Japan, etc.)
+    AREA = "area"            # Custom areas (islands, ranges, peninsulas)
 ```
 
-**Enforcement**: Any code checking region types MUST:
-1. Use the enum values (e.g., `RegionType.USA_STATE`)
-2. Check all three cases exhaustively
-3. Raise ValueError for unknown types (never silently default)
+**Why "AREA"?** Avoids confusion between the general concept of "regions" (all geographic areas) and this specific type (custom areas that aren't states or countries).
+
+**Rules:**
+1. Always import and use the enum (never string literals like `'us_state'`)
+2. Check all three cases exhaustively with if/elif/elif/else
+3. Raise `ValueError` for unknown types (never silent fallback)
 
 **Violation Example (FORBIDDEN)**:
 ```python
@@ -78,12 +80,11 @@ Every region is classified using the `RegionType` enum:
 ### AREA (RegionType.AREA)
 - **Enum value**: `RegionType.AREA` (string value: `"area"`)
 - **Definition location**: `src/regions_config.py` -> `REGIONS`
+- **Examples**: Hokkaido island, Patagonia region, Hawaiian islands
 - **Resolution**: **Dynamic** - 30m or 90m based on Nyquist sampling rule
 - **Available sources**: SRTM (30m/90m), Copernicus DEM (30m/90m via OpenTopography)
-- **Clipping**: Usually `clip_boundary=False` (free-form bbox, no boundaries)
-- **Boundary source**: N/A (some may have custom boundaries if `clip_boundary=True`)
-
-**Note**: Some REGION types may have `clip_boundary=True` for territories with known boundaries (e.g., Iceland island).
+- **Clipping**: Usually `clip_boundary=False` (free-form bounding box)
+- **Boundary source**: N/A (rarely uses boundaries)
 
 ---
 

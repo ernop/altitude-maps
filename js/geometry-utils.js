@@ -98,29 +98,14 @@ function worldToLonLat(worldX, worldZ) {
     const h = processedData.height;
     let colNorm, rowNorm;
 
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        const xMin = -(w - 1) * bucket / 2;
-        const zMin = -(h - 1) * bucket / 2;
-        const xMax = (w - 1) * bucket / 2;
-        const zMax = (h - 1) * bucket / 2;
-        colNorm = (worldX - xMin) / (xMax - xMin);
-        rowNorm = (worldZ - zMin) / (zMax - zMin);
-    } else if (params.renderMode === 'points') {
-        const xMin = -(w - 1) / 2;
-        const zMin = -(h - 1) / 2;
-        const xMax = (w - 1) / 2;
-        const zMax = (h - 1) / 2;
-        colNorm = (worldX - xMin) / (xMax - xMin);
-        rowNorm = (worldZ - zMin) / (zMax - zMin);
-    } else {
-        // Fallback to bars mode calculation if unknown render mode
-        const bucket = params.bucketSize;
-        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
-        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
-        colNorm = (worldX - originX) / ((w - 1) * bucket);
-        rowNorm = (worldZ - originZ) / ((h - 1) * bucket);
-    }
+    // Only bars mode is supported
+    const bucket = params.bucketSize;
+    const xMin = -(w - 1) * bucket / 2;
+    const zMin = -(h - 1) * bucket / 2;
+    const xMax = (w - 1) * bucket / 2;
+    const zMax = (h - 1) * bucket / 2;
+    colNorm = (worldX - xMin) / (xMax - xMin);
+    rowNorm = (worldZ - zMin) / (zMax - zMin);
     colNorm = Math.max(0, Math.min(1, colNorm));
     rowNorm = Math.max(0, Math.min(1, rowNorm));
     const lon = elevBounds.left + colNorm * (elevBounds.right - elevBounds.left);
@@ -140,35 +125,15 @@ function worldToGridIndex(worldX, worldZ) {
     if (!processedData) return null;
     const w = processedData.width;
     const h = processedData.height;
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
-        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
-        let j = Math.round((worldX - originX) / bucket);
-        let i = Math.round((worldZ - originZ) / bucket);
-        i = Math.max(0, Math.min(h - 1, i));
-        j = Math.max(0, Math.min(w - 1, j));
-        return { i, j };
-    } else if (params.renderMode === 'points') {
-        const bucket = 1;
-        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
-        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
-        let j = Math.round((worldX - originX) / bucket);
-        let i = Math.round((worldZ - originZ) / bucket);
-        i = Math.max(0, Math.min(h - 1, i));
-        j = Math.max(0, Math.min(w - 1, j));
-        return { i, j };
-    } else {
-        // Fallback to bars mode calculation if unknown render mode
-        const bucket = params.bucketSize;
-        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
-        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
-        let j = Math.round((worldX - originX) / bucket);
-        let i = Math.round((worldZ - originZ) / bucket);
-        i = Math.max(0, Math.min(h - 1, i));
-        j = Math.max(0, Math.min(w - 1, j));
-        return { i, j };
-    }
+    // Only bars mode is supported
+    const bucket = params.bucketSize;
+    const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
+    const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
+    let j = Math.round((worldX - originX) / bucket);
+    let i = Math.round((worldZ - originZ) / bucket);
+    i = Math.max(0, Math.min(h - 1, i));
+    j = Math.max(0, Math.min(w - 1, j));
+    return { i, j };
 }
 
 /**
@@ -179,16 +144,10 @@ function worldToGridIndex(worldX, worldZ) {
  */
 function getMetersScalePerWorldUnit() {
     if (!processedData) return { mx: 1, mz: 1 };
-
-    if (params.renderMode === 'bars') {
-        const mx = (processedData.bucketSizeMetersX || 1) / (params.bucketSize || 1);
-        const mz = (processedData.bucketSizeMetersY || 1) / (params.bucketSize || 1);
-        return { mx, mz };
-    } else {
-        const mx = processedData.bucketSizeMetersX || 1;
-        const mz = processedData.bucketSizeMetersY || 1;
-        return { mx, mz };
-    }
+    // Only bars mode is supported
+    const mx = (processedData.bucketSizeMetersX || 1) / (params.bucketSize || 1);
+    const mz = (processedData.bucketSizeMetersY || 1) / (params.bucketSize || 1);
+    return { mx, mz };
 }
 
 /**
@@ -230,18 +189,12 @@ function isWorldInsideData(worldX, worldZ) {
     if (!processedData) return false;
     const w = processedData.width;
     const h = processedData.height;
-    let xMin, xMax, zMin, zMax;
-    if (params.renderMode === 'bars') {
-        const bucket = params.bucketSize;
-        xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
-        zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
-    } else if (params.renderMode === 'points') {
-        xMin = -(w - 1) / 2; xMax = (w - 1) / 2;
-        zMin = -(h - 1) / 2; zMax = (h - 1) / 2;
-    } else {
-        xMin = -w / 2; xMax = w / 2;
-        zMin = -h / 2; zMax = h / 2;
-    }
+    // Only bars mode is supported
+    const bucket = params.bucketSize;
+    const xMin = -(w - 1) * bucket / 2;
+    const xMax = (w - 1) * bucket / 2;
+    const zMin = -(h - 1) * bucket / 2;
+    const zMax = (h - 1) * bucket / 2;
     return (worldX >= xMin && worldX <= xMax && worldZ >= zMin && worldZ <= zMax);
 }
 

@@ -28,6 +28,10 @@ data/
 # Output
 output/
 generated/
+# But allow specific manifest files in generated/regions
+!generated/regions/
+!generated/regions/region_adjacency.json
+!generated/regions/regions_manifest.json
 *.png
 *.jpg
 *.html

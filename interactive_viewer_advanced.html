@@ -7,7 +7,7 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.362">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.367">
 </head>
 
 <body>
@@ -79,9 +79,126 @@
 
 			<button id="hud-config" title="HUD settings">settings</button>
 		</div>
-		<button id="mobile-ui-toggle" aria-label="Toggle controls">Hide Controls</button>
+	<button id="mobile-ui-toggle" aria-label="Toggle controls">Hide Controls</button>
 
-		<div id="loading">
+	<!-- Keyboard Shortcuts Help Overlay -->
+	<div id="shortcuts-overlay" class="shortcuts-overlay" style="display: none;">
+		<div class="shortcuts-modal">
+			<div class="shortcuts-header">
+				<h2>Keyboard Shortcuts</h2>
+				<button id="shortcuts-close" class="shortcuts-close" title="Close (press ? / or Esc)">&times;</button>
+			</div>
+			<div class="shortcuts-content">
+				<div class="shortcuts-section">
+					<h3>Keyboard Controls</h3>
+					<div class="shortcuts-grid">
+						<div class="shortcut-item">
+							<kbd>W</kbd>
+							<span>Move forward</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>S</kbd>
+							<span>Move backward</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>A</kbd>
+							<span>Strafe left</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>D</kbd>
+							<span>Strafe right</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Q</kbd>
+							<span>Move down (descend)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>E</kbd>
+							<span>Move up (ascend)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>F</kbd>
+							<span>Reframe view (reset to overhead)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>R</kbd>
+							<span>Reset camera</span>
+						</div>
+					<div class="shortcut-item">
+						<kbd>+</kbd> or <kbd>=</kbd>
+						<span>Increase sharpness (smaller buckets)</span>
+					</div>
+					<div class="shortcut-item">
+						<kbd>-</kbd>
+						<span>Decrease sharpness (larger buckets)</span>
+					</div>
+					<div class="shortcut-item">
+						<kbd>Shift</kbd> + <kbd>+</kbd>
+						<span>Zoom in (same as mouse wheel scroll up)</span>
+					</div>
+					<div class="shortcut-item">
+						<kbd>Shift</kbd> + <kbd>-</kbd>
+						<span>Zoom out (same as mouse wheel scroll down)</span>
+					</div>
+					<div class="shortcut-item">
+						<kbd>?</kbd> or <kbd>/</kbd>
+						<span>Toggle this help overlay</span>
+					</div>
+					</div>
+				</div>
+
+				<div class="shortcuts-section">
+					<h3>Mouse Controls</h3>
+					<div class="shortcuts-grid">
+						<div class="shortcut-item">
+							<kbd>Left Drag</kbd>
+							<span>Pan on ground plane (grab and drag)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Shift</kbd> + <kbd>Left Drag</kbd>
+							<span>Tilt view (pitch adjustment)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Alt</kbd> + <kbd>Left Drag</kbd>
+							<span>Rotate view around focus point</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Right Drag</kbd>
+							<span>Look around (rotate view in place)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Middle Drag</kbd>
+							<span>Rotate map around origin</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Mouse Wheel</kbd>
+							<span>Zoom toward/away from cursor</span>
+						</div>
+					</div>
+				</div>
+
+				<div class="shortcuts-section">
+					<h3>Touch/Trackpad Gestures</h3>
+					<div class="shortcuts-grid">
+						<div class="shortcut-item">
+							<kbd>Single Finger Drag</kbd>
+							<span>Pan (mobile touch)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Two Finger Drag</kbd>
+							<span>Pan (trackpad/desktop)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>Pinch</kbd>
+							<span>Zoom in/out</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="loading">
 			<div style="text-align: center;">
 				Loading elevation data...
 				<div class="spinner"></div>
@@ -222,7 +339,6 @@
 			<div class="control-group" style="display: none;">
 				<select id="renderMode">
 					<option value="bars" selected>3D Rectangular Prisms</option>
-					<option value="points">Point Cloud</option>
 				</select>
 			</div>
 
@@ -335,60 +451,60 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.362"></script>
-	<script src="js/ground-plane-camera.js?v=1.362"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.362"></script>
+	<script src="js/camera-schemes.js?v=1.367"></script>
+	<script src="js/ground-plane-camera.js?v=1.367"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.367"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.362"></script>
+	<script src="js/color-schemes.js?v=1.367"></script>
 
 	<!-- Color scale legend -->
-	<script src="js/color-legend.js?v=1.362"></script>
+	<script src="js/color-legend.js?v=1.367"></script>
 
 	<!-- Geometry and spatial utilities -->
-	<script src="js/geometry-utils.js?v=1.362"></script>
+	<script src="js/geometry-utils.js?v=1.367"></script>
 
 	<!-- Data formatting utilities -->
-	<script src="js/format-utils.js?v=1.362"></script>
+	<script src="js/format-utils.js?v=1.367"></script>
 
 	<!-- Activity log utilities -->
-	<script src="js/activity-log.js?v=1.362"></script>
+	<script src="js/activity-log.js?v=1.367"></script>
 
 	<!-- Edge markers (N/E/S/W directional labels) -->
-	<script src="js/edge-markers.js?v=1.362"></script>
+	<script src="js/edge-markers.js?v=1.367"></script>
 
 	<!-- UI loading states (loading screen and progress bar) -->
-	<script src="js/ui-loading.js?v=1.362"></script>
+	<script src="js/ui-loading.js?v=1.367"></script>
 
 	<!-- Resolution controls (bucket size slider and presets) -->
-	<script src="js/resolution-controls.js?v=1.362"></script>
+	<script src="js/resolution-controls.js?v=1.367"></script>
 
 	<!-- Keyboard shortcuts (global shortcuts like R, +, -) -->
-	<script src="js/keyboard-shortcuts.js?v=1.362"></script>
+	<script src="js/keyboard-shortcuts.js?v=1.367"></script>
 
 	<!-- State connectivity (US states only) -->
-	<script src="js/state-connectivity.js?v=1.362"></script>
+	<script src="js/state-connectivity.js?v=1.367"></script>
 
 	<!-- UI Controls Manager -->
-	<script src="js/ui-controls-manager.js?v=1.362"></script>
+	<script src="js/ui-controls-manager.js?v=1.367"></script>
 
 	<!-- HUD System -->
-	<script src="js/hud-system.js?v=1.362"></script>
+	<script src="js/hud-system.js?v=1.367"></script>
 
 	<!-- Compass Rose -->
-	<script src="js/compass-rose.js?v=1.362"></script>
+	<script src="js/compass-rose.js?v=1.367"></script>
 
 	<!-- Map Shading -->
-	<script src="js/map-shading.js?v=1.362"></script>
+	<script src="js/map-shading.js?v=1.367"></script>
 
 	<!-- Terrain Renderer -->
-	<script src="js/terrain-renderer.js?v=1.362"></script>
+	<script src="js/terrain-renderer.js?v=1.367"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.362"></script>
+	<script src="js/viewer-advanced.js?v=1.367"></script>
 </body>
 
 </html>

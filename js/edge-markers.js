@@ -8,7 +8,7 @@
  * FEATURES:
  * - Shows actual neighbor names (e.g., "Oregon" at north edge of California)
  * - Clickable markers to load adjacent regions
- * - Positioned at terrain edges based on render mode
+ * - Positioned at terrain edges
  * - Markers stay at ground level (y=0) regardless of vertical exaggeration
  * - Auto-scales based on terrain size
  * - Only shows markers for neighbors that exist in the manifest
@@ -35,7 +35,7 @@
  * @global edgeMarkers - Array to store marker sprites
  * @global rawElevationData - Raw elevation data (for existence check)
  * @global processedData - Processed data with width/height
- * @global params - Render parameters (renderMode, bucketSize)
+ * @global params - Render parameters (bucketSize)
  * @global currentRegionId - Currently loaded region
  * @global regionAdjacency - Adjacency data for all regions
  * @global regionIdToName - Mapping from region IDs to display names
@@ -57,27 +57,12 @@ function createEdgeMarkers() {
     // They stay at this fixed height regardless of vertical exaggeration changes
     const markerHeight = 0;
 
-    // Calculate actual coordinate extents based on render mode
-    let xExtent, zExtent, avgSize;
-    if (params.renderMode === 'bars') {
-        // Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketMultiplier / 2;
-        zExtent = (gridHeight - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
-        avgSize = (xExtent + zExtent);
-    } else if (params.renderMode === 'points') {
-        // Points use uniform grid positioning, scaled by bucketSize
-        const bucketSize = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketSize / 2;
-        zExtent = (gridHeight - 1) * bucketSize / 2;
-        avgSize = (xExtent + zExtent);
-    } else {
-        // Fallback to bars mode calculation if unknown render mode
-        const bucketSize = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketSize / 2;
-        zExtent = (gridHeight - 1) * bucketSize / 2;
-        avgSize = (xExtent + zExtent);
-    }
+    // Calculate actual coordinate extents - only bars mode is supported
+    // Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
+    const bucketMultiplier = params.bucketSize;
+    const xExtent = (gridWidth - 1) * bucketMultiplier / 2;
+    const zExtent = (gridHeight - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
+    const avgSize = (xExtent + zExtent);
 
     // Get neighbors for current region
     const neighbors = currentRegionId && regionAdjacency && regionAdjacency[currentRegionId];
@@ -124,58 +109,21 @@ function createEdgeMarkers() {
     ];
 
     directions.forEach(dir => {
-        const neighborData = neighbors[dir.key];
-        console.log(`[EDGE MARKERS] Direction ${dir.key}: neighborData=`, neighborData);
+        // Just show direction letter - connectivity labels handle neighbor names
+        const sprite = createTextSprite(dir.letter, dir.color, null);
+        sprite.position.set(dir.x, markerHeight, dir.z);
 
-        // Get valid neighbor names for this direction
-        let neighborIds = [];
-        let neighborNames = [];
-
-        if (neighborData) {
-            // Handle both single neighbor (string) and multiple neighbors (array)
-            const rawIds = Array.isArray(neighborData) ? neighborData : [neighborData];
-
-            // Filter out neighbors that don't exist in manifest
-            neighborIds = rawIds.filter(id => {
-                if (regionsManifest && regionsManifest.regions && regionsManifest.regions[id]) {
-                    return true;
-                }
-                console.log(`[EDGE MARKERS] Neighbor "${id}" not in manifest, skipping`);
-                return false;
-            });
-
-            // Get display names
-            neighborNames = neighborIds.map(id => regionIdToName[id] || id);
-        }
-
-        // Create combined sprite with compass letter + neighbor names
-        const combinedSprite = createCombinedDirectionSprite(dir.letter, neighborNames, dir.color);
-        combinedSprite.position.set(dir.x, markerHeight, dir.z);
-
-        // Scale based on terrain size (2x bigger)
-        const baseScale = avgSize * 0.12; // Doubled from 0.06
-        combinedSprite.scale.set(baseScale, baseScale, baseScale);
-
-        // Store neighbor info for click handling
-        if (neighborIds.length > 0) {
-            combinedSprite.userData.neighborIds = neighborIds;
-            combinedSprite.userData.neighborNames = neighborNames;
-            combinedSprite.userData.isClickable = true;
-            combinedSprite.userData.neighborCount = neighborIds.length;
-        } else {
-            combinedSprite.userData.isClickable = false;
-            combinedSprite.userData.neighborCount = 0;
-        }
+        // Scale based on terrain size
+        const baseScale = avgSize * 0.06;
+        sprite.scale.set(baseScale, baseScale, baseScale);
 
         // Apply current visibility state from checkbox
         const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
-        combinedSprite.visible = !showEdgeMarkersCheckbox || showEdgeMarkersCheckbox.checked;
+        sprite.visible = !showEdgeMarkersCheckbox || showEdgeMarkersCheckbox.checked;
 
         // Add to terrain group so markers rotate with terrain
-        window.terrainGroup.add(combinedSprite);
-        edgeMarkers.push(combinedSprite);
-
-        console.log(`[EDGE MARKERS] Added combined marker for ${dir.key} with neighbors:`, neighborNames);
+        window.terrainGroup.add(sprite);
+        edgeMarkers.push(sprite);
     });
 }
 

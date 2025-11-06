@@ -293,6 +293,15 @@ def download_srtm_90m_tiles(
     tiles = calculate_1degree_tiles(bounds)
     print(f"  Splitting into {len(tiles)} tiles (1-degree grid)")
     
+    # Check rate limit BEFORE starting download loop
+    # Bail out early instead of checking per-tile
+    ok, reason = check_rate_limit()
+    if not ok:
+        print(f"\n  Rate limit active: {reason}", flush=True)
+        print(f"  Skipping all downloads until rate limit clears", flush=True)
+        print(f"  Use 'python check_rate_limit.py' to check status", flush=True)
+        return False
+    
     # Create tile directory
     tile_dir = Path('data/raw/srtm_90m/tiles')
     tile_dir.mkdir(parents=True, exist_ok=True)

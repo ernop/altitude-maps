@@ -42,7 +42,7 @@ else:
 # CORRECT:
 if region_type == RegionType.USA_STATE:
     available_downloads = [10, 30, 90]
-elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:
+elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:
     available_downloads = [30, 90]
 else:
     raise ValueError(f"Unknown region type: {region_type}")
@@ -69,7 +69,7 @@ recommended = None
 ```
 
 **Problem**:
-- No explicit check for `RegionType.COUNTRY` or `RegionType.REGION`
+- No explicit check for `RegionType.COUNTRY` or `RegionType.AREA`
 - No `else` clause with `ValueError` for unknown types
 - Silent fallthrough allows invalid region types to be processed
 
@@ -80,7 +80,7 @@ if region_type == RegionType.USA_STATE:
     # ... handle US states
     return dataset
 
-elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:
+elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:
     # ... handle international regions
     return dataset
 
@@ -107,12 +107,12 @@ for region in all_regions:
     if region.region_type == RegionType.COUNTRY:
         # ... process countries
 
-# MISSING: No handling for RegionType.REGION
+# MISSING: No handling for RegionType.AREA
 # MISSING: No error for unknown types
 ```
 
 **Problem**:
-- Silently skips regions with `region_type == RegionType.REGION`
+- Silently skips regions with `region_type == RegionType.AREA`
 - No error handling for invalid region types
 - Incomplete data processing
 
@@ -124,7 +124,7 @@ for region in all_regions:
         # ... process US states
     elif region.region_type == RegionType.COUNTRY:
         # ... process countries
-    elif region.region_type == RegionType.REGION:
+    elif region.region_type == RegionType.AREA:
         # ... process regions (or skip with explicit comment)
     else:
         raise ValueError(f"Unknown region type for {region.id}: {region.region_type}")
@@ -193,7 +193,7 @@ if config.region_type == RegionType.USA_STATE:
     boundary_type = 'state'
 elif config.region_type == RegionType.COUNTRY:
     boundary_type = 'country'
-elif config.region_type == RegionType.REGION:
+elif config.region_type == RegionType.AREA:
     boundary_type = None  # or appropriate handling
 else:
     raise ValueError(f"Unknown region type: {config.region_type}")
@@ -220,8 +220,8 @@ elif region_type == RegionType.COUNTRY:
     else:
         boundary_name = None
         boundary_type = None
-elif region_type == RegionType.REGION:
-    # For regions (islands, ranges, etc.), check if boundary clipping is enabled
+elif region_type == RegionType.AREA:
+    # For areas (islands, ranges, etc.), check if boundary clipping is enabled
     if region_info.get('clip_boundary', False):
         boundary_name = region_info['name']
         boundary_type = "country"
@@ -292,7 +292,7 @@ All 6 violations have been fixed:
 ✅ list_regions() - Works without crashes (89 total regions)
 ✅ list_regions(RegionType.USA_STATE) - Returns 50 US states
 ✅ list_regions(RegionType.COUNTRY) - Returns 8 countries  
-✅ list_regions(RegionType.REGION) - Returns 31 regions
+✅ list_regions(RegionType.AREA) - Returns 31 regions
 ✅ get_region('ohio').region_type - Returns RegionType.USA_STATE correctly
 ```
 

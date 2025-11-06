@@ -852,7 +852,7 @@ REGIONS: Dict[str, RegionConfig] = {
     "uintas_wilderness": RegionConfig(
         id="uintas_wilderness",
         name="Uinta Mountains",
-        bounds=(-111.0, 40.3, -109.5, 41.0),
+        bounds=(-111.0, 40.3, -109.5, 40.95),
         description="Utah - Uinta Mountains and High Uintas Wilderness, east-west trending mountain range with Kings Peak (13,528 ft)",
         region_type=RegionType.AREA,
         country="United States of America",
@@ -892,6 +892,24 @@ REGIONS: Dict[str, RegionConfig] = {
         description="Italy - Sicily, largest island in the Mediterranean",
         region_type=RegionType.AREA,
         country="Italy",
+        clip_boundary=False,
+    ),
+    "slo": RegionConfig(
+        id="slo",
+        name="San Luis Obispo",
+        bounds=(-120.72, 35.26, -120.63, 35.34),
+        description="California - San Luis Obispo area including Bishop's Peak, San Luis Mountain, and Cal Poly campus",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
+    "pennsylvania_ridge_valley": RegionConfig(
+        id="pennsylvania_ridge_valley",
+        name="Pennsylvania Ridge and Valley",
+        bounds=(-78.5, 40.0, -76.0, 41.3),
+        description="Pennsylvania - Ridge and Valley Province of the Appalachians, featuring distinctive diagonal parallel ridges and valleys formed from folded sedimentary rocks (Tuscarora quartzite). Includes Nittany Arch and famous ridges like Tussey Mountain.",
+        region_type=RegionType.AREA,
+        country="United States of America",
         clip_boundary=False,
     ),
 }

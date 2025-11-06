@@ -856,8 +856,7 @@ class JumpingScheme extends CameraScheme {
         if (elevation === null || elevation === undefined) return 0;
 
         // Return TOP of terrain/bar (elevation * vertical exaggeration)
-        // In bars mode: this is the top surface of the bar (solid collision)
-        // In points mode: this is the terrain surface
+        // This is the top surface of the bar (solid collision)
         return elevation * (params.verticalExaggeration || 1.0);
     }
 

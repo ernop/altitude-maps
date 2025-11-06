@@ -209,8 +209,8 @@ if region_type == RegionType.USA_STATE:
 elif region_type == RegionType.COUNTRY:
     # Handle countries
     pass
-elif region_type == RegionType.REGION:
-    # Handle regions (islands, ranges, etc.)
+elif region_type == RegionType.AREA:
+    # Handle areas (islands, ranges, etc.)
     pass
 else:
     raise ValueError(f"Unknown region type: {region_type}")

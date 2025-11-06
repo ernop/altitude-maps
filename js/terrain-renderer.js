@@ -2,14 +2,14 @@
  * Terrain Renderer Module
  * 
  * PURPOSE:
- * Create and manage terrain geometry (bars, points, surface modes).
+ * Create and manage terrain geometry (bars mode only).
  * Handles all terrain mesh creation, updates, and positioning.
  * 
  * FEATURES:
- * - Create terrain in three modes: bars, points, surface
+ * - Create terrain in bars mode (3D rectangular prisms)
  * - Update terrain height (vertical exaggeration)
  * - Recreate terrain (bucket size changes, etc.)
- * - Center terrain based on render mode
+ * - Center terrain
  * - Manage terrain statistics
  * - Coordinate with camera schemes for bounds
  * 
@@ -28,7 +28,7 @@
  * DEPENDS ON:
  * - Global: window.scene, window.terrainGroup, window.terrainMesh
  * - Global: window.barsInstancedMesh, window.barsIndexToRow, window.barsIndexToCol, window.barsTileSize, window.barsDummy
- * - Global: window.lastBarsExaggerationInternal, window.lastPointsExaggerationInternal, window.lastBarsTileSize
+ * - Global: window.lastBarsExaggerationInternal, window.lastBarsTileSize
  * - Global: window.terrainStats, window.processedData, window.params
  * - Global: window.edgeMarkers, window.controls
  * - Functions: getColorForElevation(), setLastColorIndex() (from viewer-advanced wrappers)
@@ -46,7 +46,7 @@
     }
 
     /**
-     * Create terrain based on current render mode
+     * Create terrain (bars mode only)
      */
     function create() {
         const t0 = performance.now();
@@ -77,33 +77,16 @@
             scale = { widthMeters: 1000, heightMeters: 1000 };
         }
 
-        if (window.params.renderMode === 'bars') {
-            createBars(width, height, elevation, scale);
-        } else if (window.params.renderMode === 'points') {
-            createPoints(width, height, elevation, scale);
-        } else {
-            // Fallback to bars if unknown render mode (surface/wireframe removed)
-            console.warn(`Unknown render mode '${window.params.renderMode}', falling back to 'bars'`);
-            window.params.renderMode = 'bars';
-            createBars(width, height, elevation, scale);
-        }
+        // Only bars mode is supported
+        createBars(width, height, elevation, scale);
 
-        // Center terrain - different centering for different modes
+        // Center terrain - bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
         // Note: Position is preserved in recreate() to keep map fixed when bucket size changes
         if (window.terrainMesh) {
-            if (window.params.renderMode === 'bars') {
-                // Bars use UNIFORM 2D grid - same spacing in X and Z (no aspect ratio)
-                const bucketMultiplier = window.params.bucketSize;
-                window.terrainMesh.position.x = -(width - 1) * bucketMultiplier / 2;
-                window.terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
-                console.log(`Bars centered: uniform grid ${width}x${height}, tile size ${bucketMultiplier}, offset (${window.terrainMesh.position.x.toFixed(1)}, ${window.terrainMesh.position.z.toFixed(1)})`);
-            } else if (window.params.renderMode === 'points') {
-                // Points use uniform grid positioning, scaled by bucketSize
-                const bucketSize = window.params.bucketSize;
-                window.terrainMesh.position.x = -(width - 1) * bucketSize / 2;
-                window.terrainMesh.position.z = -(height - 1) * bucketSize / 2;
-                console.log(`Points centered: uniform grid ${width}x${height}, bucket size ${bucketSize}, offset (${window.terrainMesh.position.x.toFixed(1)}, ${window.terrainMesh.position.z.toFixed(1)})`);
-            }
+            const bucketMultiplier = window.params.bucketSize;
+            window.terrainMesh.position.x = -(width - 1) * bucketMultiplier / 2;
+            window.terrainMesh.position.z = -(height - 1) * bucketMultiplier / 2; // NO aspect ratio scaling!
+            console.log(`Bars centered: uniform grid ${width}x${height}, tile size ${bucketMultiplier}, offset (${window.terrainMesh.position.x.toFixed(1)}, ${window.terrainMesh.position.z.toFixed(1)})`);
         }
 
         const t1 = performance.now();
@@ -118,18 +101,10 @@
 
         // Update camera scheme with terrain bounds for F key reframing
         if (window.controls && window.controls.activeScheme && window.controls.activeScheme.setTerrainBounds) {
-            // Calculate bounds based on render mode
-            if (window.params.renderMode === 'bars') {
-                const bucketMultiplier = window.params.bucketSize;
-                const halfWidth = (width - 1) * bucketMultiplier / 2;
-                const halfDepth = (height - 1) * bucketMultiplier / 2;
-                window.controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
-            } else if (window.params.renderMode === 'points') {
-                const bucketSize = window.params.bucketSize;
-                const halfWidth = (width - 1) * bucketSize / 2;
-                const halfDepth = (height - 1) * bucketSize / 2;
-                window.controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
-            }
+            const bucketMultiplier = window.params.bucketSize;
+            const halfWidth = (width - 1) * bucketMultiplier / 2;
+            const halfDepth = (height - 1) * bucketMultiplier / 2;
+            window.controls.activeScheme.setTerrainBounds(-halfWidth, halfWidth, -halfDepth, halfDepth);
         }
 
         // PRODUCT REQUIREMENT: Edge markers must stay fixed when vertical exaggeration changes
@@ -317,148 +292,9 @@
         if (barCount > 15000) {
             console.warn(`Very high bar count (${barCount.toLocaleString()})! Consider:
  - Increase bucket multiplier to ${Math.ceil(window.params.bucketSize * 1.5)}x+
- - Switch to 'Points' render mode for better performance
  - Current: ${Math.floor(100 * barCount / (width * height))}% of bucketed grid has data`);
         } else if (barCount > 8000) {
             console.warn(`High bar count (${barCount.toLocaleString()}). Increase bucket multiplier if laggy.`);
-        }
-    }
-
-    /**
-     * Create points terrain (point cloud)
-     */
-    function createPoints(width, height, elevation, scale) {
-        const geometry = new THREE.BufferGeometry();
-        const positions = [];
-        const colors = [];
-
-        // Uniform grid spacing - treat as simple 2D grid, scaled by bucketSize
-        const bucketSize = window.params.bucketSize; // Match bars mode spacing
-
-        // GeoTIFF: elevation[row][col] where row=North->South (i), col=West->East (j)
-        for (let i = 0; i < height; i++) { // row (North to South)
-            for (let j = 0; j < width; j++) { // column (West to East)
-                let z = elevation[i] && elevation[i][j];
-                if (z === null || z === undefined) z = 0;
-
-                // Uniform 2D grid positioning
-                const xPos = j * bucketSize;
-                const zPos = i * bucketSize;
-                positions.push(xPos, z * window.params.verticalExaggeration, zPos);
-
-                const color = typeof getColorForElevation === 'function' ? getColorForElevation(z) : new THREE.Color(0x808080);
-                colors.push(color.r, color.g, color.b);
-            }
-        }
-
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-        const material = new THREE.PointsMaterial({
-            size: bucketSize * 1.5, // Point size scales with bucket size
-            vertexColors: true,
-            sizeAttenuation: true
-        });
-
-        // Create points mesh
-        const points = new THREE.Points(geometry, material);
-
-        // Add uExaggeration uniform to scale Y on the GPU (ratio relative to build exaggeration)
-        points.material.onBeforeCompile = (shader) => {
-            shader.uniforms.uExaggeration = { value: 1.0 };
-            points.material.userData = points.material.userData || {};
-            points.material.userData.uExaggerationUniform = shader.uniforms.uExaggeration;
-            shader.vertexShader = shader.vertexShader.replace(
-                'void main() {',
-                'uniform float uExaggeration;\nvoid main() {'
-            );
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <begin_vertex>',
-                `#include <begin_vertex>\ntransformed.y*= uExaggeration;`
-            );
-        };
-
-        window.terrainMesh = points;
-        window.terrainGroup.add(window.terrainMesh); // Add to group instead of scene directly
-        // Expose for camera controls
-        if (typeof window !== 'undefined') {
-            window.terrainMesh = window.terrainMesh;
-        }
-        window.lastPointsExaggerationInternal = window.params.verticalExaggeration;
-        if (window.terrainMesh.material && window.terrainMesh.material.userData && window.terrainMesh.material.userData.uExaggerationUniform) {
-            window.terrainMesh.material.userData.uExaggerationUniform.value = 1.0;
-        }
-    }
-
-    /**
-     * Create surface terrain (mesh)
-     */
-    function createSurface(width, height, elevation, scale) {
-        // Create uniform 2D grid - no geographic corrections
-        // Treat data as simple evenly-spaced grid points
-        // Scale by bucketSize to match bars mode extent
-        const bucketMultiplier = window.params.bucketSize;
-        const geometry = new THREE.PlaneGeometry(
-            width * bucketMultiplier, height * bucketMultiplier, width - 1, height - 1
-        );
-
-        const isWireframe = (window.params.renderMode === 'wireframe');
-        const colors = isWireframe ? null : [];
-        const positions = geometry.attributes.position;
-
-        // GeoTIFF: elevation[row][col] where row=North->South, col=West->East
-        for (let i = 0; i < height; i++) { // row (North to South)
-            for (let j = 0; j < width; j++) { // column (West to East)
-                const idx = i * width + j;
-                let z = elevation[i] && elevation[i][j];
-                if (z === null || z === undefined) z = 0;
-
-                positions.setZ(idx, z * window.params.verticalExaggeration);
-
-                if (!isWireframe) {
-                    if (typeof setLastColorIndex === 'function') {
-                        setLastColorIndex(i, j);
-                    }
-                    const color = typeof getColorForElevation === 'function' ? getColorForElevation(z) : new THREE.Color(0x808080);
-                    colors.push(color.r, color.g, color.b);
-                }
-            }
-        }
-
-        if (!isWireframe) {
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-            // PERFORMANCE FIX: Defer expensive computeVertexNormals() to after first render
-            // This makes the viewer interactive immediately (no 2-3 second freeze)
-            // Natural (Lambert) shading always needs normals
-            setTimeout(() => {
-                if (geometry && !geometry.attributes.normal) {
-                    const t0 = performance.now();
-                    geometry.computeVertexNormals();
-                    const t1 = performance.now();
-                    console.log(`[Deferred] Computed vertex normals in ${(t1 - t0).toFixed(1)}ms`);
-                }
-            }, 0);
-        }
-
-        let material;
-        if (isWireframe) {
-            // Wireframe ignores vertexColors; use a bright, unlit material for visibility
-            material = new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                wireframe: true,
-                side: THREE.DoubleSide
-            });
-        } else {
-            // Always use Natural (Lambert) shading
-            material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: false, wireframe: false, side: THREE.DoubleSide });
-        }
-
-        window.terrainMesh = new THREE.Mesh(geometry, material);
-        window.terrainMesh.rotation.x = -Math.PI / 2;
-        window.terrainGroup.add(window.terrainMesh); // Add to group instead of scene directly
-        // Expose for camera controls
-        if (typeof window !== 'undefined') {
-            window.terrainMesh = window.terrainMesh;
         }
     }
 
@@ -468,35 +304,19 @@
     function updateHeight() {
         if (!window.terrainMesh) return;
 
-        if (window.params.renderMode === 'bars') {
-            if (!window.barsInstancedMesh) {
-                if (typeof recreate === 'function') {
-                    recreate();
-                }
-                return;
-            }
-            // Instant update: update shader uniform to ratio of new/internal used value
-            const u = window.barsInstancedMesh.material && window.barsInstancedMesh.material.userData && window.barsInstancedMesh.material.userData.uExaggerationUniform;
-            if (u) {
-                const base = (window.lastBarsExaggerationInternal && window.lastBarsExaggerationInternal > 0) ? window.lastBarsExaggerationInternal : window.params.verticalExaggeration;
-                u.value = window.params.verticalExaggeration / base;
-            }
-            // Note: bucket changes handled via recreate()
-        } else if (window.params.renderMode === 'points') {
-            // Instant update for points via uniform ratio (no CPU loops)
-            const u = window.terrainMesh.material && window.terrainMesh.material.userData && window.terrainMesh.material.userData.uExaggerationUniform;
-            if (u) {
-                const base = (window.lastPointsExaggerationInternal && window.lastPointsExaggerationInternal > 0) ? window.lastPointsExaggerationInternal : window.params.verticalExaggeration;
-                u.value = window.params.verticalExaggeration / base;
-            }
-        } else {
-            // Unknown render mode - fallback to bars
-            console.warn(`Unknown render mode '${window.params.renderMode}' in updateHeight, falling back to bars`);
-            window.params.renderMode = 'bars';
+        if (!window.barsInstancedMesh) {
             if (typeof recreate === 'function') {
                 recreate();
             }
+            return;
         }
+        // Instant update: update shader uniform to ratio of new/internal used value
+        const u = window.barsInstancedMesh.material && window.barsInstancedMesh.material.userData && window.barsInstancedMesh.material.userData.uExaggerationUniform;
+        if (u) {
+            const base = (window.lastBarsExaggerationInternal && window.lastBarsExaggerationInternal > 0) ? window.lastBarsExaggerationInternal : window.params.verticalExaggeration;
+            u.value = window.params.verticalExaggeration / base;
+        }
+        // Note: bucket changes handled via recreate()
     }
 
     /**

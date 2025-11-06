@@ -1,9 +1,20 @@
 /**
- * US State Connectivity Module
+ * Region Connectivity Module
  * 
- * Displays neighboring states near compass direction markers.
- * Only applies to US states.
+ * Displays navigable relationships between all region types:
+ * - Adjacent regions: N, S, E, W (cardinal directions only)
+ * - Contained areas: AREA regions within states/countries (center, purple)
+ * - Parent regions: States/countries containing this AREA (center, cyan)
+ * 
+ * Provides full bidirectional navigation across the entire region graph.
  */
+
+// RegionType enum - must match src/types.py RegionType enum
+const RegionType = {
+    USA_STATE: 'usa_state',
+    COUNTRY: 'country',
+    AREA: 'area'
+};
 
 // Global state adjacency data (loaded from JSON)
 let stateAdjacencyData = null;
@@ -48,8 +59,7 @@ function isUSState(regionId) {
     if (!regionsManifest || !regionsManifest.regions) return false;
     const regionInfo = regionsManifest.regions[regionId];
     if (!regionInfo) return false;
-    // Check regionType field (camelCase, not category)
-    return regionInfo.regionType === 'usa_state';
+    return regionInfo.regionType === RegionType.USA_STATE;
 }
 
 /**
@@ -61,25 +71,25 @@ function getNeighborsInDirection(stateId, direction) {
 }
 
 /**
- * Create a clickable neighbor label sprite
+ * Create a clickable neighbor label sprite (smaller, for display below direction markers)
  */
 function createNeighborLabel(neighborName, neighborId, color, onClick) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    canvas.width = 512;
-    canvas.height = 128;
+    canvas.width = 384;
+    canvas.height = 80;
 
     // Draw semi-transparent background
-    context.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    context.fillStyle = 'rgba(0, 0, 0, 0.7)';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw border with direction color
     context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-    context.lineWidth = 3;
+    context.lineWidth = 2;
     context.strokeRect(0, 0, canvas.width, canvas.height);
 
-    // Draw text
-    context.font = 'Bold 48px Arial';
+    // Draw text (smaller font)
+    context.font = 'Bold 32px Arial';
     context.fillStyle = '#ffffff';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
@@ -108,16 +118,19 @@ function createNeighborLabel(neighborName, neighborId, color, onClick) {
 }
 
 /**
- * Position labels for a given direction
+ * Position labels for a given direction (below edge markers)
  */
 function positionLabelsForDirection(direction, neighbors, baseX, baseZ, xExtent, zExtent, avgSize) {
     const labels = [];
-    const labelSpacing = avgSize * 0.15; // Space between labels
-    const offsetFromEdge = avgSize * 0.25; // Distance from edge marker
+    const baseScale = avgSize * 0.045; // Slightly larger for readability
+    const labelHeight = baseScale; 
+    const labelSpacing = labelHeight * 2.5; // More vertical space between labels
     
-    // Calculate starting position for stacked labels
+    // Position labels clearly BELOW the direction letter
+    // Direction letter is at ground level (y=0), so we go negative
+    const verticalStartOffset = -avgSize * 0.12; // Start lower
     const totalHeight = (neighbors.length - 1) * labelSpacing;
-    let currentOffset = -totalHeight / 2;
+    let yOffset = verticalStartOffset - totalHeight / 2;
 
     neighbors.forEach((neighbor, index) => {
         const color = getColorForDirection(direction);
@@ -128,51 +141,18 @@ function positionLabelsForDirection(direction, neighbors, baseX, baseZ, xExtent,
             }
         });
 
-        // Position based on direction
+        // Position at same XZ as direction marker, but below (negative Y)
         let x = baseX;
         let z = baseZ;
-        let y = currentOffset;
-
-        // Adjust position based on direction
-        switch(direction) {
-            case 'N':
-                z -= offsetFromEdge;
-                break;
-            case 'S':
-                z += offsetFromEdge;
-                break;
-            case 'E':
-                x += offsetFromEdge;
-                break;
-            case 'W':
-                x -= offsetFromEdge;
-                break;
-            case 'NE':
-                x += offsetFromEdge * 0.7;
-                z -= offsetFromEdge * 0.7;
-                break;
-            case 'NW':
-                x -= offsetFromEdge * 0.7;
-                z -= offsetFromEdge * 0.7;
-                break;
-            case 'SE':
-                x += offsetFromEdge * 0.7;
-                z += offsetFromEdge * 0.7;
-                break;
-            case 'SW':
-                x -= offsetFromEdge * 0.7;
-                z += offsetFromEdge * 0.7;
-                break;
-        }
+        let y = yOffset;
 
         sprite.position.set(x, y, z);
 
-        // Scale based on terrain size
-        const baseScale = avgSize * 0.08;
-        sprite.scale.set(baseScale * 4, baseScale, baseScale); // Wide aspect ratio
+        // Scale for labels - wider for readability
+        sprite.scale.set(baseScale * 5, baseScale * 1.0, baseScale);
 
         labels.push(sprite);
-        currentOffset += labelSpacing;
+        yOffset += labelSpacing; // Stack downward
     });
 
     return labels;
@@ -186,99 +166,195 @@ function getColorForDirection(direction) {
         'N': 0xff4444,  // Red
         'S': 0x4488ff,  // Blue
         'E': 0x44ff44,  // Green
-        'W': 0xffff44,  // Yellow
-        'NE': 0xff8844, // Orange (blend of N and E)
-        'NW': 0xffaa44, // Yellow-orange (blend of N and W)
-        'SE': 0x44ffaa, // Cyan-green (blend of S and E)
-        'SW': 0x88aaff  // Light blue (blend of S and W)
+        'W': 0xffff44   // Yellow
     };
     return directionColors[direction] || 0xffffff;
 }
 
 /**
+ * Create labels for contained AREA regions (displayed in center of map)
+ */
+function createContainedAreaLabels(containedData, avgSize) {
+    // Handle both single and multiple contained areas
+    const rawIds = Array.isArray(containedData) ? containedData : [containedData];
+    
+    // Filter valid areas
+    const validAreas = rawIds
+        .filter(id => regionsManifest && regionsManifest.regions && regionsManifest.regions[id])
+        .map(id => ({
+            id: id,
+            name: regionIdToName[id] || id
+        }));
+
+    if (validAreas.length === 0) return;
+
+    // Position contained areas in the center of the map
+    const baseScale = avgSize * 0.05; // Slightly larger for visibility
+    const labelHeight = baseScale;
+    const labelSpacing = labelHeight * 2.5;
+    const totalHeight = (validAreas.length - 1) * labelSpacing;
+    let yOffset = totalHeight / 2; // Start from top and go down
+
+    validAreas.forEach((area, index) => {
+        const color = 0xff88ff; // Purple/magenta for contained areas
+        const sprite = createNeighborLabel(area.name, area.id, color, () => {
+            // Click handler: load the contained area
+            if (area.id && area.id !== currentRegionId) {
+                loadRegion(area.id);
+            }
+        });
+
+        // Position at center of map, slightly elevated
+        sprite.position.set(0, yOffset + avgSize * 0.15, 0);
+
+        // Scale for readability
+        sprite.scale.set(baseScale * 5, baseScale * 1.0, baseScale);
+
+        scene.add(sprite);
+        connectivityLabels.push(sprite);
+        
+        yOffset -= labelSpacing; // Stack downward
+    });
+
+    console.log(`[Connectivity] Added ${validAreas.length} contained area labels`);
+}
+
+/**
+ * Create labels for "within" relationships (AREA regions showing their parent regions)
+ */
+function createWithinLabels(withinData, avgSize) {
+    // Handle both single and multiple parent regions
+    const rawIds = Array.isArray(withinData) ? withinData : [withinData];
+    
+    // Filter valid parent regions
+    const validParents = rawIds
+        .filter(id => regionsManifest && regionsManifest.regions && regionsManifest.regions[id])
+        .map(id => ({
+            id: id,
+            name: regionIdToName[id] || id
+        }));
+
+    if (validParents.length === 0) return;
+
+    // Position "within" labels in the center, below the terrain
+    const baseScale = avgSize * 0.05;
+    const labelHeight = baseScale;
+    const labelSpacing = labelHeight * 2.5;
+    const totalHeight = (validParents.length - 1) * labelSpacing;
+    let yOffset = -totalHeight / 2 - avgSize * 0.20; // Below center
+
+    validParents.forEach((parent, index) => {
+        const color = 0x44ffff; // Cyan for parent/container regions
+        const sprite = createNeighborLabel(parent.name, parent.id, color, () => {
+            // Click handler: load the parent region
+            if (parent.id && parent.id !== currentRegionId) {
+                loadRegion(parent.id);
+            }
+        });
+
+        // Position at center of map, below terrain
+        sprite.position.set(0, yOffset, 0);
+
+        // Scale for readability
+        sprite.scale.set(baseScale * 5, baseScale * 1.0, baseScale);
+
+        scene.add(sprite);
+        connectivityLabels.push(sprite);
+        
+        yOffset -= labelSpacing; // Stack downward
+    });
+
+    console.log(`[Connectivity] Added ${validParents.length} "within" labels`);
+}
+
+/**
  * Create connectivity labels for the current region
+ * 
+ * Displays clickable navigation labels:
+ * - Cardinal directions (N/S/E/W): Below edge markers - adjacent regions
+ * - "Contained" (purple): Center, above terrain - AREA regions within this region
+ * - "Within" (cyan): Center, below terrain - Parent regions containing this AREA
+ * 
+ * Provides full bidirectional navigation between all region types.
  */
 function createConnectivityLabels() {
-    console.log(`[Connectivity] createConnectivityLabels() called for region: ${currentRegionId}`);
-    
     // Remove old labels
     connectivityLabels.forEach(label => scene.remove(label));
     connectivityLabels.length = 0; // Clear array while keeping reference
 
-    // Only show for US states
-    if (!currentRegionId) {
-        console.log(`[Connectivity] No currentRegionId`);
-        return;
-    }
+    // Only show for regions with adjacency data
+    if (!currentRegionId) return;
     
-    if (!isUSState(currentRegionId)) {
-        console.log(`[Connectivity] ${currentRegionId} is not a US state`);
-        return;
-    }
+    // Get neighbors from regionAdjacency (unified system for all region types)
+    const neighbors = currentRegionId && regionAdjacency && regionAdjacency[currentRegionId];
+    if (!neighbors) return;
 
-    if (!stateAdjacencyData) {
-        console.log(`[Connectivity] No state adjacency data loaded for ${currentRegionId}`);
-        return;
-    }
-    
-    if (!stateAdjacencyData[currentRegionId]) {
-        console.log(`[Connectivity] No adjacency data found for state: ${currentRegionId}`);
-        console.log(`[Connectivity] Available states:`, Object.keys(stateAdjacencyData));
-        return;
-    }
-    
-    console.log(`[Connectivity] Creating labels for ${currentRegionId}, adjacency data available`);
-
-    if (!rawElevationData || !processedData) {
-        console.log(`[Connectivity] Missing elevation data: rawElevationData=${!!rawElevationData}, processedData=${!!processedData}`);
-        return;
-    }
+    if (!rawElevationData || !processedData) return;
 
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
 
-    // Calculate extents (same logic as createEdgeMarkers)
-    let xExtent, zExtent, avgSize;
-    if (params.renderMode === 'bars') {
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketMultiplier / 2;
-        zExtent = (gridHeight - 1) * bucketMultiplier / 2;
-        avgSize = (xExtent + zExtent);
-    } else if (params.renderMode === 'points') {
-        const bucketSize = params.bucketSize;
-        xExtent = (gridWidth - 1) * bucketSize / 2;
-        zExtent = (gridHeight - 1) * bucketSize / 2;
-        avgSize = (xExtent + zExtent);
-    } else {
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth * bucketMultiplier) / 2;
-        zExtent = (gridHeight * bucketMultiplier) / 2;
-        avgSize = (gridWidth * bucketMultiplier + gridHeight * bucketMultiplier) / 2;
-    }
+    // Calculate extents - only bars mode is supported
+    const bucketMultiplier = params.bucketSize;
+    const xExtent = (gridWidth - 1) * bucketMultiplier / 2;
+    const zExtent = (gridHeight - 1) * bucketMultiplier / 2;
+    const avgSize = (xExtent + zExtent);
 
-    // Define base positions for each direction (matching edge markers)
+    // Spread multiplier matches edge markers
+    const spreadMultiplier = 1.25;
+
+    // Define base positions for each cardinal direction (matching edge markers exactly)
     const directionPositions = {
-        'N': { x: 0, z: -zExtent },
-        'S': { x: 0, z: zExtent },
-        'E': { x: xExtent, z: 0 },
-        'W': { x: -xExtent, z: 0 },
-        'NE': { x: xExtent * 0.7, z: -zExtent * 0.7 },
-        'NW': { x: -xExtent * 0.7, z: -zExtent * 0.7 },
-        'SE': { x: xExtent * 0.7, z: zExtent * 0.7 },
-        'SW': { x: -xExtent * 0.7, z: zExtent * 0.7 }
+        'north': { x: 0, z: -zExtent * spreadMultiplier },
+        'south': { x: 0, z: zExtent * spreadMultiplier },
+        'east': { x: xExtent * spreadMultiplier, z: 0 },
+        'west': { x: -xExtent * spreadMultiplier, z: 0 }
+    };
+
+    // Direction mapping from full names to letters
+    const directionLetters = {
+        'north': 'N',
+        'south': 'S',
+        'east': 'E',
+        'west': 'W'
     };
 
     // Create labels for each direction that has neighbors
-    const stateNeighbors = stateAdjacencyData[currentRegionId];
-    for (const [direction, neighbors] of Object.entries(stateNeighbors)) {
-        if (neighbors.length === 0) continue;
+    for (const [direction, neighborData] of Object.entries(neighbors)) {
+        if (!neighborData) continue;
+        
+        // Handle contained areas separately (displayed in center, above)
+        if (direction === 'contained') {
+            createContainedAreaLabels(neighborData, avgSize);
+            continue;
+        }
+        
+        // Handle within relationships separately (displayed in center, below)
+        if (direction === 'within') {
+            createWithinLabels(neighborData, avgSize);
+            continue;
+        }
         
         const pos = directionPositions[direction];
-        if (!pos) continue;
+        const letter = directionLetters[direction];
+        if (!pos || !letter) continue;
+
+        // Handle both single neighbor (string) and multiple neighbors (array)
+        const rawIds = Array.isArray(neighborData) ? neighborData : [neighborData];
+        
+        // Filter out neighbors that don't exist in manifest
+        const validNeighbors = rawIds
+            .filter(id => regionsManifest && regionsManifest.regions && regionsManifest.regions[id])
+            .map(id => ({
+                id: id,
+                name: regionIdToName[id] || id
+            }));
+
+        if (validNeighbors.length === 0) continue;
 
         const labels = positionLabelsForDirection(
-            direction, 
-            neighbors, 
+            letter,  // Pass single letter ('N', 'S', 'E', 'W')
+            validNeighbors, 
             pos.x, 
             pos.z, 
             xExtent, 
@@ -292,31 +368,14 @@ function createConnectivityLabels() {
         });
     }
 
-    console.log(`Created ${connectivityLabels.length} connectivity labels for ${currentRegionId}`);
-    // Debug: Log label details
-    if (connectivityLabels.length > 0) {
-        connectivityLabels.forEach((label, idx) => {
-            console.log(`[Connectivity] Label ${idx}:`, {
-                name: label.userData.neighborName,
-                id: label.userData.neighborId,
-                position: label.position.toArray(),
-                scale: label.scale.toArray(),
-                hasOnClick: !!label.userData.onClick,
-                isConnectivityLabel: label.userData.isConnectivityLabel,
-                material: label.material.type,
-                depthTest: label.material.depthTest
-            });
-        });
-    } else {
-        console.log(`[Connectivity] No labels created - stateNeighbors:`, stateNeighbors);
-    }
+    console.log(`[Connectivity] Created ${connectivityLabels.length} labels for ${currentRegionId}`);
 }
 
 /**
  * Update connectivity label positions (called when terrain changes)
  */
 function updateConnectivityLabels() {
-    // Just recreate them - simpler than trying to update positions
+    // Recreate labels with new positions
     createConnectivityLabels();
 }
 
