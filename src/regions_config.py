@@ -582,6 +582,16 @@ COUNTRIES: Dict[str, RegionConfig] = {
         country="Singapore",
         clip_boundary=True,
     ),
+    "sudan": RegionConfig(
+        id="sudan",
+        name="Sudan",
+        bounds=(21.8, 8.7, 38.6, 22.0),
+        description="Republic of Sudan",
+        region_type=RegionType.COUNTRY,
+        country="Sudan",
+        clip_boundary=True,
+        tiles=(4, 3),  # Large country: 16.8deg x 13.3deg -> 4x3 tiles
+    ),
     "turkiye": RegionConfig(
         id="turkiye",
         name="Turkiye",

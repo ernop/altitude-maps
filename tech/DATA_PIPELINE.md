@@ -103,29 +103,18 @@ Every region is classified using the `RegionType` enum:
 
 **CRITICAL**: Resolution is NEVER hardcoded by region type. It is dynamically determined based on target output size.
 
-**Rule**: Calculate minimum required resolution using Nyquist sampling theorem (2x oversampling minimum).
+**Rule**: Calculate minimum required resolution using Nyquist sampling theorem (2× oversampling minimum).
 
-**Process**:
-1. Calculate visible pixel size: `visible_m_per_pixel = geographic_span_meters / target_pixels`
-2. Apply Nyquist rule: `min_resolution <= visible_m_per_pixel / 2.0`
-3. Select coarsest available resolution that meets requirement (minimizes download size)
+**Formula**: `min_resolution ≤ visible_m_per_pixel / 2.0`
 
-**Available Resolutions by Region Type**:
-- `RegionType.USA_STATE`: `[10m, 30m, 90m]` (USGS 3DEP + OpenTopography)
-- `RegionType.COUNTRY`: `[30m, 90m]` (OpenTopography only)
-- `RegionType.REGION`: `[30m, 90m]` (OpenTopography only)
+**Available Resolutions**:
+- `RegionType.USA_STATE`: `[10m, 30m, 90m]`
+- `RegionType.COUNTRY`: `[30m, 90m]`
+- `RegionType.REGION`: `[30m, 90m]`
 
-**Example (Idaho @ different target_pixels)**:
-```
-target_pixels=512:  visible=1292m/px -> requires 90m source (1292/90=14x > 2x)
-target_pixels=2048: visible=323m/px  -> requires 90m source (323/90=3.6x > 2x)
-target_pixels=4096: visible=162m/px  -> requires 30m source (162/30=5.4x > 2x)
-target_pixels=8192: visible=81m/px   -> requires 10m source (81/10=8.1x > 2x) [US only]
-```
+**See `tech/TILE_SYSTEM.md` Section 1** for complete details, examples, and calculation process.
 
 **Implementation**: `src/downloaders/orchestrator.determine_min_required_resolution()`
-
-**Validation**: If no available resolution meets Nyquist requirement, raise ValueError with clear message.
 
 ---
 
@@ -179,46 +168,16 @@ data/raw/srtm_90m/bbox_{bounds}_srtm_90m_90m.tif
 
 ### 5. Acquire Raw Elevation (Download if needed)
 
-**Tile-Based System**: All downloads use 1×1 degree tiles for reusability.
+**Tile-Based System**: All downloads use unified 1×1 degree tiles.
 
-**Tile Naming** (content-based, SRTM-style):
-```
-tile_{NS}{lat:02d}_{EW}{lon:03d}_{dataset}_{resolution}.tif
-
-Examples:
-tile_N35_W090_srtm_30m_30m.tif  (35°N, 90°W, SRTM 30m)
-tile_N40_W110_usa_3dep_10m.tif  (40°N, 110°W, USGS 3DEP 10m)
-tile_S05_E120_cop_30m_30m.tif   (5°S, 120°E, Copernicus 30m)
-```
-
-**Tile Storage** (shared pool by source):
-```
-data/raw/usa_3dep/tiles/tile_*.tif
-data/raw/srtm_30m/tiles/tile_*.tif
-data/raw/srtm_90m/tiles/tile_*.tif
-```
+**See `tech/TILE_SYSTEM.md` for complete tile strategy** - naming, storage, grid alignment, provider limits.
 
 **Process**:
-1. Calculate integer-degree tile grid covering region bounds
-2. For each tile: Check if exists, download if missing
-3. Merge tiles into single bbox file: `data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif`
+1. Calculate 1° tile grid covering region bounds
+2. Download missing tiles to `data/raw/{source}/tiles/`
+3. Merge tiles into single file: `data/raw/{source}/{merged_filename}.tif`
 
-**Merged Output Naming** (abstract, bounds-based):
-```
-bbox_N##W###_N##W###_{dataset}_{res}.tif
-
-Example:
-bbox_N42W114_N45W111_srtm_30m_30m.tif  (Idaho bounds, SRTM 30m)
-```
-
-**Why Abstract Naming**: Same geographic bounds → same filename → automatic reuse across regions.
-
-**Validation** (auto-run):
-- File size > 1KB (catches corrupted downloads)
-- Rasterio can open the file
-- Has CRS and transform
-- Can read sample window (confirms data accessible)
-- **Auto-cleanup**: Corrupted files deleted automatically
+**Validation** (auto-run): File size, rasterio open, CRS/transform present, sample read. Corrupted files auto-deleted.
 
 ---
 
@@ -480,13 +439,10 @@ data/raw/srtm_30m/bbox_N42W114_N45W111_srtm_30m_30m.tif
 data/raw/srtm_90m/bbox_N42W114_N45W111_srtm_90m_90m.tif
 ```
 
-### Tiles (Shared Pool, Content-Based Names)
+### Tiles (see TILE_SYSTEM.md)
 ```
-data/raw/{source}/tiles/tile_{NS}{lat}_{EW}{lon}_{dataset}_{res}.tif
-
-Examples:
-data/raw/usa_3dep/tiles/tile_N42_W114_usa_3dep_10m.tif
-data/raw/srtm_30m/tiles/tile_N42_W114_srtm_30m_30m.tif
+data/raw/{source}/tiles/{NS}{lat}_{EW}{lon}_{res}.tif
+(1-degree tiles in shared pools - see tech/TILE_SYSTEM.md for details)
 ```
 
 ### Processed & Exported (Region-Specific Names)
@@ -516,66 +472,28 @@ generated/regions/regions_manifest.json
 ## Quick Reference: Decision Flow
 
 ```
-1. Validate region definition
-   Check: src/regions_config.py -> ALL_REGIONS
-   Fail: "Unknown region" error
-
-2. Determine required resolution (Nyquist rule)
-   visible_m_per_pixel = geographic_span / target_pixels
-   min_resolution = visible_m_per_pixel / 2.0
-   Select: Coarsest available that meets requirement
-
-3. Determine dataset
-   USA_STATE: 10m=USA_3DEP, 30m=SRTMGL1, 90m=SRTMGL3
-   COUNTRY/REGION: Check override, then latitude-based selection
-
-4. Check existing files
-   Search: data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif
-   Quality: Use any file with resolution <= min_required
-   Found: Skip to stage 6
-   Missing: Continue to stage 5
-
-5. Download (tile-based)
-   Split into 1×1 degree tiles
-   Download missing tiles -> data/raw/{source}/tiles/tile_*.tif
-   Merge -> data/raw/{source}/bbox_{bounds}_{dataset}_{res}.tif
-
-6. Clip to boundary (if applicable)
-   USA_STATE: ALWAYS clip to "United States of America/<State>"
-   COUNTRY: Usually clip to "<CountryName>"
-   REGION: Usually skip (free-form bbox)
-   
-7. Reproject (fix latitude distortion)
-   Check: Is CRS EPSG:4326?
-   Yes: Reproject to EPSG:3857 (Web Mercator) or polar
-   No: Already metric, skip
-   Critical: ALL regions reprojected if needed
-
-8. Downsample (preserve aspect)
-   Target: --target-pixels (default 2048)
-   Rule: Same step size for both dimensions
-   Output: data/processed/{source}/bbox_{bounds}_processed_{pixels}px_v2.tif
-
-9. Export JSON
-   Convert to 2D array with nulls for nodata
-   Convert bounds to EPSG:4326 for metadata
-   Output: generated/regions/{region_id}_{source}_{pixels}px_v2.json
-
-10. Compress + Update Manifest
-    Gzip level 9: {region_id}_{source}_{pixels}px_v2.json.gz
-    Update: generated/regions/regions_manifest.json
+1. Validate region → src/regions_config.py
+2. Determine resolution → Nyquist rule (see TILE_SYSTEM.md)
+3. Determine dataset → USA_3DEP/SRTMGL1/SRTMGL3/COP30/COP90
+4. Check existing files → data/raw/{source}/
+5. Download if needed → 1° tiles (see TILE_SYSTEM.md)
+6. Clip to boundary → if USA_STATE/COUNTRY with clip_boundary=True
+7. Reproject → EPSG:4326 to EPSG:3857 (fix distortion)
+8. Downsample → to target_pixels (preserve aspect)
+9. Export JSON → generated/regions/
+10. Compress + Update Manifest → .json.gz + manifest
 ```
 
 ---
 
 ## Related Documentation
 
-- **Data Principles**: `tech/DATA_PRINCIPLES.md` - Core principles (aspect ratios, rendering)
-- **Data Format**: `tech/DATA_FORMAT_EFFICIENCY.md` - JSON format and GZIP compression
-- **Versioning System**: `src/versioning.py` - Version definitions and compatibility
-- **Implementation**: `src/pipeline.py` - Pipeline implementation
-- **Entry Point**: `ensure_region.py` - Command-line interface
-- **Quick Start**: `tech/DOWNLOAD_GUIDE.md` - User-friendly quick reference
+- **Tile System**: `tech/TILE_SYSTEM.md` - Complete tile strategy (CANONICAL for tiles)
+- **Data Principles**: `tech/DATA_PRINCIPLES.md` - Aspect ratios, rendering
+- **Data Format**: `tech/DATA_FORMAT_EFFICIENCY.md` - JSON format, GZIP compression
+- **Implementation**: `src/pipeline.py` - Pipeline code
+- **Entry Point**: `ensure_region.py` - CLI
+- **Quick Start**: `tech/DOWNLOAD_GUIDE.md` - User guide
 
 ---
 

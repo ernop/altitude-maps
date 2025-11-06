@@ -239,7 +239,7 @@ def analyze_files():
     print("Existing large bbox files can be split into 1-degree tiles:")
     print("  1. Read the large GeoTIFF")
     print("  2. Split into 1-degree grid-aligned tiles")
-    print("  3. Save each tile with standard naming: tile_N{lat:02d}_W{lon:03d}_srtm_30m_30m.tif")
+    print("  3. Save each tile with standard naming: N{lat:02d}_W{lon:03d}_30m.tif")
     print("  4. Delete original large file (optional, after verification)")
     print()
     print("Benefits:")

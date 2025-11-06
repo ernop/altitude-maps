@@ -42,7 +42,7 @@ def tile_filename_from_bounds(bounds: Tuple[float, float, float, float],
         resolution: Resolution string (e.g., '30m', '90m')
     
     Returns:
-        Filename like 'tile_N40_W111_srtm_30m_30m.tif'
+        Filename like 'N40_W111_30m.tif' (uses tile_filename_from_bounds)
     """
     west, south, east, north = bounds
     

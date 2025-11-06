@@ -1,7 +1,8 @@
 """
 Tile-based download orchestration.
 
-Handles downloading and merging 1-degree tiles for large regions.
+Handles downloading and merging 1-degree tiles for all regions.
+Unified system: ALL resolutions use 1x1 degree tiles for maximum reuse.
 """
 
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import Tuple, List
 
 from src.tile_geometry import calculate_1degree_tiles, tile_filename_from_bounds, merged_filename_from_region
 from src.downloaders.opentopography import download_srtm, OpenTopographyRateLimitError
+from src.downloaders.srtm_90m import download_single_tile_90m
+from src.downloaders.usgs_3dep_10m import download_single_tile_10m
 
 
 def download_and_merge_tiles(
@@ -19,17 +22,20 @@ def download_and_merge_tiles(
     api_key: str = None
 ) -> bool:
     """
-    Download 1-degree tiles and merge them for a region.
+    Download 1-degree tiles and merge them for any region.
     
-    This is the standard approach for regions > 4 degrees in any direction.
-    Uses automatic 1-degree grid tiling - no manual configuration needed.
+    UNIFIED ARCHITECTURE (see tech/GRID_ALIGNMENT_STRATEGY.md):
+    - Used for ALL regions regardless of size
+    - Automatic 1-degree grid tiling
+    - Maximum tile reuse across adjacent regions
+    - Consistent folder structure for all resolutions
     
     Args:
         region_id: Region identifier (for logging)
         bounds: (west, south, east, north) in degrees
         output_path: Path for merged output file (defaults to data/merged/{source}/{region_id}_merged.tif)
-        source: Data source ('srtm_30m', 'cop30', etc.)
-        api_key: OpenTopography API key
+        source: Data source ('srtm_30m', 'srtm_90m', 'usa_3dep', etc.)
+        api_key: OpenTopography API key (not needed for usa_3dep)
         
     Returns:
         True if successful
@@ -64,12 +70,33 @@ def download_and_merge_tiles(
             # Download if not cached
             if not tile_path.exists():
                 print(f"  [{i}/{len(tiles)}] Downloading: {tile_filename}", flush=True)
-                success = download_srtm(
-                    f"tile_{tile_filename[:-4]}",
-                    tile_bounds,
-                    tile_path,
-                    api_key
-                )
+                
+                # Route to appropriate downloader based on resolution
+                if resolution == '10m':
+                    # 10m USGS 3DEP tiles
+                    success = download_single_tile_10m(
+                        tile_bounds,
+                        tile_path,
+                        dataset='USA_3DEP'
+                    )
+                elif resolution == '90m':
+                    # 90m SRTM/Copernicus tiles
+                    dataset = 'COP90' if 'cop' in source.lower() else 'SRTMGL3'
+                    success = download_single_tile_90m(
+                        tile_bounds,
+                        tile_path,
+                        api_key,
+                        dataset=dataset
+                    )
+                else:
+                    # 30m SRTM/Copernicus tiles (default)
+                    success = download_srtm(
+                        f"tile_{tile_filename[:-4]}",
+                        tile_bounds,
+                        tile_path,
+                        api_key
+                    )
+                
                 if not success:
                     print(f"  [{i}/{len(tiles)}] Failed to download: {tile_filename}", flush=True)
                     continue

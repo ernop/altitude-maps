@@ -412,40 +412,22 @@ Update all imports - don't add defensive fallbacks to old paths.
   - 110m: Low detail, misses features (DO NOT USE for production)
 - Specify with `--border-resolution 10m` flag in ensure_region.py (now the default)
 
-#### Tile Naming Convention (Content-Based Reuse)
-**Purpose**: Enable efficient tile caching and reuse across regions to minimize storage and download overhead.
+#### Tile System (Content-Based Reuse)
 
-**Format**: `tile_{NS}{lat:02d}_{EW}{lon:03d}_{dataset}_{resolution}.tif`
+**CANONICAL REFERENCE**: See `tech/TILE_SYSTEM.md` for complete strategy.
+
+**Format**: `{NS}{lat}_{EW}{lon}_{resolution}.tif`
 
 **Examples**:
-- `tile_N35_W090_srtm_30m_30m.tif` (35degN, 90degW, SRTM 30m)
-- `tile_S05_E120_cop30_30m.tif` (5degS, 120degE, Copernicus DEM 30m)
-- `tile_N65_W020_srtm_90m_90m.tif` (65degN, 20degW, SRTM 90m)
+- `N35_W090_30m.tif` (35°N, 90°W, 1° × 1°, 30m resolution)
+- `S05_E120_90m.tif` (5°S, 120°E, 1° × 1°, 90m resolution)
 
-**Implementation**:
-- Uses integer degree grid from **southwest corner** (SRTM HGT convention)
-- SW corner calculation: floor for positive, trunc for negative coordinates
-- Format mirrors official SRTM naming: `N##W###` → `tile_N##_W###_{source}_{res}.tif`
-- Stored in shared pool: `data/raw/srtm_30m/tiles/` (not per-region subdirs)
+**Storage**:
+- `data/raw/usa_3dep/tiles/` - 10m USGS tiles
+- `data/raw/srtm_30m/tiles/` - 30m SRTM tiles
+- `data/raw/srtm_90m/tiles/` - 90m SRTM tiles
 
-**Why This Approach**:
-1. **Industry Standard**: Follows SRTM/Copernicus DEM integer-degree grid convention used by NASA, ESA, and USGS
-2. **Content-Based**: Filename reflects actual data bounds, enabling natural reuse
-3. **Efficient Caching**: Adjacent regions sharing tiles (e.g., Tennessee/Kentucky) share same cache files
-4. **Human Readable**: Coordinates visible at a glance, easy debugging
-5. **Storage Minimization**: Avoids duplicating identical data across region directories
-
-**Alternatives Considered**:
-- Hash-based naming: Less readable, no coordinate info, harder debugging
-- Region-based subdirectories: Prevents reuse, wastes storage, harder maintenance
-- Floating-point coordinates: Non-deterministic rounding, incompatible with grid standards
-
-**Future Compatibility**:
-- Works with any integer-degree-based dataset (SRTM, Copernicus, ASTER, NASADEM)
-- Compatible with standard tile matrix sets used in WMS/TMS services
-- Supports multi-resolution scenarios (30m, 90m, etc.) via `{resolution}` suffix
-- Scalable to global datasets without filename collisions
-- Cache invalidation handled via dataset/resolution fields (not coordinate changes)
+**Key**: All regions use unified 1-degree tile system. No special cases.
 
 #### File Naming Philosophy: Abstract vs Specific
 

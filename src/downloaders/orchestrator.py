@@ -14,7 +14,7 @@ Architecture:
 """
 
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, TYPE_CHECKING
 import requests
 from tqdm import tqdm
 
@@ -27,11 +27,10 @@ from src.tile_geometry import (
     merged_filename_from_region
 )
 from src.tile_manager import download_and_merge_tiles
-from src.downloaders.opentopography import download_srtm
-from src.downloaders.srtm_90m import download_srtm_90m_tiles, download_srtm_90m_single
-from src.usa_elevation_data import USGSElevationDownloader
-from src.pipeline import merge_tiles
 from load_settings import get_api_key
+
+if TYPE_CHECKING:
+    from src.types import RegionType
 
 
 def format_pixel_size(meters: float) -> str:
@@ -145,11 +144,6 @@ def determine_min_required_resolution(
     )
 
 
-# DEPRECATED: This function has been replaced by tile-based system
-# 10m data now uses the unified tiling architecture in src/downloaders/usgs_3dep_10m.py
-# Kept for compatibility but redirects to tile-based downloader
-
-
 def download_elevation_data(region_id: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = 2048) -> bool:
     """
     Download elevation data for any region (US or international).
@@ -161,7 +155,11 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
     - 'COP30': 30m Copernicus DEM (automated via OpenTopography)
     - 'COP90': 90m Copernicus DEM (automated via OpenTopography)
     
-    Automatically handles tiling for large regions (>4 degrees in any dimension).
+    UNIFIED ARCHITECTURE (see tech/GRID_ALIGNMENT_STRATEGY.md):
+    - ALL resolutions use 1x1 degree tile system
+    - NO special cases for small vs large regions
+    - Maximum tile reuse across adjacent regions
+    - Consistent folder structure: data/raw/{source}/tiles/
     """
     print(f"\n  Downloading {region_info['name']}...")
     
@@ -169,39 +167,35 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
     width = bounds[2] - bounds[0]
     height = bounds[3] - bounds[1]
     
+    # Size info for user feedback
+    if width > 4.0 or height > 4.0:
+        size_msg = f"Large region ({width:.1f}deg x {height:.1f}deg) - downloading tiles"
+    else:
+        size_msg = f"Region ({width:.1f}deg x {height:.1f}deg) - using 1-degree tile system"
+    
     # Handle 10m USGS 3DEP request (USA regions only)
     if dataset_override == 'USA_3DEP':
         from src.downloaders.usgs_3dep_10m import download_usgs_3dep_10m_tiles
         
         print(f"  Source: USGS 3DEP 10m (high-resolution US data)")
+        print(f"  {size_msg}")
         filename = merged_filename_from_region(region_id, bounds, '10m') + '.tif'
         output_path = Path(f"data/merged/usa_3dep/{filename}")
         
-        # Use unified tiling system (same as 30m/90m)
-        needs_tiling = (width > 4.0 or height > 4.0)
-        if needs_tiling:
-            print(f"  Large region ({width:.1f}deg x {height:.1f}deg) - using tile-based download")
-            return download_usgs_3dep_10m_tiles(region_id, bounds, output_path)
-        else:
-            print(f"  Standard download (using tile system)")
-            # Even small regions use tiling for consistency and reuse
-            return download_usgs_3dep_10m_tiles(region_id, bounds, output_path)
+        # Always use unified 1-degree tile system
+        return download_usgs_3dep_10m_tiles(region_id, bounds, output_path)
     
     # Route based on dataset/resolution
     if dataset_override in ('SRTMGL3', 'COP90'):
         # 90m resolution
         source_name = 'SRTM 90m' if dataset_override == 'SRTMGL3' else 'Copernicus DEM 90m'
         print(f"  Source: {source_name} (resolution sufficient for region size)")
+        print(f"  {size_msg}")
         filename = merged_filename_from_region(region_id, bounds, '90m') + '.tif'
         output_path = Path(f"data/merged/srtm_90m/{filename}")
         
-        needs_tiling = (width > 4.0 or height > 4.0)
-        if needs_tiling:
-            print(f"  Large region ({width:.1f}deg x {height:.1f}deg) - using tile-based download")
-            return download_and_merge_tiles(region_id, bounds, output_path, source='srtm_90m')
-        else:
-            print(f"  Standard download")
-            return download_srtm_90m_single(region_id, bounds, output_path)
+        # Always use unified 1-degree tile system
+        return download_and_merge_tiles(region_id, bounds, output_path, source='srtm_90m')
     
     elif dataset_override in ('SRTMGL1', 'COP30', None):
         # 30m resolution (SRTMGL1, COP30, or default)
@@ -210,16 +204,12 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
         else:
             source_name = 'SRTM 30m'
         print(f"  Source: {source_name}")
+        print(f"  {size_msg}")
         filename = merged_filename_from_region(region_id, bounds, '30m') + '.tif'
         output_path = Path(f"data/merged/srtm_30m/{filename}")
         
-        needs_tiling = (width > 4.0 or height > 4.0)
-        if needs_tiling:
-            print(f"  Large region ({width:.1f}deg x {height:.1f}deg) - using tile-based download")
-            return download_and_merge_tiles(region_id, bounds, output_path, source='srtm_30m')
-        else:
-            print(f"  Standard download")
-            return download_srtm(region_id, bounds, output_path)
+        # Always use unified 1-degree tile system
+        return download_and_merge_tiles(region_id, bounds, output_path, source='srtm_30m')
     
     else:
         print(f"  ERROR: Unknown dataset '{dataset_override}'")

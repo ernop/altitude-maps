@@ -6,12 +6,19 @@
 
 The following implementation/planning docs are now obsolete since `DATA_PIPELINE.md` is the canonical reference:
 
-- `90M_IMPLEMENTATION_SUMMARY.md` - 90m implementation notes (completed, now in DATA_PIPELINE.md)
-- `SRTM_90M_DOWNLOADER.md` - 90m downloader specifics (redundant with DATA_PIPELINE.md Stage 5)
-- `TESTING_90M_DOWNLOADER.md` - Testing notes (completed)
 - `IMPLEMENTATION_PLAN.md` - Original implementation plan (completed)
 - `IMPLEMENTATION_STATUS.md` - Status tracking (completed)
 - `CONSOLIDATION_PLAN.md` - Planning doc (completed)
+
+## Superseded by TILE_SYSTEM.md (DELETED - consolidated)
+
+The following tile-related docs have been **deleted** and consolidated into `TILE_SYSTEM.md`:
+
+- `GRID_ALIGNMENT_STRATEGY.md` - Grid alignment details (DELETED)
+- `90M_IMPLEMENTATION_SUMMARY.md` - 90m tile implementation (DELETED)
+- `SRTM_90M_DOWNLOADER.md` - 90m downloader specifics (DELETED)
+- `TESTING_90M_DOWNLOADER.md` - Testing notes (DELETED)
+- `learnings/TILE_NAMING_DESIGN.md` - Tile naming design alternatives (DELETED)
 
 **Why keep them?**: Historical context for future developers wondering "why was it done this way?"
 
@@ -30,8 +37,8 @@ The following implementation/planning docs are now obsolete since `DATA_PIPELINE
 6. **`ensure_region.py`** - CLI entry point
 
 ### Specialized Topics
-7. **`RATE_LIMIT_COORDINATION.md`** - OpenTopography rate limiting
-8. **`GRID_ALIGNMENT_STRATEGY.md`** - Tile naming and alignment
+7. **`TILE_SYSTEM.md`** - Complete tile strategy (CANONICAL for all tile operations)
+8. **`RATE_LIMIT_COORDINATION.md`** - OpenTopography rate limiting
 9. **`DATA_FORMAT_EFFICIENCY.md`** - JSON/GZIP compression
 
 ---
