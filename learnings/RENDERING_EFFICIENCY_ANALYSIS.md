@@ -354,7 +354,7 @@ baseGeometry.setAttribute('instanceColor', colors);  // Color
 
 **Manual Optimizations:**
 1. Increase bucket size (e.g., 8x-12x)
-2. Switch to Surface render mode
+2. Switch to Points render mode
 3. Disable antialiasing (in code)
 4. Reduce pixel ratio to 1.0
 

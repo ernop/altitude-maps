@@ -8,20 +8,31 @@
 // Global state adjacency data (loaded from JSON)
 let stateAdjacencyData = null;
 
-// Track connectivity UI elements
-let connectivityLabels = [];
+// Track connectivity UI elements (globally accessible for click detection)
+window.connectivityLabels = [];
+const connectivityLabels = window.connectivityLabels; // Alias for convenience
 
 /**
  * Load state adjacency data from JSON file
  */
 async function loadStateAdjacency() {
     try {
-        const response = await fetch('generated/us_state_adjacency.json');
+        const gzUrl = 'generated/us_state_adjacency.json.gz';
+        const response = await fetch(gzUrl);
+
         if (!response.ok) {
             console.warn('State adjacency data not available');
             return null;
         }
-        stateAdjacencyData = await response.json();
+
+        const arrayBuffer = await response.arrayBuffer();
+        const stream = new DecompressionStream('gzip');
+        const writer = stream.writable.getWriter();
+        writer.write(new Uint8Array(arrayBuffer));
+        writer.close();
+        const decompressedResponse = new Response(stream.readable);
+        const text = await decompressedResponse.text();
+        stateAdjacencyData = JSON.parse(text);
         console.log('Loaded state adjacency data');
         return stateAdjacencyData;
     } catch (error) {
@@ -36,7 +47,9 @@ async function loadStateAdjacency() {
 function isUSState(regionId) {
     if (!regionsManifest || !regionsManifest.regions) return false;
     const regionInfo = regionsManifest.regions[regionId];
-    return regionInfo && regionInfo.category === 'usa_state';
+    if (!regionInfo) return false;
+    // Check regionType field (camelCase, not category)
+    return regionInfo.regionType === 'usa_state';
 }
 
 /**
@@ -80,6 +93,10 @@ function createNeighborLabel(neighborName, neighborId, color, onClick) {
         depthWrite: false
     });
     const sprite = new THREE.Sprite(spriteMaterial);
+    
+    // Ensure sprite is visible and raycastable
+    sprite.visible = true;
+    sprite.frustumCulled = false; // Always render regardless of camera position
     
     // Store metadata for click handling
     sprite.userData.neighborId = neighborId;
@@ -182,21 +199,40 @@ function getColorForDirection(direction) {
  * Create connectivity labels for the current region
  */
 function createConnectivityLabels() {
+    console.log(`[Connectivity] createConnectivityLabels() called for region: ${currentRegionId}`);
+    
     // Remove old labels
     connectivityLabels.forEach(label => scene.remove(label));
-    connectivityLabels = [];
+    connectivityLabels.length = 0; // Clear array while keeping reference
 
     // Only show for US states
-    if (!currentRegionId || !isUSState(currentRegionId)) {
+    if (!currentRegionId) {
+        console.log(`[Connectivity] No currentRegionId`);
+        return;
+    }
+    
+    if (!isUSState(currentRegionId)) {
+        console.log(`[Connectivity] ${currentRegionId} is not a US state`);
         return;
     }
 
-    if (!stateAdjacencyData || !stateAdjacencyData[currentRegionId]) {
-        console.log(`No adjacency data for ${currentRegionId}`);
+    if (!stateAdjacencyData) {
+        console.log(`[Connectivity] No state adjacency data loaded for ${currentRegionId}`);
         return;
     }
+    
+    if (!stateAdjacencyData[currentRegionId]) {
+        console.log(`[Connectivity] No adjacency data found for state: ${currentRegionId}`);
+        console.log(`[Connectivity] Available states:`, Object.keys(stateAdjacencyData));
+        return;
+    }
+    
+    console.log(`[Connectivity] Creating labels for ${currentRegionId}, adjacency data available`);
 
-    if (!rawElevationData || !processedData) return;
+    if (!rawElevationData || !processedData) {
+        console.log(`[Connectivity] Missing elevation data: rawElevationData=${!!rawElevationData}, processedData=${!!processedData}`);
+        return;
+    }
 
     const gridWidth = processedData.width;
     const gridHeight = processedData.height;
@@ -257,6 +293,23 @@ function createConnectivityLabels() {
     }
 
     console.log(`Created ${connectivityLabels.length} connectivity labels for ${currentRegionId}`);
+    // Debug: Log label details
+    if (connectivityLabels.length > 0) {
+        connectivityLabels.forEach((label, idx) => {
+            console.log(`[Connectivity] Label ${idx}:`, {
+                name: label.userData.neighborName,
+                id: label.userData.neighborId,
+                position: label.position.toArray(),
+                scale: label.scale.toArray(),
+                hasOnClick: !!label.userData.onClick,
+                isConnectivityLabel: label.userData.isConnectivityLabel,
+                material: label.material.type,
+                depthTest: label.material.depthTest
+            });
+        });
+    } else {
+        console.log(`[Connectivity] No labels created - stateNeighbors:`, stateNeighbors);
+    }
 }
 
 /**

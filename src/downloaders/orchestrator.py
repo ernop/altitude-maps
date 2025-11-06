@@ -267,7 +267,7 @@ def determine_dataset_override(region_id: str, region_type: 'RegionType', region
             print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m (region requires high detail)")
             return 'USA_3DEP'
 
-    elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:
+    elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:
         # International regions - check for explicit override first
         recommended = None
         try:

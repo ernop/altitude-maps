@@ -16,7 +16,7 @@ def export_borders_for_region(
     output_path: str,
     countries: Optional[Union[str, List[str]]] = None,
     auto_detect: bool = True,
-    resolution: str = '110m'
+    border_resolution: str = '110m'
 ):
     """
     Export border data for countries visible in an elevation dataset.
@@ -26,12 +26,12 @@ def export_borders_for_region(
         output_path: Output JSON file path for borders
         countries: Specific country name(s) to export, or None for auto-detect
         auto_detect: If True and countries is None, auto-detect from bbox
-        resolution: Border resolution ('10m', '50m', '110m')
+        border_resolution: Border detail level ('10m', '50m', '110m')
     """
     print(f"\n[*] Exporting border data for interactive viewer...")
     print(f"   Elevation file: {tif_path}")
     print(f"   Output: {output_path}")
-    print(f"   Resolution: {resolution}")
+    print(f"   Border resolution: {border_resolution}")
     
     border_manager = get_border_manager()
     
@@ -46,7 +46,7 @@ def export_borders_for_region(
     # Determine which countries to export
     if countries is None and auto_detect:
         print(f"   Auto-detecting countries in region...")
-        countries_gdf = border_manager.get_countries_in_bbox(bbox_tuple, resolution=resolution)
+        countries_gdf = border_manager.get_countries_in_bbox(bbox_tuple, border_resolution=border_resolution)
         country_list = countries_gdf.ADMIN.tolist()
         print(f"   Found {len(country_list)} countries: {', '.join(country_list)}")
     elif countries is None:
@@ -79,7 +79,7 @@ def export_borders_for_region(
         border_coords = border_manager.get_border_coordinates(
             country_name,
             target_crs=crs,  # Match elevation data CRS
-            resolution=resolution
+            border_resolution=border_resolution
         )
         
         if not border_coords:
@@ -191,7 +191,7 @@ Examples:
         args.output,
         countries=countries,
         auto_detect=not args.no_auto_detect,
-        resolution=args.resolution
+        border_resolution=args.resolution
     )
     
     return 0

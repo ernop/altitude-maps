@@ -32,3 +32,5 @@ shapely  # Dependency of geopandas, explicitly listed for clarity
 # conda install -c conda-forge cartopy netCDF4
 
 pytest==8.3.3
+ipython
+ipdb

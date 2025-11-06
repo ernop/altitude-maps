@@ -9,10 +9,26 @@ This module orchestrates the full workflow from raw download to viewer-ready exp
 5. Update regions manifest
 
 User runs ONE command, pipeline handles everything automatically.
+
+CRITICAL NAMING CONVENTION - Two distinct resolution types:
+
+1. **elevation_resolution** (also called "data resolution"): 
+   - Values: 10m, 30m, 90m
+   - Refers to elevation data quality (e.g., SRTM 30m, USGS 3DEP 10m)
+   - Dynamically determined by Nyquist sampling rule based on target_pixels
+   - Used in: file naming, dataset selection, quality requirements
+
+2. **border_resolution** (also called "boundary detail level"):
+   - Values: 10m, 50m, 110m  
+   - Refers to Natural Earth administrative boundary detail level
+   - Always 10m in production pipeline (hardcoded)
+   - Used in: border clipping operations, boundary geometry loading
+
+These are COMPLETELY SEPARATE concepts. Do not confuse them.
 """
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List
 import json
 
 import rasterio
@@ -192,8 +208,9 @@ def clip_to_boundary(
     raw_bounds = get_bounds_from_raw_file(raw_tif_path)
     if raw_bounds:
         # Generate abstract filenames
-        resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
-        base_part = bbox_filename_from_bounds(raw_bounds, source, resolution)[5:-4]
+        # NOTE: This is elevation_data_resolution (10m/30m/90m), NOT border_resolution (10m/50m/110m)
+        elevation_resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
+        base_part = bbox_filename_from_bounds(raw_bounds, source, elevation_resolution)[5:-4]
         
         # Delete processed files by abstract name
         if processed_dir.exists():
@@ -217,7 +234,7 @@ def clip_to_boundary(
     if boundary_type == "country":
         # Use GeoDataFrame so we can reproject reliably
         border_manager = get_border_manager()
-        geometry_gdf = border_manager.get_country(boundary_name, resolution=border_resolution)
+        geometry_gdf = border_manager.get_country(boundary_name, border_resolution=border_resolution)
     elif boundary_type == "state":
         # Parse "Country/State" format
         if "/" not in boundary_name:
@@ -227,7 +244,7 @@ def clip_to_boundary(
 
         country, state = boundary_name.split("/", 1)
         border_manager = get_border_manager()
-        geometry_gdf = border_manager.get_state(country, state, resolution=border_resolution)
+        geometry_gdf = border_manager.get_state(country, state, border_resolution=border_resolution)
 
         if geometry_gdf is None or geometry_gdf.empty:
             if boundary_required:
@@ -384,8 +401,9 @@ def reproject_to_metric_crs(
     # Get bounds from input file to generate abstract filenames
     raw_bounds = get_bounds_from_raw_file(input_tif_path)
     if raw_bounds:
-        resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
-        base_part = bbox_filename_from_bounds(raw_bounds, source, resolution)[5:-4]
+        # NOTE: This is elevation_data_resolution (10m/30m/90m), NOT border_resolution (10m/50m/110m)
+        elevation_resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
+        base_part = bbox_filename_from_bounds(raw_bounds, source, elevation_resolution)[5:-4]
         
         processed_dir = Path('data/processed') / source
         generated_dir = Path('generated/regions')
@@ -825,9 +843,9 @@ def export_borders_for_viewer(
                 return False
             
             country, state = boundary_name.split("/", 1)
-            geometry_gdf = border_manager.get_state(country, state, resolution=border_resolution)
+            geometry_gdf = border_manager.get_state(country, state, border_resolution=border_resolution)
         elif boundary_type == "country":
-            geometry_gdf = border_manager.get_country(boundary_name, resolution=border_resolution)
+            geometry_gdf = border_manager.get_country(boundary_name, border_resolution=border_resolution)
         else:
             print(f"  Warning: Unknown boundary_type '{boundary_type}'")
             return False
@@ -840,7 +858,7 @@ def export_borders_for_viewer(
         border_coords = border_manager.get_border_coordinates(
             boundary_name if boundary_type == "country" else [boundary_name],
             target_crs=crs,
-            resolution=border_resolution
+            border_resolution=border_resolution
         )
         
         if not border_coords:
@@ -901,6 +919,14 @@ def update_regions_manifest(generated_dir: Path) -> bool:
     """
     Stage 11: Update the regions manifest with all available regions.
     
+    CRITICAL RULES:
+    1. ONLY regions from regions_config.py that HAVE DATA FILES are included
+    2. ALL regions MUST have a region_type parameter (enforced)
+    3. Region info (name, description, regionType) comes ONLY from regions_config
+    4. JSON manifest uses camelCase "regionType" (not snake_case "region_type")
+    5. JSON files only provide: file path, bounds, stats, source
+    6. Regions without data files are SKIPPED (not included in manifest)
+    
     Args:
         generated_dir: Directory containing exported JSON files
         
@@ -910,11 +936,14 @@ def update_regions_manifest(generated_dir: Path) -> bool:
     print(f"  Updating regions manifest...")
     
     try:
+        from src.regions_config import ALL_REGIONS
+        
         manifest = {
             "regions": {}
         }
         
-        # Find all JSON files (excluding manifests, metadata, and borders)
+        # Build index of JSON files by region_id for quick lookup
+        json_files_by_region: Dict[str, List[Path]] = {}
         for json_file in sorted(generated_dir.glob("*.json")):
             if (json_file.stem.endswith('_meta') or
                 json_file.stem.endswith('_borders') or
@@ -925,7 +954,7 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                 with open(json_file) as f:
                     data = json.load(f)
                 
-                # Extract region_id from JSON metadata (abstract filenames don't contain region_id)
+                # Extract region_id from JSON metadata
                 region_id = data.get("region_id")
                 if not region_id:
                     # Fallback: try to infer from filename (for old files during migration)
@@ -936,43 +965,68 @@ def update_regions_manifest(generated_dir: Path) -> bool:
                             region_id = stem
                             break
                 
-                if not region_id:
-                    # Skip files without region_id in metadata
-                    continue
-
-                entry = {
-                    "name": data.get("name", region_id.replace('_', ' ').title()),
-                    "description": data.get("description", f"{data.get('name', region_id)} elevation data"),
-                    "source": data.get("source", "unknown"),
-                    "file": str(json_file.name),
-                    "bounds": data.get("bounds", {}),
-                    "stats": data.get("stats", {})
-                }
-
-                # Attach region_type from centralized config if available
-                try:
-                    from src.regions_config import get_region  # local import
-                    cfg = get_region(region_id) if callable(get_region) else None
-                    if cfg and getattr(cfg, 'region_type', None):
-                        entry["region_type"] = str(getattr(cfg, 'region_type'))
-                except Exception:
-                    pass
-
-                manifest["regions"][region_id] = entry
-            except Exception as e:
-                print(f"  Skipping {json_file.name}: {e}")
+                if region_id:
+                    if region_id not in json_files_by_region:
+                        json_files_by_region[region_id] = []
+                    json_files_by_region[region_id].append(json_file)
+            except Exception:
                 continue
+        
+        # Iterate ONLY through regions configured in regions_config.py
+        for region_id, cfg in sorted(ALL_REGIONS.items()):
+            # ENFORCE: region_type is MANDATORY
+            if not hasattr(cfg, 'region_type') or cfg.region_type is None:
+                print(f"  [SKIP] Region '{region_id}' missing region_type in regions_config - skipping")
+                continue
+            
+            # Find matching JSON file(s) - use first available
+            json_file = None
+            json_data = None
+            if region_id in json_files_by_region:
+                for candidate_file in json_files_by_region[region_id]:
+                    try:
+                        with open(candidate_file) as f:
+                            candidate_data = json.load(f)
+                        json_file = candidate_file
+                        json_data = candidate_data
+                        break
+                    except Exception:
+                        continue
+            
+            # SKIP regions without data files - only include regions with actual data
+            if not json_file or not json_data:
+                continue
+            
+            # Build entry using ONLY info from regions_config
+            entry = {
+                "name": cfg.name,  # FROM CONFIG ONLY
+                "description": cfg.description or f"{cfg.name} elevation data",  # FROM CONFIG ONLY
+                "regionType": str(cfg.region_type),  # FROM CONFIG ONLY, REQUIRED (camelCase for JSON)
+            }
+            
+            # Attach file/bounds/stats/source from JSON (guaranteed to exist since we skip if missing)
+            entry["file"] = str(json_file.name)
+            if "bounds" in json_data:
+                entry["bounds"] = json_data["bounds"]
+            if "stats" in json_data:
+                entry["stats"] = json_data["stats"]
+            if "source" in json_data:
+                entry["source"] = json_data["source"]
+            
+            manifest["regions"][region_id] = entry
         
         # Write manifest
         manifest_path = generated_dir / "regions_manifest.json"
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f, indent=2)
         
-        print(f"  Manifest updated ({len(manifest['regions'])} regions)")
+        print(f"  Manifest updated ({len(manifest['regions'])} regions with data files)")
         return True
         
     except Exception as e:
         print(f"  Warning: Could not update manifest: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 

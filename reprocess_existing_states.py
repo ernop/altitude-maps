@@ -131,7 +131,7 @@ def main():
             boundary_type = 'state'
         elif config.region_type == RegionType.COUNTRY:
             boundary_type = 'country'
-        elif config.region_type == RegionType.REGION:
+        elif config.region_type == RegionType.AREA:
             boundary_type = None  # Regions don't have standard boundaries
         else:
             raise ValueError(f"Unknown region type for {state_id}: {config.region_type}")

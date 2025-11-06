@@ -400,25 +400,13 @@ class GroundPlaneCamera extends CameraScheme {
 
             // COMPREHENSIVE DEBUG LOGGING
             const euler = new THREE.Euler(0, 0, 0, 'XYZ');
-            euler.setFromQuaternion(testQuaternion);
-            console.log(`[RMB ROTATION - LOCAL SPACE]
-  Delta: X=${deltaX.toFixed(1)}px, Y=${deltaY.toFixed(1)}px
-  Rotation angles: X=${THREE.MathUtils.radToDeg(euler.x).toFixed(1)}°, Y=${THREE.MathUtils.radToDeg(euler.y).toFixed(1)}°
-  Terrain up.y: ${terrainUp.y.toFixed(3)} (1.0=flat, 0.0=vertical, <0=upside-down)
-  Camera view dir.y: ${cameraViewDir.y.toFixed(3)} (${lookingUpward ? 'looking UP' : 'looking DOWN'})
-  Check 1 - Board orientation: terrain.up.y >= ${minUpY} ? ${terrainUp.y >= minUpY}
-  Check 2 - Camera position: under board? ${cameraUnderBoard}`);
-
+            // Debug logging removed - too verbose during rotation
+            // Rotation validation: prevent terrain from flipping upside down or camera going under board
             if (terrainUp.y >= minUpY && !cameraUnderBoard) {
                 // Both checks pass - apply rotation
-                console.log(`  -> ACCEPTED`);
                 window.terrainGroup.quaternion.copy(testQuaternion);
             } else {
                 // One or both checks failed - reject rotation
-                let reason = '';
-                if (terrainUp.y < minUpY) reason += 'board too vertical/inverted';
-                if (cameraUnderBoard) reason += (reason ? ' AND ' : '') + 'camera under board';
-                console.log(`  -> REJECTED (${reason})`);
                 // Only apply horizontal rotation if vertical is blocked
                 if (terrainUp.y < minUpY || cameraUnderBoard) {
                     const horizontalOnly = new THREE.Quaternion();
@@ -444,6 +432,16 @@ class GroundPlaneCamera extends CameraScheme {
         } else if (event.button === 2) {
             this.state.rotatingTerrain = false;
         }
+    }
+
+    // Cancel all active drag operations (called when mouse leaves canvas or on cleanup)
+    cancelAllDrags() {
+        this.state.panning = false;
+        this.state.tilting = false;
+        this.state.rotating = false;
+        this.state.rotatingWithAlt = false;
+        this.state.rotatingCamera = false;
+        this.state.rotatingTerrain = false;
     }
 
     onWheel(event) {

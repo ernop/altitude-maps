@@ -1,6 +1,10 @@
 """
 Handles geographic border loading, caching, and operations.
 Supports drawing borders on visualizations and masking data to country boundaries.
+
+CRITICAL: All methods use **border_resolution** parameter (NOT "resolution").
+This refers to Natural Earth boundary detail level (10m/50m/110m), which is
+COMPLETELY SEPARATE from elevation data resolution (10m/30m/90m).
 """
 import pickle
 from pathlib import Path
@@ -32,38 +36,38 @@ class BorderManager:
         self._state_data = None
         self._state_resolution = None
         
-    def load_borders(self, resolution: str = '110m', force_reload: bool = False) -> gpd.GeoDataFrame:
+    def load_borders(self, border_resolution: str = '110m', force_reload: bool = False) -> gpd.GeoDataFrame:
         """
         Load Natural Earth border data with caching.
         
         Args:
-            resolution: Natural Earth resolution ('10m', '50m', or '110m')
-                       10m = high detail (large file)
-                       50m = medium detail
-                       110m = low detail (small file, good for global maps)
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
+                              10m = high detail (large file, recommended for production)
+                              50m = medium detail
+                              110m = low detail (small file, good for global maps)
             force_reload: Force re-download even if cached
             
         Returns:
             GeoDataFrame with country borders
         """
-        cache_file = self.cache_dir / f"ne_{resolution}_countries.pkl"
+        cache_file = self.cache_dir / f"ne_{border_resolution}_countries.pkl"
         
         # Return cached data if available and not forcing reload
         if not force_reload and cache_file.exists():
-            if self._world_data is not None and self._resolution == resolution:
+            if self._world_data is not None and self._resolution == border_resolution:
                 return self._world_data
             
             print(f"   - Loading borders from cache: {cache_file}")
             with open(cache_file, 'rb') as f:
                 self._world_data = pickle.load(f)
-                self._resolution = resolution
+                self._resolution = border_resolution
                 return self._world_data
         
         # Download from Natural Earth
-        print(f"   - Downloading Natural Earth {resolution} borders...")
-        ne_url = f"https://naciscdn.org/naturalearth/{resolution}/cultural/ne_{resolution}_admin_0_countries.zip"
+        print(f"   - Downloading Natural Earth {border_resolution} borders...")
+        ne_url = f"https://naciscdn.org/naturalearth/{border_resolution}/cultural/ne_{border_resolution}_admin_0_countries.zip"
         self._world_data = gpd.read_file(ne_url)
-        self._resolution = resolution
+        self._resolution = border_resolution
         
         # Cache for future use
         with open(cache_file, 'wb') as f:
@@ -72,18 +76,18 @@ class BorderManager:
         
         return self._world_data
     
-    def get_country(self, country_name: str, resolution: str = '110m') -> Optional[gpd.GeoDataFrame]:
+    def get_country(self, country_name: str, border_resolution: str = '110m') -> Optional[gpd.GeoDataFrame]:
         """
         Get border data for a specific country.
         
         Args:
             country_name: Country name (e.g., 'United States of America', 'Canada', 'Mexico')
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             GeoDataFrame for the country, or None if not found
         """
-        world = self.load_borders(resolution)
+        world = self.load_borders(border_resolution)
         
         # Try exact match first
         country = world[world.ADMIN == country_name]
@@ -101,34 +105,34 @@ class BorderManager:
         
         return country
     
-    def list_countries(self, resolution: str = '110m') -> List[str]:
+    def list_countries(self, border_resolution: str = '110m') -> List[str]:
         """
         List all available country names.
         
         Args:
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             Sorted list of country names
         """
-        world = self.load_borders(resolution)
+        world = self.load_borders(border_resolution)
         return sorted(world.ADMIN.unique())
     
     def get_countries_in_bbox(self, bbox: Tuple[float, float, float, float], 
-                            resolution: str = '110m') -> gpd.GeoDataFrame:
+                            border_resolution: str = '110m') -> gpd.GeoDataFrame:
         """
         Get all countries that intersect with a bounding box.
         
         Args:
             bbox: Bounding box as (left, bottom, right, top) in lon/lat
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             GeoDataFrame with countries in the bbox
         """
         from shapely.geometry import box
         
-        world = self.load_borders(resolution)
+        world = self.load_borders(border_resolution)
         bbox_geom = box(*bbox)
         
         # Find countries that intersect the bbox
@@ -138,7 +142,7 @@ class BorderManager:
     
     def mask_raster_to_country(self, raster_src: rasterio.DatasetReader, 
                               country_name: Union[str, List[str]], 
-                              resolution: str = '110m',
+                              border_resolution: str = '110m',
                               invert: bool = False) -> Tuple[np.ndarray, rasterio.Affine]:
         """
         Mask a raster dataset to country boundaries.
@@ -146,7 +150,7 @@ class BorderManager:
         Args:
             raster_src: Open rasterio dataset
             country_name: Country name or list of country names
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             invert: If True, mask out the country (keep everything else)
             
         Returns:
@@ -158,7 +162,7 @@ class BorderManager:
         # Get country geometries
         countries = []
         for name in country_name:
-            country = self.get_country(name, resolution)
+            country = self.get_country(name, border_resolution)
             if country is not None and not country.empty:
                 countries.append(country)
         
@@ -189,14 +193,14 @@ class BorderManager:
     
     def get_border_coordinates(self, country_name: Union[str, List[str]], 
                              target_crs: Optional[str] = None,
-                             resolution: str = '110m') -> List[Tuple[np.ndarray, np.ndarray]]:
+                             border_resolution: str = '110m') -> List[Tuple[np.ndarray, np.ndarray]]:
         """
         Get border coordinates for plotting on maps.
         
         Args:
             country_name: Country name or list of country names
             target_crs: Target CRS to reproject to (e.g., rasterio.crs.CRS object)
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             List of (x_coords, y_coords) tuples for each border segment
@@ -207,7 +211,7 @@ class BorderManager:
         # Get country geometries
         countries = []
         for name in country_name:
-            country = self.get_country(name, resolution)
+            country = self.get_country(name, border_resolution)
             if country is not None and not country.empty:
                 countries.append(country)
         
@@ -249,35 +253,35 @@ class BorderManager:
         
         return border_coords
     
-    def load_state_borders(self, resolution: str = '110m', force_reload: bool = False) -> gpd.GeoDataFrame:
+    def load_state_borders(self, border_resolution: str = '110m', force_reload: bool = False) -> gpd.GeoDataFrame:
         """
         Load Natural Earth state/province border data (admin_1) with caching.
         
         Args:
-            resolution: Natural Earth resolution ('10m', '50m', or '110m')
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             force_reload: Force re-download even if cached
             
         Returns:
             GeoDataFrame with state/province borders
         """
-        cache_file = self.cache_dir / f"ne_{resolution}_admin_1.pkl"
+        cache_file = self.cache_dir / f"ne_{border_resolution}_admin_1.pkl"
         
         # Return cached data if available and not forcing reload
         if not force_reload and cache_file.exists():
-            if self._state_data is not None and self._state_resolution == resolution:
+            if self._state_data is not None and self._state_resolution == border_resolution:
                 return self._state_data
             
             print(f"   - Loading state borders from cache: {cache_file}")
             with open(cache_file, 'rb') as f:
                 self._state_data = pickle.load(f)
-                self._state_resolution = resolution
+                self._state_resolution = border_resolution
                 return self._state_data
         
         # Download from Natural Earth
-        print(f"   - Downloading Natural Earth {resolution} admin_1 (states/provinces)...")
-        ne_url = f"https://naciscdn.org/naturalearth/{resolution}/cultural/ne_{resolution}_admin_1_states_provinces.zip"
+        print(f"   - Downloading Natural Earth {border_resolution} admin_1 (states/provinces)...")
+        ne_url = f"https://naciscdn.org/naturalearth/{border_resolution}/cultural/ne_{border_resolution}_admin_1_states_provinces.zip"
         self._state_data = gpd.read_file(ne_url)
-        self._state_resolution = resolution
+        self._state_resolution = border_resolution
         
         # Cache for future use
         with open(cache_file, 'wb') as f:
@@ -286,19 +290,19 @@ class BorderManager:
         
         return self._state_data
     
-    def get_state(self, country_name: str, state_name: str, resolution: str = '110m') -> Optional[gpd.GeoDataFrame]:
+    def get_state(self, country_name: str, state_name: str, border_resolution: str = '110m') -> Optional[gpd.GeoDataFrame]:
         """
         Get border data for a specific state/province.
         
         Args:
             country_name: Country name (e.g., 'United States of America')
             state_name: State/province name (e.g., 'Tennessee', 'California')
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             GeoDataFrame for the state, or None if not found
         """
-        states = self.load_state_borders(resolution)
+        states = self.load_state_borders(border_resolution)
         
         # Try exact match first
         state = states[(states['admin'] == country_name) & (states['name'] == state_name)]
@@ -323,18 +327,18 @@ class BorderManager:
         
         return state
     
-    def list_states_in_country(self, country_name: str, resolution: str = '110m') -> List[str]:
+    def list_states_in_country(self, country_name: str, border_resolution: str = '110m') -> List[str]:
         """
         List all states/provinces in a specific country.
         
         Args:
             country_name: Country name (e.g., 'United States of America')
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             Sorted list of state/province names
         """
-        states = self.load_state_borders(resolution)
+        states = self.load_state_borders(border_resolution)
         
         # Filter by country (case-insensitive)
         country_states = states[states['admin'].str.lower() == country_name.lower()]
@@ -344,7 +348,7 @@ class BorderManager:
     def mask_raster_to_state(self, raster_src: rasterio.DatasetReader, 
                             country_name: str, 
                             state_name: str,
-                            resolution: str = '110m') -> Tuple[np.ndarray, rasterio.Affine]:
+                            border_resolution: str = '110m') -> Tuple[np.ndarray, rasterio.Affine]:
         """
         Mask a raster dataset to state/province boundaries.
         
@@ -352,13 +356,13 @@ class BorderManager:
             raster_src: Open rasterio dataset
             country_name: Country name (e.g., 'United States of America')
             state_name: State/province name (e.g., 'Tennessee')
-            resolution: Natural Earth resolution
+            border_resolution: Natural Earth border detail level ('10m', '50m', or '110m')
             
         Returns:
             Tuple of (masked_array, transform)
         """
         # Get state geometry
-        state = self.get_state(country_name, state_name, resolution)
+        state = self.get_state(country_name, state_name, border_resolution)
         
         if state is None or state.empty:
             raise ValueError(f"State '{state_name}' not found in '{country_name}'")
@@ -398,19 +402,19 @@ import pandas as pd
 
 
 # Convenience functions for easy access
-def get_country_geometry(country_name: str, resolution: str = '110m'):
+def get_country_geometry(country_name: str, border_resolution: str = '110m'):
     """
     Get shapely geometry for a country (for use in clipping).
     
     Args:
         country_name: Country name (e.g., 'United States of America')
-        resolution: Natural Earth resolution ('10m', '50m', '110m')
+        border_resolution: Natural Earth border detail level ('10m', '50m', '110m')
         
     Returns:
         Shapely geometry object, or None if not found
     """
     bm = get_border_manager()
-    country = bm.get_country(country_name, resolution)
+    country = bm.get_country(country_name, border_resolution)
     
     if country is None or country.empty:
         return None
@@ -420,15 +424,15 @@ def get_country_geometry(country_name: str, resolution: str = '110m'):
     return unary_union(country.geometry)
 
 
-def list_countries(resolution: str = '110m') -> List[str]:
+def list_countries(border_resolution: str = '110m') -> List[str]:
     """
     List all available country names.
     
     Args:
-        resolution: Natural Earth resolution
+        border_resolution: Natural Earth border detail level ('10m', '50m', '110m')
         
     Returns:
         List of country names
     """
     bm = get_border_manager()
-    return bm.list_available(resolution)
+    return bm.list_countries(border_resolution)

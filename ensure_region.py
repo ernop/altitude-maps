@@ -73,16 +73,6 @@ from src.status import (
 # Alias for backward compatibility with existing code that uses bbox_filename_from_bounds
 bbox_filename_from_bounds = tile_filename_from_bounds
 
-
-def _path_exists(glob_pattern: str) -> bool:
-    """Utility to check if any path matches the given glob pattern."""
-    return any(glob.glob(glob_pattern, recursive=True))
-
-
-
-
-
-
 def check_venv() -> None:
     """Ensure we're running in the virtual environment."""
     # Check if we're in a venv
@@ -186,7 +176,7 @@ def process_region(region_id: str, raw_path: Path, source: str, target_pixels: i
         else:
             boundary_name = None
             boundary_type = None
-    elif region_type == RegionType.REGION:
+    elif region_type == RegionType.AREA:
         # For regions (islands, ranges, etc.), check if boundary clipping is enabled
         if region_info.get('clip_boundary', False):
             # Some regions may have boundaries defined
@@ -295,7 +285,7 @@ This script will:
                         help='Regenerate adjacency data after processing (run after adding new regions)')
 
     args = parser.parse_args()
-
+    
     # Pseudo-region: all
     # Allows: python ensure_region.py all --check-only
     if args.region_id and args.region_id.strip().lower() in ("all",):
@@ -372,10 +362,10 @@ This script will:
                         continue
                 success, result_paths = process_region(rid, raw_path, source, args.target_pixels,
                                                       True if args.force_reprocess else False,
-                                                      region_type, region_info, args.border_resolution)
+                                                      region_type, region_info, '10m')
                 if success:
                     _ = verify_and_auto_fix(rid, result_paths, source, args.target_pixels,
-                                            region_type, region_info, args.border_resolution)
+                                            region_type, region_info, '10m')
         # Summary of problems for check-only
         if args.check_only:
             print("\n" + "="*70)
@@ -616,13 +606,14 @@ This script will:
         return 0
 
     # Step 3: Process the region
+    # Always use 10m borders for accurate clipping (see .cursorrules - Border Resolution section)
     success, result_paths = process_region(region_id, raw_path, source, args.target_pixels,
-                                          args.force_reprocess, region_type, region_info, args.border_resolution)
+                                          args.force_reprocess, region_type, region_info, '10m')
 
     if success:
         # Post-validate and auto-fix if needed
         ensured = verify_and_auto_fix(region_id, result_paths, source, args.target_pixels,
-                                      region_type, region_info, args.border_resolution)
+                                      region_type, region_info, '10m')
         if not ensured:
             print("\n" + "="*70)
             print(f"  FAILED: Auto-fix could not repair {region_info['display_name']}")

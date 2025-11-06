@@ -88,10 +88,11 @@ Shows current pipeline status without downloading or processing.
 ## Command Options
 
 - `--target-pixels N`: Target resolution (default: 800)
-- `--border-resolution 10m|50m|110m`: Border detail level (default: 10m, use 10m for production)
 - `--force-reprocess`: Force full rebuild from raw data
 - `--check-only`: Check status only, don't modify files
 - `--list-regions`: List all available regions
+
+**Note**: Border resolution is always 10m (hardcoded) for production quality. This ensures accurate clipping with all islands and coastline details captured.
 
 ---
 
@@ -101,7 +102,7 @@ Shows current pipeline status without downloading or processing.
 2. Add `RegionConfig` to appropriate category:
    - `US_STATES` - US states (enum: `RegionType.USA_STATE`, dynamic resolution 10/30/90m)
    - `COUNTRIES` - Countries (enum: `RegionType.COUNTRY`, dynamic resolution 30/90m)
-   - `REGIONS` - Islands, peninsulas, mountain ranges (enum: `RegionType.REGION`, dynamic 30/90m)
+   - `AREAS` - Islands, peninsulas, mountain ranges (enum: `RegionType.AREA`, dynamic 30/90m)
 3. Run `python ensure_region.py --list-regions` to verify
 
 Example:

@@ -7,11 +7,22 @@ entries like "new" (should be "new_mexico"), "north" (should be "north_dakota"),
 
 import sys
 from pathlib import Path
+from typing import Dict, List
 import json
 from src.versioning import get_current_version
 
 def update_manifest_directly(generated_dir: Path) -> bool:
-    """Update manifest without relying on pipeline import."""
+    """
+    Update manifest without relying on pipeline import.
+    
+    CRITICAL RULES:
+    1. ONLY regions from regions_config.py that HAVE DATA FILES are included
+    2. ALL regions MUST have a region_type parameter (enforced)
+    3. Region info (name, description, regionType) comes ONLY from regions_config
+    4. JSON manifest uses camelCase "regionType" (not snake_case "region_type")
+    5. JSON files only provide: file path, bounds, stats, source
+    6. Regions without data files are SKIPPED (not included in manifest)
+    """
     try:
         # Import region categories from centralized config
         from src.regions_config import ALL_REGIONS
@@ -21,7 +32,8 @@ def update_manifest_directly(generated_dir: Path) -> bool:
             "regions": {}
         }
         
-        # Find all JSON files (excluding manifests, metadata, and borders)
+        # Build index of JSON files by region_id for quick lookup
+        json_files_by_region: Dict[str, List[Path]] = {}
         for json_file in sorted(generated_dir.glob("*.json")):
             if (json_file.stem.endswith('_meta') or 
                 json_file.stem.endswith('_borders') or 
@@ -33,67 +45,94 @@ def update_manifest_directly(generated_dir: Path) -> bool:
                     data = json.load(f)
                 
                 # Extract region_id: prefer from JSON, else infer from filename
-                stem = json_file.stem
-                # Known suffixes to strip (order matters - check longer patterns first)
-                for suffix in [
-                    '_srtm_30m_4000px_v2', '_srtm_30m_2048px_v2', '_srtm_30m_800px_v2',
-                    '_srtm_90m_2048px_v2', '_usa_3dep_2048px_v2',
-                    '_srtm_30m_v2', '_bbox_30m'
-                ]:
-                    if stem.endswith(suffix):
-                        stem = stem[:-len(suffix)]
-                        break
+                region_id = data.get("region_id")
+                if not region_id:
+                    stem = json_file.stem
+                    # Known suffixes to strip (order matters - check longer patterns first)
+                    for suffix in [
+                        '_srtm_30m_4000px_v2', '_srtm_30m_2048px_v2', '_srtm_30m_800px_v2',
+                        '_srtm_90m_2048px_v2', '_usa_3dep_2048px_v2',
+                        '_srtm_30m_v2', '_bbox_30m'
+                    ]:
+                        if stem.endswith(suffix):
+                            stem = stem[:-len(suffix)]
+                            break
+                    region_id = stem
                 
-                region_id = data.get("region_id", stem)
-
-                # ENFORCE: Only include regions explicitly configured upstream
-                cfg = ALL_REGIONS.get(region_id)
-                if not cfg:
-                    print(f"      [SKIP] Unknown region not in regions_config: {region_id}", flush=True)
-                    continue
-                
-                entry = {
-                    "name": data.get("name", region_id.replace('_', ' ').title()),
-                    "description": data.get("description", f"{data.get('name', region_id)} elevation data"),
-                    "source": data.get("source", "unknown"),
-                    "file": str(json_file.name),
-                    "bounds": data.get("bounds", {}),
-                    "stats": data.get("stats", {})
-                }
-
-                # Attach and REQUIRE region_type
-                region_type = getattr(cfg, 'region_type', None)
-                if not region_type:
-                    print(f"      [SKIP] Region missing region_type in regions_config: {region_id}", flush=True)
-                    continue
-                # Convert enum to string value for JSON
-                entry["region_type"] = str(region_type)
-
-                manifest["regions"][region_id] = entry
-            except Exception as e:
-                print(f"      [!] Skipping {json_file.name}: {e}", flush=True)
+                if region_id:
+                    if region_id not in json_files_by_region:
+                        json_files_by_region[region_id] = []
+                    json_files_by_region[region_id].append(json_file)
+            except Exception:
                 continue
+        
+        # Iterate ONLY through regions configured in regions_config.py
+        for region_id, cfg in sorted(ALL_REGIONS.items()):
+            # ENFORCE: region_type is MANDATORY
+            if not hasattr(cfg, 'region_type') or cfg.region_type is None:
+                print(f"      [SKIP] Region '{region_id}' missing region_type in regions_config - skipping", flush=True)
+                continue
+            
+            # Find matching JSON file(s) - use first available
+            json_file = None
+            json_data = None
+            if region_id in json_files_by_region:
+                for candidate_file in json_files_by_region[region_id]:
+                    try:
+                        with open(candidate_file, 'r', encoding='utf-8') as f:
+                            candidate_data = json.load(f)
+                        json_file = candidate_file
+                        json_data = candidate_data
+                        break
+                    except Exception:
+                        continue
+            
+            # SKIP regions without data files - only include regions with actual data
+            if not json_file or not json_data:
+                continue
+            
+            # Build entry using ONLY info from regions_config
+            entry = {
+                "name": cfg.name,  # FROM CONFIG ONLY
+                "description": cfg.description or f"{cfg.name} elevation data",  # FROM CONFIG ONLY
+                "regionType": str(cfg.region_type),  # FROM CONFIG ONLY, REQUIRED (camelCase for JSON)
+            }
+            
+            # Attach file/bounds/stats/source from JSON (guaranteed to exist since we skip if missing)
+            entry["file"] = str(json_file.name)
+            if "bounds" in json_data:
+                entry["bounds"] = json_data["bounds"]
+            if "stats" in json_data:
+                entry["stats"] = json_data["stats"]
+            if "source" in json_data:
+                entry["source"] = json_data["source"]
+            
+            manifest["regions"][region_id] = entry
         
         # Write manifest (JSON)
         manifest_path = generated_dir / "regions_manifest.json"
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2)
+        print(f"      [+] Wrote JSON manifest: {manifest_path}", flush=True)
 
-        # Also write gzip-compressed version
+        # Also write gzip-compressed version (required for web viewer)
         try:
             import gzip
             gzip_path = manifest_path.with_suffix('.json.gz')
             with open(manifest_path, 'rb') as f_in:
                 with gzip.open(gzip_path, 'wb', compresslevel=9) as f_out:
                     f_out.writelines(f_in)
+            print(f"      [+] Wrote gzipped manifest: {gzip_path}", flush=True)
         except Exception as gz_err:
             print(f"      [!] Warning: Could not write gzip manifest: {gz_err}", flush=True)
         
-        print(f"      [+] Manifest updated ({len(manifest['regions'])} regions)", flush=True)
+        print(f"      [+] Manifest updated ({len(manifest['regions'])} regions with data files)", flush=True)
         return True
         
     except Exception as e:
         print(f"      [!] Warning: Could not update manifest: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return False
 
 def main():

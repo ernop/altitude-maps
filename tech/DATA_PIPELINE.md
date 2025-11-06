@@ -16,7 +16,7 @@ from src.types import RegionType
 class RegionType(str, Enum):
     USA_STATE = "usa_state"  # US states
     COUNTRY = "country"      # Countries  
-    REGION = "region"        # Islands, ranges, custom areas
+    AREA = "area"            # Islands, ranges, custom areas
 ```
 
 **Enforcement**: Any code checking region types MUST:
@@ -44,7 +44,7 @@ if region_type == RegionType.USA_STATE:
 elif region_type == RegionType.COUNTRY:
     boundary_name = country_name
     boundary_type = "country"
-elif region_type == RegionType.REGION:
+elif region_type == RegionType.AREA:
     boundary_name = None if not clip_boundary else region_name
     boundary_type = None
 else:
@@ -75,8 +75,8 @@ Every region is classified using the `RegionType` enum:
 - **Boundary type**: `"country"` (Natural Earth country boundary)
 - **Boundary source**: Natural Earth admin_0 boundaries (10m recommended)
 
-### REGION (RegionType.REGION)
-- **Enum value**: `RegionType.REGION` (string value: `"region"`)
+### AREA (RegionType.AREA)
+- **Enum value**: `RegionType.AREA` (string value: `"area"`)
 - **Definition location**: `src/regions_config.py` -> `REGIONS`
 - **Resolution**: **Dynamic** - 30m or 90m based on Nyquist sampling rule
 - **Available sources**: SRTM (30m/90m), Copernicus DEM (30m/90m via OpenTopography)
@@ -110,7 +110,7 @@ Every region is classified using the `RegionType` enum:
 **Available Resolutions**:
 - `RegionType.USA_STATE`: `[10m, 30m, 90m]`
 - `RegionType.COUNTRY`: `[30m, 90m]`
-- `RegionType.REGION`: `[30m, 90m]`
+- `RegionType.AREA`: `[30m, 90m]`
 
 **See `tech/TILE_SYSTEM.md` Section 1** for complete details, examples, and calculation process.
 
@@ -197,7 +197,7 @@ elif region_type == RegionType.COUNTRY:
         boundary_type = "country"
     else:
         skip_clipping = True
-elif region_type == RegionType.REGION:
+elif region_type == RegionType.AREA:
     if config.clip_boundary:  # Usually False
         boundary_name = region_name
         boundary_type = "country"  # Or custom
@@ -210,8 +210,10 @@ else:
 **Boundary source**: Natural Earth (10m/50m/110m) via `src/borders.get_border_manager()`
 
 **Boundary resolution**:
-- **Default**: 10m (high detail, recommended)
-- **Configurable**: `--border-resolution 10m|50m|110m` (use 10m for production)
+- **Always 10m** in production pipeline (hardcoded in `ensure_region.py`)
+- 10m provides high detail and captures all islands/coastline details accurately
+- 110m borders are too coarse and miss features (e.g., Iceland missing 4 islands)
+- Utility scripts (`download_borders.py`, `export_borders_for_viewer.py`) may allow other resolutions for testing
 
 **Operation**: `rasterio.mask(..., crop=True, filled=False)` to remove empty space outside boundary.
  
@@ -415,10 +417,11 @@ Each pipeline stage has a version:
 
 **Options**:
 - `--target-pixels N`: Target resolution (default 2048)
-- `--border-resolution 10m|50m|110m`: Border detail (default 10m)
 - `--force-reprocess`: Force full rebuild
 - `--check-only`: Check status only, don't download/process
 - `--list-regions`: List all available regions
+
+**Note**: Border resolution is always 10m (hardcoded) for production quality. Utility scripts may allow other resolutions for testing.
 
 **Status & Logging requirements**:
 - Each job MUST report which stage it is executing and the outcome of all prior stages.
@@ -465,7 +468,7 @@ generated/regions/regions_manifest.json
 |------|------|------------|---------|------|-----------------|
 | USA_STATE | `RegionType.USA_STATE` | Dynamic (10/30/90m) | USGS 3DEP + SRTM | Always | `"United States of America/<State>"` |
 | COUNTRY | `RegionType.COUNTRY` | Dynamic (30/90m) | SRTM + Copernicus | Usually | `"<CountryName>"` |
-| REGION | `RegionType.REGION` | Dynamic (30/90m) | SRTM + Copernicus | Rarely | N/A or custom |
+| AREA | `RegionType.AREA` | Dynamic (30/90m) | SRTM + Copernicus | Rarely | N/A or custom |
 
 ---
 

@@ -72,11 +72,11 @@ function createEdgeMarkers() {
         zExtent = (gridHeight - 1) * bucketSize / 2;
         avgSize = (xExtent + zExtent);
     } else {
-        // Surface uses uniform grid positioning (centered PlaneGeometry, scaled by bucketSize)
-        const bucketMultiplier = params.bucketSize;
-        xExtent = (gridWidth * bucketMultiplier) / 2;
-        zExtent = (gridHeight * bucketMultiplier) / 2;
-        avgSize = (gridWidth * bucketMultiplier + gridHeight * bucketMultiplier) / 2;
+        // Fallback to bars mode calculation if unknown render mode
+        const bucketSize = params.bucketSize;
+        xExtent = (gridWidth - 1) * bucketSize / 2;
+        zExtent = (gridHeight - 1) * bucketSize / 2;
+        avgSize = (xExtent + zExtent);
     }
 
     // Get neighbors for current region

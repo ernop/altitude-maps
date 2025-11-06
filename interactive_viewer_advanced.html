@@ -7,7 +7,7 @@
 	<title>Altitude Maps - 3D Elevation Viewer</title>
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.367">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.362">
 </head>
 
 <body>
@@ -222,7 +222,6 @@
 			<div class="control-group" style="display: none;">
 				<select id="renderMode">
 					<option value="bars" selected>3D Rectangular Prisms</option>
-					<option value="surface">Smooth Surface</option>
 					<option value="points">Point Cloud</option>
 				</select>
 			</div>
@@ -336,42 +335,60 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.366"></script>
-	<script src="js/ground-plane-camera.js?v=1.366"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.366"></script>
+	<script src="js/camera-schemes.js?v=1.362"></script>
+	<script src="js/ground-plane-camera.js?v=1.362"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.362"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.366"></script>
+	<script src="js/color-schemes.js?v=1.362"></script>
 
 	<!-- Color scale legend -->
-	<script src="js/color-legend.js?v=1.367"></script>
+	<script src="js/color-legend.js?v=1.362"></script>
 
 	<!-- Geometry and spatial utilities -->
-	<script src="js/geometry-utils.js?v=1.366"></script>
+	<script src="js/geometry-utils.js?v=1.362"></script>
 
 	<!-- Data formatting utilities -->
-	<script src="js/format-utils.js?v=1.366"></script>
+	<script src="js/format-utils.js?v=1.362"></script>
 
 	<!-- Activity log utilities -->
-	<script src="js/activity-log.js?v=1.366"></script>
+	<script src="js/activity-log.js?v=1.362"></script>
 
 	<!-- Edge markers (N/E/S/W directional labels) -->
-	<script src="js/edge-markers.js?v=1.366"></script>
+	<script src="js/edge-markers.js?v=1.362"></script>
 
 	<!-- UI loading states (loading screen and progress bar) -->
-	<script src="js/ui-loading.js?v=1.366"></script>
+	<script src="js/ui-loading.js?v=1.362"></script>
 
 	<!-- Resolution controls (bucket size slider and presets) -->
-	<script src="js/resolution-controls.js?v=1.366"></script>
+	<script src="js/resolution-controls.js?v=1.362"></script>
+
+	<!-- Keyboard shortcuts (global shortcuts like R, +, -) -->
+	<script src="js/keyboard-shortcuts.js?v=1.362"></script>
 
 	<!-- State connectivity (US states only) -->
-	<script src="js/state-connectivity.js?v=1.366"></script>
+	<script src="js/state-connectivity.js?v=1.362"></script>
+
+	<!-- UI Controls Manager -->
+	<script src="js/ui-controls-manager.js?v=1.362"></script>
+
+	<!-- HUD System -->
+	<script src="js/hud-system.js?v=1.362"></script>
+
+	<!-- Compass Rose -->
+	<script src="js/compass-rose.js?v=1.362"></script>
+
+	<!-- Map Shading -->
+	<script src="js/map-shading.js?v=1.362"></script>
+
+	<!-- Terrain Renderer -->
+	<script src="js/terrain-renderer.js?v=1.362"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.367"></script>
+	<script src="js/viewer-advanced.js?v=1.362"></script>
 </body>
 
 </html>

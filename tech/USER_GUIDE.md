@@ -47,7 +47,7 @@ The interactive viewer provides real-time exploration with:
 
 -**45+ Pre-configured Regions**: Switch between USA, Japan, Switzerland, and more without refreshing
 -**Real-Time Bucketing**: Adjust detail level (1-50 pixels) for performance
--**Multiple Render Modes**: Bars, surface, wireframe, or point cloud
+-**Multiple Render Modes**: Bars or point cloud
 -**Vertical Exaggeration**: Adjust from 0.1x to 50x (1.0 = true Earth scale)
 -**Color Schemes**: 6 options including terrain, earth, ocean, viridis
 -**Country Borders**: Toggle country/state boundaries overlay
@@ -199,7 +199,7 @@ python export_for_web_viewer.py data/usa.tif --mask-country "United States of Am
 -**Default bucket size**: 12x12 pixels works for most cases
 -**If laggy**: Increase to 16-25 in sidebar
 -**For smooth 60 FPS**: Keep bar count under 15,000
--**Surface mode**: Faster rendering for very large datasets
+-**Points mode**: Faster rendering for very large datasets
 
 ### Static Rendering
 -**Bucketing**: Dramatically speeds up rendering

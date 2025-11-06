@@ -381,10 +381,11 @@ class RegionInfo:
     VALIDATION:
     - All required fields must be present
     - File must be a valid filename
-    - region_type must be string value from RegionType enum: "usa_state", "country", or "region"
+    - regionType must be string value from RegionType enum: "usa_state", "country", or "area"
     
     Note: This is a data container for JSON serialization. The enum is used in code,
-    but manifest stores string values. See src/types.py for RegionType enum definition.
+    but manifest stores string values. JSON uses camelCase "regionType" (not snake_case).
+    See src/types.py for RegionType enum definition.
     """
     name: str
     description: str
@@ -392,7 +393,7 @@ class RegionInfo:
     file: str    # Filename only, e.g., "ohio.json"
     bounds: Dict[str, float]
     stats: Dict[str, float]
-    region_type: str  # String value from RegionType enum: "usa_state", "country", or "region"
+    regionType: str  # String value from RegionType enum: "usa_state", "country", or "area" (camelCase for JSON)
     
     def __post_init__(self):
         """Validate region info."""

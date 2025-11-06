@@ -50,7 +50,7 @@ if config.region_type == RegionType.USA_STATE:
     boundary_type = 'state'
 elif config.region_type == RegionType.COUNTRY:
     boundary_type = 'country'
-elif config.region_type == RegionType.REGION:
+elif config.region_type == RegionType.AREA:
     boundary_type = None  # Regions don't have standard boundaries
 else:
     raise ValueError(f"Unknown region type for {state_id}: {config.region_type}")
@@ -74,7 +74,7 @@ else:
 ```python
 if region_type == RegionType.USA_STATE:  # ✅ Uses enum
     available_downloads = [10, 30, 90]
-elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:  # ✅ Explicit check
+elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:  # ✅ Explicit check
     available_downloads = [30, 90]
 else:
     raise ValueError(f"Unknown region type: {region_type}")  # ✅ Error handling
@@ -105,7 +105,7 @@ if region_type == RegionType.USA_STATE:
     # ... handle US states
     return dataset
 
-elif region_type == RegionType.COUNTRY or region_type == RegionType.REGION:  # ✅ Explicit check
+elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:  # ✅ Explicit check
     # International regions - check for explicit override first
     recommended = None
     # ... handles both COUNTRY and REGION
@@ -133,7 +133,7 @@ for region in all_regions:
     if region.region_type == RegionType.COUNTRY:
         # ... process countries
 
-# ❌ MISSING: No handling for RegionType.REGION
+# ❌ MISSING: No handling for RegionType.AREA
 # ❌ MISSING: No error for unknown types
 ```
 
@@ -147,7 +147,7 @@ for region in all_regions:
     elif region.region_type == RegionType.COUNTRY:
         # ... process countries
     
-    elif region.region_type == RegionType.REGION:  # ✅ Handles REGION
+    elif region.region_type == RegionType.AREA:  # ✅ Handles REGION
         # REGION types don't have boundaries in Natural Earth
         print(f"Skipping REGION type '{region.name}' - no boundary data available")
     
@@ -167,7 +167,7 @@ for region in all_regions:
 - `list_regions()` returns 89 total regions without errors
 - `list_regions(RegionType.USA_STATE)` returns 50 US states
 - `list_regions(RegionType.COUNTRY)` returns 8 countries
-- `list_regions(RegionType.REGION)` returns 31 regions
+- `list_regions(RegionType.AREA)` returns 31 regions
 - `get_region('ohio').region_type` correctly returns `RegionType.USA_STATE`
 
 **Syntax Validation:**

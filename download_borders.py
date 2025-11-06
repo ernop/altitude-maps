@@ -7,15 +7,15 @@ from pathlib import Path
 
 from src.borders import get_border_manager
 
-def download_all_borders(resolution='110m'):
+def download_all_borders(border_resolution='110m'):
     """
     Download and cache all Natural Earth border data.
     
     Args:
-        resolution: '10m', '50m', or '110m'
+        border_resolution: Border detail level ('10m', '50m', or '110m')
     """
     print(f"\n{'='*70}")
-    print(f"Pre-downloading Natural Earth Border Data ({resolution})")
+    print(f"Pre-downloading Natural Earth Border Data ({border_resolution})")
     print(f"{'='*70}\n")
     
     border_manager = get_border_manager()
@@ -23,9 +23,9 @@ def download_all_borders(resolution='110m'):
     # Download countries (admin_0)
     print("[1/2] Downloading country borders (admin_0)...")
     try:
-        countries = border_manager.load_borders(resolution=resolution, force_reload=False)
+        countries = border_manager.load_borders(border_resolution=border_resolution, force_reload=False)
         print(f"   OK: Loaded {len(countries)} countries")
-        print(f"   Cache: data/.cache/borders/ne_{resolution}_countries.pkl")
+        print(f"   Cache: data/.cache/borders/ne_{border_resolution}_countries.pkl")
     except Exception as e:
         print(f"   ERROR: Failed to download countries: {e}")
         return False
@@ -35,9 +35,9 @@ def download_all_borders(resolution='110m'):
     # Download states/provinces (admin_1)
     print("[2/2] Downloading state/province borders (admin_1)...")
     try:
-        states = border_manager.load_state_borders(resolution=resolution, force_reload=False)
+        states = border_manager.load_state_borders(border_resolution=border_resolution, force_reload=False)
         print(f"   OK: Loaded {len(states)} states/provinces/territories")
-        print(f"   Cache: data/.cache/borders/ne_{resolution}_admin_1.pkl")
+        print(f"   Cache: data/.cache/borders/ne_{border_resolution}_admin_1.pkl")
         
         # Show some stats
         us_states = states[states['admin'] == 'United States of America']
@@ -103,7 +103,7 @@ Examples:
             cache_file.unlink()
             print(f"   Deleted: {cache_file}")
     
-    success = download_all_borders(resolution=args.resolution)
+    success = download_all_borders(border_resolution=args.resolution)
     
     return 0 if success else 1
 

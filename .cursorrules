@@ -81,6 +81,18 @@ Session notes and development threads only:
 4. **Can I consolidate operations?**
    - Multiple raycasts → Single raycast with multiple result consumers
 
+5. **Should I precompute common operations?**
+   - Precompute common parameter values (e.g., bucket sizes 1x-32x) for instant switching
+   - Trade-off: Small memory cost (~10-15 MB) for dramatically better UX
+   - **Rule: Precompute when memory cost is low and UX benefit is high**
+   - Example: Bucketing cache allows instant bucket size changes without recomputation
+
+6. **Have I quantified the trade-offs?**
+   - Estimate memory usage before implementing optimizations
+   - Calculate time savings vs memory cost
+   - **Rule: Measure before optimizing - quantify memory, time, complexity trade-offs**
+   - Example: ~10 MB RAM for cached bucket sizes = acceptable for instant UX improvement
+
 **Examples of What to Catch:**
 
 **BAD - Multiple raycasts per event:**
@@ -214,7 +226,7 @@ function onMouseMove(e) {
 - **Centralized location**: Place project-wide enums in `src/types.py`
 - **When NOT to use enums**: Open-ended values (resolutions: 10m, 30m, future 5m), dual-nature fields (string for files, int for math)
 - **Alternative**: Use `typing.Literal['value1', 'value2']` for type hints without runtime overhead
-- **Example**: `RegionType` enum with USA_STATE, COUNTRY, REGION values
+- **Example**: `RegionType` enum with USA_STATE, COUNTRY, AREA values
 
 ### Region Type System (CRITICAL - ABSOLUTE ENFORCEMENT)
 
@@ -228,7 +240,7 @@ from src.types import RegionType
 class RegionType(str, Enum):
     USA_STATE = "usa_state"  # US states
     COUNTRY = "country"      # Countries
-    REGION = "region"        # Islands, ranges, custom areas
+    AREA = "area"            # Islands, ranges, custom areas
 ```
 
 **ENFORCEMENT CHECKLIST**:
@@ -258,7 +270,7 @@ if region_type == RegionType.USA_STATE:
 elif region_type == RegionType.COUNTRY:
     boundary_name = country_name if clip_boundary else None
     boundary_type = "country" if clip_boundary else None
-elif region_type == RegionType.REGION:
+elif region_type == RegionType.AREA:
     boundary_name = region_name if clip_boundary else None
     boundary_type = None
 else:
@@ -271,19 +283,21 @@ else:
 
 ### Resolution Determination (CRITICAL - ABSOLUTE ENFORCEMENT)
 
+**NOTE**: This section is about **elevation_resolution** (elevation data quality). For **border_resolution** (boundary detail level), see "Border Resolution" section below and "Resolution Naming Convention" section.
+
 **CANONICAL REFERENCE**: `tech/DATA_PIPELINE.md` - Section "Determine Required Resolution"
 
-**ABSOLUTE RULE**: Resolution is NEVER hardcoded by region type. It is ALWAYS dynamically determined using Nyquist sampling.
+**ABSOLUTE RULE**: Elevation data resolution is NEVER hardcoded by region type. It is ALWAYS dynamically determined using Nyquist sampling.
 
 **Process** (see `src/downloaders/orchestrator.determine_min_required_resolution()`):
 1. Calculate visible pixel size: `visible_m_per_pixel = geographic_span_meters / target_pixels`
 2. Apply Nyquist rule: `min_resolution <= visible_m_per_pixel / 2.0`
 3. Select coarsest available resolution that meets requirement
 
-**Available Resolutions**:
+**Available Elevation Data Resolutions** (NOT border resolutions - see "Resolution Naming Convention" section):
 - `RegionType.USA_STATE`: `[10m, 30m, 90m]` (USGS 3DEP + OpenTopography)
 - `RegionType.COUNTRY`: `[30m, 90m]` (OpenTopography only)
-- `RegionType.REGION`: `[30m, 90m]` (OpenTopography only)
+- `RegionType.AREA`: `[30m, 90m]` (OpenTopography only)
 
 **Example (Idaho)**:
 ```
@@ -299,6 +313,67 @@ else:
 - ✗ "Small states need high resolution" - FALSE, depends on output size, not geographic size
 
 **WHY THIS MATTERS**: Hardcoding resolutions wastes storage (downloading unnecessary 10m data) and breaks the quality model. The system is designed to automatically select optimal resolution based on actual viewer needs.
+
+---
+
+### Resolution Naming Convention (CRITICAL - ABSOLUTE ENFORCEMENT)
+
+**TWO COMPLETELY SEPARATE CONCEPTS - NEVER CONFUSE THEM:**
+
+#### 1. **elevation_resolution** (also called "data resolution" or "elevation data resolution")
+- **Values**: `10m`, `30m`, `90m`
+- **What it is**: Elevation data quality/sampling density (e.g., SRTM 30m, USGS 3DEP 10m)
+- **How determined**: Dynamically by Nyquist sampling rule based on `target_pixels`
+- **Where used**: 
+  - File naming (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
+  - Dataset selection (which elevation source to download)
+  - Quality requirements (minimum resolution needed)
+- **Variable naming**: Use `elevation_resolution` or `data_resolution` in code
+- **Function parameters**: `min_required_resolution` (int, in meters: 10, 30, 90)
+
+#### 2. **border_resolution** (also called "boundary detail level")
+- **Values**: `10m`, `50m`, `110m` (as strings: `'10m'`, `'50m'`, `'110m'`)
+- **What it is**: Natural Earth administrative boundary detail level
+- **How determined**: Always `'10m'` in production pipeline (hardcoded)
+- **Where used**:
+  - Border clipping operations (`src/pipeline.clip_to_boundary()`)
+  - Boundary geometry loading (`src/borders.BorderManager` methods)
+  - Border export for viewer (`export_borders_for_viewer.py`)
+- **Variable naming**: ALWAYS use `border_resolution` (never just `resolution`)
+- **Function parameters**: `border_resolution` (str: `'10m'`, `'50m'`, `'110m'`)
+
+#### Code Examples:
+
+**CORRECT - Clear distinction:**
+```python
+# Elevation data resolution (dynamic, based on Nyquist)
+elevation_resolution = '30m' if '30m' in source else '90m' if '90m' in source else '10m'
+filename = f"bbox_{bounds}_srtm_{elevation_resolution}.tif"
+
+# Border resolution (always 10m in production)
+border_resolution = '10m'  # Hardcoded for production
+geometry_gdf = border_manager.get_country(boundary_name, border_resolution=border_resolution)
+```
+
+**WRONG - Ambiguous naming:**
+```python
+# BAD - "resolution" is ambiguous - which type?
+resolution = '30m'  # Is this elevation or border?
+geometry = border_manager.get_country(name, resolution=resolution)  # Wrong parameter name!
+```
+
+#### Enforcement Rules:
+1. **NEVER use `resolution` as a parameter name** - always specify `elevation_resolution` or `border_resolution`
+2. **In `src/borders.py`**: All methods use `border_resolution` parameter (NOT `resolution`)
+3. **In `src/pipeline.py`**: Local variables for elevation data use `elevation_resolution` (NOT `resolution`)
+4. **When calling border methods**: Always use `border_resolution=...` keyword argument
+5. **When documenting**: Always specify which type of resolution you mean
+
+#### Why This Matters:
+- Prevents bugs from confusing elevation data quality with boundary detail level
+- Makes code self-documenting (clear what each variable represents)
+- Enables proper type checking (elevation_resolution is int in meters, border_resolution is str)
+- Prevents accidental misuse (e.g., passing elevation resolution to border methods)
 
 ---
 
@@ -403,7 +478,7 @@ Update all imports - don't add defensive fallbacks to old paths.
 
 #### Resolution Requirements (CRITICAL)
 - **Universal rule**: ALL regions use Nyquist sampling rule based on visible pixel size
-- **No type-based exceptions**: Region type (USA_STATE/COUNTRY/REGION) does NOT dictate quality requirements
+- **No type-based exceptions**: Region type (USA_STATE/COUNTRY/AREA) does NOT dictate quality requirements
 - **Region type is for**:
   - Download routing (which API/source to use)
   - UI organization (dropdown grouping in viewer)
@@ -412,23 +487,27 @@ Update all imports - don't add defensive fallbacks to old paths.
   - Resolution selection (based on actual data needs)
 
 #### Border Resolution (CRITICAL)
+- **Parameter name**: Always use `border_resolution` (NOT `resolution`) - see "Resolution Naming Convention" section above
 - **Always use 10m resolution borders** for accurate clipping (Natural Earth 10m dataset)
 - 110m borders are TOO COARSE and miss islands/coastline details (e.g., Iceland missing 4 islands!)
 - Border quality comparison:
-  - 10m: High detail, captures all islands and accurate coastlines (recommended)
-  - 50m: Medium detail (use only if 10m is too slow)
+  - 10m: High detail, captures all islands and accurate coastlines (always used in production pipeline)
+  - 50m: Medium detail (only in utility scripts for testing)
   - 110m: Low detail, misses features (DO NOT USE for production)
-- Specify with `--border-resolution 10m` flag in ensure_region.py (now the default)
+- **Production pipeline**: Border resolution is hardcoded to 10m in `ensure_region.py` (not configurable)
+- **Utility scripts**: `download_borders.py` and `export_borders_for_viewer.py` may allow other resolutions for testing
+- **All border methods**: Use `border_resolution` parameter (see `src/borders.py` for examples)
 
 #### Tile System (Content-Based Reuse)
 
 **CANONICAL REFERENCE**: See `tech/TILE_SYSTEM.md` for complete strategy.
 
-**Format**: `{NS}{lat}_{EW}{lon}_{resolution}.tif`
+**Format**: `{NS}{lat}_{EW}{lon}_{elevation_resolution}.tif`
+**NOTE**: The `{elevation_resolution}` in filenames refers to elevation data resolution (10m/30m/90m), NOT border resolution.
 
 **Examples**:
-- `N35_W090_30m.tif` (35°N, 90°W, 1° × 1°, 30m resolution)
-- `S05_E120_90m.tif` (5°S, 120°E, 1° × 1°, 90m resolution)
+- `N35_W090_30m.tif` (35°N, 90°W, 1° × 1°, 30m elevation data resolution)
+- `S05_E120_90m.tif` (5°S, 120°E, 1° × 1°, 90m elevation data resolution)
 
 **Storage**:
 - `data/raw/usa_3dep/tiles/` - 10m USGS tiles
@@ -443,7 +522,8 @@ Update all imports - don't add defensive fallbacks to old paths.
 
 **Abstract Bounds-Based Naming** (for reusable global data):
 - **Use for**: Raw downloads, processed GeoTIFFs, clipped data that could be shared across regions
-- **Format**: `bbox_{bounds}_{dataset}_{resolution}.tif` (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
+- **Format**: `bbox_{bounds}_{dataset}_{elevation_resolution}.tif` (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
+**NOTE**: The `{elevation_resolution}` refers to elevation data resolution (10m/30m/90m), NOT border resolution.
 - **Why**: Enables content-based reuse - multiple regions can share same raw/processed files
 - **Examples**: 
   - Raw bbox downloads: `data/raw/srtm_30m/bbox_{bounds}_{dataset}_{res}.tif`
@@ -527,7 +607,7 @@ downsampled = elevation[::step_y, ::step_x]  # Distorts!
 ## Region Selector Grouping (Viewer)
 - The region dropdown MUST use exactly three groups, in this order:
   1) Countries (international, alphabetical)
-  2) Regions (non-country areas like islands/peninsulas/ranges, alphabetical)
+  2) Areas (non-country areas like islands/peninsulas/ranges, alphabetical)
   3) US states (alphabetical)
 - Insert a visible divider (HR-style) between each group.
 - Non-selectable divider entries should not be focusable or trigger selection.
@@ -604,9 +684,11 @@ python ensure_region.py <region_id> --force-reprocess
 - Current safe values: `near=1, far=100000` (100,000:1 ratio)
 - **NEVER** use extreme values like `near=0.001, far=50000000`
 - Extreme ratios cause depth buffer artifacts (distant geometry bleeds through nearby geometry)
-- Symptoms: Jagged artifacts that vary with camera angle, worse at oblique views
-- **See `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` before modifying camera settings**
-- Runtime validation will log errors if ratio exceeds safe limits
+- Symptoms: Jagged "bleeding" of distant bars through nearby bars, artifacts appear/disappear as camera rotates, worse at oblique/grazing angles
+- **NEVER use values like**: `near < 0.1` (wastes precision), `far > 1,000,000` (spreads precision too thin), `ratio > 1,000,000:1` (depth buffer will fail)
+- If you need larger view distances, implement a logarithmic depth buffer or frustum-based dynamic near/far adjustment. DO NOT just increase far plane.
+- **See**: `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` for complete documentation
+- Runtime validation logs errors if ratio exceeds safe limits
 
 #### Performance Tuning
 - **Default bucket size**: Auto-adjust targets ~3,900 buckets (not 10,000) for better initial performance
@@ -770,6 +852,7 @@ update() {
 - Be humble about work you've done, not ostentatiously humble, just light and clear
 - Explain things as needed without self-praise
 - **Bump version before ending session** - Run `python bump_version.py` after user-facing changes
+- **User feedback validates UX improvements**: When users express strong positive feedback (e.g., "VERY good"), that validates the engineering effort was worth it. UX improvements that feel instant are worth the complexity.
 
 **What "learnings" actually means:**
 - Learnings are about project-specific constraints, patterns, and gotchas discovered through experience
@@ -859,7 +942,7 @@ record_successful_request()
      - `name`: Display name (e.g., "Japan")
      - `bounds`: Tuple(west, south, east, north) in degrees
      - `description`: Optional description
-     - `category`: "usa_state", "country", "region", etc.
+     - `category`: "usa_state", "country", "area", etc.
      - `clip_boundary`: True for countries/states, False for islands/custom areas
   2. Place a GeoTIFF at `data/regions/<region_id>.tif` (or `<region_id>_elevation.tif`).
   3. Generate JSON + manifest:
@@ -1045,7 +1128,7 @@ Always ignore these directories and file types to keep git lean:
 **Rationale**: Raw geospatial data is large (hundreds of MB to GB per file), and should be downloaded/reprocessed from source rather than stored in git. Only code, small manifests, and documentation belong in version control.
 
 ### UI Essentials
-- **Region selector groups**: Countries → Regions → US States; include non-selectable dividers; alphabetical inside each group.
+- **Region selector groups**: Countries → Areas → US States; include non-selectable dividers; alphabetical inside each group.
 - **Text legibility**: Primary HUD/meta/status (project name, GitHub, FPS/version, logs) should be white on dark backgrounds.
 - **Button styling standard**: ALL buttons must use white text (#ffffff) in both normal and hover states. On hover, change background color only, never text color. Use smooth transitions (0.2s).
 - **HUD Overlay**: Elevation/slope/aspect data display in bottom-left corner.

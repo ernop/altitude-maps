@@ -15,7 +15,7 @@ Major refactoring session focused on type safety, terminology unification, and a
 class RegionType(str, Enum):
     USA_STATE = "usa_state"
     COUNTRY = "country"
-    REGION = "region"
+    AREA = "area"
 ```
 
 **Impact**:

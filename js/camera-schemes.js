@@ -32,6 +32,10 @@ class CameraScheme {
     onMouseUp(event) { }
     onWheel(event) { }
     update() { }
+    // Cancel all active drag operations (called when mouse leaves canvas or on cleanup)
+    cancelAllDrags() {
+        this.state = {};
+    }
 }
 
 // ==================== GOOGLE MAPS STYLE ====================
@@ -853,7 +857,7 @@ class JumpingScheme extends CameraScheme {
 
         // Return TOP of terrain/bar (elevation * vertical exaggeration)
         // In bars mode: this is the top surface of the bar (solid collision)
-        // In surface/points mode: this is the terrain surface
+        // In points mode: this is the terrain surface
         return elevation * (params.verticalExaggeration || 1.0);
     }
 

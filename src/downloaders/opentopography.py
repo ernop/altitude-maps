@@ -41,6 +41,8 @@ def download_srtm(
     Returns:
         True if successful
     """
+
+    
     if output_path.exists():
         print(f" Already exists: {output_path.name}", flush=True)
         return True

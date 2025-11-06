@@ -77,13 +77,13 @@ def compute_adjacency():
     
     # Load US state boundaries
     print("Loading US state boundaries...")
-    states_gdf = border_manager.load_state_borders(resolution='10m')
+    states_gdf = border_manager.load_state_borders(border_resolution='10m')
     # Filter to US states only (exclude territories and foreign regions with same names)
     states_gdf = states_gdf[states_gdf['iso_3166_2'].str.startswith('US-', na=False)].copy()
     
     # Load country boundaries  
     print("Loading country boundaries...")
-    countries_gdf = border_manager.load_borders(resolution='10m')
+    countries_gdf = border_manager.load_borders(border_resolution='10m')
     
     # Get all configured regions
     all_regions = list_regions()
@@ -124,7 +124,7 @@ def compute_adjacency():
             else:
                 print(f"Warning: Could not find boundary for country {region.name}")
         
-        elif region.region_type == RegionType.REGION:
+        elif region.region_type == RegionType.AREA:
             # REGION types (islands, mountain ranges, etc.) don't have boundaries in Natural Earth
             # Skip them for adjacency computation
             print(f"Skipping REGION type '{region.name}' - no boundary data available")

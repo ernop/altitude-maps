@@ -114,9 +114,12 @@ function worldToLonLat(worldX, worldZ) {
         colNorm = (worldX - xMin) / (xMax - xMin);
         rowNorm = (worldZ - zMin) / (zMax - zMin);
     } else {
-        // surface
-        colNorm = (worldX + w / 2) / (w);
-        rowNorm = (worldZ + h / 2) / (h);
+        // Fallback to bars mode calculation if unknown render mode
+        const bucket = params.bucketSize;
+        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
+        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
+        colNorm = (worldX - originX) / ((w - 1) * bucket);
+        rowNorm = (worldZ - originZ) / ((h - 1) * bucket);
     }
     colNorm = Math.max(0, Math.min(1, colNorm));
     rowNorm = Math.max(0, Math.min(1, rowNorm));
@@ -156,9 +159,12 @@ function worldToGridIndex(worldX, worldZ) {
         j = Math.max(0, Math.min(w - 1, j));
         return { i, j };
     } else {
-        // Surface centered at origin, each vertex spaced 1 unit
-        let j = Math.round(worldX + w / 2);
-        let i = Math.round(worldZ + h / 2);
+        // Fallback to bars mode calculation if unknown render mode
+        const bucket = params.bucketSize;
+        const originX = terrainMesh ? terrainMesh.position.x : -(w - 1) * bucket / 2;
+        const originZ = terrainMesh ? terrainMesh.position.z : -(h - 1) * bucket / 2;
+        let j = Math.round((worldX - originX) / bucket);
+        let i = Math.round((worldZ - originZ) / bucket);
         i = Math.max(0, Math.min(h - 1, i));
         j = Math.max(0, Math.min(w - 1, j));
         return { i, j };

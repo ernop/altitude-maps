@@ -165,7 +165,7 @@ See [User Guide](tech/USER_GUIDE.md) for more details.
 ## Key Features
 
 ###**Flexible Visualization**
-- Multiple render modes: smooth surfaces, 3D bars, wireframe
+- Multiple render modes: 3D bars, point cloud
 - 7 color schemes: terrain, earth, ocean, viridis, plasma, grayscale, rainbow
 - Customizable camera angles, lighting, and vertical exaggeration
 - Generate multiple viewpoints with `--gen-nine`

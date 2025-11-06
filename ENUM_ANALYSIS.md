@@ -14,7 +14,7 @@ After reviewing `src/regions_config.py`, discovered the actual structure:
 class RegionType(str, Enum):
     USA_STATE = "usa_state"  # US states
     COUNTRY = "country"      # Countries (Iceland, Japan, etc.)
-    REGION = "region"        # Islands, mountain ranges, peninsulas, etc.
+    AREA = "area"            # Islands, mountain ranges, peninsulas, etc.
 ```
 
 **Field renamed:** `category` → `region_type` (unified terminology throughout codebase)

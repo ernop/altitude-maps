@@ -22,7 +22,7 @@ from enum import Enum
 class RegionType(str, Enum):
     USA_STATE = "usa_state"
     COUNTRY = "country"
-    REGION = "region"
+    AREA = "area"
 ```
 
 ### Terminology Consistency

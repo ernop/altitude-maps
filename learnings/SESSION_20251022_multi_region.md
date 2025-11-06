@@ -242,7 +242,7 @@ python download_regions.py --regions usa_full
 
 ### "Viewer is laggy"
 - Increase bucket size (12 -> 20)
-- Switch to Surface render mode
+- Switch to Points render mode
 - Lower vertical exaggeration
 - Check console for bar count warnings
 

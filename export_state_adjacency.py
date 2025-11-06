@@ -6,6 +6,7 @@ and exports it to a JSON file that the viewer can load.
 """
 
 import json
+import gzip
 from pathlib import Path
 from src.us_state_adjacency import US_STATE_ADJACENCY, get_neighbors_by_direction
 
@@ -34,13 +35,25 @@ def export_adjacency_data():
     output_dir = Path('generated')
     output_dir.mkdir(exist_ok=True)
     
-    # Write JSON file
+    # Write JSON file (uncompressed)
     output_path = output_dir / 'us_state_adjacency.json'
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(adjacency_json, f, indent=2, ensure_ascii=False)
     
+    # Write gzipped version
+    output_path_gz = output_dir / 'us_state_adjacency.json.gz'
+    with gzip.open(output_path_gz, 'wt', encoding='utf-8') as f:
+        json.dump(adjacency_json, f, indent=2, ensure_ascii=False)
+    
+    # Get file sizes
+    json_size = output_path.stat().st_size
+    gz_size = output_path_gz.stat().st_size
+    compression_ratio = (1 - gz_size / json_size) * 100 if json_size > 0 else 0
+    
     print(f"Exported adjacency data for {len(adjacency_json)} states")
     print(f"Output: {output_path}")
+    print(f"Gzipped: {output_path_gz}")
+    print(f"File sizes: {json_size:,} bytes (uncompressed), {gz_size:,} bytes (gzipped, {compression_ratio:.1f}% compression)")
     
     # Print sample for verification
     print("\nSample (California):")

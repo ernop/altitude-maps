@@ -24,7 +24,34 @@ class GzipHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Get the path
         path = self.translate_path(self.path)
         
-        # Check if it's a JSON file and client accepts gzip
+        # Check if requesting a .json.gz file (pre-compressed)
+        if path.endswith('.json.gz'):
+            if not Path(path).exists():
+                # File doesn't exist - let default handler return 404
+                super().do_GET()
+                return
+            
+            try:
+                # Serve pre-compressed .json.gz file directly
+                with open(path, 'rb') as f:
+                    content = f.read()
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Encoding', 'gzip')
+                self.send_header('Content-Length', len(content))
+                # In development, avoid stale JSON by disabling caching
+                self.send_header('Cache-Control', 'no-store, must-revalidate')
+                self.end_headers()
+                self.wfile.write(content)
+                
+                print(f"[GZIP] Served pre-compressed: {Path(path).name} ({len(content)/1024:.1f} KB)")
+                return
+            except Exception as e:
+                # Fall back to standard handler if serving fails
+                print(f"[WARN] Failed to serve {path}: {e}")
+        
+        # Check if it's a JSON file and client accepts gzip (on-the-fly compression)
         if path.endswith('.json') and 'gzip' in self.headers.get('Accept-Encoding', ''):
             # Check if file exists before attempting compression
             if not Path(path).exists():
@@ -60,7 +87,7 @@ class GzipHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # Fall back to standard handler if compression fails
                 print(f"[WARN] Compression failed for {path}: {e}")
         
-        # Use default handler for non-JSON or non-gzip requests
+        # Use default handler for other files
         super().do_GET()
 
 def main():
