@@ -92,8 +92,6 @@ class ColorLegend {
         const width = this.canvas.width;
         const height = this.canvas.height;
 
-        console.log('Drawing gradient:', { width, height, scheme: colorScheme, schemeStops: scheme ? scheme.length : 0 });
-
         if (width === 0 || height === 0) {
             console.warn('Canvas dimensions are zero');
             return;
@@ -123,8 +121,6 @@ class ColorLegend {
                 this.ctx.fillRect(0, y, width, 1);
             }
         }
-
-        console.log('Gradient drawing complete');
     }
 
     /**

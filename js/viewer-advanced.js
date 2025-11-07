@@ -213,6 +213,35 @@ function applyParamsFromURL() {
 
     const gamma = getFloat('gamma', 0.5, 2.0);
     if (gamma !== null) params.colorGamma = gamma;
+
+    // Camera state parameters
+    const cx = getFloat('cx');
+    const cy = getFloat('cy');
+    const cz = getFloat('cz');
+    const fx = getFloat('fx');
+    const fy = getFloat('fy');
+    const fz = getFloat('fz');
+    const rx = getFloat('rx');
+    const ry = getFloat('ry');
+    const rz = getFloat('rz');
+
+    // Store camera state from URL (will be applied after scene setup)
+    if (cx !== null && cy !== null && cz !== null) {
+        window.urlCameraState = {
+            position: { x: cx, y: cy, z: cz },
+            focus: {
+                x: fx !== null ? fx : 0,
+                y: fy !== null ? fy : 0,
+                z: fz !== null ? fz : 0
+            },
+            terrainRotation: {
+                x: rx !== null ? rx : 0,
+                y: ry !== null ? ry : 0,
+                z: rz !== null ? rz : 0
+            }
+        };
+        console.log('[applyParamsFromURL] Camera state found in URL:', window.urlCameraState);
+    }
 }
 
 // Initialize
@@ -958,12 +987,18 @@ async function loadRegion(regionId) {
         // Sync UI controls with current params
         syncUIControls();
 
-        // Reset camera for new terrain size
-        resetCamera();
+        // Apply camera state from URL if present, otherwise reframe to default view
+        if (window.urlCameraState) {
+            console.log('[loadRegionData] Applying camera state from URL');
+            applyCameraStateFromURL();
+        } else {
+            // Reset camera for new terrain size
+            resetCamera();
 
-        // Automatically reframe view (equivalent to F key) if camera scheme supports it
-        if (activeScheme && activeScheme.reframeView) {
-            activeScheme.reframeView();
+            // Automatically reframe view (equivalent to F key) if camera scheme supports it
+            if (activeScheme && activeScheme.reframeView) {
+                activeScheme.reframeView();
+            }
         }
 
         hideLoading();
@@ -978,8 +1013,13 @@ async function loadRegion(regionId) {
         try { logSignificant(`Region loaded: ${regionId}`); } catch (_) { }
 
         // Create connectivity labels for US states
+        // This is called AFTER camera setup so labels are positioned correctly
         if (typeof createConnectivityLabels === 'function') {
-            console.log('[Connectivity] Calling createConnectivityLabels()');
+            console.log('[Connectivity] Calling createConnectivityLabels() after camera setup');
+            if (window.terrainGroup) {
+                console.log(`[Connectivity] terrainGroup rotation: (${window.terrainGroup.rotation.x.toFixed(3)}, ${window.terrainGroup.rotation.y.toFixed(3)}, ${window.terrainGroup.rotation.z.toFixed(3)})`);
+            }
+            console.log(`[Connectivity] processedData dimensions: ${processedData.width}x${processedData.height}`);
             try {
                 createConnectivityLabels();
             } catch (error) {
@@ -1949,9 +1989,9 @@ function createTerrain() {
     }
 }
 
-function recreateTerrain() {
+function recreateTerrain(preserveTransform = true) {
     if (window.TerrainRenderer && typeof window.TerrainRenderer.recreate === 'function') {
-        return window.TerrainRenderer.recreate();
+        return window.TerrainRenderer.recreate(preserveTransform);
     } else {
         console.error('[recreateTerrain] TerrainRenderer not available');
         return 0;
@@ -2219,6 +2259,16 @@ function setTrueScale() {
     // Note: setVertExag() already updates the URL
 }
 
+function setFlat() {
+    console.log(`Setting FLAT view (no height variation)`);
+    
+    // Use minimum possible value to create flat appearance
+    const flatValue = 0.00001;
+    
+    setVertExag(flatValue);
+    // Note: setVertExag() already updates the URL
+}
+
 function setVertExagMultiplier(multiplier) {
     if (trueScaleValue === null) {
         console.warn('[WARN] True scale not calculated yet, using fallback');
@@ -2247,6 +2297,18 @@ function updateVertExagButtons(activeValue) {
 
     // Find and highlight the button matching the current value
     activeValue = parseFloat(activeValue);
+
+    // Special handling for flat button
+    const flatBtn = document.getElementById('vertExagBtnFlat');
+    if (flatBtn) {
+        const flatValue = 0.00001;
+        const tolerance = 0.000001;
+        if (Math.abs(activeValue - flatValue) < tolerance) {
+            flatBtn.classList.add('active');
+            flatBtn.style.outline = '2px solid#ffaa00';
+            activeVertExagButton = flatBtn;
+        }
+    }
 
     // Special handling for true scale button
     const trueScaleBtn = document.getElementById('vertExagBtnTrue');
@@ -2336,6 +2398,139 @@ function resetCamera() {
     controls.update();
 
     console.log(`Camera fully reset: position (0, ${fixedHeight}, ${(fixedHeight * 0.001).toFixed(1)}) looking at origin, terrain rotation and all state cleared`);
+}
+
+// Apply camera state from URL parameters
+function applyCameraStateFromURL() {
+    if (!window.urlCameraState) return;
+
+    const state = window.urlCameraState;
+    
+    // Apply camera position
+    if (camera && state.position) {
+        camera.position.set(state.position.x, state.position.y, state.position.z);
+        console.log(`Camera position set from URL: (${state.position.x.toFixed(1)}, ${state.position.y.toFixed(1)}, ${state.position.z.toFixed(1)})`);
+    }
+
+    // Apply focus point (controls target)
+    if (controls && state.focus) {
+        controls.target.set(state.focus.x, state.focus.y, state.focus.z);
+        console.log(`Camera focus set from URL: (${state.focus.x.toFixed(1)}, ${state.focus.y.toFixed(1)}, ${state.focus.z.toFixed(1)})`);
+    }
+
+    // Apply terrain rotation
+    if (window.terrainGroup && state.terrainRotation) {
+        window.terrainGroup.rotation.set(state.terrainRotation.x, state.terrainRotation.y, state.terrainRotation.z);
+        console.log(`Terrain rotation set from URL: (${state.terrainRotation.x.toFixed(3)}, ${state.terrainRotation.y.toFixed(3)}, ${state.terrainRotation.z.toFixed(3)})`);
+    }
+
+    // Update camera orientation and controls
+    if (camera && controls) {
+        camera.lookAt(controls.target);
+        controls.update();
+    }
+
+    // Update active camera scheme's focus point if it has one
+    if (activeScheme && activeScheme.focusPoint && state.focus) {
+        activeScheme.focusPoint.set(state.focus.x, state.focus.y, state.focus.z);
+    }
+
+    // Clear the URL state after applying (so switching regions uses default view)
+    delete window.urlCameraState;
+}
+
+// Update camera state in URL (when camera stops moving)
+let lastCameraState = null;
+let lastUrlUpdateState = null;
+let cameraIsMoving = false;
+
+function updateCameraStateInURL() {
+    // Skip if no camera or controls
+    if (!camera || !controls) return;
+
+    // Capture current state
+    const currentState = {
+        cx: camera.position.x,
+        cy: camera.position.y,
+        cz: camera.position.z,
+        fx: controls.target.x,
+        fy: controls.target.y,
+        fz: controls.target.z,
+        rx: window.terrainGroup ? window.terrainGroup.rotation.x : 0,
+        ry: window.terrainGroup ? window.terrainGroup.rotation.y : 0,
+        rz: window.terrainGroup ? window.terrainGroup.rotation.z : 0
+    };
+
+    // Check if state has changed from previous frame (with small threshold to avoid floating point noise)
+    const threshold = 0.01;
+    let stateChanged = false;
+    
+    if (lastCameraState) {
+        stateChanged = Object.keys(currentState).some(key => {
+            return Math.abs(currentState[key] - lastCameraState[key]) > threshold;
+        });
+    } else {
+        // First frame, initialize
+        lastCameraState = currentState;
+        return;
+    }
+
+    if (stateChanged) {
+        // Camera is moving - mark as moving and defer URL update
+        cameraIsMoving = true;
+    } else if (cameraIsMoving) {
+        // Camera stopped moving - update URL immediately
+        cameraIsMoving = false;
+        
+        // Check if state is different from last URL update (avoid redundant updates)
+        let needsUpdate = !lastUrlUpdateState;
+        if (lastUrlUpdateState) {
+            needsUpdate = Object.keys(currentState).some(key => {
+                return Math.abs(currentState[key] - lastUrlUpdateState[key]) > threshold;
+            });
+        }
+        
+        if (needsUpdate) {
+            // Update URL with current camera state
+            const url = new URL(window.location);
+            
+            // Round to 2 decimal places for cleaner URLs
+            url.searchParams.set('cx', currentState.cx.toFixed(2));
+            url.searchParams.set('cy', currentState.cy.toFixed(2));
+            url.searchParams.set('cz', currentState.cz.toFixed(2));
+            
+            // Only include focus if not at origin
+            if (Math.abs(currentState.fx) > threshold || Math.abs(currentState.fy) > threshold || Math.abs(currentState.fz) > threshold) {
+                url.searchParams.set('fx', currentState.fx.toFixed(2));
+                url.searchParams.set('fy', currentState.fy.toFixed(2));
+                url.searchParams.set('fz', currentState.fz.toFixed(2));
+            } else {
+                url.searchParams.delete('fx');
+                url.searchParams.delete('fy');
+                url.searchParams.delete('fz');
+            }
+            
+            // Only include rotation if not zero
+            if (Math.abs(currentState.rx) > threshold || Math.abs(currentState.ry) > threshold || Math.abs(currentState.rz) > threshold) {
+                url.searchParams.set('rx', currentState.rx.toFixed(3));
+                url.searchParams.set('ry', currentState.ry.toFixed(3));
+                url.searchParams.set('rz', currentState.rz.toFixed(3));
+            } else {
+                url.searchParams.delete('rx');
+                url.searchParams.delete('ry');
+                url.searchParams.delete('rz');
+            }
+
+            // Use replaceState instead of pushState to avoid cluttering history
+            window.history.replaceState({}, '', url);
+            
+            // Update last URL update state
+            lastUrlUpdateState = { ...currentState };
+        }
+    }
+    
+    // Update last state for next frame
+    lastCameraState = { ...currentState };
 }
 
 function exportImage() {
@@ -2850,6 +3045,9 @@ function animate() {
     renderer.render(scene, camera);
     updateFPS();
     
+    // Update camera state in URL (debounced to avoid excessive updates)
+    updateCameraStateInURL();
+    
     // HUD update moved to mousemove handler only (removed duplicate call from animate loop)
     // This prevents double-updates and improves performance
 }
@@ -2945,7 +3143,6 @@ function updateURLParameter(key, value) {
 
     url.searchParams.set(key, newValue);
     window.history.pushState({}, '', url);
-    console.log(`URL updated: ${url.href}`);
 }
 
 // Copy current view URL to clipboard

@@ -321,32 +321,51 @@ class GroundPlaneCamera extends CameraScheme {
         }
 
         if (this.state.rotatingTerrain) {
-            // RMB: Rotate Terrain (turntable physics)
-            // Camera stays still, terrain spins around its own Y axis
-            // Like a map on a rotating table
+            // RMB: Rotate Terrain (turntable + tilt)
+            // Horizontal mouse = spin around Y axis (turntable)
+            // Vertical mouse = tilt around screen-horizontal axis (camera-relative)
             if (!window.terrainGroup) return;
 
             const deltaX = event.clientX - this.state.rotateTerrainStart.x;
+            const deltaY = event.clientY - this.state.rotateTerrainStart.y;
 
             // Rotation speed
             const rotationSpeed = 0.005;
 
-            // Rotation axis: terrain's own Y axis (0, 1, 0) in world space
-            const rotationAxis = new THREE.Vector3(0, 1, 0);
+            // Start from initial rotation
+            let newRotation = this.state.terrainStartRotationQuaternion.clone();
 
-            // Horizontal mouse movement = rotation around Y axis
-            // Mouse LEFT = counter-clockwise, Mouse RIGHT = clockwise (from above)
-            const angle = -deltaX * rotationSpeed;
+            // HORIZONTAL MOVEMENT: Rotate around world Y axis (vertical/turntable spin)
+            if (Math.abs(deltaX) > 0) {
+                const yAxis = new THREE.Vector3(0, 1, 0);
+                const angleY = -deltaX * rotationSpeed;
+                const rotationY = new THREE.Quaternion();
+                rotationY.setFromAxisAngle(yAxis, angleY);
+                newRotation = new THREE.Quaternion().multiplyQuaternions(rotationY, newRotation);
+            }
 
-            // Create rotation quaternion around Y axis
-            const rotation = new THREE.Quaternion();
-            rotation.setFromAxisAngle(rotationAxis, angle);
+            // VERTICAL MOVEMENT: Rotate around camera's horizontal axis (screen-relative tilt)
+            if (Math.abs(deltaY) > 0) {
+                // Calculate camera view direction (from camera toward terrain center)
+                const terrainCenter = window.terrainGroup.position;
+                const viewDir = new THREE.Vector3();
+                viewDir.subVectors(terrainCenter, this.camera.position).normalize();
 
-            // Apply to initial rotation
-            const newRotation = new THREE.Quaternion();
-            newRotation.multiplyQuaternions(rotation, this.state.terrainStartRotationQuaternion);
+                // Calculate horizontal axis = perpendicular to both Y-axis and view direction
+                // This is the axis that's horizontal in screen space
+                const yAxis = new THREE.Vector3(0, 1, 0);
+                const horizontalAxis = new THREE.Vector3();
+                horizontalAxis.crossVectors(viewDir, yAxis).normalize();
 
-            // Apply rotation
+                // Mouse DOWN = positive deltaY = terrain tilts forward (near edge up)
+                // Mouse UP = negative deltaY = terrain tilts backward (far edge up)
+                const angleH = deltaY * rotationSpeed;
+                const rotationH = new THREE.Quaternion();
+                rotationH.setFromAxisAngle(horizontalAxis, angleH);
+                newRotation = new THREE.Quaternion().multiplyQuaternions(rotationH, newRotation);
+            }
+
+            // Apply combined rotation
             window.terrainGroup.quaternion.copy(newRotation);
         }
     }

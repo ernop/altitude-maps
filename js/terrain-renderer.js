@@ -146,10 +146,8 @@
         if (window.CompassRose && typeof window.CompassRose.update === 'function') {
             window.CompassRose.update();
         }
-        // Create connectivity labels alongside edge markers
-        if (typeof createConnectivityLabels === 'function') {
-            createConnectivityLabels();
-        }
+        // NOTE: createConnectivityLabels() is called by loadRegion() after camera setup
+        // Don't call it here to avoid timing issues with camera reframing
 
         if (typeof updateStats === 'function') {
             updateStats();

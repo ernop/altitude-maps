@@ -118,3 +118,7 @@ function updateColorSchemeDescription() {
     el.textContent = COLOR_SCHEME_DESCRIPTIONS[key] || '';
 }
 
+// Export to window for band editor and other modules
+window.COLOR_SCHEMES = COLOR_SCHEMES;
+window.COLOR_SCHEME_DESCRIPTIONS = COLOR_SCHEME_DESCRIPTIONS;
+

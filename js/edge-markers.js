@@ -59,6 +59,13 @@ function createEdgeMarkers() {
     const gridHeight = processedData.height;
     
     console.log(`[EDGE MARKERS] Creating markers for grid: ${gridWidth}x${gridHeight}`);
+    if (window.terrainGroup) {
+        console.log(`[EDGE MARKERS] terrainGroup rotation: (${window.terrainGroup.rotation.x.toFixed(3)}, ${window.terrainGroup.rotation.y.toFixed(3)}, ${window.terrainGroup.rotation.z.toFixed(3)})`);
+        console.log(`[EDGE MARKERS] terrainGroup position: (${window.terrainGroup.position.x.toFixed(3)}, ${window.terrainGroup.position.y.toFixed(3)}, ${window.terrainGroup.position.z.toFixed(3)})`);
+    }
+    if (window.terrainMesh) {
+        console.log(`[EDGE MARKERS] terrainMesh position: (${window.terrainMesh.position.x.toFixed(3)}, ${window.terrainMesh.position.y.toFixed(3)}, ${window.terrainMesh.position.z.toFixed(3)})`);
+    }
 
     // Position markers at ground level (y=0) so they sit on the terrain surface
     // They stay at this fixed height regardless of vertical exaggeration changes

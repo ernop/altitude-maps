@@ -246,13 +246,90 @@ These calculations assume terrainGroup rotation is (0,0,0) when markers are crea
    console.log(`recreate() called from: ${caller} (preserveTransform=${preserveTransform})`);
    ```
 
+## Additional Issues Found (November 6, 2025)
+
+### Issue #2: Duplicate `createConnectivityLabels()` Calls
+
+**Problem:** Connectivity labels were being created TWICE during region load:
+1. First time: Inside `terrain-renderer.js create()` during terrain creation
+2. Second time: In `loadRegion()` after camera setup
+
+**Why This Causes Issues:**
+- First call happens before camera is reset/reframed
+- Second call happens after camera setup with potentially different coordinate state
+- Labels recreated with wrong reference frame
+
+**Solution:** Removed the call from `terrain-renderer.js create()`, keeping only the call in `loadRegion()` after camera is properly set up.
+
+```javascript
+// terrain-renderer.js - REMOVED duplicate call
+// NOTE: createConnectivityLabels() is called by loadRegion() after camera setup
+// Don't call it here to avoid timing issues with camera reframing
+```
+
+### Issue #3: `recreateTerrain()` Wrapper Not Passing Parameters
+
+**Problem:** The wrapper function in `viewer-advanced.js` didn't accept or pass through the `preserveTransform` parameter.
+
+**Solution:** Updated wrapper to accept and pass through the parameter:
+
+```javascript
+// viewer-advanced.js
+function recreateTerrain(preserveTransform = true) {
+    if (window.TerrainRenderer && typeof window.TerrainRenderer.recreate === 'function') {
+        return window.TerrainRenderer.recreate(preserveTransform);
+    } else {
+        console.error('[recreateTerrain] TerrainRenderer not available');
+        return 0;
+    }
+}
+```
+
+### Enhanced Debugging
+
+Added logging to help diagnose positioning issues:
+
+**Edge Markers** (edge-markers.js):
+```javascript
+console.log(`[EDGE MARKERS] Creating markers for grid: ${gridWidth}x${gridHeight}`);
+console.log(`[EDGE MARKERS] terrainGroup rotation: (${rotation})`);
+console.log(`[EDGE MARKERS] terrainGroup position: (${position})`);
+console.log(`[EDGE MARKERS] terrainMesh position: (${meshPosition})`);
+```
+
+**Connectivity Labels** (viewer-advanced.js):
+```javascript
+console.log('[Connectivity] Calling createConnectivityLabels() after camera setup');
+console.log(`[Connectivity] terrainGroup rotation: (${rotation})`);
+console.log(`[Connectivity] processedData dimensions: ${width}x${height}`);
+```
+
+These logs will help identify if/when rotation or position is incorrect during marker creation.
+
 ## Summary
 
-**Problem:** Old rotation preserved when loading new regions caused compass labels to be misaligned.
+**Problem:** Old rotation/position preserved when loading new regions + duplicate label creation caused compass labels to be misaligned.
 
-**Solution:** Added `preserveTransform` parameter through the call chain:
-- `loadRegion()` → `autoAdjustBucketSize(false)` → `recreateTerrain(false)`
-- Bucket size changes still preserve rotation (default `true`)
+**Solutions:** 
+1. Added `preserveTransform` parameter through the call chain:
+   - `loadRegion()` → `autoAdjustBucketSize(false)` → `recreateTerrain(false)`
+   - Bucket size changes still preserve rotation (default `true`)
+2. Removed duplicate `createConnectivityLabels()` call from terrain creation
+3. Fixed wrapper function to pass through parameters
+4. Added debug logging to diagnose state during marker creation
 
-**Result:** Compass markers and labels now correctly positioned when switching regions!
+**Expected Result:** Compass markers and labels now correctly positioned when switching regions!
+
+**Testing Instructions:**
+1. Open browser console to see debug logs
+2. Load a region, rotate terrain to 45°
+3. Click compass link to load adjacent region
+4. Check console logs:
+   - `[TERRAIN] recreateTerrain() called from: ... (preserveTransform=false)` ✓
+   - `[EDGE MARKERS] terrainGroup rotation: (0.000, 0.000, 0.000)` ✓
+   - `[EDGE MARKERS] terrainGroup position: (0.000, 0.000, 0.000)` ✓
+   - `[Connectivity] terrainGroup rotation: (0.000, 0.000, 0.000)` ✓
+5. Verify labels are correctly aligned
+6. Change bucket size via slider
+7. Verify labels remain correctly aligned (rotation should be preserved)
 
