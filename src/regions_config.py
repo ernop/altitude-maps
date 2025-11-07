@@ -912,6 +912,15 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "owyhee_wilderness": RegionConfig(
+        id="owyhee_wilderness",
+        name="Owyhee Wilderness",
+        bounds=(-116.8, 42.3, -116.2, 42.7),
+        description="Idaho - Owyhee River Wilderness, 267,000-acre BLM wilderness featuring deep canyons carved by the Owyhee, Bruneau, and Jarbidge Rivers in southwestern Idaho",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
 }
 
 

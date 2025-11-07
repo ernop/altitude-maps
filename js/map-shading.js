@@ -154,7 +154,10 @@
             return __tmpColor.set(0x808080); // Gray fallback
         }
 
-        const isBanded = window.params && window.params.colorScheme === 'hypsometric-banded';
+        const isBanded = window.params && 
+            (window.params.colorScheme === 'hypsometric-banded' || 
+             window.params.colorScheme === 'hypsometric-intense' ||
+             window.params.colorScheme === 'hypsometric-refined');
 
         // Find color in scheme
         for (let i = 0; i < scheme.length - 1; i++) {

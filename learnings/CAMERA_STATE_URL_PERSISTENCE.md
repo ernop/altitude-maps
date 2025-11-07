@@ -60,7 +60,7 @@ Camera state is encoded using 9 URL parameters:
 1. `updateCameraStateInURL()` is called every frame in the animation loop
 2. Camera state is captured and compared to previous frame
 3. If changed, sets `cameraIsMoving = true`
-4. When state stops changing (camera stops moving), URL is updated immediately
+4. When state stops changing (camera stops moving) AND no mouse buttons are held, URL is updated immediately
 5. Only significant changes trigger updates (threshold: 0.01)
 
 ### Optimization Details
@@ -68,13 +68,22 @@ Camera state is encoded using 9 URL parameters:
 **Movement Detection:**
 - Compares current frame state to previous frame state
 - Sets `cameraIsMoving = true` when state changes
-- Updates URL immediately on first frame where state doesn't change (movement stopped)
-- No artificial delay - updates the instant movement stops
+- Updates URL only when BOTH conditions are met:
+  - Camera has stopped moving (state hasn't changed for at least one frame)
+  - No mouse buttons are held down (`activeMouseButtons === 0`)
+- No artificial delay - updates the instant movement stops AND mouse is released
 
 **Change Detection:**
 - Compares current state to `lastCameraState`
 - Threshold of 0.01 prevents floating point noise from triggering updates
 - Skips update if no significant change
+
+**Mouse Button Tracking:**
+- Uses bitmask to track which buttons are pressed (`activeMouseButtons`)
+- `mousedown` sets the corresponding bit: `activeMouseButtons |= (1 << e.button)`
+- `mouseup` clears the corresponding bit: `activeMouseButtons &= ~(1 << e.button)`
+- Prevents URL updates during drag operations (keeps URL stable during interaction)
+- Resets to 0 when mouse leaves canvas (prevents stuck button state)
 
 **Precision:**
 - Position values rounded to 2 decimal places (centimeter precision)

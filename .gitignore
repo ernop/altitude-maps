@@ -61,3 +61,6 @@ settings.json
 
 **/rasters/
 **/data/
+
+# Deployment config (contains server credentials)
+deploy-config.ps1

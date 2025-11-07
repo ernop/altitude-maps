@@ -106,7 +106,9 @@ class ColorLegend {
             return;
         }
 
-        const isBanded = colorScheme === 'hypsometric-banded';
+        const isBanded = colorScheme === 'hypsometric-banded' || 
+                         colorScheme === 'hypsometric-intense' ||
+                         colorScheme === 'hypsometric-refined';
 
         // Draw gradient from top (high) to bottom (low)
         for (let y = 0; y < height; y++) {

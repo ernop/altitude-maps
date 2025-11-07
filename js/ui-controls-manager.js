@@ -403,6 +403,10 @@
                 if (typeof updateColorLegend === 'function') {
                     updateColorLegend();
                 }
+                // Update band editor visibility
+                if (window.BandEditor && typeof window.BandEditor.updateVisibility === 'function') {
+                    window.BandEditor.updateVisibility();
+                }
             });
         } else {
             // Fallback to native addEventListener
@@ -422,6 +426,10 @@
                 }
                 if (typeof updateColorLegend === 'function') {
                     updateColorLegend();
+                }
+                // Update band editor visibility
+                if (window.BandEditor && typeof window.BandEditor.updateVisibility === 'function') {
+                    window.BandEditor.updateVisibility();
                 }
             });
         }
@@ -485,6 +493,10 @@
             colorSchemeSelect.value = window.params.colorScheme;
             if (typeof updateColorSchemeDescription === 'function') {
                 updateColorSchemeDescription();
+            }
+            // Update band editor visibility after syncing
+            if (window.BandEditor && typeof window.BandEditor.updateVisibility === 'function') {
+                window.BandEditor.updateVisibility();
             }
         }
     }

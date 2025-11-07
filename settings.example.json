@@ -3,6 +3,20 @@
     "api_key": "YOUR_API_KEY_HERE",
     "base_url": "https://portal.opentopography.org/API/globaldem"
   },
+  "data_sources": {
+    "comment": "Optional: Configure priority order for elevation data sources",
+    "priority": [
+      "usgs_3dep",
+      "copernicus_s3_10m",
+      "copernicus_s3_30m",
+      "opentopo_copernicus_30m",
+      "opentopo_srtm_30m",
+      "aw3d30",
+      "copernicus_s3_90m",
+      "opentopo_copernicus_90m",
+      "opentopo_srtm_90m"
+    ]
+  },
   "deployment": {
     "remote_host": "example.com",
     "remote_path": "/var/www/maps",

@@ -90,6 +90,36 @@ const COLOR_SCHEMES = {
         { stop: 0.75, color: new THREE.Color(0x8b5e34) }, // dark brown (75-90%)
         { stop: 0.90, color: new THREE.Color(0xc8c8c8) }, // grey (90-95%)
         { stop: 0.95, color: new THREE.Color(0xffffff) } // white peaks (95-100%)
+    ],
+    'hypsometric-intense': [
+        // Super intense 12-band color scheme with vivid, saturated colors
+        { stop: 0.00, color: new THREE.Color(0x001a33) }, // deep ocean blue
+        { stop: 0.08, color: new THREE.Color(0x004d00) }, // deep forest green
+        { stop: 0.17, color: new THREE.Color(0x00b300) }, // bright green
+        { stop: 0.25, color: new THREE.Color(0x66ff00) }, // lime
+        { stop: 0.33, color: new THREE.Color(0xffff00) }, // bright yellow
+        { stop: 0.42, color: new THREE.Color(0xff9900) }, // vivid orange
+        { stop: 0.50, color: new THREE.Color(0xff4400) }, // red-orange
+        { stop: 0.58, color: new THREE.Color(0xff0000) }, // pure red
+        { stop: 0.67, color: new THREE.Color(0xcc0066) }, // magenta
+        { stop: 0.75, color: new THREE.Color(0x9900cc) }, // purple
+        { stop: 0.83, color: new THREE.Color(0xcccccc) }, // light grey
+        { stop: 0.92, color: new THREE.Color(0xffffff) }  // white peaks
+    ],
+    'hypsometric-refined': [
+        // Refined 12-band scheme with naturalistic, muted colors
+        { stop: 0.00, color: new THREE.Color(0x1a3d3d) }, // deep teal-green
+        { stop: 0.08, color: new THREE.Color(0x2d5a3d) }, // forest green
+        { stop: 0.17, color: new THREE.Color(0x4a7c4e) }, // moss green
+        { stop: 0.25, color: new THREE.Color(0x6b9b5f) }, // olive green
+        { stop: 0.33, color: new THREE.Color(0x9bb076) }, // yellow-green
+        { stop: 0.42, color: new THREE.Color(0xb89d6a) }, // sandy tan
+        { stop: 0.50, color: new THREE.Color(0xc0845f) }, // ochre
+        { stop: 0.58, color: new THREE.Color(0xb36b52) }, // terra cotta
+        { stop: 0.67, color: new THREE.Color(0x9a5a47) }, // brown-red
+        { stop: 0.75, color: new THREE.Color(0x7a503f) }, // dark brown
+        { stop: 0.83, color: new THREE.Color(0xa09090) }, // grey-brown
+        { stop: 0.92, color: new THREE.Color(0xe0e0e0) }  // light grey peaks
     ]
 };
 
@@ -108,7 +138,9 @@ const COLOR_SCHEME_DESCRIPTIONS = {
     'diverging-elevation': 'Diverges around mid-elevation to reveal relative high/low areas.',
     'hypsometric': 'Perceptual hypsometric tint for terrain form.',
     'hypsometric-natural': 'Hypsometric with naturalistic greens-tans-browns-snow for peaks.',
-    'hypsometric-banded': 'Discrete elevation zones - classic topographic map style.'
+    'hypsometric-banded': 'Discrete elevation zones - classic topographic map style.',
+    'hypsometric-intense': 'Super intense 12-band hypsometric with vivid saturated colors and adjustable boundaries.',
+    'hypsometric-refined': 'Refined 12-band scheme with naturalistic earth tones and adjustable boundaries.'
 };
 
 function updateColorSchemeDescription() {

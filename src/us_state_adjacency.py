@@ -39,7 +39,7 @@ US_STATE_ADJACENCY: Dict[str, List[StateNeighbor]] = {
     
     "california": [
         StateNeighbor("oregon", "Oregon", "N"),
-        StateNeighbor("nevada", "Nevada", "NE"),
+        StateNeighbor("nevada", "Nevada", "E"),
         StateNeighbor("arizona", "Arizona", "E"),
     ],
     
@@ -116,7 +116,7 @@ US_STATE_ADJACENCY: Dict[str, List[StateNeighbor]] = {
         StateNeighbor("idaho", "Idaho", "NE"),
         StateNeighbor("utah", "Utah", "E"),
         StateNeighbor("arizona", "Arizona", "SE"),
-        StateNeighbor("california", "California", "SW"),
+        StateNeighbor("california", "California", "W"),
     ],
     
     "new_hampshire": [

@@ -463,16 +463,14 @@ function computeGlobalElevationStats(manifest) {
 }
 
 async function loadRegionsManifest() {
-    const gzUrl = `generated/regions/regions_manifest.json.gz?v=${VIEWER_VERSION}`;
-    const jsonUrl = `generated/regions/regions_manifest.json?v=${VIEWER_VERSION}`;
+    const manifestUrl = `generated/regions/regions_manifest.json.gz?v=${VIEWER_VERSION}`;
     const tStart = performance.now();
     
     console.log(`[loadRegionsManifest] ======== LOADING MANIFEST ========`);
-    console.log(`[loadRegionsManifest] Primary URL: ${gzUrl}`);
-    console.log(`[loadRegionsManifest] Fallback URL: ${jsonUrl}`);
+    console.log(`[loadRegionsManifest] URL: ${manifestUrl}`);
     
     // Force fresh fetch - no browser caching allowed
-    let response = await fetch(gzUrl, {
+    const response = await fetch(manifestUrl, {
         cache: 'no-store',
         headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -480,10 +478,9 @@ async function loadRegionsManifest() {
             'Expires': '0'
         }
     });
-    let actualUrl = gzUrl;
 
     if (!response.ok) {
-        throw new Error(`Failed to load regions manifest. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
+        throw new Error(`Failed to load regions manifest. HTTP ${response.status} ${response.statusText} for ${manifestUrl}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
@@ -495,8 +492,8 @@ async function loadRegionsManifest() {
     const text = await decompressedResponse.text();
     const json = JSON.parse(text);
 
-    console.log(`[loadRegionsManifest] Successfully loaded from: ${actualUrl}`);
-    try { window.ActivityLog.logResourceTiming(actualUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
+    console.log(`[loadRegionsManifest] Successfully loaded from: ${manifestUrl}`);
+    try { window.ActivityLog.logResourceTiming(manifestUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
     
     // Log detailed manifest statistics
     const totalRegions = Object.keys(json?.regions || {}).length;
@@ -1616,6 +1613,8 @@ function setupEventListeners() {
     }, { passive: false });
 
     renderer.domElement.addEventListener('mousedown', (e) => {
+        // Track which mouse button is pressed (for URL update deferral)
+        activeMouseButtons |= (1 << e.button);
         if (activeScheme) activeScheme.onMouseDown(e);
     });
 
@@ -1700,12 +1699,16 @@ function setupEventListeners() {
     });
 
     renderer.domElement.addEventListener('mouseup', (e) => {
+        // Track which mouse button is released (for URL update deferral)
+        activeMouseButtons &= ~(1 << e.button);
         if (activeScheme) activeScheme.onMouseUp(e);
     });
 
     // Window-level mouseup listener: catches mouseup events even when mouse is outside canvas
     // This prevents drag state from getting stuck if user releases mouse button outside the canvas
     window.addEventListener('mouseup', (e) => {
+        // Track which mouse button is released (for URL update deferral)
+        activeMouseButtons &= ~(1 << e.button);
         if (activeScheme && typeof activeScheme.onMouseUp === 'function') {
             activeScheme.onMouseUp(e);
         }
@@ -1713,6 +1716,8 @@ function setupEventListeners() {
 
     // Cancel drags when mouse leaves canvas (safety measure)
     renderer.domElement.addEventListener('mouseleave', (e) => {
+        // Clear all mouse button state (prevents stuck buttons)
+        activeMouseButtons = 0;
         if (activeScheme && typeof activeScheme.cancelAllDrags === 'function') {
             activeScheme.cancelAllDrags();
         }
@@ -2439,10 +2444,11 @@ function applyCameraStateFromURL() {
     delete window.urlCameraState;
 }
 
-// Update camera state in URL (when camera stops moving)
+// Update camera state in URL (when camera stops moving AND no mouse buttons are held)
 let lastCameraState = null;
 let lastUrlUpdateState = null;
 let cameraIsMoving = false;
+let activeMouseButtons = 0; // Bitmask of currently pressed mouse buttons
 
 function updateCameraStateInURL() {
     // Skip if no camera or controls
@@ -2478,8 +2484,8 @@ function updateCameraStateInURL() {
     if (stateChanged) {
         // Camera is moving - mark as moving and defer URL update
         cameraIsMoving = true;
-    } else if (cameraIsMoving) {
-        // Camera stopped moving - update URL immediately
+    } else if (cameraIsMoving && activeMouseButtons === 0) {
+        // Camera stopped moving AND no mouse buttons held - update URL immediately
         cameraIsMoving = false;
         
         // Check if state is different from last URL update (avoid redundant updates)

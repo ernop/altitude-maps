@@ -8,9 +8,12 @@ DO NOT duplicate these values elsewhere.
 # Download chunk sizes by resolution (degrees per API request)
 # Larger chunks reduce API calls but increase memory usage during splitting
 CHUNK_SIZE_BY_RESOLUTION = {
-    10: 1,  # 10m data is ~300MB/tile - keep 1x1 degree chunks
-    30: 1,  # 30m data is ~50MB/tile - keep 1x1 degree chunks
-    90: 2,  # 90m data is ~12MB/tile - fetch 2x2 degree chunks (4 tiles per request)
+    10: 1,    # 10m data is ~300MB/tile - keep 1x1 degree chunks
+    30: 1,    # 30m data is ~50MB/tile - keep 1x1 degree chunks
+    90: 2,    # 90m data is ~12MB/tile - fetch 2x2 degree chunks (4 tiles per request)
+    250: 4,   # 250m data is ~3MB/tile - fetch 4x4 degree chunks
+    500: 8,   # 500m data is ~1MB/tile - fetch 8x8 degree chunks
+    1000: 10, # 1km data is ~500KB/tile - fetch 10x10 degree chunks
 }
 
 # OpenTopography API limits
@@ -21,6 +24,9 @@ TYPICAL_TILE_SIZE_MB = {
     10: 300,
     30: 50,
     90: 12,
+    250: 3,
+    500: 1,
+    1000: 0.5,
 }
 
 

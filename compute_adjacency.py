@@ -15,10 +15,13 @@ import math
 def get_cardinal_direction(from_centroid, to_centroid):
     """
     Determine cardinal direction from one point to another.
-    Returns: 'north', 'south', 'east', 'west', or primary+secondary like 'northeast'
+    Returns: 'north', 'south', 'east', or 'west'
     
-    For simplicity, we'll use 8 directions and then map to the 4 cardinal ones,
-    assigning to the closest.
+    Each direction gets a 90-degree sector:
+    - East: -45 to 45 degrees
+    - North: 45 to 135 degrees
+    - West: 135 to 225 degrees (or -135 to -225)
+    - South: 225 to 315 degrees (or -45 to -135)
     """
     dx = to_centroid.x - from_centroid.x
     dy = to_centroid.y - from_centroid.y
@@ -30,42 +33,16 @@ def get_cardinal_direction(from_centroid, to_centroid):
     if angle < 0:
         angle += 360
     
-    # Map to cardinal directions (with 45-degree sectors)
-    # 0-45: east, 45-135: north, 135-225: west, 225-315: south, 315-360: east
-    if angle >= 337.5 or angle < 22.5:
+    # Map to cardinal directions (90-degree sectors)
+    # -45 to 45: east, 45 to 135: north, 135 to 225: west, 225 to 315: south
+    if angle >= 315 or angle < 45:
         return 'east'
-    elif 22.5 <= angle < 67.5:
-        return 'northeast'
-    elif 67.5 <= angle < 112.5:
+    elif 45 <= angle < 135:
         return 'north'
-    elif 112.5 <= angle < 157.5:
-        return 'northwest'
-    elif 157.5 <= angle < 202.5:
+    elif 135 <= angle < 225:
         return 'west'
-    elif 202.5 <= angle < 247.5:
-        return 'southwest'
-    elif 247.5 <= angle < 292.5:
+    else:  # 225 <= angle < 315
         return 'south'
-    else:  # 292.5 <= angle < 337.5
-        return 'southeast'
-
-def simplify_to_cardinal(direction):
-    """
-    Simplify 8-way direction to 4 cardinal directions.
-    Northeast/Northwest -> north or east/west (pick dominant)
-    Southeast/Southwest -> south or east/west (pick dominant)
-    """
-    if direction in ['north', 'south', 'east', 'west']:
-        return direction
-    
-    # For diagonals, return both as a tuple so we can assign to both directions
-    mapping = {
-        'northeast': ('north', 'east'),
-        'northwest': ('north', 'west'),
-        'southeast': ('south', 'east'),
-        'southwest': ('south', 'west')
-    }
-    return mapping.get(direction, direction)
 
 def compute_adjacency():
     """
@@ -166,10 +143,6 @@ def compute_adjacency():
             'contained': []  # AREA regions within this region
         }
         
-        # Track border lengths for deduplication
-        # Format: neighbor_id -> {direction: border_length}
-        border_lengths = {}
-        
         geom = region_data['geometry']
         centroid = geom.centroid
         
@@ -191,60 +164,19 @@ def compute_adjacency():
                     print(f"  Skipping {other_data['name']} (point-only touch)")
                     continue
                 
-                # Calculate shared border length
+                # Calculate shared border length (for informational purposes)
                 if hasattr(intersection, 'length'):
                     border_length = intersection.length
                 else:
                     border_length = 0
                 
-                # Determine direction
+                # Determine direction (pure cardinal only - each gets 90-degree sector)
                 other_centroid = other_geom.centroid
                 direction = get_cardinal_direction(centroid, other_centroid)
                 
-                # Simplify to cardinal
-                cardinal = simplify_to_cardinal(direction)
-                
-                # Track border length for each direction this neighbor appears in
-                if other_id not in border_lengths:
-                    border_lengths[other_id] = {}
-                
-                if isinstance(cardinal, tuple):
-                    # Diagonal - track for both directions
-                    for d in cardinal:
-                        if d not in border_lengths[other_id]:
-                            border_lengths[other_id][d] = border_length
-                            adjacency[region_id][d].append(other_id)
-                            print(f"  {d}: {other_data['name']} (border length: {border_length:.4f})")
-                else:
-                    # Pure cardinal
-                    if cardinal not in border_lengths[other_id]:
-                        border_lengths[other_id][cardinal] = border_length
-                        adjacency[region_id][cardinal].append(other_id)
-                        print(f"  {cardinal}: {other_data['name']} (border length: {border_length:.4f})")
-        
-        # Deduplicate neighbors - keep only the direction with longest shared border
-        for neighbor_id, directions in border_lengths.items():
-            if len(directions) > 1:
-                # This neighbor appears in multiple directions
-                # Find the direction with the longest border
-                best_direction = max(directions.items(), key=lambda x: x[1])
-                best_dir_name = best_direction[0]
-                best_length = best_direction[1]
-                
-                neighbor_name = next(
-                    (data['name'] for oid, data in region_geometries.items() if oid == neighbor_id),
-                    neighbor_id
-                )
-                
-                print(f"  DEDUP: {neighbor_name} appears in {list(directions.keys())}")
-                print(f"         Keeping {best_dir_name} (border length: {best_length:.4f})")
-                
-                # Remove from all other directions
-                for direction in directions.keys():
-                    if direction != best_dir_name:
-                        if neighbor_id in adjacency[region_id][direction]:
-                            adjacency[region_id][direction].remove(neighbor_id)
-                            print(f"         Removed from {direction} (border length: {directions[direction]:.4f})")
+                # Add to adjacency list
+                adjacency[region_id][direction].append(other_id)
+                print(f"  {direction}: {other_data['name']} (border length: {border_length:.4f})")
         
         # Check for contained AREA regions
         for area_id, area_data in area_regions.items():

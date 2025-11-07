@@ -47,22 +47,25 @@ Vertical exaggeration now uses**intuitive meter-based scale**:
 -**Auto-caching** - Borders download once and reuse automatically
 - Export with: `python export_for_web_viewer.py data/usa.tif --export-borders`
 
-## Smart Resolution Selection
+## Smart Resolution Selection & Multiple Data Sources
 
-The system automatically selects optimal data resolution based on region size:
+The system automatically selects optimal data resolution based on region size and tries multiple elevation data sources until successful:
 
-- **Large regions** (e.g., China, Russia, Brazil): Automatically uses SRTM 90m data
-  - Downloads via tile-by-tile system (1-degree tiles)
-  - Efficient caching with content-based naming
-  - Example: N40_W111_90m.tif stored in `data/raw/srtm_90m/tiles/`
-  
-- **Small regions** (e.g., Iceland, Costa Rica): Uses SRTM 30m data
-  - Higher detail for smaller areas
-  - Same tile-based architecture
+- **10m resolution**: USGS 3DEP (US), Copernicus GLO-10 (Europe)
+- **30m resolution**: SRTM, Copernicus DEM, ALOS AW3D30
+- **90m resolution**: SRTM, Copernicus DEM
 
-**Why this matters**: For a large country at 2048px output, visible pixels might be 400m each. Using 90m source data gives 4.4x oversampling (optimal), while 30m would give 13.3x oversampling (wasteful with no visual benefit). The Nyquist sampling rule ensures clean downsampling without aliasing.
+**Automatic source selection**: If the primary source (OpenTopography) is rate-limited or unavailable, the system automatically tries alternative sources like Copernicus S3 (no rate limits) or AW3D30. No manual intervention needed.
 
-See `tech/DATA_PIPELINE.md` for complete technical details.
+**Tile-based architecture**: All data uses 1-degree tiles for efficient caching and reuse:
+- Downloads via tile-by-tile system
+- Content-based naming (e.g., `N40_W111_90m.tif`)
+- Stored in `data/raw/{source}/tiles/`
+- Tiles reused across adjacent regions
+
+**Why resolution matters**: For a large country at 2048px output, visible pixels might be 400m each. Using 90m source data gives 4.4x oversampling (optimal), while 30m would give 13.3x oversampling (wasteful with no visual benefit). The Nyquist sampling rule ensures clean downsampling without aliasing.
+
+See `tech/DATA_PIPELINE.md` for technical details and `tech/DATA_SOURCES.md` for complete source information.
 
 ## What Can You Do With It?
 
@@ -161,6 +164,22 @@ python visualize_usa_overhead.py
 ```
 
 See [User Guide](tech/USER_GUIDE.md) for more details.
+
+## Deployment
+
+The viewer is a pure client-side application (no server-side code). Deploy to any static web server:
+
+```powershell
+# Preview what would be deployed (dry run)
+.\deploy.ps1 -Preview
+
+# Deploy to server
+.\deploy.ps1 -Deploy
+```
+
+Uses native Windows SCP (built into Windows 10+). Server configuration is in `deploy-config.ps1` (gitignored). Copy from `deploy-config.example.ps1` if needed.
+
+Deploys only viewer files (~50-100 MB): HTML, JS, CSS, generated JSON data. Excludes raw data (~10+ GB) and Python processing code.
 
 ## Key Features
 

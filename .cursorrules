@@ -1021,8 +1021,8 @@ python border_utils.py --info "United States of America" # Country details
 python border_utils.py --bbox "-125,25,-65,50" # Find countries in region
 
 # Production deployment
-.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun  # test
-.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy          # deploy
+.\deploy.ps1 -Preview  # Dry run (shows what would be uploaded)
+.\deploy.ps1 -Deploy   # Deploy to server
 
 # Version bumping (after significant changes)
 python bump_version.py        # Patch increment (default: 1.335 -> 1.335.1)
@@ -1063,25 +1063,38 @@ The viewer is a **pure client-side web application** that runs entirely in the b
 - All US states: ~50 MB
 - Raw data (not deployed): 10+ GB
 
-### Deployment Scripts
+### Deployment Method
+
+Native Windows SCP deployment to your own server:
 
 ```powershell
-# PowerShell (Windows)
-.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy -DryRun
-.\deploy.ps1 -RemoteHost example.com -RemotePath /var/www/maps -RemoteUser deploy
+# Preview (dry run - shows what would be uploaded)
+.\deploy.ps1 -Preview
 
-# Bash (Linux/Mac)
-./deploy.sh -h example.com -p /var/www/maps -u deploy -d  # dry run
-./deploy.sh -h example.com -p /var/www/maps -u deploy      # deploy
+# Deploy (actual upload)
+.\deploy.ps1 -Deploy
 ```
 
-Scripts use `rsync` to:
-- Upload only viewer files (excludes raw data)
-- Preserve directory structure
-- Sync changes efficiently (only modified files after first deploy)
-- Show progress
+**Configuration:**
+- Server details in `deploy-config.ps1` (gitignored, not in repo)
+- Template: `deploy-config.example.ps1`
+- Uses native Windows SCP (OpenSSH client, built into Windows 10+)
+- No rsync or third-party tools needed
+- Uploads only viewer files: HTML, JS, CSS, `generated/`
+- Excludes: `data/` (raw files), `src/` (Python code), development files
 
-See `DEPLOY_README.md` for detailed deployment documentation.
+**What gets deployed:**
+- Total size: ~50-100 MB
+- HTML viewer files
+- JavaScript and CSS
+- Generated JSON data (`generated/regions/`)
+- Favicons and assets
+
+**What stays local:**
+- Raw GeoTIFF data (~10+ GB in `data/`)
+- Python processing code (`src/`, `*.py`)
+- Documentation (`tech/`, `learnings/`)
+- Virtual environment (`venv/`)
 
 ### Version Bumping
 
