@@ -921,6 +921,33 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "test_10m_colorado": RegionConfig(
+        id="test_10m_colorado",
+        name="Test 10m Colorado",
+        bounds=(-106.1192, 39.4080, -105.8808, 39.5920),
+        description="USA - Test region in Colorado Rockies near Breckenridge, sized to force 10m resolution selection",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
+    "test_30m_utah": RegionConfig(
+        id="test_30m_utah",
+        name="Test 30m Utah",
+        bounds=(-110.905, 40.14, -109.695, 41.06),
+        description="USA - Test region in Utah Uinta Mountains, sized to force 30m resolution selection",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
+    "test_90m_wyoming": RegionConfig(
+        id="test_90m_wyoming",
+        name="Test 90m Wyoming",
+        bounds=(-110.76, 42.08, -108.24, 43.92),
+        description="USA - Test region in Wyoming Rocky Mountains, sized to force 90m resolution selection",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
 }
 
 

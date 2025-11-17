@@ -190,12 +190,12 @@ def download_aw3d30_tiles(
         try:
             if download_aw3d30_tile(tile_bounds, tile_path, api_key):
                 file_size_mb = tile_path.stat().st_size / (1024 * 1024)
-                print(f"✓ ({file_size_mb:.1f} MB)")
+                print(f"[OK] ({file_size_mb:.1f} MB)")
                 downloaded_paths.append(tile_path)
             else:
-                print(f"✗ (skipped)")
+                print(f"[FAIL] (skipped)")
         except AW3D30RateLimitError:
-            print(f"✗ (rate limited)")
+            print(f"[FAIL] (rate limited)")
             print(f"\nStopping download - rate limit hit")
             break
     

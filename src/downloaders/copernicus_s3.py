@@ -58,6 +58,12 @@ def construct_copernicus_url(
     """
     Construct Copernicus S3 URL for a tile.
     
+    CRITICAL: Copernicus uses arc-seconds in paths, and tiles are in directories!
+    - GLO-30 (30m) = 10 arc-seconds
+    - GLO-90 (90m) = 30 arc-seconds
+    
+    Structure: s3://bucket/Copernicus_DSM_COG_[arcsec]_[lat]_[lon]_DEM/Copernicus_DSM_COG_[arcsec]_[lat]_[lon]_DEM.tif
+    
     Args:
         tile_bounds: (west, south, east, north) - should be 1×1 degree tile
         resolution: 10, 30, or 90 meters
@@ -71,24 +77,25 @@ def construct_copernicus_url(
     lat_band = format_lat_band(south)
     lon_band = format_lon_band(west)
     
-    # Determine bucket based on resolution
-    if resolution == 10:
-        bucket = "copernicus-dem-10m"
-        res_str = "10"
-    elif resolution == 30:
+    # Determine bucket and arc-second resolution
+    # NOTE: Only GLO-30 (30m) and GLO-90 (90m) are publicly available via S3
+    if resolution == 30:
         bucket = "copernicus-dem-30m"
-        res_str = "30"
+        arcsec = "10"  # 10 arc-seconds for 30m (GLO-30)
     elif resolution == 90:
         bucket = "copernicus-dem-90m"
-        res_str = "90"
+        arcsec = "30"  # 30 arc-seconds for 90m (GLO-90)
     else:
-        raise ValueError(f"Unsupported resolution: {resolution}m (must be 10, 30, or 90)")
+        raise ValueError(f"Unsupported resolution: {resolution}m (must be 30 or 90, GLO-10 not publicly available)")
     
-    # Construct filename
-    filename = f"Copernicus_DSM_COG_{res_str}_{lat_band}_{lon_band}_DEM.tif"
+    # Construct directory and filename
+    # Directory: Copernicus_DSM_COG_30_N43_00_W098_00_DEM/
+    # File: Copernicus_DSM_COG_30_N43_00_W098_00_DEM.tif
+    tile_name = f"Copernicus_DSM_COG_{arcsec}_{lat_band}_{lon_band}_DEM"
+    filename = f"{tile_name}.tif"
     
-    # Full URL
-    url = f"https://{bucket}.s3.amazonaws.com/{filename}"
+    # Full URL includes directory path
+    url = f"https://{bucket}.s3.amazonaws.com/{tile_name}/{filename}"
     return url
 
 
@@ -223,10 +230,10 @@ def download_copernicus_s3_tiles(
         
         if download_copernicus_s3_tile(tile_bounds, resolution, tile_path):
             file_size_mb = tile_path.stat().st_size / (1024 * 1024)
-            print(f"✓ ({file_size_mb:.1f} MB)")
+            print(f"[OK] ({file_size_mb:.1f} MB)")
             downloaded_paths.append(tile_path)
         else:
-            print(f"✗ (skipped)")
+            print(f"[FAIL] (skipped)")
     
     print(f"Successfully downloaded {len(downloaded_paths)}/{len(tiles)} tiles")
     return downloaded_paths

@@ -277,9 +277,19 @@ def determine_dataset_override(region_id: str, region_type: 'RegionType', region
         except Exception:
             recommended = None
 
-        if recommended in ('SRTMGL1', 'SRTMGL3', 'COP30', 'COP90'):
+        if recommended in ('SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', 'USA_3DEP'):
             print(f"[STAGE 2/10] Dataset override from RegionConfig: {recommended}")
             return recommended
+
+        # Check if AREA region is in the US (can use USGS 3DEP 10m)
+        is_us_region = False
+        if region_type == RegionType.AREA:
+            try:
+                entry = ALL_REGIONS.get(region_id)
+                if entry and entry.country == "United States of America":
+                    is_us_region = True
+            except Exception:
+                pass
 
         # Auto-select dataset based on latitude and resolution requirements
         _west, south, _east, north = region_info['bounds']
@@ -294,22 +304,32 @@ def determine_dataset_override(region_id: str, region_type: 'RegionType', region
             base_90m = 'SRTMGL3'
             base_name = 'SRTM'
         
-        # Calculate minimum required resolution based on Nyquist rule (30m/90m only)
+        # Calculate minimum required resolution
+        # US AREA regions can use 10m, others are limited to 30m/90m
+        available_resolutions = [10, 30, 90] if is_us_region else [30, 90]
+        
         try:
             min_required = determine_min_required_resolution(
                 visible['avg_m_per_pixel'],
-                available_resolutions=[30, 90]
+                available_resolutions=available_resolutions
             )
             if min_required == 90:
                 print(f"[STAGE 2/10] Dataset: {base_name} 90m (90m sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
                 return base_90m
-            else:
+            elif min_required == 30:
                 print(f"[STAGE 2/10] Dataset: {base_name} 30m (30m required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
                 return base_30m
+            else:  # min_required == 10 (only for US regions)
+                print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m (10m required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
+                return 'USA_3DEP'
         except ValueError:
-            # Region too small for standard resolutions - default to 30m
-            print(f"[STAGE 2/10] Dataset: {base_name} 30m (region requires high detail)")
-            return base_30m
+            # Region too small for standard resolutions
+            if is_us_region:
+                print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m (region requires high detail)")
+                return 'USA_3DEP'
+            else:
+                print(f"[STAGE 2/10] Dataset: {base_name} 30m (region requires high detail)")
+                return base_30m
     
     else:
         raise ValueError(f"Unknown region type: {region_type}")

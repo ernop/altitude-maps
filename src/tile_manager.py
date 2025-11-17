@@ -165,7 +165,7 @@ def download_and_merge_tiles(
     
     if success:
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"✓ Merged file: {output_path} ({file_size_mb:.1f} MB)")
+        print(f"[OK] Merged file: {output_path} ({file_size_mb:.1f} MB)")
     
     return success
 

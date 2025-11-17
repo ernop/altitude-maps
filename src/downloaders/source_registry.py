@@ -68,18 +68,8 @@ SOURCE_REGISTRY: List[SourceCapability] = [
         notes='High-quality LiDAR for United States'
     ),
     
-    SourceCapability(
-        source_id='copernicus_s3_10m',
-        name='Copernicus GLO-10',
-        resolution_m=10,
-        coverage_lat=(38.0, 60.0),      # Europe only
-        coverage_lon=(-13.0, 32.0),     # Europe only
-        tile_dir='copernicus_s3_10m',
-        merged_dir='copernicus_s3_10m',
-        requires_auth=False,
-        auth_key_name=None,
-        notes='High-resolution European data from TanDEM-X'
-    ),
+    # NOTE: Copernicus GLO-10 is NOT publicly available via S3
+    # Only GLO-30 and GLO-90 are public
     
     # 30m sources
     SourceCapability(

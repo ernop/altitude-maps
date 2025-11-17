@@ -6,310 +6,175 @@
 
 ## What Is This?
 
-Altitude Maps is a Python toolkit for visualizing elevation and terrain data. Whether you're a researcher, educator, or just curious about Earth's geography, this project lets you:
+Altitude Maps lets you explore and visualize terrain elevation data in interactive 3D. Whether you're a researcher, educator, or curious explorer, you can:
 
--**Explore terrain interactively in 3D** with flying camera controls
--**Generate static renders** of any region's terrain
--**Download elevation data** for anywhere in the world
--**Customize rendering** - colors, angles, resolution, render style
+- **Explore terrain interactively in 3D** with smooth camera controls
+- **Generate static visualizations** of any region's terrain
+- **Download elevation data** for anywhere in the world
+- **Customize visualization** - colors, viewing angles, detail level, rendering style
 
-## Recent Updates (October 2025)
+## Recent Updates
 
-### Camera Control Enhancements (October 28, 2025)
-Major updates to interactive viewer controls:
--**WASD/QE flythrough** - First-person camera movement
--**F key reframe** - Instantly center view on terrain bounds
--**Touch & trackpad gestures** - Pinch zoom, two-finger pan
--**Alt+Left rotate** - Maya/3ds Max style tumble (same as right-drag)
--**Smart typing detection** - Keyboard shortcuts disabled while typing in inputs
-- All controls work simultaneously with no conflicts
+### Camera Control Enhancements
+- **WASD/QE flythrough** - First-person camera movement
+- **F key reframe** - Instantly center view on terrain
+- **Touch & trackpad gestures** - Pinch zoom, two-finger pan
+- **Alt+Left rotate** - Professional 3D software style rotation
+- **Smart typing detection** - Keyboard shortcuts disabled while typing
 
 ### Multi-Region Support
-The interactive viewer now supports**45+ pre-configured regions worldwide** with a dropdown selector! Switch between USA, Japan, Switzerland, and more without refreshing. Just download data for your regions and they appear automatically.
+The interactive viewer supports **89 pre-configured regions worldwide** with a dropdown selector. Switch between US states, countries, and custom regions without refreshing.
 
 ### Bar Rendering Improvements
--**Fixed bar overlapping and gaps** - Bars now use rectangular geometry matching actual grid spacing
--**Infinite zoom** - Removed artificial zoom-out limits
--**Smart defaults** - USA loads by default when available
--**Perfect tiling** - No more black gaps between bars at any angle
+- Fixed bar overlapping and gaps
+- Infinite zoom capability
+- Smart defaults for quick start
+- Perfect tiling at any viewing angle
 
-### Real-World Scale (Vertical Exaggeration Fix)
-Vertical exaggeration now uses**intuitive meter-based scale**:
--**1.0x** = True Earth proportions (1000m horizontal = 1000m vertical)
--**4.0x** = New default (moderately dramatic)
--**10.0x** = Very dramatic terrain
-- Both X/Z and Y axes now use real meters from lat/lon bounds
+### Real-World Scale
+Vertical exaggeration uses intuitive meter-based scale:
+- **1.0x** = True Earth proportions
+- **4.0x** = Moderately dramatic (default)
+- **10.0x** = Very dramatic terrain
 
 ### Enhanced Border Features
--**177 countries available** from Natural Earth (10m/50m/110m resolution)
--**Interactive viewer borders** - Toggle country boundaries in 3D
--**Country masking** - Clip data to specific nations
--**Auto-caching** - Borders download once and reuse automatically
-- Export with: `python export_for_web_viewer.py data/usa.tif --export-borders`
-
-## Smart Resolution Selection & Multiple Data Sources
-
-The system automatically selects optimal data resolution based on region size and tries multiple elevation data sources until successful:
-
-- **10m resolution**: USGS 3DEP (US), Copernicus GLO-10 (Europe)
-- **30m resolution**: SRTM, Copernicus DEM, ALOS AW3D30
-- **90m resolution**: SRTM, Copernicus DEM
-
-**Automatic source selection**: If the primary source (OpenTopography) is rate-limited or unavailable, the system automatically tries alternative sources like Copernicus S3 (no rate limits) or AW3D30. No manual intervention needed.
-
-**Tile-based architecture**: All data uses 1-degree tiles for efficient caching and reuse:
-- Downloads via tile-by-tile system
-- Content-based naming (e.g., `N40_W111_90m.tif`)
-- Stored in `data/raw/{source}/tiles/`
-- Tiles reused across adjacent regions
-
-**Why resolution matters**: For a large country at 2048px output, visible pixels might be 400m each. Using 90m source data gives 4.4x oversampling (optimal), while 30m would give 13.3x oversampling (wasteful with no visual benefit). The Nyquist sampling rule ensures clean downsampling without aliasing.
-
-See `tech/DATA_PIPELINE.md` for technical details and `tech/DATA_SOURCES.md` for complete source information.
+- **177 countries available** with detailed boundaries
+- **Interactive viewer borders** - Toggle country boundaries in 3D
+- **Country masking** - Clip data to specific nations
+- **Auto-caching** - Borders download once and reuse automatically
 
 ## What Can You Do With It?
 
 ### 1. Create Static Visualizations
 
-Generate high-resolution overhead views, 3D perspectives, or dramatic side-angle renders of any terrain:
-
-```powershell
-# Overhead view of continental USA
-python visualize_usa_overhead.py
-
-# With custom styling
-python visualize_usa_overhead.py --bucket-miles 100 --camera-elevation 35 --colormap earth
-
-# Generate 9 different viewpoints
-python visualize_usa_overhead.py --gen-nine
-```
-
-**Outputs**: PNG images (default 100 DPI) with geographic labeling.
+Generate high-quality overhead views, 3D perspectives, or dramatic side-angle renders of any terrain. Outputs include geographic coordinates, elevation statistics, and data source attribution.
 
 ### 2. Draw National Borders & Mask by Country
 
-Overlay country boundaries and clip elevation data to specific countries:
-
-```python
-# Draw USA borders on elevation map
-render_visualization(
- data,
- draw_borders="United States of America",
- border_color="#FF0000",
- tif_path="data/usa_elevation/nationwide_usa_elevation.tif"
-)
-
-# Mask data to show only USA territory
-data = prepare_visualization_data(
- "data/usa_elevation/nationwide_usa_elevation.tif",
- mask_country="United States of America"
-)
-```
-
-**Features**:
-- Draw borders for any country or auto-detect from region
+Overlay country boundaries and clip elevation data to specific countries. Features include:
+- Draw borders for any country
 - Clip/mask data to country boundaries
 - Support for multiple countries
-- Three detail levels (10m, 50m, 110m resolution)
-
-**Utility tools**:
-```bash
-# List available countries
-python border_utils.py --list
-
-# Find countries in a region
-python border_utils.py --bbox "-125,25,-65,50"
-
-# Test borders on your data
-python border_utils.py --test your_data.tif
-```
-
-See borders documentation in `tech/TECHNICAL_REFERENCE.md`.
+- Three detail levels available
 
 ### 3. Work With Real Data
 
-Download elevation data with dynamic resolution selection:
--**USA**: 10/30/90m resolution (USGS 3DEP + OpenTopography) - selected automatically based on output size
--**Global**: 30/90m resolution (SRTM, Copernicus DEM) - selected automatically based on output size
--**Europe, Japan, Australia**: High-quality national datasets
+Download elevation data with automatic quality selection:
+- **USA**: High-quality data with automatic quality selection
+- **Global**: Worldwide coverage with automatic quality selection
+- **Europe, Japan, Australia**: National datasets where available
 
-All data is cached locally - download once, use forever. Resolution is determined by Nyquist sampling rule.
+All data is cached locally - download once, use forever. Quality is selected automatically based on your needs.
 
 ## Who Is This For?
 
-**Researchers** - Visualize terrain for papers and presentations
-**Educators** - Teach geography and geology with interactive 3D
-**GIS professionals** - Quick visualization prototyping
-**Hobbyists** - Explore Earth's terrain beautifully
+**Researchers** - Visualize terrain for papers and presentations  
+**Educators** - Teach geography and geology with interactive 3D  
+**GIS professionals** - Quick visualization prototyping  
+**Hobbyists** - Explore Earth's terrain beautifully  
 **Developers** - Foundation for mapping/terrain projects
 
 ## Quick Start
 
-```powershell
-# 1. Setup (one time)
-.\setup.ps1
+1. **Setup** (one time) - Run the setup script
+2. **Download a region** - Choose from US states or international regions
+3. **Start interactive viewer** - Explore in 3D
+4. **Or generate a static image** - Create visualizations
 
-# 2. Download a region (US state OR international)
-python ensure_region.py ohio           # US state (dynamic resolution: 10/30/90m)
-python ensure_region.py iceland        # International (dynamic resolution: 30/90m)
-python ensure_region.py --list-regions # See all 50 states + 70+ countries
-
-# 3. Start interactive viewer
-python serve_viewer.py
-# Then open: http://localhost:8001/interactive_viewer_advanced.html
-# Select your region from the dropdown!
-
-# 4. Or generate a static image
-python visualize_usa_overhead.py
-```
-
-See [User Guide](tech/USER_GUIDE.md) for more details.
+See `install.md` for installation instructions.
 
 ## Deployment
 
-The viewer is a pure client-side application (no server-side code). Deploy to any static web server:
-
-```powershell
-# Preview what would be deployed (dry run)
-.\deploy.ps1 -Preview
-
-# Deploy to server
-.\deploy.ps1 -Deploy
-```
-
-Uses native Windows SCP (built into Windows 10+). Server configuration is in `deploy-config.ps1` (gitignored). Copy from `deploy-config.example.ps1` if needed.
-
-Deploys only viewer files (~50-100 MB): HTML, JS, CSS, generated JSON data. Excludes raw data (~10+ GB) and Python processing code.
+The viewer runs entirely in your web browser - no server-side code needed. Deploy to any static web server. See `DEPLOY_README.md` for deployment instructions.
 
 ## Key Features
 
-###**Flexible Visualization**
-- 3D bars rendering (rectangular prisms)
-- 7 color schemes: terrain, earth, ocean, viridis, plasma, grayscale, rainbow
-- Customizable camera angles, lighting, and vertical exaggeration
-- Generate multiple viewpoints with `--gen-nine`
+### Flexible Visualization
+- 3D terrain rendering
+- Multiple color schemes
+- Customizable camera angles and lighting
+- Adjustable vertical exaggeration
+- Generate multiple viewpoints
 
-###**Global Coverage**
-- USA: Dynamic resolution (10/30/90m) via USGS 3DEP + OpenTopography
-- 60+ pre-configured regions worldwide
-- Support for any GeoTIFF elevation data
-- Add custom regions as needed
+### Global Coverage
+- USA: High-quality data with automatic quality selection
+- 89 pre-configured regions worldwide
+- Support for custom regions
+- Add your own regions as needed
 
-###**Performance**
-- Instanced rendering: 10,000+ terrain blocks at 60 FPS
-- Real-time bucketing and aggregation (MAX/AVERAGE/MIN/MEDIAN)
+### Performance
+- Smooth rendering of large terrain areas
+- Real-time detail adjustment
 - Data caching prevents re-downloading
 - Progressive loading for large datasets
 
-###**Controls** (October 2025 Update)
--**Mouse**:
- - Left-drag = pan, Shift+Left-drag = tilt
- - Right-drag or Alt+Left-drag = rotate (Google Earth/Maya style)
- - Wheel = zoom toward cursor
--**Keyboard**:
- - WASD = fly forward/left/back/right
- - QE = descend/ascend
- - F = reframe view to terrain center
- - R = reset camera, Space = toggle auto-rotate
--**Touch/Trackpad**:
- - Single/two-finger drag = pan
- - Pinch = zoom (mobile & laptop trackpads)
--**Smart**: Keys disabled while typing in input fields
+### Controls
+- **Mouse**: Pan, tilt, rotate, zoom toward cursor
+- **Keyboard**: Fly through terrain, reframe view, reset camera
+- **Touch/Trackpad**: Pan and zoom gestures
+- **Smart**: Keys disabled while typing in input fields
 
 ## Example Use Cases
 
-**Research Publication**: Generate high-res static renders with exact camera parameters
-**Education**: Students explore mountain ranges interactively in 3D
-**GIS Analysis**: Quick terrain visualization before detailed analysis
-**Art/Design**: Create terrain art with customizable colors and angles
-**Game Development**: Preview elevation data for game level design
-
-## Tech Stack
-
--**Python 3.13** - Modern, type-safe codebase
--**rasterio** - GeoTIFF data handling
--**matplotlib** - Static high-quality renders
--**Three.js** - Interactive WebGL visualization
--**NumPy** - Fast array processing
-
-## Project Structure
-
-```
-altitude-maps/
- visualize_usa_overhead.py# Main static renderer
- interactive_viewer_advanced.html# Interactive 3D viewer
- download_*.py# Data acquisition scripts
- data/# Downloaded elevation data (gitignored)
- generated/# Your visualizations
- src/# Core processing modules
- requirements.txt# Python dependencies
-```
+**Research Publication** - Generate high-quality static renders with precise viewing angles  
+**Education** - Students explore mountain ranges interactively in 3D  
+**GIS Analysis** - Quick terrain visualization before detailed analysis  
+**Art/Design** - Create terrain art with customizable colors and angles  
+**Game Development** - Preview elevation data for game level design
 
 ## What's Included
 
 ### Static Visualization Tools
-- `visualize_usa_overhead.py` - Main renderer with full customization
-- `visualize_real_data.py` - Multiple views at once
-- `visualize.py` - Demo with synthetic data
+- Main renderer with full customization
+- Multiple views at once
+- Demo with sample data
 
 ### Interactive 3D Viewer
-- `interactive_viewer_advanced.html` - Full-featured viewer
-- Real-time bucketing and aggregation
+- Full-featured viewer
+- Real-time detail adjustment
 - Multiple render modes and color schemes
-- Multiple camera control schemes (Custom default + 6 alternatives)
+- Multiple camera control schemes
 
 ### Data Download Tools
-- `download_continental_usa.py` - Full USA download
-- `download_regions.py` - Multi-region batch download
-- `download_usa_region.py` - Specific US landmarks
-- `download_us_states.py` - Individual US states
+- Full USA download
+- Multi-region batch download
+- Individual region downloads
+- Automatic quality selection
 
 ### Utilities
-- `export_for_web_viewer.py` - Process data for interactive viewer
-- `setup.ps1` - One-command environment setup
-- `src/` - Reusable processing modules
+- Process data for interactive viewer
+- One-command environment setup
+- Reusable processing modules
 
 ## Documentation
 
--**[tech/USER_GUIDE.md](tech/USER_GUIDE.md)** - Complete usage guide
--**[tech/TECHNICAL_REFERENCE.md](tech/TECHNICAL_REFERENCE.md)** - Technical specs and API reference
--**[tech/DOWNLOAD_GUIDE.md](tech/DOWNLOAD_GUIDE.md)** - Data acquisition workflows
--**[tech/CAMERA_CONTROLS.md](tech/CAMERA_CONTROLS.md)** - Camera system documentation
--**[.cursorrules](.cursorrules)** - Development patterns for AI agents
--**[learnings/](learnings/)** - Historical development threads
+- **install.md** - Installation instructions
+- **technicalDetails.md** - Technical specifications
+- **DEPLOY_README.md** - Deployment guide
 
 ## Sample Outputs
 
-Visualizations are timestamped and saved to `generated/`:
-
--**Overhead views**: Satellite-style perspectives
--**3D terrain**: Side angles showing elevation
--**Bar charts**: Bucketed elevation as 3D rectangular prisms
--**Multiple viewpoints**: 9 angles with `--gen-nine`
-
-Images include:
+Visualizations are saved with timestamps and include:
 - Geographic coordinates and bounds
-- Elevation statistics (min/max/range)
+- Elevation statistics
 - Data source attribution
-- Reproduction command (exact parameters to recreate)
+- Reproduction parameters
 
 ## Requirements
 
--**Windows** (PowerShell for setup script) / Mac / Linux
--**Python 3.13** (required - setup script installs automatically on Windows if winget is available)
--**winget** (Windows Package Manager - for automatic Python installation on Windows, or install Python 3.13 manually from python.org)
--**Modern web browser** (Chrome, Firefox, Edge, Safari) for interactive viewer
--**~500MB disk space** for data cache
+- Windows / Mac / Linux
+- Modern web browser for interactive viewer
+- Disk space for data cache
 
 ## Contributing
 
-This is a personal project, but suggestions and feedback are welcome! Check the code style in `.cursorrules` if you'd like to contribute.
+This is a personal project, but suggestions and feedback are welcome!
 
 ## Data Attribution
 
-When using elevation data, please credit:
--**USGS 3DEP**: USA elevation data
--**NASA SRTM**: Global elevation data (shuttle radar topography mission)
+When using elevation data, please credit the data sources:
+- USGS 3DEP for USA elevation data
+- NASA SRTM for global elevation data
 - Specific national sources as noted in downloads
 
 ## License
@@ -318,8 +183,5 @@ Project code is available for personal and educational use. Elevation data has s
 
 ---
 
-**Created for**: Exploring and visualizing Earth's incredible terrain
+**Created for**: Exploring and visualizing Earth's incredible terrain  
 **Status**: Production-ready, actively maintained
-**Last Updated**: October 22, 2025
-
-**Got questions?** Check [tech/USER_GUIDE.md](tech/USER_GUIDE.md) or [tech/TECHNICAL_REFERENCE.md](tech/TECHNICAL_REFERENCE.md)

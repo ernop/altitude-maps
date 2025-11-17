@@ -23,41 +23,14 @@ This is a landscape visualization project focused on showing altitude of various
 
 ## Project Organization - Documentation Structure
 
-### Root Level - Essential Files Only
-- **`.cursorrules`** - AI agent guidance and development patterns
-- **`README.md`** - Public user documentation (product-focused)
-- **`DEPLOY_README.md`** - Production deployment guide (exception for ops)
+### Root Level - Minimal Files Only
+- **`.cursorrules`** - All technical/programming guidance (this file)
+- **`README.md`** - Features only, NO technical language (no pixels, code, CSS, lat/long, etc.)
+- **`DEPLOY_README.md`** - Deployment guide
+- **`install.md`** - Installation instructions
+- **`technicalDetails.md`** - Technical specifications
 
-### Technical Documentation (`tech/` folder)
-All technical documentation goes in `tech/` folder with standardized naming:
-- **`USER_GUIDE.md`** - Complete usage guide (consolidated from QUICKSTART, PRODUCT_REQUIREMENTS, etc.)
-- **`TECHNICAL_REFERENCE.md`** - Complete API reference, file formats, technical specs (from TECH.md)
-- **`DOWNLOAD_GUIDE.md`** - Data acquisition workflows (from UNIFIED_DOWNLOADER_GUIDE.md)
-- **`DEPLOYMENT_GUIDE.md`** - Production deployment instructions and server configuration
-- **`CAMERA_CONTROLS.md`** - Camera system documentation (consolidated from learnings/*CAMERA*.md)
-- **`DATA_PRINCIPLES.md`** - Core data handling principles and validation rules
-
-### Historical Learnings (`learnings/` folder)
-Session notes and development threads only:
-- **`SESSION_YYYYMMDD_description.md`** - Session-specific notes (use standardized date format)
-- **`[FEATURE]_SUMMARY.md`** - Feature-specific learnings (e.g., DEPTH_BUFFER_PRECISION_CRITICAL.md)
-- **`[FEATURE]_FIX.md`** - Bug fix summaries (e.g., ASPECT_RATIO_FIX_SUMMARY.md)
-
-### Rules for Creating Documentation
-1. **File format**: All documentation MUST be `.md` (Markdown) format - NEVER create `.txt` documentation files
-2. **New user-facing content**: Add to `tech/USER_GUIDE.md` (don't create new files)
-3. **New technical specs**: Add to `tech/TECHNICAL_REFERENCE.md` (don't create new files)
-4. **New features**: Update both README.md (brief mention) and tech/USER_GUIDE.md (detailed)
-5. **Session notes**: Create `learnings/SESSION_YYYYMMDD_description.md` with standardized naming
-6. **Bug fixes/learnings**: Create `learnings/[FEATURE]_FIX_SUMMARY.md` or similar
-7. **Deployment/ops**: DEPLOY_README.md at root is acceptable (operational necessity)
-8. **Never create**: Other root-level documentation files (no `.txt`, no extra `.md` files - keep root clean)
-
-### Why This Structure
-- **Clean root**: Easy to find the main docs
-- **Logical grouping**: All technical info in one place (`tech/`)
-- **Historical preservation**: Session notes preserved in `learnings/`
-- **Easy maintenance**: Fewer files, less duplication, single source of truth
+**No other MD files in root.** All technical guidance goes in `.cursorrules`.
 
 ## Development Patterns
 
@@ -242,7 +215,7 @@ function onMouseMove(e) {
 
 ### Region Type System (CRITICAL - ABSOLUTE ENFORCEMENT)
 
-**CANONICAL REFERENCE**: `tech/DATA_PIPELINE.md` - Section "Region Type System"
+**CANONICAL REFERENCE**: See `.cursorrules` - Section "Region Type System (CRITICAL - ABSOLUTE ENFORCEMENT)"
 
 **ABSOLUTE RULE**: ALL code handling region types MUST use the `RegionType` enum from `src/types.py`.
 
@@ -256,10 +229,10 @@ class RegionType(str, Enum):
 ```
 
 **ENFORCEMENT CHECKLIST**:
-1. ✓ Import `RegionType` enum at top of file
-2. ✓ Use enum values: `RegionType.USA_STATE` (NOT strings like `'us_state'`)
-3. ✓ Check all three cases exhaustively with if/elif/elif/else
-4. ✓ Raise `ValueError` for unknown types (NEVER silent fallback to None/default)
+1. Import `RegionType` enum at top of file
+2. Use enum values: `RegionType.USA_STATE` (NOT strings like `'us_state'`)
+3. Check all three cases exhaustively with if/elif/elif/else
+4. Raise `ValueError` for unknown types (NEVER silent fallback to None/default)
 
 **FORBIDDEN PATTERNS**:
 ```python
@@ -297,7 +270,7 @@ else:
 
 **NOTE**: This section is about **elevation_resolution** (elevation data quality). For **border_resolution** (boundary detail level), see "Border Resolution" section below and "Resolution Naming Convention" section.
 
-**CANONICAL REFERENCE**: `tech/DATA_PIPELINE.md` - Section "Determine Required Resolution"
+**CANONICAL REFERENCE**: See `.cursorrules` - Section "Resolution Determination (CRITICAL - ABSOLUTE ENFORCEMENT)"
 
 **ABSOLUTE RULE**: Elevation data resolution is NEVER hardcoded by region type. It is ALWAYS dynamically determined using Nyquist sampling.
 
@@ -313,16 +286,16 @@ else:
 
 **Example (Idaho)**:
 ```
---target-pixels 512:  visible=1292m/px -> requires 90m (1292/90=14x > 2x ✓)
---target-pixels 2048: visible=323m/px  -> requires 90m (323/90=3.6x > 2x ✓)
---target-pixels 4096: visible=162m/px  -> requires 30m (162/30=5.4x > 2x ✓)
---target-pixels 8192: visible=81m/px   -> requires 10m (81/10=8.1x > 2x ✓) [US only]
+--target-pixels 512:  visible=1292m/px -> requires 90m (1292/90=14x > 2x OK)
+--target-pixels 2048: visible=323m/px  -> requires 90m (323/90=3.6x > 2x OK)
+--target-pixels 4096: visible=162m/px  -> requires 30m (162/30=5.4x > 2x OK)
+--target-pixels 8192: visible=81m/px   -> requires 10m (81/10=8.1x > 2x OK) [US only]
 ```
 
 **FORBIDDEN ASSUMPTIONS**:
-- ✗ "US states always use 10m" - FALSE, depends on target_pixels
-- ✗ "International regions always use 30m" - FALSE, depends on target_pixels
-- ✗ "Small states need high resolution" - FALSE, depends on output size, not geographic size
+- [NO] "US states always use 10m" - FALSE, depends on target_pixels
+- [NO] "International regions always use 30m" - FALSE, depends on target_pixels
+- [NO] "Small states need high resolution" - FALSE, depends on output size, not geographic size
 
 **WHY THIS MATTERS**: Hardcoding resolutions wastes storage (downloading unnecessary 10m data) and breaks the quality model. The system is designed to automatically select optimal resolution based on actual viewer needs.
 
@@ -480,6 +453,49 @@ Update all imports - don't add defensive fallbacks to old paths.
 - GeoTIFF data uses natural orientation (North up, East right) - no transformations needed
 - Use geopandas for geographic borders and masking operations
 
+#### Multiple Data Sources - Download Rules (CRITICAL)
+
+**Tile Size Standards**:
+- **ALWAYS use 1×1 degree standard tiles** for ALL data sources
+- Print in output: "Tile size: 1×1 degree (standard reusable grid)"
+- Print storage: "Storage: data/raw/{source}/tiles/ (content-based reuse)"
+- Never use arbitrary tile sizes - 1×1 degree is the universal standard
+
+**API Key Checking (BEFORE Downloads)**:
+- **Check API keys BEFORE starting any downloads** - don't wait for first failure
+- Print clear warning if API key missing
+- Show setup URL: "Get free API key at: https://portal.opentopography.org/"
+- Show setup instructions: Add to settings.json format
+- Continue with sources that don't require API keys
+
+**Error Reporting (EVERY Failure)**:
+- For EVERY download failure, print: reason, URL (if applicable), full details
+- Return `(success: bool, error_message: str)` from download functions
+- Collect ALL errors when multiple sources fail
+- Print detailed report showing EACH source tried and WHY it failed
+- Example format:
+  ```
+  ALL SOURCES FAILED FOR TILE
+  Tile: (-98, 43, -97.0, 44.0) (1×1 degree standard tile)
+  Errors by source:
+    - SRTM 90m: No API key configured
+    - Copernicus S3: Tile not available (404): https://...
+  ```
+
+**Abort on Critical Failure**:
+- If ALL sources fail for a tile, abort immediately
+- Don't continue downloading remaining tiles - merge will fail anyway
+- Print clear error message explaining the critical failure
+
+**Copernicus S3 Structure (CRITICAL)**:
+- Tiles are in DIRECTORIES, not direct files
+- URL structure: `https://copernicus-dem-{res}m.s3.amazonaws.com/{tile_name}/{tile_name}.tif`
+- Resolution in path is ARC-SECONDS, not meters:
+  - GLO-30 (30m data) = `10` arc-seconds in path
+  - GLO-90 (90m data) = `30` arc-seconds in path
+- Example: `https://copernicus-dem-90m.s3.amazonaws.com/Copernicus_DSM_COG_30_N43_00_W098_00_DEM/Copernicus_DSM_COG_30_N43_00_W098_00_DEM.tif`
+- Only GLO-30 and GLO-90 are publicly available via S3 (no GLO-10)
+
 #### Data Flow Directories
 - **`data/raw/{source}/tiles/`** - Pure reusable 1×1 degree tiles (never region-specific)
 - **`data/merged/{source}/`** - Region-specific merged files (intermediate output from tile merging)
@@ -512,7 +528,7 @@ Update all imports - don't add defensive fallbacks to old paths.
 
 #### Tile System (Content-Based Reuse)
 
-**CANONICAL REFERENCE**: See `tech/TILE_SYSTEM.md` for complete strategy.
+**CANONICAL REFERENCE**: See `.cursorrules` - Section "Tile System (Content-Based Reuse)"
 
 **Format**: `{NS}{lat}_{EW}{lon}_{elevation_resolution}.tif`
 **NOTE**: The `{elevation_resolution}` in filenames refers to elevation data resolution (10m/30m/90m), NOT border resolution.
@@ -690,24 +706,176 @@ python ensure_region.py <region_id> --force-reprocess
 - **Vertical Exaggeration**: Uses real-world scale where 1.0 = true Earth proportions, 2.0 = mountains twice as steep as reality. Both X/Z (horizontal) and Y (elevation) axes are in meters based on lat/lon bounds.
 
 ### 3D Rendering (Three.js)
-**CRITICAL - Camera Near/Far Planes**:
-- **ALWAYS** maintain reasonable near/far plane ratios (< 1,000,000:1)
-- Current safe values: `near=1, far=100000` (100,000:1 ratio)
-- **NEVER** use extreme values like `near=0.001, far=50000000`
-- Extreme ratios cause depth buffer artifacts (distant geometry bleeds through nearby geometry)
-- Symptoms: Jagged "bleeding" of distant bars through nearby bars, artifacts appear/disappear as camera rotates, worse at oblique/grazing angles
-- **NEVER use values like**: `near < 0.1` (wastes precision), `far > 1,000,000` (spreads precision too thin), `ratio > 1,000,000:1` (depth buffer will fail)
-- If you need larger view distances, implement a logarithmic depth buffer or frustum-based dynamic near/far adjustment. DO NOT just increase far plane.
-- **See**: `learnings/DEPTH_BUFFER_PRECISION_CRITICAL.md` for complete documentation
-- Runtime validation logs errors if ratio exceeds safe limits
 
-**CRITICAL - Coordinate Space Architecture**:
-- The viewer uses hierarchical scene graph: `scene → terrainGroup → terrainMesh → bars`
-- **ALL objects that rotate with terrain MUST be added to `terrainGroup`, NOT `scene`**
-- Edge markers, connectivity labels, terrain-relative objects → `window.terrainGroup.add(object)`
-- Camera, lights, world-fixed UI → `scene.add(object)`
-- Bug symptom: Objects added to `scene` instead of `terrainGroup` appear misaligned and don't rotate with terrain
-- **See**: `learnings/COORDINATE_SPACE_ARCHITECTURE.md` for complete documentation
+**Camera Near/Far Planes**:
+- Maintain ratios < 1,000,000:1 (current: `near=1, far=100000`)
+- Extreme ratios cause depth buffer artifacts (distant geometry bleeds through nearby)
+- Never use `near < 0.1` or `far > 1,000,000` - depth buffer loses precision
+
+**Coordinate Space Architecture**:
+- Scene hierarchy: `scene → terrainGroup → terrainMesh → bars`
+- Objects rotating with terrain → `terrainGroup.add(object)` (NOT `scene`)
+- World-fixed objects (camera, lights, UI) → `scene.add(object)`
+- Bug: Objects in wrong parent appear misaligned and don't rotate correctly
+
+**Reprojection Pattern**:
+- Always initialize arrays with nodata before reprojecting: `reprojected.fill(nodata_value)`
+- Always pass `src_nodata` and `dst_nodata` parameters to `reproject()`
+- Uninitialized arrays + missing nodata = data corruption (millions of zero/negative values)
+
+**Downsampling Pattern**:
+- Use SAME step size for both dimensions: `step_size = max(1, int(ceil(max_dim / target_pixels)))`
+- Different step sizes distort aspect ratio (wide states become square)
+- Pattern: `downsampled = elevation[::step_size, ::step_size]`
+
+**Aspect Ratio Preservation**:
+- Use `crop=True` in `rasterio_mask()` to remove empty bounding box space
+- Treat input data as uniform 2D grid in viewer (no geographic transformations)
+- Data already has correct proportions from export - don't "correct" twice
+
+**Cache and Versioning**:
+- Filename-based versioning: `{region}_{source}_{pixels}px_v2.json`
+- Strict regeneration policy: Never mix old and new format files
+- When format changes: Bump version, regenerate ALL files, delete old versions
+- Manifest selection: Strict v2-only selection, fail-fast on version mismatch (no silent fallbacks)
+
+**Manifest File Selection**:
+- Never use "first file alphabetically" - always prefer v2 files
+- Fail-fast if multiple versions exist - don't silently fall back to old files
+- Validate version field in JSON before selecting
+
+**JSON Export Performance**:
+- Use vectorized NumPy operations: `mask = np.isnan(arr); arr_obj = arr.astype(object); arr_obj[mask] = None; arr_obj.tolist()`
+- Never use nested Python loops for array conversion - 28x slower
+
+**Resampling Quality**:
+- Nyquist rule: Need >=2.0x oversampling to avoid aliasing
+- Threshold: 90m source sufficient if visible pixels >= 180m (2x safety margin)
+- Use bilinear interpolation for continuous elevation data
+
+**Region Switching Lifecycle**:
+- Clear marker arrays when destroying terrain: `edgeMarkers.length = 0`
+- Centralized lifecycle management in terrain renderer
+- Destroy old terrainGroup first, then clear arrays, then create new
+
+**Adjacency Deduplication**:
+- Diagonal neighbors appear in multiple directions - deduplicate by longest shared border
+- Keep only the "most adjacent" occurrence (longest border length)
+
+**Rendering Efficiency**:
+- Enable frustum culling: Three.js computes bounds once, skips off-screen instances
+- GPU depth testing is automatic - no manual occlusion culling needed
+- Instanced rendering: One draw call for all bars
+
+**Code Quality Principles**:
+- Question defensive patterns: Trust architecture if dependencies are guaranteed
+- Consolidate before optimizing: Duplication is worse than performance
+- Genericize closed sets: Use data-driven patterns instead of hardcoding cases
+- Remove unnecessary complexity: Complexity must solve a real problem
+- Organize by purpose, not type: Group by logical purpose (CORE STATE, DATA STATE)
+- Cache expensive computations, not simple lookups: Cache what's expensive to compute
+- Comments explain why, not what: Skip comments for self-explanatory code
+- Constants for magic values: Even if used 2-3 times, constants provide single source of truth
+- Module boundaries matter: Functions belong with related functionality
+
+**Ground Plane Camera Model**:
+- Fixed reference plane at y=0 (map surface)
+- Focus point anchored ON the plane (where camera looks)
+- All operations relative to this plane
+- Pan: Slides focus point along plane, camera follows parallel
+- Zoom: Moves camera perpendicular to plane toward/away from focus point
+- Rotate: Orbits around focus point on plane
+
+**Camera URL Persistence**:
+- Use `replaceState()` not `pushState()` - avoids cluttering browser history
+- Update URL only when camera stops moving AND mouse buttons released
+- Frame-to-frame comparison detects movement end
+- Optional parameters omitted if at defaults (reduces URL clutter)
+
+**Vertical Exaggeration**:
+- Use real-world meters for both horizontal and vertical axes
+- Calculate from geographic bounds: `meters_per_deg = 111_320 * cos(lat)`
+- 1.0x = true Earth scale (1000m horizontal = 1000m vertical)
+- Default: 4.0x (moderately dramatic)
+
+**Border System**:
+- Use Natural Earth admin_0 (countries) and admin_1 (states/provinces)
+- Always use 10m resolution borders for production (50m/110m miss features)
+- Cache borders in `data/.cache/borders/` for reuse
+- Border clipping: Use `crop=True` in `rasterio_mask()` to remove empty space
+
+**Modular Architecture**:
+- Expose window globals: `window.scene`, `window.camera`, `window.params`, `window.processedData`
+- Verify script loading order: Libraries → utilities → modules → main viewer
+- Module initialization: After globals are set up
+- Defensive checks: `typeof functionName === 'function'` before calling
+
+**Compass Label Rotation**:
+- Don't restore terrain rotation before creating edge markers - markers positioned for zero rotation
+- Create markers first, then apply rotation if needed
+- Rotation state should reset on region switch, not persist across regions
+
+**Unified Tiling System**:
+- ALL resolutions (10m, 30m, 90m) ALWAYS use 1-degree tile system
+- No special cases based on region size - tiles for everything
+- Prevents tile reuse issues and maintains consistency
+
+**Type Stubs**:
+- Suppress noisy type stub warnings in `.vscode/settings.json` for libraries without annotations
+- Use diagnostic suppression rather than custom stubs (more reliable)
+
+**Bar Rendering**:
+- Use rectangular bars matching actual grid spacing: `BoxGeometry(widthX, 1, depthZ)` not `BoxGeometry(size, 1, size)`
+- Bars must match bucketed spacing to prevent gaps/overlaps
+- Remove zoom out limits: `maxDistance = Infinity` for infinite zoom
+
+**Versioning Simplification**:
+- Filename IS the version: `{region}_{source}_{pixels}px_v2.json`
+- No redundant version fields inside JSON files
+- One source of truth (filename) is cleaner than duplication
+
+**Documentation Consolidation**:
+- Eliminate duplication: One doc per topic, canonical reference wins
+- Validate against actual functionality: Read code, not assumptions
+- All technical guidance consolidated in `.cursorrules` - no separate learnings files
+
+**Adjacency Simplification**:
+- Use 4-cardinal directions (90-degree sectors) instead of 8-way with deduplication
+- Each neighbor appears in exactly one direction - no deduplication needed
+- Compute from geographic boundaries, not hardcoded data
+
+**Windows Development**:
+- Wrap stdout/stderr with UTF-8 TextIOWrapper for proper encoding
+- Use pathlib.Path for cross-platform paths
+- Prefer pure Python libraries over native dependencies when possible
+
+**Unified Tiling System**:
+- ALL resolutions (10m, 30m, 90m) ALWAYS use 1-degree tile system
+- No special cases based on region size - tiles for everything
+- Prevents tile reuse issues and maintains consistency
+
+**Aspect Ratio Preservation**:
+- Use same step size for both dimensions when downsampling: `step_size = max(1, int(ceil(max_dim / target_pixels)))`
+- Different step sizes distort aspect ratio (wide states become square)
+- Validate aspect ratio before export: `abs(export_aspect - source_aspect) > 0.01` raises error
+
+**Modular Architecture Verification**:
+- Expose window globals: `window.scene`, `window.camera`, `window.params`, `window.processedData`
+- Verify script loading order: Libraries → utilities → modules → main viewer
+- Module initialization: After globals are set up
+- Defensive checks: `typeof functionName === 'function'` before calling
+
+**UI Label Placement**:
+- Edge markers (N/S/E/W): At terrain edges, ground level
+- Connectivity labels: Below edge markers, negative Y
+- Containment navigation: Use fixed 2D panel (not 3D labels) for discoverability
+- Small areas: Fixed screen-space "back" button prevents obscuration
+
+**Resolution Selection**:
+- Calculate visible pixel size before download: `visible_m_per_pixel = geographic_span_meters / target_pixels`
+- Use Nyquist rule: `source_resolution <= visible_pixel_size / 2.0` for >=2.0x oversampling
+- >=180m visible: Recommend 90m (Nyquist safe)
+- <90m visible: Automatically use 30m
 
 #### Performance Tuning
 - **Default bucket size**: Auto-adjust targets ~3,900 buckets (not 10,000) for better initial performance
@@ -865,7 +1033,7 @@ update() {
 
 ### Documentation
 - Update README.md for major feature additions
-- Document significant learnings in `learnings/learnings_N_<topic>.md`
+- Significant learnings should be added to `.cursorrules` as high-level HOW/WHY guidance
 - Keep inline code comments focused on "why" not "what"
 - Never describe your own work as "stunning", "beautiful", "incredible" - don't be a braggart
 - Be humble about work you've done, not ostentatiously humble, just light and clear
@@ -873,12 +1041,12 @@ update() {
 - **Bump version before ending session** - Run `python bump_version.py` after user-facing changes
 - **User feedback validates UX improvements**: When users express strong positive feedback (e.g., "VERY good"), that validates the engineering effort was worth it. UX improvements that feel instant are worth the complexity.
 
-**What "learnings" actually means:**
-- Learnings are about project-specific constraints, patterns, and gotchas discovered through experience
-- NOT just "how to fix X" - that's procedural knowledge anyone could look up
-- YES: "We need to watch for large files because geospatial data grows quickly and breaks git"
-- NO: "Here's the git command to remove large files from history"
-- Think: What would future you need to remember about this project's unique characteristics?
+**Technical Guidance Philosophy:**
+- Add high-level HOW/WHY patterns to `.cursorrules`, not procedural steps
+- Focus on project-specific constraints, patterns, and gotchas
+- Example: "We need to watch for large files because geospatial data grows quickly and breaks git"
+- NOT: "Here's the git command to remove large files from history"
+- Think: What would future developers need to remember about this project's unique characteristics?
 
 ## Data Sources Strategy
 
@@ -934,7 +1102,7 @@ record_successful_request()
 
 **CLI utility**: `python check_rate_limit.py` - Check status, clear limits, wait for clearance
 
-**See**: `tech/RATE_LIMIT_COORDINATION.md` for complete documentation
+**Rate Limit Coordination**: All downloaders check shared rate limit state before downloading via `data/.opentopography_rate_limit.json`
 
 ### Other Data Sources
 - **ERA5 Climate Reanalysis**: Comprehensive global climate data
@@ -1054,7 +1222,7 @@ The viewer is a **pure client-side web application** that runs entirely in the b
 - `src/` - Python processing code - DO NOT deploy
 - `*.py` - Python scripts (processing/export only) - DO NOT deploy
 - `venv/` - Virtual environment - DO NOT deploy
-- `tech/`, `learnings/` - Documentation - DO NOT deploy
+- Documentation files (README, install.md, etc.) - DO NOT deploy
 - Cache directories, development files - DO NOT deploy
 
 **File Size Expectations:**
@@ -1065,7 +1233,7 @@ The viewer is a **pure client-side web application** that runs entirely in the b
 
 ### Deployment Method
 
-Native Windows SCP deployment to your own server:
+**Native Windows SCP deployment** - uses OpenSSH client built into Windows 10+:
 
 ```powershell
 # Preview (dry run - shows what would be uploaded)
@@ -1075,26 +1243,84 @@ Native Windows SCP deployment to your own server:
 .\deploy.ps1 -Deploy
 ```
 
+**Why SCP over rsync:**
+- Built into Windows 10+ (no third-party tools)
+- More reliable on Windows (rsync keeps stopping)
+- Native PowerShell integration
+- Works with existing SSH keys
+- Simpler and faster
+
 **Configuration:**
 - Server details in `deploy-config.ps1` (gitignored, not in repo)
 - Template: `deploy-config.example.ps1`
-- Uses native Windows SCP (OpenSSH client, built into Windows 10+)
-- No rsync or third-party tools needed
-- Uploads only viewer files: HTML, JS, CSS, `generated/`
-- Excludes: `data/` (raw files), `src/` (Python code), development files
+- Format:
+  ```powershell
+  $REMOTE_HOST = "yourserver.com"
+  $REMOTE_USER = "username"
+  $REMOTE_PATH = "/path/to/web/directory"
+  $SSH_KEY = ""  # Leave empty to use default
+  ```
 
-**What gets deployed:**
-- Total size: ~50-100 MB
+**CRITICAL - Production File Format:**
+- **Viewer ONLY loads `.json.gz` files** (compressed format)
+- **NEVER deploy raw `.json` files** - they're dev-only intermediates
+- Deploy script automatically filters and skips raw `.json` files
+- Example: Deploy `ohio.json.gz` (3MB), skip `ohio.json` (13MB)
+- Viewer code automatically appends `.gz` to JSON URLs
+- Savings: ~150 files reduced to ~75 files (only compressed versions)
+
+**Smart deployment features:**
+- **Connection testing**: Tests SSH connection and remote path before deploying
+- **File comparison**: Skips unchanged files using size + MD5 checks
+  - Batch checks ALL files in ONE SSH call (critical for high-latency networks)
+  - Prevents 3-8 SSH calls per file (would be 5-40s per file at 95-585ms latency)
+- **Upload prioritization**: Manifests/code first, then data files
+  - Priority: HTML, JS, CSS, manifests go first
+  - Data: Region `.json.gz` files upload last
+  - Rationale: If interrupted, viewer won't break loading missing regions
+- **Progress tracking**: Shows percent complete, file counts, skipped files
+- **High-latency optimization**: 
+  - Compression: `-C` flag (massively helps text files)
+  - Fast cipher: `aes128-gcm@openssh.com` (hardware-accelerated)
+  - Batch operations: Single SSH call for all remote checks
+- **Raw JSON filtering**: Automatically skips `.json` files (viewer only uses `.json.gz`)
+
+**What gets deployed** (~50-100 MB):
 - HTML viewer files
 - JavaScript and CSS
 - Generated JSON data (`generated/regions/`)
+- Only `.json.gz` files (skips raw `.json`)
 - Favicons and assets
 
 **What stays local:**
 - Raw GeoTIFF data (~10+ GB in `data/`)
 - Python processing code (`src/`, `*.py`)
-- Documentation (`tech/`, `learnings/`)
+- Documentation files
 - Virtual environment (`venv/`)
+
+**SSH Key Permissions (Windows):**
+If SSH fails with "bad permissions" error on private key:
+```powershell
+# Fix permissions - remove inheritance and grant only current user
+icacls C:\Users\USERNAME\.ssh\id_rsa /inheritance:r
+icacls C:\Users\USERNAME\.ssh\id_rsa /grant:r "$env:USERNAME`:F"
+
+# Remove any extra permission entries
+icacls C:\Users\USERNAME\.ssh\id_rsa /remove "YAY\None"
+icacls C:\Users\USERNAME\.ssh\id_rsa /remove "NULL SID"
+```
+Final result should show only: `USERNAME:(F)` (full control for user only)
+- Raw `.json` files (only `.json.gz` deployed)
+
+**Performance:**
+- First deploy: ~2-3 minutes (uploads everything)
+- Subsequent deploys (no changes): ~10-15 seconds (skips all)
+- Typical deploy (few changed files): ~20-30 seconds
+
+**Troubleshooting:**
+- If `scp` not found: Install OpenSSH Client via Windows Settings > Apps > Optional Features
+- If connection fails: Check SSH key with `ssh username@server`
+- Manual upload: `scp -r js css generated *.html username@server:/path/`
 
 ### Version Bumping
 
@@ -1122,6 +1348,32 @@ python bump_version.py major  # Major: 1.335 -> 2.0 (breaking changes, major red
 - Make data acquisition automatic and cached
 - Enable one-command visualization generation
 - Support parametric variations (regions, variables, time periods)
+- One-command deployment with smart file comparison (skip unchanged files)
+
+## Deployment Best Practices
+
+### Pre-Deployment Checklist
+1. **Process regions**: Run `ensure_region.py` for any new/updated regions
+2. **Bump version**: Run `bump_version.py` to bust browser caches
+3. **Preview first**: Always run `.\deploy.ps1 -Preview` to see what will upload
+4. **Deploy**: Run `.\deploy.ps1 -Deploy` after reviewing preview
+
+### Connection Requirements
+- SSH key authentication (password auth not supported in script)
+- OpenSSH client installed (built into Windows 10+)
+- Test connection manually: `ssh username@server` should work without password
+
+### Performance Optimization
+- Script does ONE batch SSH call to check all remote files (not one per file)
+- Uses file size + MD5 comparison to skip unchanged files
+- Prioritizes metadata/code uploads before large data files
+- Compression enabled for high-latency connections
+
+### File Filtering Rules
+- **Skip raw .json files**: Viewer only uses .json.gz (compressed)
+- **Skip Python files**: Processing code stays local
+- **Skip data/ directory**: Raw GeoTIFFs never uploaded
+- **Include generated/**: All JSON data for viewer
 
 ## Border Features
 - **Drawing borders**: Overlay country boundaries on maps
@@ -1137,7 +1389,7 @@ python bump_version.py major  # Major: 1.335 -> 2.0 (breaking changes, major red
 - Use hierarchical names for states: `"United States of America/Ohio"`
 - Use `draw_borders` parameter in rendering to overlay border lines
 - Primary workflow: Interactive 3D viewer at localhost:8001
-- **Documentation**: See `learnings/BORDERS_CURRENT.md` for complete system details
+- **Border System**: Use Natural Earth admin_0/admin_1, always use 10m resolution for production, cache borders in `data/.cache/borders/`
 
 ### Git and Large Files
 - This project works with large geospatial data files (GeoTIFFs, HGT files, etc.)

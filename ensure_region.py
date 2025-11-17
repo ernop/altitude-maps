@@ -482,10 +482,21 @@ This script will:
     
     # Determine available download resolutions based on region type
     # US states: 10m USGS 3DEP now available via automated API, plus 30m/90m via OpenTopography
+    # US AREA regions: Can also use 10m USGS 3DEP
     # International: 30m/90m via OpenTopography API only
     if region_type == RegionType.USA_STATE:
         available_downloads = [10, 30, 90]  # USGS 3DEP 10m + SRTM/Copernicus 30m/90m
-    elif region_type == RegionType.COUNTRY or region_type == RegionType.AREA:
+    elif region_type == RegionType.AREA:
+        # Check if AREA region is in the US (can use USGS 3DEP 10m)
+        is_us_region = False
+        try:
+            config = ALL_REGIONS.get(region_id)
+            if config and config.country == "United States of America":
+                is_us_region = True
+        except Exception:
+            pass
+        available_downloads = [10, 30, 90] if is_us_region else [30, 90]
+    elif region_type == RegionType.COUNTRY:
         available_downloads = [30, 90]  # SRTM/Copernicus via OpenTopography API only
     else:
         raise ValueError(f"Unknown region type: {region_type}")

@@ -61,13 +61,16 @@ if ($Preview) {
 Write-Host "=" * 70 -ForegroundColor Cyan
 Write-Host ""
 
-# Test SSH connection first
+# Test SSH connection
 Write-Host "Testing SSH connection..." -ForegroundColor Yellow
+
 try {
-    $testResult = ssh -o ConnectTimeout=10 -o BatchMode=yes "$remote" "echo 'connected'" 2>&1
+    $sshTest = ssh -o ConnectTimeout=10 -o BatchMode=yes "$remote" "echo 'connected'" 2>&1
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: SSH connection failed" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Output: $sshTest" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Possible issues:" -ForegroundColor Yellow
         Write-Host "  1. SSH key not set up (run: ssh-copy-id $remote)"
@@ -78,7 +81,7 @@ try {
         exit 1
     }
     
-    Write-Host "  Connection OK" -ForegroundColor Green
+    Write-Host "  Connection OK (parallel uploads enabled)" -ForegroundColor Green
 } catch {
     Write-Host "ERROR: SSH connection test failed: $_" -ForegroundColor Red
     exit 1
@@ -87,7 +90,11 @@ try {
 # Verify remote path exists (or can be created)
 Write-Host "Verifying remote path..." -ForegroundColor Yellow
 try {
-    $pathCheck = ssh "$remote" "test -d '$remotePath' && echo 'exists' || (mkdir -p '$remotePath' && echo 'created')" 2>&1
+    if ($useMultiplexing) {
+        $pathCheck = ssh -o ControlMaster=auto -o "ControlPath=$controlPath" "$remote" "test -d '$remotePath' && echo 'exists' || (mkdir -p '$remotePath' && echo 'created')" 2>&1
+    } else {
+        $pathCheck = ssh "$remote" "test -d '$remotePath' && echo 'exists' || (mkdir -p '$remotePath' && echo 'created')" 2>&1
+    }
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Cannot access or create remote path: $remotePath" -ForegroundColor Red
@@ -107,11 +114,53 @@ try {
 
 Write-Host ""
 
+# Function to get ALL remote file info in ONE SSH call (critical for high-latency connections)
+function Get-RemoteFileInfo {
+    param(
+        [string[]]$RemoteFiles,
+        [string]$Remote
+    )
+    
+    # Build script to check all files at once
+    $script = @"
+for file in $(echo '$($RemoteFiles -join "' '")')'; do
+    if [ -f "`$file" ]; then
+        size=`$(stat -c '%s' "`$file" 2>/dev/null || echo 0)
+        md5=`$(md5sum "`$file" 2>/dev/null | cut -d' ' -f1 || echo 'ERROR')
+        echo "`$file|`$size|`$md5"
+    else
+        echo "`$file|MISSING|MISSING"
+    fi
+done
+"@
+    
+    # Execute remote script and parse results (reuses multiplexed connection if available)
+    if ($useMultiplexing) {
+        $output = ssh -o ControlMaster=auto -o "ControlPath=$controlPath" "$Remote" $script 2>$null
+    } else {
+        $output = ssh "$Remote" $script 2>$null
+    }
+    
+    $remoteInfo = @{}
+    foreach ($line in $output) {
+        $parts = $line -split '\|'
+        if ($parts.Count -eq 3) {
+            $remoteInfo[$parts[0]] = @{
+                Size = if ($parts[1] -eq 'MISSING') { $null } else { [long]$parts[1] }
+                MD5 = if ($parts[2] -eq 'MISSING') { $null } else { $parts[2] }
+            }
+        }
+    }
+    
+    return $remoteInfo
+}
+
 # Files/directories to deploy
 $deployItems = @(
     "interactive_viewer_advanced.html",
     "viewer.html",
     "README.md",
+    # ".htaccess",  # Manual deployment only - user manages this directly on server
     "js",
     "css",
     "generated",
@@ -156,6 +205,9 @@ $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
 $fileCount = $filesToDeploy.Count
 
 Write-Host "Files to deploy: $fileCount ($totalSizeMB MB)" -ForegroundColor Cyan
+if ($skipped -gt 0) {
+    Write-Host "  (Skipped $skipped raw .json files - viewer uses .json.gz)" -ForegroundColor DarkGray
+}
 Write-Host ""
 
 if ($Preview) {
@@ -185,30 +237,59 @@ if ($Preview) {
 }
 
 # Deploy mode - actually upload files
-Write-Host "Uploading files..." -ForegroundColor Yellow
+Write-Host "Preparing upload..." -ForegroundColor Yellow
 Write-Host ""
 
-# Prioritize upload order: metadata/manifests/code first, raw data (.gz) last
-$priorityFiles = @()
-$dataFiles = @()
+# Prioritize upload order: critical manifests FIRST, then code, then region data
+$criticalFiles = @()  # Manifests and adjacency data
+$priorityFiles = @()  # HTML, JS, CSS, other metadata
+$dataFiles = @()      # Individual region .json.gz files
 
 foreach ($localFile in $filesToDeploy) {
-    if ($localFile -match '\.gz$') {
-        # Raw compressed region data - upload last
-        $dataFiles += $localFile
-    } else {
-        # Manifest, HTML, JS, CSS, JSON metadata - upload first
+    $fileName = Split-Path $localFile -Leaf
+    
+    # CRITICAL: Upload manifests and adjacency data FIRST
+    if ($fileName -match '^(regions_manifest|region_adjacency|us_state_adjacency)\.json\.gz$') {
+        $criticalFiles += $localFile
+    }
+    # PRIORITY: Code and non-data files
+    elseif ($localFile -notmatch '\.json\.gz$') {
+        # HTML, JS, CSS, favicon, etc.
         $priorityFiles += $localFile
+    }
+    # DATA: Individual region files (upload last)
+    else {
+        $dataFiles += $localFile
     }
 }
 
-$orderedFiles = $priorityFiles + $dataFiles
+$orderedFiles = $criticalFiles + $priorityFiles + $dataFiles
 
-Write-Host "Upload order: $($priorityFiles.Count) metadata/code files, then $($dataFiles.Count) data files" -ForegroundColor Cyan
+Write-Host "Upload order:" -ForegroundColor Cyan
+Write-Host "  1. Critical manifests: $($criticalFiles.Count) files (regions_manifest, adjacency)" -ForegroundColor Green
+Write-Host "  2. Code/metadata: $($priorityFiles.Count) files (HTML, JS, CSS)" -ForegroundColor Yellow
+Write-Host "  3. Region data: $($dataFiles.Count) files (individual regions)" -ForegroundColor DarkGray
+Write-Host ""
+
+# CRITICAL: Get ALL remote file info in ONE SSH call (fast for high-latency connections)
+Write-Host "Checking remote files (one batch check)..." -ForegroundColor Yellow
+
+$remoteFilePaths = @()
+foreach ($localFile in $orderedFiles) {
+    $relativePath = Resolve-Path -Relative $localFile
+    $relativePath = $relativePath -replace '^\.\\'  # Remove leading .\
+    $relativePath = $relativePath -replace '\\', '/'  # Convert to Unix paths
+    $remoteFilePaths += "$remotePath/$relativePath"
+}
+
+$remoteFileInfo = Get-RemoteFileInfo -RemoteFiles $remoteFilePaths -Remote $remote
+
+Write-Host "  Done - checked $($remoteFilePaths.Count) files" -ForegroundColor Green
 Write-Host ""
 
 $uploaded = 0
 $failed = 0
+$skippedIdentical = 0
 $startTime = Get-Date
 $currentFile = 0
 
@@ -230,20 +311,49 @@ foreach ($localFile in $orderedFiles) {
     # Ensure remote directory exists
     # ssh "$remote" "mkdir -p '$remoteDir'" 2>$null
     
-    # Upload file with progress
+    # Check if file already exists and is identical (using batch check from earlier)
+    $needsUpload = $true
+    $remoteInfo = $remoteFileInfo[$remoteFile]
+    
+    if ($remoteInfo -and $remoteInfo.Size -ne $null) {
+        $localSize = (Get-Item $localFile).Length
+        $localMD5 = (Get-FileHash -Path $localFile -Algorithm MD5).Hash.ToLower()
+        
+        if ($remoteInfo.Size -eq $localSize -and $remoteInfo.MD5 -eq $localMD5) {
+            $needsUpload = $false
+        }
+    }
+    
     Write-Host "[$currentFile/$fileCount - $percent%] " -NoNewline -ForegroundColor Cyan
+    
+    if (-not $needsUpload) {
+        Write-Host "Skipped: $relativePath " -NoNewline -ForegroundColor DarkGray
+        Write-Host "($fileSizeMB MB) - identical" -ForegroundColor DarkGray
+        $skippedIdentical++
+        $uploaded++  # Count as "uploaded" for progress
+        continue
+    }
+    
     Write-Host "Uploading: $relativePath " -NoNewline -ForegroundColor Gray
     Write-Host "($fileSizeMB MB)" -ForegroundColor DarkGray
     
     try {
-        # Use scp with compression (-C) for faster transfers over high-latency connections
-        # Cipher aes128-gcm@openssh.com is faster than default
-        if ($fileSize -gt 1MB) {
-            # Show per-file progress for large files
-            scp -C -c aes128-gcm@openssh.com "$localFile" "${remote}:${remoteFile}" 2>$null
+        # Use scp with compression + fast cipher for high-latency connections
+        # Add multiplexing if available for MUCH faster transfers
+        if ($useMultiplexing) {
+            # With multiplexing (60x faster for many files)
+            if ($fileSize -gt 1MB) {
+                scp -C -c aes128-gcm@openssh.com -o ControlMaster=auto -o "ControlPath=$controlPath" "$localFile" "${remote}:${remoteFile}" 2>$null
+            } else {
+                scp -C -c aes128-gcm@openssh.com -o ControlMaster=auto -o "ControlPath=$controlPath" -q "$localFile" "${remote}:${remoteFile}" 2>$null
+            }
         } else {
-            # Quiet mode for small files, with compression
-            scp -C -c aes128-gcm@openssh.com -q "$localFile" "${remote}:${remoteFile}" 2>$null
+            # Without multiplexing (fallback)
+            if ($fileSize -gt 1MB) {
+                scp -C -c aes128-gcm@openssh.com "$localFile" "${remote}:${remoteFile}" 2>$null
+            } else {
+                scp -C -c aes128-gcm@openssh.com -q "$localFile" "${remote}:${remoteFile}" 2>$null
+            }
         }
         
         if ($LASTEXITCODE -eq 0) {
@@ -266,11 +376,21 @@ Write-Host "=" * 70 -ForegroundColor Green
 Write-Host "DEPLOYMENT COMPLETE" -ForegroundColor Green
 Write-Host "=" * 70 -ForegroundColor Green
 Write-Host ""
-Write-Host "Uploaded: $uploaded files ($totalSizeMB MB)" -ForegroundColor Green
+Write-Host "Uploaded: $($uploaded - $skippedIdentical) files" -ForegroundColor Green
+if ($skippedIdentical -gt 0) {
+    Write-Host "Skipped: $skippedIdentical files (already up-to-date)" -ForegroundColor Cyan
+}
 if ($failed -gt 0) {
     Write-Host "Failed: $failed files" -ForegroundColor Red
 }
+Write-Host "Total size: $totalSizeMB MB" -ForegroundColor Cyan
 Write-Host "Time: $elapsedSeconds seconds" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Live at: https://fuseki.net/altitude-maps/advanced-viewer.html" -ForegroundColor Cyan
 
+# Clean up SSH connection multiplexing (if used)
+if ($useMultiplexing) {
+    ssh -o ControlMaster=auto -o "ControlPath=$controlPath" -O exit "$remote" 2>$null | Out-Null
+    Remove-Item -Path $controlPath -ErrorAction SilentlyContinue
+}
+
+Write-Host "Live at: https://fuseki.net/altitude-maps/advanced-viewer.html" -ForegroundColor Cyan
