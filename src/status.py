@@ -94,7 +94,7 @@ def check_export_version(region_id: str) -> Tuple[bool, str, str]:
         return False, "error", expected
 
 
-def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_pixels: int,
+def verify_and_auto_fix(region_id: str, result_paths: dict, source: str,
                         region_type: 'RegionType', region_info: dict, border_resolution: str) -> bool:
     """
     Detect compressed/flat altitude outputs and auto-fix by force reprocessing.
@@ -196,11 +196,11 @@ def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_
     from ensure_region import process_region
     
     success2, result_paths2 = process_region(
-        region_id, raw_path, source, target_pixels, True, region_type, region_info, border_resolution='10m'
+        region_id, raw_path, source, True, region_type, region_info, border_resolution='10m'
     )
     if not success2:
         return False
 
     # Re-validate
-    return verify_and_auto_fix(region_id, result_paths2, source, target_pixels, region_type, region_info, border_resolution)
+    return verify_and_auto_fix(region_id, result_paths2, source, region_type, region_info, border_resolution)
 

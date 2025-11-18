@@ -227,7 +227,7 @@ def get_bounds_from_raw_file(raw_path: Path) -> Optional[Tuple[float, float, flo
 
 def abstract_filename_from_raw(raw_path: Path, stage: str, source: str, 
                                 boundary_name: Optional[str] = None, 
-                                target_pixels: Optional[int] = None,
+                                target_total_pixels: Optional[int] = None,
                                 resolution: Optional[str] = None) -> Optional[str]:
     """
     Generate abstract filename for pipeline stages based on actual data bounds.
@@ -241,7 +241,7 @@ def abstract_filename_from_raw(raw_path: Path, stage: str, source: str,
         stage: Pipeline stage ('raw', 'clipped', 'processed')
         source: Data source (e.g., 'srtm_30m')
         boundary_name: Optional boundary name for clipped files
-        target_pixels: Target resolution for processed files
+        target_total_pixels: Target total pixel count (width × height) for processed files
         resolution: Resolution identifier
         
     Returns:
@@ -276,7 +276,12 @@ def abstract_filename_from_raw(raw_path: Path, stage: str, source: str,
             boundary_suffix = ""
         return f"{bounds_id}_clipped{boundary_suffix}_v1.tif"
     elif stage == 'processed':
-        return f"{bounds_id}_processed_{target_pixels}px_v2.tif"
+        # Calculate base dimension for filename (sqrt of total pixels for square regions)
+        import math
+        base_dimension = int(round(math.sqrt(target_total_pixels))) if target_total_pixels else None
+        if base_dimension:
+            return f"{bounds_id}_processed_{base_dimension}px_v2.tif"
+        return f"{bounds_id}_processed_v2.tif"
     elif stage == 'exported':
         raise ValueError("Exported JSON files use region_id-based naming, not abstract naming.")
     
@@ -329,7 +334,35 @@ def group_tiles_into_chunks(tiles: List[Tuple[float, float, float, float]],
     return [(chunk_bounds, tiles_list) for chunk_bounds, tiles_list in chunk_dict.items()]
 
 
-def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
+def calculate_dimension_from_total_pixels(target_total_pixels: int, aspect: float) -> Tuple[int, int]:
+    """Calculate width and height dimensions from total pixel count, preserving aspect ratio.
+    
+    Args:
+        target_total_pixels: Total number of pixels (width × height)
+        aspect: Aspect ratio (width / height)
+    
+    Returns:
+        Tuple of (width, height) in pixels
+    """
+    import math
+    # Base dimension for square region: sqrt(total_pixels)
+    dimension_base = math.sqrt(target_total_pixels)
+    
+    if aspect >= 1.0:
+        # Wider than tall: width = dimension_base * sqrt(aspect), height = dimension_base / sqrt(aspect)
+        sqrt_aspect = math.sqrt(aspect)
+        width = max(1, int(round(dimension_base * sqrt_aspect)))
+        height = max(1, int(round(dimension_base / sqrt_aspect)))
+    else:
+        # Taller than wide: height = dimension_base / sqrt(aspect), width = dimension_base * sqrt(aspect)
+        sqrt_aspect = math.sqrt(aspect)
+        height = max(1, int(round(dimension_base / sqrt_aspect)))
+        width = max(1, int(round(dimension_base * sqrt_aspect)))
+    
+    return (width, height)
+
+
+def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_total_pixels: int) -> Dict:
     """Calculate final visible pixel size in meters after downsampling to target total pixel count.
     
     This helps determine if 30m or 90m source data is appropriate:
@@ -338,8 +371,8 @@ def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], targ
     
     Args:
         bounds: (west, south, east, north) in degrees
-        target_pixels: Target dimension for total pixel count calculation (total pixels = target_pixels²)
-                      e.g., 1024 means up to 1,048,576 total pixels (1024×1024 for square regions)
+        target_total_pixels: Target total pixel count (width × height)
+                            e.g., 1,048,576 means up to 1024×1024 pixels for square regions
     
     Returns:
         dict with keys:
@@ -364,19 +397,9 @@ def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], targ
     width_m = width_deg * meters_per_deg_lon
     height_m = height_deg * meters_per_deg_lat
     
-    # Calculate output pixels preserving aspect ratio, targeting total pixel count = target_pixels²
-    # This ensures we use the full pixel budget (e.g., 1024² = 1,048,576 pixels)
+    # Calculate output pixels preserving aspect ratio, targeting total pixel count
     aspect = width_deg / height_deg if height_deg > 0 else 1.0
-    if width_deg >= height_deg:
-        # Wider than tall: width = target_pixels * sqrt(aspect), height = target_pixels / sqrt(aspect)
-        sqrt_aspect = math.sqrt(aspect)
-        output_width = max(1, int(round(target_pixels * sqrt_aspect)))
-        output_height = max(1, int(round(target_pixels / sqrt_aspect)))
-    else:
-        # Taller than wide: height = target_pixels / sqrt(aspect), width = target_pixels * sqrt(aspect)
-        sqrt_aspect = math.sqrt(aspect)
-        output_height = max(1, int(round(target_pixels / sqrt_aspect)))
-        output_width = max(1, int(round(target_pixels * sqrt_aspect)))
+    output_width, output_height = calculate_dimension_from_total_pixels(target_total_pixels, aspect)
     
     # Calculate meters per pixel in final output
     m_per_pixel_x = width_m / output_width

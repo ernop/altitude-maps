@@ -18,6 +18,8 @@ from typing import Tuple, Optional
 import numpy as np
 from tqdm import tqdm
 
+from src.config import DEFAULT_TARGET_TOTAL_PIXELS
+
 # NOTE: This is a library module - do NOT wrap stdout/stderr
 # Modern Python handles UTF-8 correctly by default
 
@@ -103,21 +105,18 @@ class USGSElevationDownloader:
     def download_via_national_map_api(self,
                                        bbox: Tuple[float, float, float, float],
                                        output_file: str = "elevation_sample.tif",
-                                       target_pixels: int = None) -> Optional[Path]:
+                                       target_total_pixels: int = ...) -> Optional[Path]:
         """
         Download elevation data using USGS National Map API.
 
         Args:
             bbox: Bounding box (west, south, east, north) in decimal degrees
             output_file: Output filename
-            target_pixels: Target output dimension (default: from src.config.DEFAULT_TARGET_PIXELS) - used to calculate download resolution
+            target_total_pixels: Target total pixel count (width × height) (required) - used to calculate download resolution
 
         Returns:
             Path to downloaded file or None if failed
         """
-        from src.config import DEFAULT_TARGET_PIXELS
-        if target_pixels is None:
-            target_pixels = DEFAULT_TARGET_PIXELS
         
         from src.tile_geometry import calculate_visible_pixel_size
         
@@ -126,7 +125,7 @@ class USGSElevationDownloader:
         height_deg = north - south
         
         # Calculate visible pixel size for final output
-        visible = calculate_visible_pixel_size(bbox, target_pixels)
+        visible = calculate_visible_pixel_size(bbox, target_total_pixels)
         visible_m_per_pixel = visible['avg_m_per_pixel']
         
         # Calculate download resolution based on Nyquist requirement
@@ -180,7 +179,9 @@ class USGSElevationDownloader:
         width_pixels = max(256, width_pixels)
         height_pixels = max(256, height_pixels)
         
-        print(f"  Ideal resolution: {target_resolution_m:.1f} m (calculated from target_pixels={target_pixels})", flush=True)
+        import math
+        base_dimension = int(round(math.sqrt(target_total_pixels)))
+        print(f"  Ideal resolution: {target_resolution_m:.1f} m (calculated from target_total_pixels={target_total_pixels:,}, base_dimension={base_dimension}px)", flush=True)
         print(f"  Visible pixel size: {visible_m_per_pixel:.1f} m/pixel", flush=True)
         print(f"  Oversampling: {visible_m_per_pixel / target_resolution_m:.2f}x", flush=True)
         
@@ -534,7 +535,8 @@ def main():
     if denver_bbox:
         result = downloader.download_via_national_map_api(
             denver_bbox,
-            "denver_elevation_10m.tif"
+            "denver_elevation_10m.tif",
+            target_total_pixels=DEFAULT_TARGET_TOTAL_PIXELS
         )
 
         if result:

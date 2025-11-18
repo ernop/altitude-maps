@@ -275,8 +275,9 @@ else:
 **ABSOLUTE RULE**: Elevation data resolution is NEVER hardcoded by region type. It is ALWAYS dynamically determined using Nyquist sampling.
 
 **Process** (see `src/downloaders/orchestrator.determine_required_resolution_and_dataset()`):
-1. **FIRST**: Calculate visible pixel size from geographic bounds + target_pixels
-   - `visible_m_per_pixel = geographic_span_meters / target_pixels`
+1. **FIRST**: Calculate visible pixel size from geographic bounds + target_total_pixels
+   - Calculate base dimension: `base_dimension = sqrt(target_total_pixels)`
+   - `visible_m_per_pixel = geographic_span_meters / base_dimension`
    - This determines what resolution we'll have in the final output
 2. **THEN**: Apply Nyquist rule to determine minimum required source resolution
    - `min_resolution <= visible_m_per_pixel / 2.0`
@@ -296,27 +297,27 @@ else:
 
 **Example (Idaho)**:
 ```
---target-pixels 512:  visible=1292m/px -> requires 1000m (1292/1000=1.29x < 2x) -> requires 500m (1292/500=2.58x > 2x OK)
---target-pixels 2048: visible=323m/px  -> requires 250m (323/250=1.29x < 2x) -> requires 90m (323/90=3.6x > 2x OK)
---target-pixels 4096: visible=162m/px  -> requires 90m (162/90=1.8x < 2x) -> requires 30m (162/30=5.4x > 2x OK)
---target-pixels 8192: visible=81m/px   -> requires 30m (81/30=2.7x > 2x OK) [US can use 10m but 30m sufficient]
+target_total_pixels=262144 (512²):  visible=1292m/px -> requires 1000m (1292/1000=1.29x < 2x) -> requires 500m (1292/500=2.58x > 2x OK)
+target_total_pixels=4194304 (2048²): visible=323m/px  -> requires 250m (323/250=1.29x < 2x) -> requires 90m (323/90=3.6x > 2x OK)
+target_total_pixels=16777216 (4096²): visible=162m/px  -> requires 90m (162/90=1.8x < 2x) -> requires 30m (162/30=5.4x > 2x OK)
+target_total_pixels=67108864 (8192²): visible=81m/px   -> requires 30m (81/30=2.7x > 2x OK) [US can use 10m but 30m sufficient]
 ```
 
 **Example (California - large region)**:
 ```
---target-pixels 1024: visible=1005m/px -> requires 500m (1005/500=2.01x > 2x OK) [Perfect match!]
---target-pixels 2048: visible=502m/px  -> requires 250m (502/250=2.01x > 2x OK) [Perfect match!]
+target_total_pixels=1048576 (1024²): visible=1005m/px -> requires 500m (1005/500=2.01x > 2x OK) [Perfect match!]
+target_total_pixels=4194304 (2048²): visible=502m/px  -> requires 250m (502/250=2.01x > 2x OK) [Perfect match!]
 ```
 
 **FORBIDDEN ASSUMPTIONS**:
-- [NO] "US states always use 10m" - FALSE, depends on target_pixels
-- [NO] "International regions always use 30m" - FALSE, depends on target_pixels
+- [NO] "US states always use 10m" - FALSE, depends on target_total_pixels
+- [NO] "International regions always use 30m" - FALSE, depends on target_total_pixels
 - [NO] "Small states need high resolution" - FALSE, depends on output size, not geographic size
 
 **WHY THIS MATTERS**: 
 - Hardcoding resolutions wastes storage (downloading unnecessary 10m data when 500m would suffice for large regions)
 - Over-downloading wastes bandwidth and storage (1000m/pixel output doesn't need 10m source data)
-- The system automatically selects optimal resolution based on actual viewer needs (target_pixels + geographic bounds)
+- The system automatically selects optimal resolution based on actual viewer needs (target_total_pixels + geographic bounds)
 - Single source of truth prevents duplication and ensures consistency
 - **GOAL**: Always deliver the right amount of accurate pixels for regions of all sizes (large, medium, small, tiny)
 
@@ -329,7 +330,7 @@ else:
 #### 1. **elevation_resolution** (also called "data resolution" or "elevation data resolution")
 - **Values**: `10m`, `30m`, `90m`, `250m`, `500m`, `1000m`
 - **What it is**: Elevation data quality/sampling density (e.g., SRTM 30m, USGS 3DEP 10m, GMTED2010 500m)
-- **How determined**: Dynamically by Nyquist sampling rule based on `target_pixels`
+- **How determined**: Dynamically by Nyquist sampling rule based on `target_total_pixels`
 - **Where used**: 
   - File naming (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
   - Dataset selection (which elevation source to download)
@@ -642,7 +643,9 @@ const geometry = new THREE.PlaneGeometry(widthMeters, heightMeters, ...);
 **When downsampling**: Always use the **same step size for both dimensions**:
 ```python
 # CORRECT - Preserves aspect ratio
-step_size = max(1, int(math.ceil(max_dim / target_pixels)))
+# Calculate base dimension from total pixels, then use for step size
+base_dimension = int(round(math.sqrt(target_total_pixels)))
+step_size = max(1, int(math.ceil(max_dim / base_dimension)))
 downsampled = elevation[::step_size, ::step_size]
 
 # WRONG - Distorts aspect ratio
@@ -893,7 +896,7 @@ python ensure_region.py <region_id> --force-reprocess
 - Small areas: Fixed screen-space "back" button prevents obscuration
 
 **Resolution Selection**:
-- Calculate visible pixel size before download: `visible_m_per_pixel = geographic_span_meters / target_pixels`
+- Calculate visible pixel size before download: `base_dimension = sqrt(target_total_pixels)`, then `visible_m_per_pixel = geographic_span_meters / base_dimension`
 - Use Nyquist rule: `source_resolution <= visible_pixel_size / 2.0` for >=2.0x oversampling
 - >=180m visible: Recommend 90m (Nyquist safe)
 - <90m visible: Automatically use 30m
@@ -1187,12 +1190,12 @@ python ensure_region.py iceland                 # International: Auto-downloads 
 python ensure_region.py new_hampshire           # Multi-word: use underscores
 python ensure_region.py "new hampshire"         # Multi-word: or use quotes
 python ensure_region.py tennessee --force-reprocess  # Force full rebuild
-python ensure_region.py california --target-pixels 4096  # High resolution
+python ensure_region.py california
 python ensure_region.py --list-regions          # List all available regions (50 US states + 8 countries + 31 regions = 89 total)
 
 # Reprocess existing state data
-python reprocess_existing_states.py --target-pixels 2048 --states ohio kentucky
-python reprocess_existing_states.py --target-pixels 2048 --force  # Full rebuild all states
+python reprocess_existing_states.py --states ohio kentucky
+python reprocess_existing_states.py --force  # Full rebuild all states
 
 # Clear all caches (use after format changes)
 python clear_caches.py

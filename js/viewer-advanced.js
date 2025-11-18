@@ -87,6 +87,7 @@ let regionsManifest = null;
 let currentRegionId = null;
 let regionAdjacency = null;
 let globalElevationStats = null; // Global min/max for global scale mode
+let isNavigatingHistory = false; // Flag to prevent duplicate history entries when loading from popstate
 
 // Expose global stats on window for modules
 window.globalElevationStats = null;
@@ -328,6 +329,9 @@ async function init() {
         
         // Rebuild dropdown for initial interaction (uses rebuildRegionDropdown function)
         rebuildRegionDropdown();
+
+        // Set up browser back/forward button navigation for region selection
+        setupHistoryNavigation();
 
         // Calculate true scale for this data
         const scale = calculateRealWorldScale();
@@ -921,10 +925,12 @@ async function loadRegion(regionId) {
             params.verticalExaggeration = trueScaleValue * currentMultiplier;
             console.log(`Preserved vertical exaggeration multiplier: ${currentMultiplier.toFixed(1)}x`);
             
-            // Update URL to reflect preserved multiplier
-            try { 
-                updateURLParameter('exag', currentMultiplier); 
-            } catch (_) { }
+            // Update URL to reflect preserved multiplier (only if not navigating history)
+            if (!isNavigatingHistory) {
+                try { 
+                    updateURLParameter('exag', currentMultiplier); 
+                } catch (_) { }
+            }
         }
 
         // Update button highlighting now that trueScaleValue is known
@@ -939,8 +945,11 @@ async function loadRegion(regionId) {
         // Update recent regions UI to reflect new order
         updateRecentRegionsList();
 
-        // Update URL parameter so the link is shareable
-        updateURLParameter('region', regionId);
+        // Update URL parameter so the link is shareable (only if not navigating history)
+        // When navigating history, the URL is already correct, so we don't want to push another state
+        if (!isNavigatingHistory) {
+            updateURLParameter('region', regionId);
+        }
 
         // Update native input to show the loaded region without triggering load
         const regionInput = document.getElementById('regionSelect');
@@ -3194,6 +3203,38 @@ function copyShareLink() {
     });
 }
 
+// Set up browser back/forward button navigation for region selection
+function setupHistoryNavigation() {
+    window.addEventListener('popstate', async (event) => {
+        // Read region from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRegion = urlParams.get('region');
+        
+        // If URL has a region parameter and it's different from current, load it
+        if (urlRegion && regionsManifest?.regions[urlRegion] && urlRegion !== currentRegionId) {
+            console.log(`[History] Navigating to region from history: ${urlRegion}`);
+            isNavigatingHistory = true;
+            try {
+                await loadRegion(urlRegion);
+            } finally {
+                isNavigatingHistory = false;
+            }
+        } else if (!urlRegion && currentRegionId) {
+            // If URL has no region parameter but we have a current region, load default
+            // This handles the case where user goes back before any region was selected
+            console.log(`[History] No region in URL, loading default: ${DEFAULT_REGION}`);
+            isNavigatingHistory = true;
+            try {
+                const defaultRegion = regionsManifest?.regions[DEFAULT_REGION] ? DEFAULT_REGION : Object.keys(regionsManifest?.regions || {})[0];
+                if (defaultRegion) {
+                    await loadRegion(defaultRegion);
+                }
+            } finally {
+                isNavigatingHistory = false;
+            }
+        }
+    });
+}
 
 // Start when page loads
 window.addEventListener('load', init);

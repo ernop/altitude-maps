@@ -12,7 +12,7 @@ CRITICAL ENFORCEMENT (see tech/DATA_PIPELINE.md):
 Usage:
     python ensure_region.py ohio  # US state
     python ensure_region.py iceland  # International region
-    python ensure_region.py tennessee --target-pixels 4096
+    python ensure_region.py tennessee
     python ensure_region.py california --force-reprocess
     python ensure_region.py new_mexico --update-adjacency  # Add region + update neighbors
 """
@@ -42,6 +42,7 @@ import glob
 from typing import Optional, Dict, Tuple
 
 # Pipeline utilities
+from src.config import DEFAULT_TARGET_TOTAL_PIXELS
 from src.versioning import get_current_version
 from src.tile_geometry import (
     snap_bounds_to_grid, 
@@ -155,13 +156,14 @@ def _iter_all_region_ids() -> list[str]:
         return []
 
 
-def process_region(region_id: str, raw_path: Path, source: str, target_pixels: int, force: bool, region_type: RegionType, region_info: Dict, border_resolution: str = '10m') -> Tuple[bool, Dict]:
+def process_region(region_id: str, raw_path: Path, source: str, force: bool, region_type: RegionType, region_info: Dict, border_resolution: str = '10m') -> Tuple[bool, Dict]:
     """
     Run the pipeline on a region and return (success, result_paths).
     
     CRITICAL: Uses RegionType enum for all decisions (see tech/DATA_PIPELINE.md).
     Checks all three cases exhaustively with ValueError for unknown types.
     """
+    target_total_pixels = DEFAULT_TARGET_TOTAL_PIXELS
 
     # Determine boundary based on region type (using enum)
     # CANONICAL REFERENCE: tech/DATA_PIPELINE.md - Section "Region Type System"
@@ -220,7 +222,7 @@ def process_region(region_id: str, raw_path: Path, source: str, target_pixels: i
             source=source,
             boundary_name=boundary_name,
             boundary_type=boundary_type,
-            target_pixels=target_pixels,
+            target_total_pixels=target_total_pixels,
             skip_clip=(boundary_name is None),
             border_resolution=border_resolution,
             bounds=region_info.get('bounds') if boundary_name is None else None
@@ -240,7 +242,6 @@ def main():
     check_venv()
 
     sys.path.insert(0, str(Path(__file__).parent))
-    from src.config import DEFAULT_TARGET_PIXELS
 
     parser = argparse.ArgumentParser(
         description='One command to ensure a region is ready to view (US states and international regions)',
@@ -252,7 +253,7 @@ Examples:
     python ensure_region.py new_hampshire  # Multi-word with underscore
     python ensure_region.py "new hampshire"  # Multi-word with quotes
     python ensure_region.py tennessee --force-reprocess  # Force full rebuild
-    python ensure_region.py california --target-pixels 4096  # High resolution
+    python ensure_region.py california
 
   # International Regions
     python ensure_region.py iceland  # Iceland
@@ -273,8 +274,6 @@ This script will:
         """
     )
     parser.add_argument('region_id', nargs='?', help='Region ID (e.g., ohio, iceland, japan)')
-    parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS,
-                        help=f'Target resolution (default: {DEFAULT_TARGET_PIXELS})')
     parser.add_argument('--force-reprocess', action='store_true',
                         help='Force reprocessing even if files exist')
     parser.add_argument('--check-only', action='store_true',
@@ -324,7 +323,7 @@ This script will:
                     continue
                 # Determine minimum required resolution for this region
                 # All regions use dynamic resolution determination based on Nyquist rule
-                visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
+                visible = calculate_visible_pixel_size(region_info['bounds'], DEFAULT_TARGET_TOTAL_PIXELS)
                 
                 if region_type == RegionType.USA_STATE:
                     # US states: 10m, 30m, or 90m based on requirements
@@ -343,7 +342,7 @@ This script will:
                 if not raw_path:
                     dataset_override = determine_dataset_override(rid, region_type, region_info)
                     try:
-                        if not download_region(rid, region_type, region_info, dataset_override, args.target_pixels):
+                        if not download_region(rid, region_type, region_info, dataset_override, DEFAULT_TARGET_TOTAL_PIXELS):
                             print(f"  Download failed for {rid}")
                             continue
                     except OpenTopographyRateLimitError as e:
@@ -362,11 +361,11 @@ This script will:
                     if not raw_path:
                         print(f"  Validation failed after download for {rid}")
                         continue
-                success, result_paths = process_region(rid, raw_path, source, args.target_pixels,
+                success, result_paths = process_region(rid, raw_path, source,
                                                       True if args.force_reprocess else False,
                                                       region_type, region_info, '10m')
                 if success:
-                    _ = verify_and_auto_fix(rid, result_paths, source, args.target_pixels,
+                    _ = verify_and_auto_fix(rid, result_paths, source,
                                             region_type, region_info, '10m')
         # Summary of problems for check-only
         if args.check_only:
@@ -497,19 +496,21 @@ This script will:
         return 0
 
     # Determine resolution and dataset (stages 2-3) - SINGLE SOURCE OF TRUTH
-    # Flow: target_pixels + geographic bounds → visible pixel size → resolution → dataset
+    # Flow: target_total_pixels + geographic bounds → visible pixel size → resolution → dataset
     # Suppress verbose output from this function - we'll show better formatted output below
     min_required_resolution, dataset_override = determine_required_resolution_and_dataset(
-        region_id, region_type, region_info, args.target_pixels, verbose=False
+        region_id, region_type, region_info, DEFAULT_TARGET_TOTAL_PIXELS, verbose=False
     )
     
     # Calculate visible pixel size for display/logging
-    visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
+    visible = calculate_visible_pixel_size(region_info['bounds'], DEFAULT_TARGET_TOTAL_PIXELS)
     
     # Display resolution selection information
     print(f"\n[STAGE 2/10] RESOLUTION SELECTION", flush=True)
     total_pixels = visible['output_width_px'] * visible['output_height_px']
-    print(f"  Target output: up to {args.target_pixels}² = {args.target_pixels**2:,} total pixels", flush=True)
+    import math
+    base_dimension = int(round(math.sqrt(DEFAULT_TARGET_TOTAL_PIXELS)))
+    print(f"  Target output: {DEFAULT_TARGET_TOTAL_PIXELS:,} total pixels (base dimension: {base_dimension}px)", flush=True)
     print(f"  Predicted output: {visible['output_width_px']}×{visible['output_height_px']} = {total_pixels:,} pixels", flush=True)
     print(f"    (Note: Dimensions may change slightly after reprojection)", flush=True)
     print(f"  Visible pixel size: {visible['avg_m_per_pixel']:.1f} m/pixel", flush=True)
@@ -677,7 +678,7 @@ This script will:
         # Download raw data
         print(f"[STAGE 4/10] Downloading...", flush=True)
         try:
-            if not download_region(region_id, region_type, region_info, dataset_override, args.target_pixels):
+            if not download_region(region_id, region_type, region_info, dataset_override, DEFAULT_TARGET_TOTAL_PIXELS):
                 print(f"  Download failed!", flush=True)
                 return 1
         except OpenTopographyRateLimitError as e:
@@ -745,12 +746,12 @@ This script will:
 
     # Step 3: Process the region
     # Always use 10m borders for accurate clipping (see .cursorrules - Border Resolution section)
-    success, result_paths = process_region(region_id, raw_path, source, args.target_pixels,
+    success, result_paths = process_region(region_id, raw_path, source,
                                           args.force_reprocess, region_type, region_info, '10m')
 
     if success:
         # Post-validate and auto-fix if needed
-        ensured = verify_and_auto_fix(region_id, result_paths, source, args.target_pixels,
+        ensured = verify_and_auto_fix(region_id, result_paths, source,
                                       region_type, region_info, '10m')
         if not ensured:
             print("\n" + "="*70)

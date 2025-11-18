@@ -174,7 +174,7 @@ def create_processed_metadata(
     region_id: str,
     source_file: Path,
     source_file_hash: str,
-    target_pixels: int,
+    target_total_pixels: int,
     processing_params: Optional[Dict] = None
 ) -> Dict:
     """
@@ -185,7 +185,7 @@ def create_processed_metadata(
         region_id: Region identifier
         source_file: Path to source clipped file
         source_file_hash: Hash of source file
-        target_pixels: Target resolution in pixels
+        target_total_pixels: Target total pixel count (width × height)
         processing_params: Additional processing parameters
         
     Returns:
@@ -201,7 +201,7 @@ def create_processed_metadata(
         "created_date": datetime.now().isoformat(),
         "source_file": str(source_file),
         "source_file_hash": source_file_hash,
-        "target_pixels": target_pixels,
+        "target_total_pixels": target_total_pixels,
         "file_path": str(tif_path),
         "file_size_mb": round(tif_path.stat().st_size / (1024*1024), 2),
         "file_hash": file_hash,

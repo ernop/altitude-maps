@@ -265,7 +265,7 @@ def determine_min_required_resolution(
     )
 
 
-def download_elevation_data(region_id: str, region_info: Dict, dataset_override: str | None = None, target_pixels: int = None) -> bool:
+def download_elevation_data(region_id: str, region_info: Dict, dataset_override: str | None = None, target_total_pixels: int = ...) -> bool:
     """
     Download elevation data for any region (US or international).
     
@@ -307,8 +307,8 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
         output_path = Path(f"data/merged/usa_3dep/{filename}")
         
         # Always use unified 1-degree tile system
-        # Pass target_pixels so downloader can calculate appropriate download resolution
-        return download_usgs_3dep_10m_tiles(region_id, bounds, output_path, target_pixels=target_pixels)
+        # Pass target_total_pixels so downloader can calculate appropriate download resolution
+        return download_usgs_3dep_10m_tiles(region_id, bounds, output_path, target_total_pixels=target_total_pixels)
     
     # Route based on dataset/resolution
     if dataset_override in ('GMTED2010_1KM', 'GMTED2010_500M', 'GMTED2010_250M'):
@@ -367,28 +367,28 @@ def download_elevation_data(region_id: str, region_info: Dict, dataset_override:
         return False
 
 
-def download_region(region_id: str, region_type: 'RegionType', region_info: Dict, dataset_override: str | None = None, target_pixels: int = None) -> bool:
+def download_region(region_id: str, region_type: 'RegionType', region_info: Dict, dataset_override: str | None = None, target_total_pixels: int = ...) -> bool:
     """
     Route to unified downloader for any region.
     
     This is a simple pass-through that maintains backward compatibility.
     The real work is done by download_elevation_data() which handles all regions uniformly.
     """
-    return download_elevation_data(region_id, region_info, dataset_override, target_pixels)
+    return download_elevation_data(region_id, region_info, dataset_override, target_total_pixels)
 
 
 def determine_required_resolution_and_dataset(
     region_id: str,
     region_type: 'RegionType',
     region_info: dict,
-    target_pixels: int = None,
+    target_total_pixels: int,
     verbose: bool = True
 ) -> tuple[int, str]:
     """
     Stage 2: Determine required resolution and dataset for download.
     
     CRITICAL FLOW (single source of truth):
-    1. Calculate visible pixel size from geographic bounds + target_pixels
+    1. Calculate visible pixel size from geographic bounds + target_total_pixels
     2. Apply Nyquist rule to determine minimum required source resolution
     3. Select dataset code based on resolution and region type
     
@@ -400,22 +400,18 @@ def determine_required_resolution_and_dataset(
         region_id: Region identifier
         region_type: RegionType enum value
         region_info: Dict with 'bounds' key (west, south, east, north)
-        target_pixels: Target output dimension (default: from src.config.DEFAULT_TARGET_PIXELS)
+        target_total_pixels: Target total pixel count (width × height) (required)
         
     Returns:
         Tuple of (required_resolution_meters, dataset_code)
         - required_resolution_meters: 10, 30, 90, 250, 500, or 1000
         - dataset_code: 'USA_3DEP', 'SRTMGL1', 'SRTMGL3', 'COP30', 'COP90', 'GMTED2010_250M', 'GMTED2010_500M', or 'GMTED2010_1KM'
     """
-    from src.config import DEFAULT_TARGET_PIXELS
-    if target_pixels is None:
-        target_pixels = DEFAULT_TARGET_PIXELS
-    
     from src.types import RegionType
     
-    # STEP 1: Calculate visible pixel size from geographic bounds + target_pixels
+    # STEP 1: Calculate visible pixel size from geographic bounds + target_total_pixels
     # This determines what resolution we'll have in the final output
-    visible = calculate_visible_pixel_size(region_info['bounds'], target_pixels)
+    visible = calculate_visible_pixel_size(region_info['bounds'], target_total_pixels)
     
     # STEP 2: Determine minimum required source resolution using Nyquist rule
     # This ensures we don't over-download (selects coarsest that meets requirement)
@@ -572,12 +568,12 @@ def determine_required_resolution_and_dataset(
         raise ValueError(f"Unknown region type: {region_type}")
 
 
-def determine_dataset_override(region_id: str, region_type: 'RegionType', region_info: dict, target_pixels: int = None) -> str | None:
+def determine_dataset_override(region_id: str, region_type: 'RegionType', region_info: dict, target_total_pixels: int) -> str | None:
     """
     DEPRECATED: Use determine_required_resolution_and_dataset() instead.
     
     Kept for backward compatibility - returns only dataset code.
     """
-    _, dataset_code = determine_required_resolution_and_dataset(region_id, region_type, region_info, target_pixels)
+    _, dataset_code = determine_required_resolution_and_dataset(region_id, region_type, region_info, target_total_pixels)
     return dataset_code
 

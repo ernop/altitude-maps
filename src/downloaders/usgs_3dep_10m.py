@@ -15,7 +15,7 @@ def download_single_tile_10m(
     tile_bounds: Tuple[float, float, float, float],
     output_path: Path,
     dataset: str = 'USA_3DEP',
-    target_pixels: int = None
+    target_total_pixels: int = ...
 ) -> bool:
     """
     Download a single 1-degree tile of 10m USGS 3DEP data.
@@ -24,14 +24,11 @@ def download_single_tile_10m(
         tile_bounds: (west, south, east, north) in degrees for a 1-degree tile
         output_path: Path to save the downloaded tile
         dataset: Dataset identifier (default 'USA_3DEP')
-        target_pixels: Target output dimension (default: from src.config.DEFAULT_TARGET_PIXELS)
+        target_total_pixels: Target total pixel count (width × height) (required)
         
     Returns:
         True if successful, False otherwise
     """
-    from src.config import DEFAULT_TARGET_PIXELS
-    if target_pixels is None:
-        target_pixels = DEFAULT_TARGET_PIXELS
     
     from src.usa_elevation_data import USGSElevationDownloader
     
@@ -54,7 +51,7 @@ def download_single_tile_10m(
         result = downloader.download_via_national_map_api(
             bbox=tile_bounds,
             output_file=output_path.name,
-            target_pixels=target_pixels
+            target_total_pixels=target_total_pixels
         )
         
         if result is None:
@@ -94,7 +91,7 @@ def download_usgs_3dep_10m_tiles(
     bounds: Tuple[float, float, float, float],
     output_path: Path,
     dataset: Optional[str] = None,
-    target_pixels: int = None
+    target_total_pixels: int = ...
 ) -> bool:
     """
     Download 10m USGS 3DEP data, using exact bounds for small regions or 1-degree tiles for large regions.
@@ -107,14 +104,11 @@ def download_usgs_3dep_10m_tiles(
         bounds: (west, south, east, north) in degrees
         output_path: Path for merged output file
         dataset: Dataset identifier (default None = 'USA_3DEP')
-        target_pixels: Target output dimension (default: from src.config.DEFAULT_TARGET_PIXELS) - used to calculate download resolution
+        target_total_pixels: Target total pixel count (width × height) (required) - used to calculate download resolution
         
     Returns:
         True if successful, False otherwise
     """
-    from src.config import DEFAULT_TARGET_PIXELS
-    if target_pixels is None:
-        target_pixels = DEFAULT_TARGET_PIXELS
     
     from src.pipeline import merge_tiles
     from src.usa_elevation_data import USGSElevationDownloader
@@ -140,7 +134,7 @@ def download_usgs_3dep_10m_tiles(
         result = downloader.download_via_national_map_api(
             bbox=bounds,
             output_file=output_path.name,
-            target_pixels=target_pixels
+            target_total_pixels=target_total_pixels
         )
         
         if result is None:
@@ -178,7 +172,7 @@ def download_usgs_3dep_10m_tiles(
         
         # Download the tile
         print(f"  [{i}/{len(tiles)}] Downloading: {tile_filename}")
-        success = download_single_tile_10m(tile_bounds, tile_path, dataset, target_pixels=target_pixels)
+        success = download_single_tile_10m(tile_bounds, tile_path, dataset, target_total_pixels=target_total_pixels)
         
         if not success:
             print(f"  ERROR: Failed to download tile {tile_filename}")
@@ -205,7 +199,8 @@ def download_usgs_3dep_10m_tiles(
 def download_usgs_3dep_10m_single(
     region_id: str,
     bounds: Tuple[float, float, float, float],
-    output_path: Path
+    output_path: Path,
+    target_total_pixels: int = ...
 ) -> bool:
     """
     Download 10m USGS 3DEP data as single file (for small regions < 4 degrees).
@@ -217,10 +212,11 @@ def download_usgs_3dep_10m_single(
         region_id: Region identifier
         bounds: (west, south, east, north) in degrees
         output_path: Path for output file
+        target_total_pixels: Target total pixel count (width × height) (required)
         
     Returns:
         True if successful, False otherwise
     """
     # Redirect to tiling system - unified approach handles all sizes
-    return download_usgs_3dep_10m_tiles(region_id, bounds, output_path)
+    return download_usgs_3dep_10m_tiles(region_id, bounds, output_path, target_total_pixels=target_total_pixels)
 

@@ -619,7 +619,7 @@ def downsample_for_viewer(
     input_tif_path: Path,
     region_id: str,
     output_path: Path,
-    target_pixels: int = None
+    target_total_pixels: int
 ) -> bool:
     """
     Stage 8: Downsample reprojected data to target resolution for web viewer.
@@ -628,14 +628,11 @@ def downsample_for_viewer(
         input_tif_path: Path to reprojected TIF (must be in metric CRS, not EPSG:4326)
         region_id: Region identifier
         output_path: Where to save processed TIF
-        target_pixels: Target dimension in pixels (default: from src.config.DEFAULT_TARGET_PIXELS)
+        target_total_pixels: Target total pixel count (width × height) (required)
         
     Returns:
         True if successful
     """
-    from src.config import DEFAULT_TARGET_PIXELS
-    if target_pixels is None:
-        target_pixels = DEFAULT_TARGET_PIXELS
     if not input_tif_path.exists():
         print(f"  Input file not found: {input_tif_path}")
         return False
@@ -666,7 +663,7 @@ def downsample_for_viewer(
         for f in generated_dir.glob(f'{region_id}_*'):
             f.unlink()
     
-    print(f"  Downsampling to target resolution ({target_pixels}px)...")
+    print(f"  Downsampling to target resolution ({target_total_pixels:,} total pixels)...")
     
     try:
         with rasterio.open(input_tif_path) as src:
@@ -677,21 +674,10 @@ def downsample_for_viewer(
             
             print(f"  Input: {src.width} x {src.height} pixels")
             
-            # Compute target size preserving aspect ratio, targeting total pixel count = target_pixels²
-            # This ensures we use the full pixel budget (e.g., 1024² = 1,048,576 pixels)
-            # If region is tall and narrow (e.g., 1024×500), we scale up to use more pixels
-            import math
+            # Compute target size preserving aspect ratio, targeting total pixel count
+            from src.tile_geometry import calculate_dimension_from_total_pixels
             aspect = src.width / src.height if src.height != 0 else 1.0
-            if src.width >= src.height:
-                # Wider than tall: width = target_pixels * sqrt(aspect), height = target_pixels / sqrt(aspect)
-                sqrt_aspect = math.sqrt(aspect)
-                dst_width = max(1, int(round(target_pixels * sqrt_aspect)))
-                dst_height = max(1, int(round(target_pixels / sqrt_aspect)))
-            else:
-                # Taller than wide: height = target_pixels / sqrt(aspect), width = target_pixels * sqrt(aspect)
-                sqrt_aspect = math.sqrt(aspect)
-                dst_height = max(1, int(round(target_pixels / sqrt_aspect)))
-                dst_width = max(1, int(round(target_pixels * sqrt_aspect)))
+            dst_width, dst_height = calculate_dimension_from_total_pixels(target_total_pixels, aspect)
             
             # Read and downsample
             from rasterio.warp import Resampling
@@ -723,13 +709,15 @@ def downsample_for_viewer(
                 dest.write(elevation, 1)
             
             # Create metadata
+            import math
+            base_dimension = int(round(math.sqrt(target_total_pixels)))
             source_hash = compute_file_hash(input_tif_path)
             metadata = create_processed_metadata(
                 output_path,
                 region_id=region_id,
                 source_file=input_tif_path,
                 source_file_hash=source_hash,
-                target_pixels=target_pixels
+                target_total_pixels=target_total_pixels
             )
             save_metadata(metadata, get_metadata_path(output_path))
             
@@ -1164,7 +1152,7 @@ def run_pipeline(
     source: str,
     boundary_name: Optional[str] = None,
     boundary_type: str = "country",
-    target_pixels: int = None,
+    target_total_pixels: int = ...,
     skip_clip: bool = False,
     border_resolution: str = "10m",
     bounds: Optional[Tuple[float, float, float, float]] = None
@@ -1173,11 +1161,8 @@ def run_pipeline(
     Unified pipeline (Stages 6-11). Assumes raw download already completed.
     
     Args:
-        target_pixels: Target dimension in pixels (default: from src.config.DEFAULT_TARGET_PIXELS)
+        target_total_pixels: Target total pixel count (width × height) (required)
     """
-    from src.config import DEFAULT_TARGET_PIXELS
-    if target_pixels is None:
-        target_pixels = DEFAULT_TARGET_PIXELS
     
     print(f"\n{'='*70}")
     print(f" PROCESSING PIPELINE")
@@ -1235,13 +1220,15 @@ def run_pipeline(
 
     # Stage 7: reproject (intermediate file, use abstract naming)
     # Generate abstract filename based on raw file bounds (no region_id)
-    reprojected_filename = abstract_filename_from_raw(raw_tif_path, 'processed', source, target_pixels=target_pixels)
+    import math
+    base_dimension = int(round(math.sqrt(target_total_pixels)))
+    reprojected_filename = abstract_filename_from_raw(raw_tif_path, 'processed', source, target_total_pixels=target_total_pixels)
     if reprojected_filename is None:
         raise ValueError(f"Could not generate abstract filename for reprojected file - bounds extraction failed for {raw_tif_path}")
     # Replace processed suffix with reproj suffix
     # Example: bbox_N041p00_N040p00_W111p00_W112p00_processed_2048px_v2.tif
     #       -> bbox_N041p00_N040p00_W111p00_W112p00_reproj.tif
-    reprojected_filename = reprojected_filename.replace('_processed_', '_reproj_').replace(f'_{target_pixels}px_v2.tif', '.tif')
+    reprojected_filename = reprojected_filename.replace('_processed_', '_reproj_').replace(f'_{base_dimension}px_v2.tif', '.tif')
     reprojected_path = processed_dir / reprojected_filename
     
     print(f"\n[STAGE 7/10] Reprojecting to metric CRS...")
@@ -1251,11 +1238,11 @@ def run_pipeline(
     # Stage 8: downsample
     print(f"\n[STAGE 8/10] Processing for viewer...")
     # Generate abstract filename based on raw file bounds (no region_id)
-    processed_filename = abstract_filename_from_raw(raw_tif_path, 'processed', source, target_pixels=target_pixels)
+    processed_filename = abstract_filename_from_raw(raw_tif_path, 'processed', source, target_total_pixels=target_total_pixels)
     if processed_filename is None:
         raise ValueError(f"Could not generate abstract filename for processed file - bounds extraction failed for {raw_tif_path}")
     processed_path = processed_dir / processed_filename
-    if not downsample_for_viewer(reprojected_path, region_id, processed_path, target_pixels):
+    if not downsample_for_viewer(reprojected_path, region_id, processed_path, target_total_pixels):
         return False, result_paths
     result_paths["processed"] = processed_path
 
@@ -1263,7 +1250,8 @@ def run_pipeline(
     print(f"\n[STAGE 9/10] Exporting for web viewer...")
     # Exported JSON files use region_id-based naming (viewer-specific, not reusable data)
     # They're already clipped to specific boundaries and filtered for this viewer
-    exported_filename = f"{region_id}_{source}_{target_pixels}px_v2.json"
+    # Use base dimension for filename (sqrt of total pixels for square regions)
+    exported_filename = f"{region_id}_{source}_{base_dimension}px_v2.json"
     exported_path = generated_dir / exported_filename
     if not export_for_viewer(processed_path, region_id, source, exported_path):
         return False, result_paths
@@ -1271,7 +1259,7 @@ def run_pipeline(
     
     # Stage 9.5: export border visualization (if applicable)
     if boundary_name:
-        borders_filename = f"{region_id}_{source}_{target_pixels}px_v2_borders.json"
+        borders_filename = f"{region_id}_{source}_{base_dimension}px_v2_borders.json"
         borders_path = generated_dir / borders_filename
         export_borders_for_viewer(
             processed_path, 

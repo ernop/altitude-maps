@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.config import DEFAULT_TARGET_TOTAL_PIXELS
 from src.pipeline import run_pipeline
 from src.regions_config import US_STATES, get_region
 from src.types import RegionType
@@ -16,11 +17,8 @@ from src.types import RegionType
 
 def main():
     import argparse
-    from src.config import DEFAULT_TARGET_PIXELS
     
     parser = argparse.ArgumentParser(description='Reprocess existing state data')
-    parser.add_argument('--target-pixels', type=int, default=DEFAULT_TARGET_PIXELS,
-                       help=f'Target resolution (default: {DEFAULT_TARGET_PIXELS})')
     parser.add_argument('--force', action='store_true',
                        help='Force reprocessing: delete clipped, processed, AND generated files')
     parser.add_argument('--states', nargs='+',
@@ -66,8 +64,10 @@ def main():
             print(f" None of the requested states found: {args.states}")
             return 1
     
+    import math
+    base_dimension = int(round(math.sqrt(DEFAULT_TARGET_TOTAL_PIXELS)))
     print(f"\nFound {len(state_files)} state(s) to process")
-    print(f"Target resolution: {args.target_pixels}px")
+    print(f"Target resolution: {DEFAULT_TARGET_TOTAL_PIXELS:,} total pixels (base dimension: {base_dimension}px)")
     print("=" * 70)
     
     # Clean intermediate files with proper dependency handling
@@ -146,7 +146,7 @@ def main():
                 source=source,
                 boundary_name=boundary_name,
                 boundary_type=boundary_type,
-                target_pixels=args.target_pixels,
+                target_total_pixels=DEFAULT_TARGET_TOTAL_PIXELS,
                 skip_clip=(not config.clip_boundary)
             )
             
