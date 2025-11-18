@@ -140,10 +140,12 @@
 
         function openDropdown() {
             // Always rebuild options from manifest to ensure fresh data
-            if (typeof buildRegionOptions === 'function') {
-                filteredOptions = buildRegionOptions();
+            if (typeof window.buildRegionOptions === 'function' && window.regionsManifest) {
+                filteredOptions = window.buildRegionOptions();
+            } else if (window.regionOptions) {
+                filteredOptions = window.regionOptions.slice();
             } else {
-                filteredOptions = window.regionOptions ? window.regionOptions.slice() : [];
+                filteredOptions = [];
             }
             highlightedIndex = -1;
             renderDropdown(filteredOptions);
@@ -184,8 +186,15 @@
 
         function filterOptions(query) {
             const q = (query || '').trim().toLowerCase();
-            if (!q || !window.regionOptions) return window.regionOptions ? window.regionOptions.slice() : [];
-            return window.regionOptions.filter(o => o.id !== '__divider__' && o.id !== '__header__' && o.name.toLowerCase().includes(q));
+            // Always rebuild from manifest to ensure fresh data (handles async loading)
+            let options = [];
+            if (typeof window.buildRegionOptions === 'function' && window.regionsManifest) {
+                options = window.buildRegionOptions();
+            } else if (window.regionOptions) {
+                options = window.regionOptions.slice();
+            }
+            if (!q) return options;
+            return options.filter(o => o.id !== '__divider__' && o.id !== '__header__' && o.name.toLowerCase().includes(q));
         }
 
         function commitSelection(opt) {

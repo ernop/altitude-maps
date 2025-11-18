@@ -221,7 +221,8 @@ def process_region(region_id: str, raw_path: Path, source: str, target_pixels: i
             boundary_type=boundary_type,
             target_pixels=target_pixels,
             skip_clip=(boundary_name is None),
-            border_resolution=border_resolution
+            border_resolution=border_resolution,
+            bounds=region_info.get('bounds') if boundary_name is None else None
         )
         return success, result_paths
 

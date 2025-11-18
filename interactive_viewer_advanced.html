@@ -14,7 +14,7 @@
 	<link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.369">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.370">
 </head>
 
 <body>
@@ -25,6 +25,9 @@
 			<div id="neighbor-buttons-overlay"
 				style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%; z-index: 5;">
 			</div>
+
+		<!-- Map Size Display (lower-right corner, above color legend) -->
+		<div id="map-size-display" class="map-size-display">--</div>
 
 		<!-- Color Scale Legend (lower-right corner) -->
 		<div id="color-legend" class="color-legend">
@@ -46,6 +49,26 @@
 					<div class="region-nav-header">Contained By</div>
 					<div class="region-nav-list" id="contained-by-list"></div>
 				</div>
+			</div>
+		</div>
+
+		<!-- Camera and Map Info Display (lower-left corner, below region navigation) -->
+		<div id="camera-map-info" class="camera-map-info">
+			<div class="camera-map-row">
+				<span class="camera-map-label">Camera:</span>
+				<span id="camera-position">--</span>
+			</div>
+			<div class="camera-map-row">
+				<span class="camera-map-label">Direction:</span>
+				<span id="camera-direction">--</span>
+			</div>
+			<div class="camera-map-row">
+				<span class="camera-map-label">Map Position:</span>
+				<span id="map-position">--</span>
+			</div>
+			<div class="camera-map-row">
+				<span class="camera-map-label">Map Orientation:</span>
+				<span id="map-orientation">--</span>
 			</div>
 		</div>
 	</div>
@@ -491,63 +514,69 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.369"></script>
-	<script src="js/ground-plane-camera.js?v=1.369"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.369"></script>
+	<script src="js/camera-schemes.js?v=1.370"></script>
+	<script src="js/ground-plane-camera.js?v=1.370"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.370"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.369"></script>
+	<script src="js/color-schemes.js?v=1.370"></script>
 
 	<!-- Band editor for hypsometric-banded -->
-	<script src="js/band-editor.js?v=1.369"></script>
+	<script src="js/band-editor.js?v=1.370"></script>
 
 	<!-- Color scale legend -->
-	<script src="js/color-legend.js?v=1.369"></script>
+	<script src="js/color-legend.js?v=1.370"></script>
 
 	<!-- Geometry and spatial utilities -->
-	<script src="js/geometry-utils.js?v=1.369"></script>
+	<script src="js/geometry-utils.js?v=1.370"></script>
 
 	<!-- Data formatting utilities -->
-	<script src="js/format-utils.js?v=1.369"></script>
+	<script src="js/format-utils.js?v=1.370"></script>
+
+	<!-- Map size display -->
+	<script src="js/map-size-display.js?v=1.370"></script>
 
 	<!-- Activity log utilities -->
-	<script src="js/activity-log.js?v=1.369"></script>
+	<script src="js/activity-log.js?v=1.370"></script>
 
 	<!-- Edge markers (N/E/S/W directional labels) -->
-	<script src="js/edge-markers.js?v=1.369"></script>
+	<script src="js/edge-markers.js?v=1.370"></script>
 
 	<!-- UI loading states (loading screen and progress bar) -->
-	<script src="js/ui-loading.js?v=1.369"></script>
+	<script src="js/ui-loading.js?v=1.370"></script>
 
 	<!-- Resolution controls (bucket size slider and presets) -->
-	<script src="js/resolution-controls.js?v=1.369"></script>
+	<script src="js/resolution-controls.js?v=1.370"></script>
 
 	<!-- Keyboard shortcuts (global shortcuts like R, +, -) -->
-	<script src="js/keyboard-shortcuts.js?v=1.369"></script>
+	<script src="js/keyboard-shortcuts.js?v=1.370"></script>
 
 	<!-- State connectivity (US states only) -->
-	<script src="js/state-connectivity.js?v=1.369"></script>
+	<script src="js/state-connectivity.js?v=1.370"></script>
 
 	<!-- UI Controls Manager -->
-	<script src="js/ui-controls-manager.js?v=1.369"></script>
+	<script src="js/ui-controls-manager.js?v=1.370"></script>
 
 	<!-- HUD System -->
-	<script src="js/hud-system.js?v=1.369"></script>
+	<script src="js/hud-system.js?v=1.370"></script>
+
+	<!-- Camera and Map Info Display -->
+	<script src="js/camera-map-info.js?v=1.370"></script>
 
 	<!-- Compass Rose -->
-	<script src="js/compass-rose.js?v=1.369"></script>
+	<script src="js/compass-rose.js?v=1.370"></script>
 
 	<!-- Map Shading -->
-	<script src="js/map-shading.js?v=1.369"></script>
+	<script src="js/map-shading.js?v=1.370"></script>
 
 	<!-- Terrain Renderer -->
-	<script src="js/terrain-renderer.js?v=1.369"></script>
+	<script src="js/terrain-renderer.js?v=1.370"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.369"></script>
+	<script src="js/viewer-advanced.js?v=1.370"></script>
 </body>
 
 </html>

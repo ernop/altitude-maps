@@ -115,13 +115,34 @@ class USGSElevationDownloader:
         """
         west, south, east, north = bbox
 
+        # Calculate pixel dimensions to preserve native 10m resolution
+        # 1/3 arc-second = ~10m resolution
+        # At equator: 1 degree = 111,320 meters
+        # For 10m resolution: pixels = (degrees * 111320) / 10
+        # Use average latitude for more accurate calculation
+        avg_lat = (north + south) / 2.0
+        meters_per_deg_lat = 111320.0
+        meters_per_deg_lon = 111320.0 * abs(np.cos(np.radians(avg_lat)))
+        
+        width_deg = east - west
+        height_deg = north - south
+        
+        # Target 10m resolution (1/3 arc-second)
+        target_resolution_m = 10.0
+        width_pixels = int((width_deg * meters_per_deg_lon) / target_resolution_m)
+        height_pixels = int((height_deg * meters_per_deg_lat) / target_resolution_m)
+        
+        # Ensure minimum size and reasonable maximum (API may have limits)
+        width_pixels = max(256, min(width_pixels, 20000))
+        height_pixels = max(256, min(height_pixels, 20000))
+
         # USGS 3DEP ImageServer URL
         base_url = "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage"
 
         params = {
             'bbox': f'{west},{south},{east},{north}',
             'bboxSR': '4326',  # WGS84
-            'size': '1024,1024',  # Image size
+            'size': f'{width_pixels},{height_pixels}',  # Native resolution (10m)
             'imageSR': '4326',
             'format': 'tiff',
             'pixelType': 'F32',  # 32-bit float

@@ -38,7 +38,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.369';
+const VIEWER_VERSION = '1.370';
 
 // RegionType enum is defined in state-connectivity.js (loaded before this file)
 // Values: RegionType.USA_STATE, RegionType.COUNTRY, RegionType.AREA
@@ -256,6 +256,14 @@ async function init() {
             console.log('Color legend initialized');
         } else {
             console.warn('initColorLegend function not found');
+        }
+
+        // Initialize map size display
+        if (window.MapSizeDisplay && typeof window.MapSizeDisplay.init === 'function') {
+            window.MapSizeDisplay.init();
+            console.log('Map size display initialized');
+        } else {
+            console.warn('MapSizeDisplay.init function not found');
         }
 
         // Ensure activity log is visible by adding an initial entry
@@ -715,7 +723,7 @@ function buildRegionOptions() {
     return options;
 }
 
-// Expose buildRegionOptions on window for ui-controls-manager.js
+// Expose globally for ui-controls-manager.js
 window.buildRegionOptions = buildRegionOptions;
 
 function rebuildRegionDropdown() {
@@ -979,6 +987,11 @@ async function loadRegion(regionId) {
         // Update color legend with loaded data
         if (typeof updateColorLegend === 'function') {
             updateColorLegend();
+        }
+
+        // Update map size display with loaded data
+        if (window.MapSizeDisplay && typeof window.MapSizeDisplay.update === 'function') {
+            window.MapSizeDisplay.update();
         }
 
         // Sync UI controls with current params
@@ -3053,6 +3066,11 @@ function animate() {
     
     // Update camera state in URL (debounced to avoid excessive updates)
     updateCameraStateInURL();
+    
+    // Update camera and map info display
+    if (window.CameraMapInfo && typeof window.CameraMapInfo.update === 'function') {
+        window.CameraMapInfo.update();
+    }
     
     // HUD update moved to mousemove handler only (removed duplicate call from animate loop)
     // This prevents double-updates and improves performance

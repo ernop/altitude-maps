@@ -12,6 +12,25 @@ body {
     overflow: hidden;
 }
 
+/* Map Size Display (lower-right corner, above color legend) */
+.map-size-display {
+    position: absolute;
+    bottom: 360px;
+    right: 0;
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    padding: 6px 10px;
+    margin: 0;
+    z-index: 10;
+    pointer-events: none;
+    backdrop-filter: blur(3px);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    border-top-left-radius: 4px;
+    white-space: nowrap;
+}
+
 /* Color Scale Legend (lower-right corner) */
 .color-legend {
     position: absolute;
@@ -86,6 +105,43 @@ body {
 
 .region-nav-item:hover {
     background: rgba(255, 255, 255, 0.18); /* Instant brighter background, NO MOVEMENT */
+}
+
+/* Camera and Map Info Display (lower-left corner, below region navigation) */
+.camera-map-info {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 8px 12px;
+    margin: 0;
+    z-index: 9;
+    pointer-events: none;
+    backdrop-filter: blur(3px);
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #ffffff;
+    border-top-right-radius: 4px;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+.camera-map-row {
+    display: flex;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.camera-map-label {
+    font-weight: 600;
+    color: #aaaaaa;
+    min-width: 110px;
+}
+
+.camera-map-info span:not(.camera-map-label) {
+    color: #ffffff;
+    font-weight: normal;
 }
 
 .color-legend-content {

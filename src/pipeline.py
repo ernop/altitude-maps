@@ -28,7 +28,7 @@ These are COMPLETELY SEPARATE concepts. Do not confuse them.
 """
 import sys
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 import json
 
 import rasterio
@@ -145,6 +145,96 @@ def merge_tiles(tile_paths: list[Path], output_path: Path) -> bool:
                 src.close()
             except Exception:
                 pass
+
+
+def clip_to_bounds(
+    raw_tif_path: Path,
+    bounds: Tuple[float, float, float, float],
+    output_path: Path,
+    source: str = "srtm_30m"
+) -> bool:
+    """
+    Clip raw elevation data to exact bounding box bounds.
+    
+    Args:
+        raw_tif_path: Path to raw bounding box TIF
+        bounds: (west, south, east, north) in degrees (EPSG:4326)
+        output_path: Where to save clipped TIF
+        source: Data source name
+        
+    Returns:
+        True if successful
+    """
+    from shapely.geometry import box
+    from shapely.geometry import mapping as shapely_mapping
+    
+    if not raw_tif_path.exists():
+        print(f"  Input file not found: {raw_tif_path}")
+        return False
+    
+    # Check if output exists and is valid
+    if output_path.exists():
+        try:
+            with rasterio.open(output_path) as src:
+                if src.width > 0 and src.height > 0:
+                    _ = src.read(1, window=((0, min(10, src.height)), (0, min(10, src.width))))
+                    print(f"  Already clipped to bounds (validated): {output_path.name}")
+                    return True
+        except Exception:
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
+    
+    print(f"  Clipping to bounding box...")
+    
+    try:
+        with rasterio.open(raw_tif_path) as src:
+            west, south, east, north = bounds
+            
+            # Create rectangular geometry from bounds
+            bbox_geom = box(west, south, east, north)
+            geoms = [shapely_mapping(bbox_geom)]
+            
+            # Clip the raster to the bounding box
+            print(f"  Applying bounding box mask...")
+            out_image, out_transform = rasterio_mask(
+                src,
+                geoms,
+                crop=True,
+                filled=False
+            )
+            out_meta = src.meta.copy()
+            
+            # Update metadata
+            out_meta.update({
+                "driver": "GTiff",
+                "height": out_image.shape[1],
+                "width": out_image.shape[2],
+                "transform": out_transform
+            })
+            
+            print(f"  Output dimensions: {out_meta['width']} x {out_meta['height']} pixels")
+            
+            # Ensure nodata is set
+            if np.ma.isMaskedArray(out_image):
+                nodata_value = src.nodata if src.nodata is not None else np.nan
+                out_meta['nodata'] = nodata_value
+                out_image = out_image.filled(nodata_value)
+            
+            # Write output
+            with rasterio.open(output_path, 'w', **out_meta) as dst:
+                dst.write(out_image)
+            
+            file_size_mb = output_path.stat().st_size / (1024 * 1024)
+            print(f"  Clipped to bounds: {output_path.name} ({file_size_mb:.1f} MB)")
+            return True
+            
+    except Exception as e:
+        print(f"  Error clipping to bounds: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def clip_to_boundary(
@@ -1016,10 +1106,21 @@ def update_regions_manifest(generated_dir: Path) -> bool:
             
             manifest["regions"][region_id] = entry
         
-        # Write manifest
+        # Write manifest (JSON)
         manifest_path = generated_dir / "regions_manifest.json"
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f, indent=2)
+        
+        # Also write gzip-compressed version (required for web viewer)
+        try:
+            import gzip
+            gzip_path = manifest_path.with_suffix('.json.gz')
+            with open(manifest_path, 'rb') as f_in:
+                with gzip.open(gzip_path, 'wb', compresslevel=9) as f_out:
+                    f_out.writelines(f_in)
+            print(f"  Gzipped manifest: {gzip_path.name}")
+        except Exception as gz_err:
+            print(f"  Warning: Could not write gzip manifest: {gz_err}")
         
         print(f"  Manifest updated ({len(manifest['regions'])} regions with data files)")
         return True
@@ -1039,7 +1140,8 @@ def run_pipeline(
     boundary_type: str = "country",
     target_pixels: int = 2048,
     skip_clip: bool = False,
-    border_resolution: str = "10m"
+    border_resolution: str = "10m",
+    bounds: Optional[Tuple[float, float, float, float]] = None
 ) -> tuple[bool, dict]:
     """
     Unified pipeline (Stages 6-11). Assumes raw download already completed.
@@ -1065,8 +1167,19 @@ def run_pipeline(
 
     # Stage 6: clip
     if skip_clip or not boundary_name:
-        print(f"[STAGE 6/10] Skipping clipping (using raw data)")
-        clipped_path = raw_tif_path
+        # If bounds are provided but no boundary, clip to bounds
+        if bounds:
+            print(f"[STAGE 6/10] Clipping to bounding box bounds")
+            clipped_filename = abstract_filename_from_raw(raw_tif_path, 'clipped', source, 'bbox')
+            if clipped_filename is None:
+                raise ValueError(f"Could not generate abstract filename for clipped file - bounds extraction failed for {raw_tif_path}")
+            clipped_path = clipped_dir / clipped_filename
+            if not clip_to_bounds(raw_tif_path, bounds, clipped_path, source):
+                print(f"\n[STAGE 6/10] FAILED: Clipping to bounds failed.")
+                return False, result_paths
+        else:
+            print(f"[STAGE 6/10] Skipping clipping (using raw data)")
+            clipped_path = raw_tif_path
     else:
         print(f"[STAGE 6/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
         # Generate abstract filename based on raw file bounds (no region_id)

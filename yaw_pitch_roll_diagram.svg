@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#1a1a1a"/>
+  
+  <!-- Title -->
+  <text x="400" y="30" font-family="Arial, sans-serif" font-size="24" fill="#ffffff" text-anchor="middle" font-weight="bold">Yaw, Pitch, Roll - Rotation Axes</text>
+  
+  <!-- Main coordinate system (center) -->
+  <g transform="translate(400, 300)">
+    <!-- Z axis (depth - pointing out of screen, represented as circle) -->
+    <circle cx="0" cy="0" r="80" fill="none" stroke="#00ff00" stroke-width="2" stroke-dasharray="5,5" opacity="0.5"/>
+    <text x="0" y="-95" font-family="Arial, sans-serif" font-size="16" fill="#00ff00" text-anchor="middle">Z axis (out of screen)</text>
+    
+    <!-- X axis (right) -->
+    <line x1="0" y1="0" x2="120" y2="0" stroke="#ff0000" stroke-width="3" marker-end="url(#arrowRed)"/>
+    <text x="130" y="5" font-family="Arial, sans-serif" font-size="18" fill="#ff0000" font-weight="bold">+X</text>
+    <text x="60" y="-10" font-family="Arial, sans-serif" font-size="14" fill="#ff0000">(right)</text>
+    
+    <!-- Negative X -->
+    <line x1="0" y1="0" x2="-120" y2="0" stroke="#ff0000" stroke-width="2" stroke-dasharray="3,3" opacity="0.6"/>
+    <text x="-130" y="5" font-family="Arial, sans-serif" font-size="18" fill="#ff0000" opacity="0.6">-X</text>
+    <text x="-60" y="-10" font-family="Arial, sans-serif" font-size="14" fill="#ff0000" opacity="0.6">(left)</text>
+    
+    <!-- Y axis (up) -->
+    <line x1="0" y1="0" x2="0" y2="-120" stroke="#0000ff" stroke-width="3" marker-end="url(#arrowBlue)"/>
+    <text x="10" y="-130" font-family="Arial, sans-serif" font-size="18" fill="#0000ff" font-weight="bold">+Y</text>
+    <text x="15" y="-60" font-family="Arial, sans-serif" font-size="14" fill="#0000ff">(up)</text>
+    
+    <!-- Negative Y -->
+    <line x1="0" y1="0" x2="0" y2="120" stroke="#0000ff" stroke-width="2" stroke-dasharray="3,3" opacity="0.6"/>
+    <text x="10" y="135" font-family="Arial, sans-serif" font-size="18" fill="#0000ff" opacity="0.6">-Y</text>
+    <text x="15" y="60" font-family="Arial, sans-serif" font-size="14" fill="#0000ff" opacity="0.6">(down)</text>
+    
+    <!-- Origin point -->
+    <circle cx="0" cy="0" r="5" fill="#ffffff"/>
+    <text x="5" y="15" font-family="Arial, sans-serif" font-size="12" fill="#ffffff">Origin</text>
+  </g>
+  
+  <!-- YAW section (rotation around Y axis) -->
+  <g transform="translate(150, 150)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="20" fill="#ffff00" font-weight="bold">YAW</text>
+    <text x="0" y="20" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">(rotation around Y axis)</text>
+    
+    <!-- Y axis (vertical) -->
+    <line x1="50" y1="50" x2="50" y2="150" stroke="#0000ff" stroke-width="2"/>
+    <text x="55" y="100" font-family="Arial, sans-serif" font-size="12" fill="#0000ff">Y</text>
+    
+    <!-- Rotation arrow (positive yaw = counterclockwise from above) -->
+    <path d="M 50 50 L 50 50 L 50 50" fill="none" stroke="#ffff00" stroke-width="2" marker-end="url(#arrowYellow)"/>
+    <path d="M 50 50 A 40 40 0 0 1 90 90" fill="none" stroke="#ffff00" stroke-width="3" marker-end="url(#arrowYellow)"/>
+    <text x="75" y="75" font-family="Arial, sans-serif" font-size="14" fill="#ffff00" font-weight="bold">+</text>
+    
+    <!-- Negative rotation -->
+    <path d="M 50 150 A 40 40 0 0 0 10 110" fill="none" stroke="#ffff00" stroke-width="2" stroke-dasharray="3,3" opacity="0.6" marker-end="url(#arrowYellow)"/>
+    <text x="20" y="125" font-family="Arial, sans-serif" font-size="14" fill="#ffff00" opacity="0.6">-</text>
+    
+    <text x="0" y="180" font-family="Arial, sans-serif" font-size="12" fill="#ffffff">+Yaw: turn left</text>
+    <text x="0" y="195" font-family="Arial, sans-serif" font-size="12" fill="#ffffff" opacity="0.6">-Yaw: turn right</text>
+  </g>
+  
+  <!-- PITCH section (rotation around X axis) -->
+  <g transform="translate(400, 50)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="20" fill="#ff00ff" font-weight="bold">PITCH</text>
+    <text x="0" y="20" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">(rotation around X axis)</text>
+    
+    <!-- X axis (horizontal) -->
+    <line x1="50" y1="50" x2="150" y2="50" stroke="#ff0000" stroke-width="2"/>
+    <text x="100" y="45" font-family="Arial, sans-serif" font-size="12" fill="#ff0000">X</text>
+    
+    <!-- Rotation arrow (positive pitch = nose up) -->
+    <path d="M 150 50 A 40 40 0 0 1 110 10" fill="none" stroke="#ff00ff" stroke-width="3" marker-end="url(#arrowMagenta)"/>
+    <text x="125" y="25" font-family="Arial, sans-serif" font-size="14" fill="#ff00ff" font-weight="bold">+</text>
+    
+    <!-- Negative rotation -->
+    <path d="M 50 50 A 40 40 0 0 0 90 90" fill="none" stroke="#ff00ff" stroke-width="2" stroke-dasharray="3,3" opacity="0.6" marker-end="url(#arrowMagenta)"/>
+    <text x="65" y="75" font-family="Arial, sans-serif" font-size="14" fill="#ff00ff" opacity="0.6">-</text>
+    
+    <text x="0" y="130" font-family="Arial, sans-serif" font-size="12" fill="#ffffff">+Pitch: nose up</text>
+    <text x="0" y="145" font-family="Arial, sans-serif" font-size="12" fill="#ffffff" opacity="0.6">-Pitch: nose down</text>
+  </g>
+  
+  <!-- ROLL section (rotation around Z axis) -->
+  <g transform="translate(650, 150)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="20" fill="#00ffff" font-weight="bold">ROLL</text>
+    <text x="0" y="20" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">(rotation around Z axis)</text>
+    
+    <!-- Z axis representation (circle) -->
+    <circle cx="50" cy="100" r="40" fill="none" stroke="#00ff00" stroke-width="2" stroke-dasharray="3,3" opacity="0.5"/>
+    <text x="50" y="60" font-family="Arial, sans-serif" font-size="12" fill="#00ff00">Z (out)</text>
+    
+    <!-- Rotation arrow (positive roll = right wing down) -->
+    <path d="M 50 60 A 40 40 0 0 1 90 100" fill="none" stroke="#00ffff" stroke-width="3" marker-end="url(#arrowCyan)"/>
+    <text x="75" y="75" font-family="Arial, sans-serif" font-size="14" fill="#00ffff" font-weight="bold">+</text>
+    
+    <!-- Negative rotation -->
+    <path d="M 50 140 A 40 40 0 0 0 10 100" fill="none" stroke="#00ffff" stroke-width="2" stroke-dasharray="3,3" opacity="0.6" marker-end="url(#arrowCyan)"/>
+    <text x="20" y="125" font-family="Arial, sans-serif" font-size="14" fill="#00ffff" opacity="0.6">-</text>
+    
+    <text x="0" y="180" font-family="Arial, sans-serif" font-size="12" fill="#ffffff">+Roll: right wing down</text>
+    <text x="0" y="195" font-family="Arial, sans-serif" font-size="12" fill="#ffffff" opacity="0.6">-Roll: left wing down</text>
+  </g>
+  
+  <!-- Legend -->
+  <g transform="translate(50, 500)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="16" fill="#ffffff" font-weight="bold">Legend:</text>
+    <line x1="0" y1="20" x2="30" y2="20" stroke="#ff0000" stroke-width="3"/>
+    <text x="35" y="25" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">X axis (red)</text>
+    
+    <line x1="150" y1="20" x2="180" y2="20" stroke="#0000ff" stroke-width="3"/>
+    <text x="185" y="25" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">Y axis (blue)</text>
+    
+    <line x1="300" y1="20" x2="330" y2="20" stroke="#00ff00" stroke-width="3" stroke-dasharray="3,3"/>
+    <text x="335" y="25" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">Z axis (green, dashed)</text>
+    
+    <text x="500" y="25" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">Solid lines = positive direction</text>
+    <text x="500" y="45" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" opacity="0.6">Dashed lines = negative direction</text>
+  </g>
+  
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ff0000"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#0000ff"/>
+    </marker>
+    <marker id="arrowYellow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ffff00"/>
+    </marker>
+    <marker id="arrowMagenta" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ff00ff"/>
+    </marker>
+    <marker id="arrowCyan" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#00ffff"/>
+    </marker>
+  </defs>
+</svg>
