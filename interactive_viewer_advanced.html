@@ -355,8 +355,6 @@
 			<div class="control-group">
 				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
 					<label style="margin: 0;">Vertical Exaggeration</label>
-					<input type="number" id="vertExagInput" min="1" max="100" step="1" value="1"
-						style="width: 90px; padding: 2px 6px; text-align: right; font-size: 12px;">
 				</div>
 				<div style="display: flex; align-items: center; gap: 8px;">
 					<span style="font-size: 11px; opacity: 0.6; min-width: 30px;">1x</span>
@@ -400,78 +398,85 @@
 				</select>
 			</div>
 
-			<div class="control-group">
-				<label>Color Scheme</label>
-				<select id="colorScheme">
-					<option value="high-contrast" selected>High-Contrast (Intense)</option>
-					<option value="hypsometric-banded">Hypsometric (Banded)</option>
-					<option value="hypsometric-refined">Hypsometric (Refined 12-Band)</option>
-					<option value="hypsometric-intense">Hypsometric (Super Intense 12-Band)</option>
-					<option value="aspect">Aspect (Compass)</option>
-					<option value="terrain-muted">Terrain (Muted)</option>
-					<option value="hypsometric">Hypsometric (Perceptual)</option>
-					<option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
-					<option value="slope">Slope (Degrees)</option>
-					<option value="auto-stretch">Auto-Stretch (Dynamic)</option>
-					<option value="elevation">Elevation (Blue-Red)</option>
-					<option value="grayscale">Grayscale</option>
-					<option value="rainbow">Rainbow</option>
-					<option value="earth">Earth Tones</option>
-					<option value="heatmap">Heatmap</option>
-					<option value="relief-emphasis">Relief Emphasis (Color)</option>
-					<option value="diverging-elevation">Diverging Elevation</option>
-				</select>
-				<div id="colorSchemeNudger" style="margin-top:6px; display:flex; gap:6px;">
-					<button id="colorSchemeUp" title="Previous color scheme">^</button>
-					<button id="colorSchemeDown" title="Next color scheme">v</button>
+			<h2>Color Scheme</h2>
+
+			<div class="control-group" style="min-height: 120px;">
+				<div id="colorSchemeNudger" style="display:flex; gap:6px; align-items:center;">
+					<button id="colorSchemeUp" title="Previous color scheme" style="flex-shrink:0; padding: 10px 12px; margin:0;">▲</button>
+					<button id="colorSchemeDown" title="Next color scheme" style="flex-shrink:0; padding: 10px 12px; margin:0;">▼</button>
+					<select id="colorScheme" style="flex:1; margin-top:0;">
+						<option value="high-contrast" selected>High-Contrast (Intense)</option>
+						<option value="hypsometric-banded">Hypsometric (Banded)</option>
+						<option value="hypsometric-refined">Hypsometric (Refined 12-Band)</option>
+						<option value="hypsometric-intense">Hypsometric (Super Intense 12-Band)</option>
+						<option value="aspect">Aspect (Compass)</option>
+						<option value="terrain-muted">Terrain (Muted)</option>
+						<option value="hypsometric">Hypsometric (Perceptual)</option>
+						<option value="hypsometric-natural">Hypsometric (Naturalistic)</option>
+						<option value="slope">Slope (Degrees)</option>
+						<option value="auto-stretch">Auto-Stretch (Dynamic)</option>
+						<option value="elevation">Elevation (Blue-Red)</option>
+						<option value="grayscale">Grayscale</option>
+						<option value="rainbow">Rainbow</option>
+						<option value="earth">Earth Tones</option>
+						<option value="heatmap">Heatmap</option>
+						<option value="relief-emphasis">Relief Emphasis (Color)</option>
+						<option value="diverging-elevation">Diverging Elevation</option>
+					</select>
 				</div>
-				<div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff;"></div>
+				<div id="colorSchemeDescription" style="margin-top:6px; font-size: 11px; color:#88bbff; min-height: 48px; line-height: 1.4;"></div>
+				<div id="bandEditor" style="display: none; margin-top: 0;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" id="bandEditorToggle">
+						<span id="bandEditorToggleIcon" style="font-size: 12px; color: #88bbff;">▶</span>
+						<label style="margin: 0; cursor: pointer;">Band Boundaries (% of elevation range)</label>
+					</div>
+					<div id="bandEditorContent" style="display: none;">
+						<div style="font-size: 10px; color: #88bbff; margin-bottom: 8px; margin-top: 6px;">Drag sliders to adjust where bands start</div>
+						<div id="bandEditorSliders" style="display: flex; flex-direction: column; gap: 8px;"></div>
+						<div style="display: flex; gap: 6px; margin-top: 8px;">
+							<button id="resetBands" style="padding: 6px; font-size: 11px; flex: 1;">Reset</button>
+							<button id="randomizeBands" style="padding: 6px; font-size: 11px; flex: 1;">Random</button>
+							<button id="equalizeBands" style="padding: 6px; font-size: 11px; flex: 1;">Equalize</button>
+						</div>
+					</div>
+				</div>
 			</div>
 
-		<div id="bandEditor" class="control-group" style="display: none;">
-			<label>Band Boundaries (% of elevation range)</label>
-			<div style="font-size: 10px; color: #88bbff; margin-bottom: 8px;">Drag sliders to adjust where bands start</div>
-			<div id="bandEditorSliders" style="display: flex; flex-direction: column; gap: 8px;"></div>
-			<div style="display: flex; gap: 6px; margin-top: 8px;">
-				<button id="resetBands" style="padding: 6px; font-size: 11px; flex: 1;">Reset</button>
-				<button id="randomizeBands" style="padding: 6px; font-size: 11px; flex: 1;">Random</button>
-				<button id="equalizeBands" style="padding: 6px; font-size: 11px; flex: 1;">Equalize</button>
-			</div>
-		</div>
+			<h2>Options</h2>
 
 			<div class="control-group">
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: start;">
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showHUD').click();">
 						<input type="checkbox" id="showHUD" />
-						<label for="showHUD" style="margin: 0;">Show HUD Overlay</label>
+						<label for="showHUD" style="margin: 0; cursor: pointer;">Show HUD Overlay</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showEdgeMarkers').click();">
 						<input type="checkbox" id="showEdgeMarkers" checked />
-						<label for="showEdgeMarkers" style="margin: 0;">Show Edge Markers</label>
+						<label for="showEdgeMarkers" style="margin: 0; cursor: pointer;">Show Edge Markers</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showColorScale').click();">
 						<input type="checkbox" id="showColorScale" checked />
-						<label for="showColorScale" style="margin: 0;">Show Scale</label>
+						<label for="showColorScale" style="margin: 0; cursor: pointer;">Show Scale</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showOrientation').click();">
 						<input type="checkbox" id="showOrientation" checked />
-						<label for="showOrientation" style="margin: 0;">Show Orientation</label>
+						<label for="showOrientation" style="margin: 0; cursor: pointer;">Show Orientation</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('useGlobalScale').click();">
 						<input type="checkbox" id="useGlobalScale" />
-						<label for="useGlobalScale" style="margin: 0;" title="Use consistent elevation range across all regions for comparison">Global Scale</label>
+						<label for="useGlobalScale" style="margin: 0; cursor: pointer;" title="Use consistent elevation range across all regions for comparison">Global Scale</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showCameraControls').click();">
 						<input type="checkbox" id="showCameraControls" />
-						<label for="showCameraControls" style="margin: 0;">Show Camera Controls</label>
+						<label for="showCameraControls" style="margin: 0; cursor: pointer;">Show Camera Controls</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showData').click();">
 						<input type="checkbox" id="showData" checked />
-						<label for="showData" style="margin: 0;">Show Data</label>
+						<label for="showData" style="margin: 0; cursor: pointer;">Show Data</label>
 					</div>
-					<div style="display: flex; align-items: center; gap: 8px;">
+					<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'LABEL') document.getElementById('showLoadLog').click();">
 						<input type="checkbox" id="showLoadLog" />
-						<label for="showLoadLog" style="margin: 0;">Show Load Log</label>
+						<label for="showLoadLog" style="margin: 0; cursor: pointer;">Show Load Log</label>
 					</div>
 				</div>
 			</div>

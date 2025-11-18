@@ -24,7 +24,6 @@ Checks the current state of your project to see if it's ready for release. This 
 2. **Required Files**
    - Checks that critical files exist:
      - `interactive_viewer_advanced.html` (main viewer)
-     - `viewer.html` (simple viewer)
      - `js/viewer-advanced.js` (main JavaScript)
      - `css/viewer-advanced.css` (main stylesheet)
      - `generated/regions/regions_manifest.json.gz` (region manifest)
@@ -214,7 +213,7 @@ Runs `.\deploy.ps1 -Deploy` to actually upload files:
 
 The script uses `deploy.ps1` which uploads:
 
-- HTML files (`interactive_viewer_advanced.html`, `viewer.html`)
+- HTML files (`interactive_viewer_advanced.html`)
 - JavaScript files (`js/` directory)
 - CSS files (`css/` directory)
 - Region data files (`generated/regions/*.json.gz`)

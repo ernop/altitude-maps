@@ -256,11 +256,17 @@
         const showEdgeMarkersCheckbox = document.getElementById('showEdgeMarkers');
         if (!showEdgeMarkersCheckbox) return;
 
-        // Load saved preference from localStorage (default: true)
-        const savedEdgeMarkersVisible = localStorage.getItem('edgeMarkersVisible');
-        if (savedEdgeMarkersVisible !== null) {
-            showEdgeMarkersCheckbox.checked = savedEdgeMarkersVisible === 'true';
+        // Load from URL first, then localStorage, then default (true)
+        let checked = true; // default
+        if (window.urlToggleStates && 'showEdgeMarkers' in window.urlToggleStates) {
+            checked = window.urlToggleStates.showEdgeMarkers;
+        } else {
+            const savedEdgeMarkersVisible = localStorage.getItem('edgeMarkersVisible');
+            if (savedEdgeMarkersVisible !== null) {
+                checked = savedEdgeMarkersVisible === 'true';
+            }
         }
+        showEdgeMarkersCheckbox.checked = checked;
 
         // Apply initial visibility state
         updateMarkersVisibility(showEdgeMarkersCheckbox.checked);
@@ -269,7 +275,10 @@
         showEdgeMarkersCheckbox.addEventListener('change', () => {
             const visible = showEdgeMarkersCheckbox.checked;
             updateMarkersVisibility(visible);
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('showEdgeMarkers', visible ? '1' : '0');
+            }
             localStorage.setItem('edgeMarkersVisible', String(visible));
         });
     }

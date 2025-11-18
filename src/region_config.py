@@ -540,7 +540,7 @@ COUNTRIES: Dict[str, RegionConfig] = {
         description="Republic of Singapore",
         region_type=RegionType.COUNTRY,
         country="Singapore",
-        clip_boundary=True,
+        clip_boundary=False,
     ),
     "sudan": RegionConfig(
         id="sudan",

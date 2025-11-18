@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Tuple
 import rasterio
 from rasterio.mask import mask as rasterio_mask
+import time
 
 
 # GMTED2010 URL patterns
@@ -87,12 +88,14 @@ def download_gmted2010_tile(
         if not global_grid_path.exists():
             print(f"    Downloading GMTED2010 {resolution}m global grid...", end=" ", flush=True)
             url = construct_gmted2010_url(resolution)
+            print(f"\n    URL: {url}", flush=True)
             
             # Download ZIP to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
                 tmp_zip_path = Path(tmp_zip.name)
             
             try:
+                download_start_time = time.time()
                 response = requests.get(url, stream=True, timeout=300)
                 response.raise_for_status()
                 
@@ -107,6 +110,30 @@ def download_gmted2010_tile(
                             percent = (downloaded / total_size) * 100
                             if downloaded % (10 * 1024 * 1024) == 0:  # Print every 10MB
                                 print(f"{percent:.1f}%", end=" ", flush=True)
+                
+                download_end_time = time.time()
+                download_duration = download_end_time - download_start_time
+                
+                # Calculate speed
+                if download_duration > 0:
+                    speed_mbps = (downloaded / (1024 * 1024)) / download_duration
+                    speed_kbps = (downloaded / 1024) / download_duration
+                    if speed_mbps >= 1.0:
+                        speed_str = f"{speed_mbps:.2f} MB/s"
+                    else:
+                        speed_str = f"{speed_kbps:.2f} KB/s"
+                else:
+                    speed_str = "N/A"
+                
+                # Format duration
+                if download_duration < 60:
+                    duration_str = f"{download_duration:.1f}s"
+                else:
+                    minutes = int(download_duration // 60)
+                    seconds = download_duration % 60
+                    duration_str = f"{minutes}m {seconds:.1f}s"
+                
+                print(f"\n    Download complete: {duration_str} @ {speed_str}", flush=True)
                 
                 print("Extracting...", end=" ", flush=True)
                 

@@ -8,12 +8,12 @@
  * 
  * FEATURES:
  * - Region selector dropdown with search/filter
- * - Vertical exaggeration controls (slider + input + buttons)
+ * - Vertical exaggeration controls (slider + buttons)
  * - Color scheme selector + quick jump buttons
  * - Grid toggle, auto-rotate toggle
  * - Mobile UI toggle
  * - URL parameter synchronization
- * - Control state synchronization (sync input ↔ slider)
+ * - Control state synchronization
  * 
  * DESIGN NOTES:
  * - All event handlers centralized here for easy discovery
@@ -310,12 +310,11 @@
     }
 
     /**
-     * Setup vertical exaggeration controls (slider + input + buttons)
+     * Setup vertical exaggeration controls (slider + buttons)
      */
     function setupVerticalExaggeration() {
         const vertExagSlider = document.getElementById('vertExag');
-        const vertExagInput = document.getElementById('vertExagInput');
-        if (!vertExagSlider || !vertExagInput || !window.params) return;
+        if (!vertExagSlider || !window.params) return;
 
         // Debounced updates (reserved for future use if needed)
         const debouncedUpdate = window.FormatUtils && window.FormatUtils.debounce
@@ -336,13 +335,12 @@
             });
         };
 
-        // Sync slider -> input (update immediately)
+        // Sync slider (update immediately)
         vertExagSlider.addEventListener('input', (e) => {
             const multiplier = parseFloat(e.target.value);
             if (typeof multiplierToInternal === 'function') {
                 window.params.verticalExaggeration = multiplierToInternal(multiplier);
             }
-            vertExagInput.value = multiplier;
 
             // Update button states
             if (typeof updateVertExagButtons === 'function') {
@@ -358,30 +356,6 @@
             // Persist user-facing multiplier
             if (typeof internalToMultiplier === 'function' && typeof updateURLParameter === 'function') {
                 updateURLParameter('exag', internalToMultiplier(window.params.verticalExaggeration));
-            }
-        });
-
-        // Sync input -> slider
-        vertExagInput.addEventListener('change', (e) => {
-            let multiplier = parseFloat(e.target.value);
-            // Clamp to valid range (1 to 100)
-            multiplier = Math.max(1, Math.min(100, multiplier));
-
-            if (typeof multiplierToInternal === 'function') {
-                window.params.verticalExaggeration = multiplierToInternal(multiplier);
-            }
-            vertExagSlider.value = multiplier;
-            vertExagInput.value = multiplier;
-
-            // Update button states
-            if (typeof updateVertExagButtons === 'function') {
-                updateVertExagButtons(window.params.verticalExaggeration);
-            }
-
-            scheduleVertExagUpdate();
-
-            if (typeof updateURLParameter === 'function') {
-                updateURLParameter('exag', multiplier);
             }
         });
     }
@@ -486,11 +460,9 @@
 
         // Sync vertical exaggeration
         const vertExagSlider = document.getElementById('vertExag');
-        const vertExagInput = document.getElementById('vertExagInput');
-        if (vertExagSlider && vertExagInput && typeof internalToMultiplier === 'function') {
+        if (vertExagSlider && typeof internalToMultiplier === 'function') {
             const multiplier = internalToMultiplier(window.params.verticalExaggeration);
             vertExagSlider.value = multiplier;
-            vertExagInput.value = multiplier;
             if (typeof updateVertExagButtons === 'function') {
                 updateVertExagButtons(window.params.verticalExaggeration);
             }

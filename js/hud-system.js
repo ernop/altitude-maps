@@ -193,9 +193,16 @@
     function setupShowHideToggle() {
         const showHUDCheckbox = document.getElementById('showHUD');
         if (showHUDCheckbox && hudElement) {
-            // Load saved visibility state from localStorage (default: hidden)
-            const savedVisible = localStorage.getItem('hudVisible');
-            const isVisible = savedVisible === 'true';
+            // Load from URL first, then localStorage, then default (false/hidden)
+            let isVisible = false; // default
+            if (window.urlToggleStates && 'showHUD' in window.urlToggleStates) {
+                isVisible = window.urlToggleStates.showHUD;
+            } else {
+                const savedVisible = localStorage.getItem('hudVisible');
+                if (savedVisible !== null) {
+                    isVisible = savedVisible === 'true';
+                }
+            }
             
             // Apply saved state BEFORE setting up event listener
             showHUDCheckbox.checked = isVisible;
@@ -206,6 +213,10 @@
             showHUDCheckbox.addEventListener('change', () => {
                 const visible = showHUDCheckbox.checked;
                 hudElement.style.display = visible ? 'block' : 'none';
+                // Save to URL and localStorage
+                if (typeof updateURLParameter === 'function') {
+                    updateURLParameter('showHUD', visible ? '1' : '0');
+                }
                 localStorage.setItem('hudVisible', String(visible));
                 console.log(`[HUDSystem] HUD visibility changed: ${visible ? 'visible' : 'hidden'}, display=${hudElement.style.display}`);
             });

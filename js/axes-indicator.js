@@ -1,6 +1,7 @@
 /**
  * Axes Indicator - Visual 3D axes helper
- * Industry standard: X=Red, Y=Green, Z=Blue (RGB=XYZ)
+ * Roblox coordinate system: X=Red (right), Y=Green (up), Z=Blue (back/toward camera)
+ * Rotation mapping: X=Pitch, Y=Yaw, Z=Roll
  * Rotates with world/terrain to show world orientation
  */
 
@@ -159,11 +160,13 @@ class AxesIndicator {
         this.labels.push(zLabel);
 
         // Rotation labels: Pitch (X-axis), Yaw (Y-axis), Roll (Z-axis)
+        // Roblox convention: X=Pitch (right), Y=Yaw (up), Z=Roll (back/toward camera)
         // Colors match their corresponding axes
         // Positioned further along arrow direction (after X/Y/Z labels) with gap
         const rotationLabelSize = size * 1.0; // Much larger for readability
 
         // Pitch label (rotation around X axis) - matches X color (red)
+        // Roblox convention: X-axis = Pitch (points right)
         // Positioned along X axis, with gap after X label
         const pitchLabel = this.createLabel('Pitch', xColor, rotationLabelSize);
         pitchLabel.position.set(arrowStartOffset + totalArrowLength + labelGap + rotationLabelGap, 0, 0);
@@ -171,6 +174,7 @@ class AxesIndicator {
         this.labels.push(pitchLabel);
 
         // Yaw label (rotation around Y axis) - matches Y color (green)
+        // Roblox convention: Y-axis = Yaw (points up)
         // Positioned along Y axis, with gap after Y label
         const yawLabel = this.createLabel('Yaw', yColor, rotationLabelSize);
         yawLabel.position.set(0, arrowStartOffset + totalArrowLength + labelGap + rotationLabelGap, 0);
@@ -178,6 +182,7 @@ class AxesIndicator {
         this.labels.push(yawLabel);
 
         // Roll label (rotation around Z axis) - matches Z color (blue)
+        // Roblox convention: Z-axis = Roll (points back/toward camera, forward = -Z)
         // Positioned along Z axis, with gap after Z label
         const rollLabel = this.createLabel('Roll', zColor, rotationLabelSize);
         rollLabel.position.set(0, 0, arrowStartOffset + totalArrowLength + labelGap + rotationLabelGap);

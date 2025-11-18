@@ -22,7 +22,7 @@
  * - resolution-controls.js       → Resolution slider, bucket size presets (MAX/DEFAULT)
  * - state-connectivity.js        → Region adjacency and connectivity visualization
  * - hud-system.js                 → HUD overlay system (dragging, position, settings, content updates)
- * - ui-controls-manager.js       → UI control setup and event binding (region selector, render mode, vertical exaggeration, color scheme)
+ * - ui-controls-manager.js       → UI control setup and event binding (region selector, render mode, vertical exaggeration slider, color scheme)
  * - ui-loading.js                → Loading screen and progress bar management
  * 
  * This main file handles:
@@ -243,6 +243,16 @@ function applyParamsFromURL() {
         };
         console.log('[applyParamsFromURL] Camera state found in URL:', window.urlCameraState);
     }
+
+    // Toggle states from URL (will be applied in setupEventListeners)
+    window.urlToggleStates = {};
+    const toggleKeys = ['showHUD', 'showEdgeMarkers', 'showColorScale', 'showOrientation', 'useGlobalScale', 'showCameraControls', 'showData', 'showLoadLog'];
+    toggleKeys.forEach(key => {
+        const value = getBool(key);
+        if (value !== null) {
+            window.urlToggleStates[key] = value;
+        }
+    });
 }
 
 // Initialize
@@ -1118,10 +1128,9 @@ function syncUIControls() {
 
     // Tile gap always 0% - no UI needed
 
-    // Vertical exaggeration - sync both slider and input (convert to multiplier for display)
+    // Vertical exaggeration - sync slider (convert to multiplier for display)
     const multiplier = internalToMultiplier(params.verticalExaggeration);
     document.getElementById('vertExag').value = multiplier;
-    document.getElementById('vertExagInput').value = multiplier;
 
     // Update button highlighting
     updateVertExagButtons(params.verticalExaggeration);
@@ -1845,11 +1854,17 @@ function setupEventListeners() {
     // Color Scale show/hide toggle
     const showColorScaleCheckbox = document.getElementById('showColorScale');
     if (showColorScaleCheckbox && typeof colorLegend !== 'undefined') {
-        // Load saved preference from localStorage (default: true)
-        const savedColorScaleVisible = localStorage.getItem('colorScaleVisible');
-        if (savedColorScaleVisible !== null) {
-            showColorScaleCheckbox.checked = savedColorScaleVisible === 'true';
+        // Load from URL first, then localStorage, then default (true)
+        let checked = true; // default
+        if (window.urlToggleStates && 'showColorScale' in window.urlToggleStates) {
+            checked = window.urlToggleStates.showColorScale;
+        } else {
+            const savedColorScaleVisible = localStorage.getItem('colorScaleVisible');
+            if (savedColorScaleVisible !== null) {
+                checked = savedColorScaleVisible === 'true';
+            }
         }
+        showColorScaleCheckbox.checked = checked;
 
         // Apply initial visibility state
         if (showColorScaleCheckbox.checked) {
@@ -1878,7 +1893,10 @@ function setupEventListeners() {
                     colorLegend.hide();
                 }
             }
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('showColorScale', visible ? '1' : '0');
+            }
             localStorage.setItem('colorScaleVisible', String(visible));
         });
     }
@@ -1886,11 +1904,17 @@ function setupEventListeners() {
     // Orientation indicator show/hide toggle
     const showOrientationCheckbox = document.getElementById('showOrientation');
     if (showOrientationCheckbox && window.AxesIndicator) {
-        // Load saved preference from localStorage (default: true)
-        const savedOrientationVisible = localStorage.getItem('orientationVisible');
-        if (savedOrientationVisible !== null) {
-            showOrientationCheckbox.checked = savedOrientationVisible === 'true';
+        // Load from URL first, then localStorage, then default (true)
+        let checked = true; // default
+        if (window.urlToggleStates && 'showOrientation' in window.urlToggleStates) {
+            checked = window.urlToggleStates.showOrientation;
+        } else {
+            const savedOrientationVisible = localStorage.getItem('orientationVisible');
+            if (savedOrientationVisible !== null) {
+                checked = savedOrientationVisible === 'true';
+            }
         }
+        showOrientationCheckbox.checked = checked;
 
         // Apply initial visibility state
         if (window.AxesIndicator && typeof window.AxesIndicator.setVisible === 'function') {
@@ -1903,7 +1927,10 @@ function setupEventListeners() {
             if (window.AxesIndicator && typeof window.AxesIndicator.setVisible === 'function') {
                 window.AxesIndicator.setVisible(visible);
             }
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('showOrientation', visible ? '1' : '0');
+            }
             localStorage.setItem('orientationVisible', String(visible));
         });
     }
@@ -1912,11 +1939,17 @@ function setupEventListeners() {
     const showDataCheckbox = document.getElementById('showData');
     const cameraMapInfo = document.getElementById('camera-map-info');
     if (showDataCheckbox && cameraMapInfo) {
-        // Load saved preference from localStorage (default: true)
-        const savedDataVisible = localStorage.getItem('dataVisible');
-        if (savedDataVisible !== null) {
-            showDataCheckbox.checked = savedDataVisible === 'true';
+        // Load from URL first, then localStorage, then default (true)
+        let checked = true; // default
+        if (window.urlToggleStates && 'showData' in window.urlToggleStates) {
+            checked = window.urlToggleStates.showData;
+        } else {
+            const savedDataVisible = localStorage.getItem('dataVisible');
+            if (savedDataVisible !== null) {
+                checked = savedDataVisible === 'true';
+            }
         }
+        showDataCheckbox.checked = checked;
 
         // Apply initial visibility state
         cameraMapInfo.style.display = showDataCheckbox.checked ? 'block' : 'none';
@@ -1925,7 +1958,10 @@ function setupEventListeners() {
         showDataCheckbox.addEventListener('change', () => {
             const visible = showDataCheckbox.checked;
             cameraMapInfo.style.display = visible ? 'block' : 'none';
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('showData', visible ? '1' : '0');
+            }
             localStorage.setItem('dataVisible', String(visible));
         });
     }
@@ -1933,12 +1969,18 @@ function setupEventListeners() {
     // Global Scale toggle - use consistent elevation range across all regions
     const useGlobalScaleCheckbox = document.getElementById('useGlobalScale');
     if (useGlobalScaleCheckbox) {
-        // Load saved preference from localStorage (default: false)
-        const savedGlobalScale = localStorage.getItem('useGlobalScale');
-        if (savedGlobalScale !== null) {
-            useGlobalScaleCheckbox.checked = savedGlobalScale === 'true';
-            params.useGlobalScale = useGlobalScaleCheckbox.checked;
+        // Load from URL first, then localStorage, then default (false)
+        let checked = false; // default
+        if (window.urlToggleStates && 'useGlobalScale' in window.urlToggleStates) {
+            checked = window.urlToggleStates.useGlobalScale;
+        } else {
+            const savedGlobalScale = localStorage.getItem('useGlobalScale');
+            if (savedGlobalScale !== null) {
+                checked = savedGlobalScale === 'true';
+            }
         }
+        useGlobalScaleCheckbox.checked = checked;
+        params.useGlobalScale = checked;
 
         // Add change listener
         useGlobalScaleCheckbox.addEventListener('change', () => {
@@ -1951,7 +1993,10 @@ function setupEventListeners() {
             if (typeof updateColorLegend === 'function') {
                 updateColorLegend();
             }
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('useGlobalScale', params.useGlobalScale ? '1' : '0');
+            }
             localStorage.setItem('useGlobalScale', String(params.useGlobalScale));
             console.log(`[Global Scale] ${params.useGlobalScale ? 'Enabled' : 'Disabled'} - using ${params.useGlobalScale ? 'global' : 'per-region'} scale`);
         });
@@ -1963,11 +2008,17 @@ function setupEventListeners() {
     const showCameraControlsCheckbox = document.getElementById('showCameraControls');
     const cameraControlsSection = document.getElementById('camera-controls-section');
     if (showCameraControlsCheckbox && cameraControlsSection) {
-        // Load saved preference from localStorage (default: false)
-        const savedCameraControlsVisible = localStorage.getItem('cameraControlsVisible');
-        if (savedCameraControlsVisible !== null) {
-            showCameraControlsCheckbox.checked = savedCameraControlsVisible === 'true';
+        // Load from URL first, then localStorage, then default (false)
+        let checked = false; // default
+        if (window.urlToggleStates && 'showCameraControls' in window.urlToggleStates) {
+            checked = window.urlToggleStates.showCameraControls;
+        } else {
+            const savedCameraControlsVisible = localStorage.getItem('cameraControlsVisible');
+            if (savedCameraControlsVisible !== null) {
+                checked = savedCameraControlsVisible === 'true';
+            }
         }
+        showCameraControlsCheckbox.checked = checked;
 
         // Apply initial visibility state
         cameraControlsSection.style.display = showCameraControlsCheckbox.checked ? 'block' : 'none';
@@ -1976,7 +2027,10 @@ function setupEventListeners() {
         showCameraControlsCheckbox.addEventListener('change', () => {
             const visible = showCameraControlsCheckbox.checked;
             cameraControlsSection.style.display = visible ? 'block' : 'none';
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('showCameraControls', visible ? '1' : '0');
+            }
             localStorage.setItem('cameraControlsVisible', String(visible));
         });
     }
@@ -1985,11 +2039,17 @@ function setupEventListeners() {
     const showLoadLogCheckbox = document.getElementById('showLoadLog');
     const loadLogControls = document.getElementById('load-log-controls');
     if (showLoadLogCheckbox) {
-        // Load saved preference from localStorage (default: false)
-        const savedLoadLogVisible = localStorage.getItem('loadLogVisible');
-        if (savedLoadLogVisible !== null) {
-            showLoadLogCheckbox.checked = savedLoadLogVisible === 'true';
+        // Load from URL first, then localStorage, then default (false)
+        let checked = false; // default
+        if (window.urlToggleStates && 'showLoadLog' in window.urlToggleStates) {
+            checked = window.urlToggleStates.showLoadLog;
+        } else {
+            const savedLoadLogVisible = localStorage.getItem('loadLogVisible');
+            if (savedLoadLogVisible !== null) {
+                checked = savedLoadLogVisible === 'true';
+            }
         }
+        showLoadLogCheckbox.checked = checked;
 
         // Apply initial visibility state (only controls panel)
         const visible = showLoadLogCheckbox.checked;
@@ -2003,7 +2063,10 @@ function setupEventListeners() {
             if (loadLogControls) {
                 loadLogControls.style.display = visible ? 'block' : 'none';
             }
-            // Save preference to localStorage
+            // Save to URL and localStorage
+            if (typeof updateURLParameter === 'function') {
+                updateURLParameter('showLoadLog', visible ? '1' : '0');
+            }
             localStorage.setItem('loadLogVisible', String(visible));
         });
     }
@@ -2377,7 +2440,6 @@ function setVertExag(value) {
     // Convert to multiplier for display
     const multiplier = internalToMultiplier(value);
     document.getElementById('vertExag').value = multiplier;
-    document.getElementById('vertExagInput').value = multiplier;
     // Persist to URL as user-facing multiplier
     try { updateURLParameter('exag', multiplier); } catch (_) { }
 

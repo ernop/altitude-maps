@@ -73,6 +73,7 @@
         const resetButton = document.getElementById('resetBands');
         const randomizeButton = document.getElementById('randomizeBands');
         const equalizeButton = document.getElementById('equalizeBands');
+        const toggleButton = document.getElementById('bandEditorToggle');
         
         if (!colorSchemeSelect) {
             console.error('[BandEditor] colorScheme select not found!');
@@ -95,6 +96,11 @@
         resetButton.addEventListener('click', resetToDefaults);
         randomizeButton.addEventListener('click', randomizeBands);
         equalizeButton.addEventListener('click', equalizeCoverage);
+        
+        // Set up toggle functionality
+        if (toggleButton) {
+            toggleButton.addEventListener('click', toggleBandEditor);
+        }
 
         // Initial visibility check (immediate)
         updateBandEditorVisibility();
@@ -103,6 +109,19 @@
         setTimeout(() => {
             updateBandEditorVisibility();
         }, 100);
+    }
+    
+    /**
+     * Toggle band editor expanded/collapsed state
+     */
+    function toggleBandEditor() {
+        const content = document.getElementById('bandEditorContent');
+        const icon = document.getElementById('bandEditorToggleIcon');
+        if (content && icon) {
+            const isExpanded = content.style.display !== 'none';
+            content.style.display = isExpanded ? 'none' : 'block';
+            icon.textContent = isExpanded ? '▶' : '▼';
+        }
     }
 
     /**
@@ -131,7 +150,16 @@
                 bandEditor.removeAttribute('data-initialized'); // Force recreation
             }
             
+            // Show band editor
             bandEditor.style.display = 'block';
+            
+            // Collapse content by default when it appears
+            const content = document.getElementById('bandEditorContent');
+            const icon = document.getElementById('bandEditorToggleIcon');
+            if (content && icon) {
+                content.style.display = 'none';
+                icon.textContent = '▶';
+            }
             
             // Lazy load sliders only when first shown or when scheme changes
             if (!bandEditor.hasAttribute('data-initialized')) {

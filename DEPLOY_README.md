@@ -84,7 +84,6 @@ python bump_version.py
 
 **Included** (~50-100 MB):
 - `interactive_viewer_advanced.html` - Main 3D viewer
-- `viewer.html` - Simple viewer
 - `.htaccess` - Apache configuration (prevents double-gzip)
 - `js/` - All JavaScript files
 - `css/` - All stylesheets

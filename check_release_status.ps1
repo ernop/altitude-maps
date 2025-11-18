@@ -32,7 +32,6 @@ Write-Host ""
 Write-Host "Required Files:" -ForegroundColor Yellow
 $requiredFiles = @(
     @{Path="interactive_viewer_advanced.html"; Name="Main HTML viewer"},
-    @{Path="viewer.html"; Name="Simple viewer"},
     @{Path="js/viewer-advanced.js"; Name="Main JavaScript"},
     @{Path="css/viewer-advanced.css"; Name="Main stylesheet"},
     @{Path="generated/regions/regions_manifest.json.gz"; Name="Regions manifest"}
