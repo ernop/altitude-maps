@@ -95,7 +95,7 @@ def _download_from_source(
     """
     import traceback
     
-    # Create source-specific tile directory
+    # Create source-specific tile directory (kept for reference, not reused)
     source_tile_dir = Path(f"data/raw/{source.tile_dir}/tiles")
     source_tile_dir.mkdir(parents=True, exist_ok=True)
     
@@ -105,14 +105,7 @@ def _download_from_source(
     tile_filename = tile_filename_from_bounds(tile_bounds, resolution_str)
     source_output_path = source_tile_dir / tile_filename
     
-    # Skip if already exists
-    if source_output_path.exists():
-        # Copy to requested output location if different
-        if source_output_path != output_path:
-            import shutil
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_output_path, output_path)
-        return True, "Success (cached)"
+    # Skip tile reuse - always download fresh region-specific data
     
     try:
         # Route to appropriate downloader
@@ -263,11 +256,8 @@ def download_tiles_for_region(
         tile_filename = tile_filename_from_bounds(tile_bounds, resolution_str)
         tile_path = tiles_dir / tile_filename
         
-        # Skip if already cached in final location
-        if tile_path.exists():
-            print(f"  [{idx}/{len(tiles)}] Cached: {tile_filename}")
-            downloaded_paths.append(tile_path)
-            continue
+        # Skip tile reuse - always download fresh region-specific data
+        # (Tile directories remain for reference but are not reused)
         
         print(f"  [{idx}/{len(tiles)}] {tile_filename}")
         

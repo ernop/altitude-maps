@@ -921,6 +921,15 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "morro_bay": RegionConfig(
+        id="morro_bay",
+        name="Morro Bay and Los Osos",
+        bounds=(-120.90, 35.25, -120.80, 35.40),
+        description="California - Tightly zoomed region including Morro Rock (volcanic plug), Morro Bay, and Los Osos",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
     "pennsylvania_ridge_valley": RegionConfig(
         id="pennsylvania_ridge_valley",
         name="Pennsylvania Ridge and Valley",

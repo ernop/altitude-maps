@@ -157,6 +157,21 @@ def update_manifest_directly(generated_dir: Path) -> bool:
             print(f"      [!] Warning: Could not write gzip manifest: {gz_err}", flush=True)
         
         print(f"      [+] Manifest updated ({len(manifest['regions'])} regions with data files)", flush=True)
+        
+        # Automatically update adjacency data if needed
+        try:
+            import sys
+            from pathlib import Path
+            # Ensure root directory is in path
+            root_dir = Path(__file__).parent
+            if str(root_dir) not in sys.path:
+                sys.path.insert(0, str(root_dir))
+            from compute_adjacency import update_adjacency_if_needed
+            update_adjacency_if_needed(force=False)
+        except Exception as adj_err:
+            print(f"      [!] Warning: Could not update adjacency: {adj_err}", flush=True)
+            # Don't fail manifest update if adjacency fails
+        
         return True
         
     except Exception as e:

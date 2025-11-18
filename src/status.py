@@ -53,7 +53,10 @@ def summarize_pipeline_status(region_id: str, region_type: 'RegionType', region_
                 break
 
     # Quick summary without excessive verbosity
-    print(f"  Status: Raw={'OK' if s4 else 'X'} | Processed={'OK' if s8 else 'X'} | Export={'OK' if s9 else 'X'}", flush=True)
+    status_raw = "✓" if s4 else "Missing"
+    status_proc = "✓" if s8 else "Missing"
+    status_exp = "✓" if s9 else "Missing"
+    print(f"  Status: Raw={status_raw} | Processed={status_proc} | Export={status_exp}", flush=True)
 
 
 def check_export_version(region_id: str) -> Tuple[bool, str, str]:
@@ -113,6 +116,7 @@ def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_
 
     # 1) Validate processed TIF elevation range (authoritative)
     tif_ok = True
+    tif_suspicious_range = False
     if processed_path and Path(processed_path).exists():
         try:
             with rasterio.open(processed_path) as src:
@@ -125,25 +129,39 @@ def verify_and_auto_fix(region_id: str, result_paths: dict, source: str, target_
                 # Inline validation: check elevation range
                 valid_elev = arr[~np.isnan(arr)]
                 if len(valid_elev) > 0:
-                    elev_range = float(np.max(valid_elev) - np.min(valid_elev))
-                    tif_ok = elev_range >= 50.0  # Minimum sensible range
+                    min_elev = float(np.min(valid_elev))
+                    max_elev = float(np.max(valid_elev))
+                    elev_range = max_elev - min_elev
+                    if elev_range < 50.0:
+                        # Suspicious range - warn but don't fail (could be legitimate flat region)
+                        print(f"\n  WARNING: Suspicious elevation range in TIF: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)", flush=True)
+                        print(f"  This may indicate reprojection corruption or could be a legitimate flat region", flush=True)
+                        tif_suspicious_range = True
+                        # Don't fail validation for suspicious range alone
+                    tif_ok = True  # File exists and has valid data
                 else:
-                    tif_ok = False
+                    tif_ok = False  # No valid data - actual corruption
         except Exception:
-            tif_ok = False
+            tif_ok = False  # File read failed - actual corruption
     else:
-        tif_ok = False
+        tif_ok = False  # File missing - actual problem
 
     # 2) Validate JSON export (structure + range check already present)
     json_ok = False
     if exported_path and Path(exported_path).exists():
         json_ok = validate_json_export(Path(exported_path))
 
+    # Only auto-fix for actual structural issues, not suspicious ranges
     if tif_ok and json_ok:
         return True
 
-    # Auto-fix: force reprocess with 10m borders and clean outputs
-    print("\n  Detected invalid or compressed altitude output. Auto-fixing by force reprocess...", flush=True)
+    # Auto-fix: force reprocess only for actual corruption (missing data, structural issues)
+    # Skip auto-fix if only issue is suspicious elevation range
+    if tif_suspicious_range and json_ok:
+        print("\n  Skipping auto-fix - suspicious elevation range may be legitimate", flush=True)
+        return True
+
+    print("\n  Detected invalid or corrupted output. Auto-fixing by force reprocess...", flush=True)
     # Clean existing artifacts (using abstract naming)
     # Get bounds from region config to generate abstract filenames
     bounds = region_info.get('bounds')

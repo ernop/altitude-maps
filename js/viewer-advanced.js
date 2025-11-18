@@ -2897,6 +2897,11 @@ function updateResolutionInfo() {
     const roundedTotal = Math.round(totalRectangles / 1000);
 
     infoEl.textContent = `${footprintText}, ${roundedTotal}k`;
+    
+    // Also update map-size-display (which now includes resolution info)
+    if (window.MapSizeDisplay && typeof window.MapSizeDisplay.update === 'function') {
+        window.MapSizeDisplay.update();
+    }
 }
 
 function getMetersScalePerWorldUnit() {

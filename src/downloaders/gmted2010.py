@@ -4,11 +4,19 @@ GMTED2010 (Global Multi-resolution Terrain Elevation Data 2010) downloader.
 Coarse-resolution global DEMs from USGS/NGA.
 Resolutions: 250m, 500m, 1km (7.5, 15, 30 arc-seconds)
 
-These are fallback sources for when finer resolution data is unavailable.
-Data is organized in tiles by USGS - this is a placeholder implementation.
+GMTED2010 is available via USGS EarthExplorer but has no automated API.
+Users must manually download tiles and place them in the tiles directory.
 
-TODO: Implement actual GMTED2010 download once we confirm access method.
-For now, this returns False (not implemented) so other sources are tried first.
+Download instructions:
+1. Visit https://earthexplorer.usgs.gov/
+2. Define region of interest (use bounds from error message)
+3. Select "Digital Elevation" > "GMTED2010" in Data Sets
+4. Choose resolution: 7.5 arc-sec (250m), 15 arc-sec (500m), or 30 arc-sec (1km)
+5. Download tiles and place in data/raw/gmted2010_{resolution}/tiles/
+6. Name files using standard convention: N{lat}_W{lon}_{resolution}m.tif
+   Example: N40_W080_250m.tif for 40°N, 80°W, 250m resolution
+
+The system will automatically detect and use pre-downloaded tiles.
 """
 
 from pathlib import Path
@@ -62,11 +70,16 @@ def download_gmted2010_tiles(
     """
     from src.tile_geometry import calculate_1degree_tiles
     
-    print(f"GMTED2010 {resolution}m downloader not yet implemented")
+    print(f"GMTED2010 {resolution}m requires manual download")
+    print(f"  Automated download not available (no public API)")
     print(f"  To use GMTED2010 data:")
-    print(f"  1. Download tiles from USGS EarthExplorer")
-    print(f"  2. Place in {tiles_dir}")
-    print(f"  3. Name as: N40_W080_{resolution}m.tif")
+    print(f"  1. Visit https://earthexplorer.usgs.gov/")
+    print(f"  2. Search for region bounds: {bounds}")
+    print(f"  3. Select 'Digital Elevation' > 'GMTED2010'")
+    print(f"  4. Choose resolution: {resolution}m")
+    print(f"  5. Download tiles and place in: {tiles_dir}")
+    print(f"  6. Name files: N{{lat}}_W{{lon}}_{resolution}m.tif")
+    print(f"     Example: N40_W080_{resolution}m.tif")
     
     # Check if tiles already exist (user may have pre-downloaded)
     tiles = calculate_1degree_tiles(bounds)

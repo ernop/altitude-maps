@@ -85,8 +85,8 @@ class TestUSGS3DEP10mTiling:
             assert e == int(e)
             assert n == int(n)
     
-    def test_tile_reuse_across_regions(self):
-        """Adjacent regions should share tiles."""
+    def test_tile_overlap_across_regions(self):
+        """Adjacent regions calculate overlapping tiles (tiles are not reused, but calculation shows overlap)."""
         # Tennessee and Kentucky share northern/southern border
         tennessee_bounds = (-90.31, 34.98, -81.65, 36.68)
         kentucky_bounds = (-89.57, 36.50, -81.96, 39.15)
@@ -98,9 +98,9 @@ class TestUSGS3DEP10mTiling:
         tn_set = set(tn_tiles)
         ky_set = set(ky_tiles)
         
-        # Should have overlapping tiles
+        # Should have overlapping tiles (even though we don't reuse them)
         shared_tiles = tn_set & ky_set
-        assert len(shared_tiles) > 0, "Adjacent states should share border tiles"
+        assert len(shared_tiles) > 0, "Adjacent states calculate overlapping border tiles"
     
     def test_tile_size_estimate_10m(self):
         """10m tiles should be ~9x larger than 30m tiles (3^2 = 9x more pixels)."""

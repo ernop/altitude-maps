@@ -12,29 +12,31 @@ body {
     overflow: hidden;
 }
 
-/* Map Size Display (lower-right corner, above color legend) */
+/* Map Size Display (lower-right corner, below color legend) */
 .map-size-display {
     position: absolute;
-    bottom: 360px;
+    bottom: 0;
     right: 0;
+    margin-bottom: 20px;
     background: rgba(0, 0, 0, 0.8);
     color: #ffffff;
     padding: 6px 10px;
-    margin: 0;
-    z-index: 10;
+    z-index: 9;
     pointer-events: none;
     backdrop-filter: blur(3px);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     font-size: 11px;
     font-weight: 500;
     border-top-left-radius: 4px;
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.4;
+    max-width: 300px;
 }
 
-/* Color Scale Legend (lower-right corner) */
+/* Color Scale Legend (lower-right corner, above map size display) */
 .color-legend {
     position: absolute;
-    bottom: 0;
+    bottom: 120px;
     right: 0;
     background: rgba(0, 0, 0, 0.8);
     padding: 0;
@@ -190,7 +192,7 @@ body {
 /* Mobile responsiveness for legend */
 @media (max-width: 768px) {
     .color-legend {
-        bottom: 0;
+        bottom: 100px;
         padding: 0;
     }
 

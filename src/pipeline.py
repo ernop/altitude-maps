@@ -603,7 +603,8 @@ def reproject_to_metric_crs(
             
             old_aspect = src.width / src.height
             new_aspect = width / height
-            print(f"  Aspect ratio: {old_aspect:.2f}:1 -> {new_aspect:.2f}:1")
+            print(f"  Aspect ratio correction: {old_aspect:.2f}:1 -> {new_aspect:.2f}:1")
+            print(f"    (EPSG:4326 distortion corrected by reprojection to EPSG:3857)")
             print(f"  Reprojected: {output_path.name} ({width} x {height} pixels)")
             return True
             
@@ -618,7 +619,7 @@ def downsample_for_viewer(
     input_tif_path: Path,
     region_id: str,
     output_path: Path,
-    target_pixels: int = 2048
+    target_pixels: int = None
 ) -> bool:
     """
     Stage 8: Downsample reprojected data to target resolution for web viewer.
@@ -627,11 +628,14 @@ def downsample_for_viewer(
         input_tif_path: Path to reprojected TIF (must be in metric CRS, not EPSG:4326)
         region_id: Region identifier
         output_path: Where to save processed TIF
-        target_pixels: Target dimension in pixels (default: 2048)
+        target_pixels: Target dimension in pixels (default: from src.config.DEFAULT_TARGET_PIXELS)
         
     Returns:
         True if successful
     """
+    from src.config import DEFAULT_TARGET_PIXELS
+    if target_pixels is None:
+        target_pixels = DEFAULT_TARGET_PIXELS
     if not input_tif_path.exists():
         print(f"  Input file not found: {input_tif_path}")
         return False
@@ -673,14 +677,21 @@ def downsample_for_viewer(
             
             print(f"  Input: {src.width} x {src.height} pixels")
             
-            # Compute target size preserving aspect ratio
+            # Compute target size preserving aspect ratio, targeting total pixel count = target_pixels²
+            # This ensures we use the full pixel budget (e.g., 1024² = 1,048,576 pixels)
+            # If region is tall and narrow (e.g., 1024×500), we scale up to use more pixels
+            import math
             aspect = src.width / src.height if src.height != 0 else 1.0
             if src.width >= src.height:
-                dst_width = min(target_pixels, src.width)
-                dst_height = max(1, int(round(dst_width / aspect)))
+                # Wider than tall: width = target_pixels * sqrt(aspect), height = target_pixels / sqrt(aspect)
+                sqrt_aspect = math.sqrt(aspect)
+                dst_width = max(1, int(round(target_pixels * sqrt_aspect)))
+                dst_height = max(1, int(round(target_pixels / sqrt_aspect)))
             else:
-                dst_height = min(target_pixels, src.height)
-                dst_width = max(1, int(round(dst_height * aspect)))
+                # Taller than wide: height = target_pixels / sqrt(aspect), width = target_pixels * sqrt(aspect)
+                sqrt_aspect = math.sqrt(aspect)
+                dst_height = max(1, int(round(target_pixels / sqrt_aspect)))
+                dst_width = max(1, int(round(target_pixels * sqrt_aspect)))
             
             # Read and downsample
             from rasterio.warp import Resampling
@@ -798,8 +809,8 @@ def export_for_viewer(
             if validate_output:
                 from src.validation import validate_non_null_coverage
                 try:
-                    coverage = validate_non_null_coverage(elevation, min_coverage=0.2, warn_only=True)
-                    print(f"  Validation passed: coverage={coverage*100:.1f}%")
+                    coverage_pct, is_valid = validate_non_null_coverage(elevation, min_coverage_pct=20.0)
+                    print(f"  Validation passed: coverage={coverage_pct:.1f}%")
                 except Exception as e:
                     print(f"  Validation warning: {e}")
             
@@ -1123,6 +1134,21 @@ def update_regions_manifest(generated_dir: Path) -> bool:
             print(f"  Warning: Could not write gzip manifest: {gz_err}")
         
         print(f"  Manifest updated ({len(manifest['regions'])} regions with data files)")
+        
+        # Automatically update adjacency data if needed
+        try:
+            import sys
+            from pathlib import Path
+            # Add root directory to path if needed (for module imports)
+            root_dir = Path(__file__).parent.parent
+            if str(root_dir) not in sys.path:
+                sys.path.insert(0, str(root_dir))
+            from compute_adjacency import update_adjacency_if_needed
+            update_adjacency_if_needed(force=False)
+        except Exception as adj_err:
+            print(f"  Warning: Could not update adjacency: {adj_err}")
+            # Don't fail manifest update if adjacency fails
+        
         return True
         
     except Exception as e:
@@ -1138,14 +1164,21 @@ def run_pipeline(
     source: str,
     boundary_name: Optional[str] = None,
     boundary_type: str = "country",
-    target_pixels: int = 2048,
+    target_pixels: int = None,
     skip_clip: bool = False,
     border_resolution: str = "10m",
     bounds: Optional[Tuple[float, float, float, float]] = None
 ) -> tuple[bool, dict]:
     """
     Unified pipeline (Stages 6-11). Assumes raw download already completed.
+    
+    Args:
+        target_pixels: Target dimension in pixels (default: from src.config.DEFAULT_TARGET_PIXELS)
     """
+    from src.config import DEFAULT_TARGET_PIXELS
+    if target_pixels is None:
+        target_pixels = DEFAULT_TARGET_PIXELS
+    
     print(f"\n{'='*70}")
     print(f" PROCESSING PIPELINE")
     print(f"{'='*70}")

@@ -248,14 +248,15 @@ def validate_json_export(file_path: Path, verbose: bool = True) -> bool:
                 max_elev = float(np.max(valid_elev))
                 elev_range = max_elev - min_elev
 
-                # Check for suspiciously small elevation range (indicates reprojection corruption)
+                # Check for suspiciously small elevation range (warn only - could be legitimate flat region)
                 if elev_range < 50.0:
                     if verbose:
-                        print(f"  Suspicious elevation range: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
-                        print(f"  This suggests reprojection corruption - data should be regenerated")
-                    return False
+                        print(f"  WARNING: Suspicious elevation range: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
+                        print(f"  This may indicate reprojection corruption or could be a legitimate flat region")
+                        print(f"  If visualization looks incorrect, regenerate with --force-reprocess")
+                    # Don't fail validation - just warn user
 
-                if verbose:
+                if verbose and elev_range >= 50.0:
                     print(f"  Elevation range OK: {min_elev:.1f}m to {max_elev:.1f}m (range: {elev_range:.1f}m)")
         except Exception as e:
             if verbose:

@@ -4,24 +4,45 @@
 
 ### Pipeline Stages
 1. Validate region definition
-2. Determine required resolution (Nyquist sampling rule)
-3. Download raw elevation data (1×1 degree tiles)
-4. Merge tiles for region bounds
+2. **Determine required resolution** (CRITICAL FLOW):
+   - Calculate visible pixel size: `geographic_span_meters / target_pixels`
+   - Apply Nyquist rule: `source_resolution ≤ visible_pixel_size / 2.0`
+   - Select coarsest available resolution that meets requirement (prevents over-downloading)
+   - Map resolution to dataset code (USA_3DEP, SRTMGL1, etc.)
+3. Download raw elevation data (region-specific, no tile reuse)
+4. Merge tiles for region bounds (if multiple tiles needed)
 5. Clip to administrative boundaries (if configured)
 6. Reproject to fix latitude distortion (EPSG:4326 → EPSG:3857)
 7. Downsample to target resolution
 8. Export to JSON for viewer
 
-### Resolution Selection
-- Dynamic based on visible pixel size and Nyquist rule
-- Available: 10m (US only), 30m, 90m
-- Formula: `source_resolution ≤ visible_pixel_size / 2.0`
+### Resolution Selection (CRITICAL - SINGLE SOURCE OF TRUTH)
+**Flow**: `target_pixels` + `geographic_bounds` → visible pixel size → resolution → dataset
+
+**Key Principle**: Resolution is determined FIRST based on final output needs, THEN dataset is selected. This ensures we don't over-download (e.g., if final output needs 200m/pixel, we select 90m source, not 10m).
+
+**Process**:
+1. Calculate visible pixel size from geographic bounds and target_pixels
+2. Apply Nyquist sampling rule (2.0x oversampling minimum)
+3. Select coarsest available resolution that meets requirement
+4. Map to dataset code based on resolution and region type
+
+**Available Resolutions**:
+- US regions: 10m (USGS 3DEP), 30m, 90m, 250m, 500m, 1000m (GMTED2010)
+- International: 30m, 90m, 250m, 500m, 1000m (GMTED2010)
+
+**Goal**: Always deliver the right amount of accurate pixels for regions of all sizes (large, medium, small, tiny). The system automatically selects the coarsest resolution that meets Nyquist requirements.
+
+**Example**:
+- 20-mile square, target_pixels=2048 → ~15.6m/pixel → requires 10m source
+- 200-mile square, target_pixels=2048 → ~156m/pixel → requires 90m source (not 10m!)
 
 ### Tile System
-- All downloads use 1×1 degree tiles
+- Downloads use 1×1 degree tile structure for organization
 - Format: `{NS}{lat}_{EW}{lon}_{resolution}.tif`
 - Storage: `data/raw/{source}/tiles/`
-- Tiles reused across adjacent regions
+- **No tile reuse**: Each region downloads fresh data at required resolution
+- Tile directories remain for reference but are not checked for reuse
 
 ## Data Sources
 

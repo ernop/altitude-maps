@@ -53,6 +53,7 @@ from src.pipeline import run_pipeline, PipelineError
 from src.downloaders.orchestrator import (
     download_region,
     determine_dataset_override,
+    determine_required_resolution_and_dataset,
     determine_min_required_resolution,
     format_pixel_size
 )
@@ -461,6 +462,29 @@ This script will:
     print(f"  ENSURE REGION: {region_info['display_name'].upper()}", flush=True)
     print(f"  Type: {region_type.replace('_', ' ').title()}", flush=True)
     print("="*70, flush=True)
+    
+    # Calculate and display region size information
+    bounds = region_info['bounds']
+    west, south, east, north = bounds
+    width_deg = east - west
+    height_deg = north - south
+    center_lat = (north + south) / 2.0
+    
+    import math
+    meters_per_deg_lat = 111_320
+    meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+    width_km = width_deg * meters_per_deg_lon / 1000
+    height_km = height_deg * meters_per_deg_lat / 1000
+    width_mi = width_km / 1.609344
+    height_mi = height_km / 1.609344
+    area_km2 = width_km * height_km
+    area_mi2 = area_km2 / 2.589988
+    
+    print(f"\n  REGION SIZE:", flush=True)
+    print(f"    Geographic: {width_deg:.2f}° × {height_deg:.2f}°", flush=True)
+    print(f"    Approximate: {width_km:.1f} km × {height_km:.1f} km ({width_mi:.1f} mi × {height_mi:.1f} mi)", flush=True)
+    print(f"    Area: {area_km2:,.0f} km² ({area_mi2:,.0f} mi²)", flush=True)
+    
     summarize_pipeline_status(region_id, region_type, region_info)
 
     # Check if pipeline is already complete
@@ -472,23 +496,45 @@ This script will:
         print(f"\n  To force rebuild: add --force-reprocess flag")
         return 0
 
-    # Determine dataset early (stages 2-3) - includes resolution selection
-    dataset_override = determine_dataset_override(region_id, region_type, region_info, args.target_pixels)
-
-    # Check if raw data exists (stage 4)
-    print(f"\n[STAGE 4/10] Checking raw elevation data...", flush=True)
+    # Determine resolution and dataset (stages 2-3) - SINGLE SOURCE OF TRUTH
+    # Flow: target_pixels + geographic bounds → visible pixel size → resolution → dataset
+    # Suppress verbose output from this function - we'll show better formatted output below
+    min_required_resolution, dataset_override = determine_required_resolution_and_dataset(
+        region_id, region_type, region_info, args.target_pixels, verbose=False
+    )
     
-    # Calculate visible pixel size and minimum required resolution
+    # Calculate visible pixel size for display/logging
     visible = calculate_visible_pixel_size(region_info['bounds'], args.target_pixels)
     
-    # Determine available download resolutions based on region type
-    # US states: 10m USGS 3DEP now available via automated API, plus 30m/90m via OpenTopography
-    # US AREA regions: Can also use 10m USGS 3DEP
-    # International: 30m/90m via OpenTopography API only
+    # Display resolution selection information
+    print(f"\n[STAGE 2/10] RESOLUTION SELECTION", flush=True)
+    total_pixels = visible['output_width_px'] * visible['output_height_px']
+    print(f"  Target output: up to {args.target_pixels}² = {args.target_pixels**2:,} total pixels", flush=True)
+    print(f"  Predicted output: {visible['output_width_px']}×{visible['output_height_px']} = {total_pixels:,} pixels", flush=True)
+    print(f"    (Note: Dimensions may change slightly after reprojection)", flush=True)
+    print(f"  Visible pixel size: {visible['avg_m_per_pixel']:.1f} m/pixel", flush=True)
+    print(f"    (Width: {visible['width_m_per_pixel']:.1f} m, Height: {visible['height_m_per_pixel']:.1f} m)", flush=True)
+    print(f"  Selected resolution: {min_required_resolution}m", flush=True)
+    print(f"  Selected dataset: {dataset_override}", flush=True)
+    
+    # Calculate oversampling ratio
+    oversampling = visible['avg_m_per_pixel'] / min_required_resolution
+    if 0.8 <= oversampling <= 1.3:
+        oversampling_msg = f"Native resolution ({oversampling:.2f}x)"
+    elif 1.3 < oversampling < 2.0:
+        oversampling_msg = f"Marginal quality ({oversampling:.2f}x oversampling - may have minor aliasing)"
+    elif oversampling >= 2.0:
+        oversampling_msg = f"Meets Nyquist requirement ({oversampling:.2f}x oversampling)"
+    else:
+        oversampling_msg = f"Below Nyquist ({oversampling:.2f}x oversampling - may have aliasing)"
+    
+    print(f"  Quality: {oversampling_msg}", flush=True)
+    
+    # Show available resolutions for context
+    # TEMPORARY: Restricting to 10m, 30m, 90m only (250m, 500m, 1000m GMTED2010 disabled)
     if region_type == RegionType.USA_STATE:
-        available_downloads = [10, 30, 90]  # USGS 3DEP 10m + SRTM/Copernicus 30m/90m
+        available = [10, 30, 90]
     elif region_type == RegionType.AREA:
-        # Check if AREA region is in the US (can use USGS 3DEP 10m)
         is_us_region = False
         try:
             config = ALL_REGIONS.get(region_id)
@@ -496,76 +542,130 @@ This script will:
                 is_us_region = True
         except Exception:
             pass
-        available_downloads = [10, 30, 90] if is_us_region else [30, 90]
+        available = [10, 30, 90] if is_us_region else [30, 90]
     elif region_type == RegionType.COUNTRY:
-        available_downloads = [30, 90]  # SRTM/Copernicus via OpenTopography API only
+        available = [30, 90]
     else:
-        raise ValueError(f"Unknown region type: {region_type}")
+        available = [30, 90]
     
-    # Calculate minimum required resolution using Nyquist rule
-    try:
-        min_required_resolution = determine_min_required_resolution(
-            visible['avg_m_per_pixel'],
-            available_resolutions=available_downloads
+    print(f"  Available resolutions: {', '.join(f'{r}m' for r in available)}", flush=True)
+    print(f"  Rationale: Selected coarsest resolution that meets quality requirements", flush=True)
+    print(f"             (prevents over-downloading while ensuring sufficient detail)", flush=True)
+
+    # Check if raw data exists (stage 4)
+    print(f"\n[STAGE 4/10] Checking raw elevation data...", flush=True)
+    
+    # Check if GMTED2010 resolution is required (250m, 500m, 1000m)
+    # GMTED2010 requires special handling since it's not in the standard download flow
+    is_gmted2010 = min_required_resolution in [250, 500, 1000]
+    
+    if is_gmted2010:
+        # Handle GMTED2010 resolutions directly
+        # Check for merged GMTED2010 file first
+        resolution_str = f"{min_required_resolution}m"
+        bounds = region_info['bounds']
+        from src.tile_geometry import merged_filename_from_region
+        merged_filename = merged_filename_from_region(region_id, bounds, resolution_str) + '.tif'
+        merged_path = Path(f"data/merged/gmted2010_{resolution_str}/{merged_filename}")
+        
+        if merged_path.exists():
+            print(f"  Found: {merged_path.name} (GMTED2010 {resolution_str})", flush=True)
+            raw_path = merged_path
+            source = f'gmted2010_{resolution_str}'
+        else:
+            # Check for pre-downloaded tiles
+            tiles_dir = Path(f"data/raw/gmted2010_{resolution_str}/tiles")
+            from src.downloaders.gmted2010 import download_gmted2010_tiles
+            tile_paths = download_gmted2010_tiles(region_id, bounds, min_required_resolution, tiles_dir)
+            
+            if tile_paths:
+                print(f"  Found {len(tile_paths)} GMTED2010 {resolution_str} tiles (will merge)", flush=True)
+                # Merge tiles if needed
+                from src.pipeline import merge_tiles
+                if merge_tiles(tile_paths, merged_path):
+                    raw_path = merged_path
+                    source = f'gmted2010_{resolution_str}'
+                else:
+                    print(f"  ERROR: Failed to merge GMTED2010 tiles", flush=True)
+                    raw_path = None
+                    source = None
+            else:
+                print(f"  No GMTED2010 {resolution_str} data found (tiles or merged file)", flush=True)
+                raw_path = None
+                source = None
+    
+    else:
+        # Handle standard resolutions (10m, 30m, 90m) using determine_data_source
+        # Build local cache dict by checking what files exist
+        local_cache = {}
+        for res in [10, 30, 90]:
+            cached_path, cached_source = find_raw_file(region_id, verbose=False, min_required_resolution_meters=res)
+            if cached_path and cached_source:
+                # Extract resolution from source
+                res_map = {'usa_3dep': 10, 'srtm_30m': 30, 'srtm_90m': 90}
+                actual_res = res_map.get(cached_source, res)
+                if actual_res not in local_cache:  # Only add if not already present
+                    local_cache[actual_res] = cached_path
+        
+        # Use the decision function to determine what to do
+        bounds = region_info['bounds']
+        latitude_range = (bounds[1], bounds[3])  # (south, north)
+        
+        # Determine available download resolutions based on region type
+        # (needed for determine_data_source function)
+        if region_type == RegionType.USA_STATE:
+            available_downloads = [10, 30, 90]
+        elif region_type == RegionType.AREA:
+            is_us_region = False
+            try:
+                config = ALL_REGIONS.get(region_id)
+                if config and config.country == "United States of America":
+                    is_us_region = True
+            except Exception:
+                pass
+            available_downloads = [10, 30, 90] if is_us_region else [30, 90]
+        elif region_type == RegionType.COUNTRY:
+            available_downloads = [30, 90]
+        else:
+            raise ValueError(f"Unknown region type: {region_type}")
+        
+        decision = determine_data_source(
+            region_id=region_id,
+            min_required_resolution=min_required_resolution,
+            available_downloads=available_downloads,
+            local_cache=local_cache,
+            accept_lower_quality=args.yes,  # --yes flag means accept lower quality
+            latitude_range=latitude_range
         )
-    except ValueError:
-        # Need finer than available - will handle in determine_data_source with accept_lower_quality
-        min_required_resolution = min(available_downloads)
-    
-    # Build local cache dict by checking what files exist
-    local_cache = {}
-    for res in [10, 30, 90]:
-        cached_path, cached_source = find_raw_file(region_id, verbose=False, min_required_resolution_meters=res)
-        if cached_path and cached_source:
-            # Extract resolution from source
-            res_map = {'usa_3dep': 10, 'srtm_30m': 30, 'srtm_90m': 90}
-            actual_res = res_map.get(cached_source, res)
-            if actual_res not in local_cache:  # Only add if not already present
-                local_cache[actual_res] = cached_path
-    
-    # Use the decision function to determine what to do
-    bounds = region_info['bounds']
-    latitude_range = (bounds[1], bounds[3])  # (south, north)
-    
-    decision = determine_data_source(
-        region_id=region_id,
-        min_required_resolution=min_required_resolution,
-        available_downloads=available_downloads,
-        local_cache=local_cache,
-        accept_lower_quality=args.yes,  # --yes flag means accept lower quality
-        latitude_range=latitude_range
-    )
-    
-    # Handle the decision
-    print(f"  Requirement: {min_required_resolution}m resolution (visible pixels: ~{visible['avg_m_per_pixel']:.0f}m each)", flush=True)
-    
-    if decision.action == "USE_LOCAL":
-        print(f"  Found: {decision.message}", flush=True)
-        raw_path = decision.file_path
-        source = {10: 'usa_3dep', 30: 'srtm_30m', 90: 'srtm_90m'}.get(decision.resolution, 'srtm_30m')
-    
-    elif decision.action == "ERROR_NEED_MANUAL":
-        print(f"\n{'='*70}", flush=True)
-        print(f"  ERROR: Manual Download Required", flush=True)
-        print(f"{'='*70}", flush=True)
-        print(f"\n  {decision.message}", flush=True)
-        return 1
-    
-    elif decision.action == "ERROR_INSUFFICIENT":
-        print(f"\n{'='*70}", flush=True)
-        print(f"  ERROR: Insufficient Resolution", flush=True)
-        print(f"{'='*70}", flush=True)
-        print(f"\n  {decision.message}", flush=True)
-        return 1
-    
-    elif decision.action == "DOWNLOAD":
-        print(f"  {decision.message}", flush=True)
-        raw_path = None
-        source = None
-    
-    else:
-        print(f"  ERROR: Unknown decision action: {decision.action}", flush=True)
-        return 1
+        
+        # Handle the decision
+        if decision.action == "USE_LOCAL":
+            print(f"  Found: {decision.message}", flush=True)
+            raw_path = decision.file_path
+            source = {10: 'usa_3dep', 30: 'srtm_30m', 90: 'srtm_90m'}.get(decision.resolution, 'srtm_30m')
+        
+        elif decision.action == "ERROR_NEED_MANUAL":
+            print(f"\n{'='*70}", flush=True)
+            print(f"  ERROR: Manual Download Required", flush=True)
+            print(f"{'='*70}", flush=True)
+            print(f"\n  {decision.message}", flush=True)
+            return 1
+        
+        elif decision.action == "ERROR_INSUFFICIENT":
+            print(f"\n{'='*70}", flush=True)
+            print(f"  ERROR: Insufficient Resolution", flush=True)
+            print(f"{'='*70}", flush=True)
+            print(f"\n  {decision.message}", flush=True)
+            return 1
+        
+        elif decision.action == "DOWNLOAD":
+            print(f"  {decision.message}", flush=True)
+            raw_path = None
+            source = None
+        
+        else:
+            print(f"  ERROR: Unknown decision action: {decision.action}", flush=True)
+            return 1
 
     if not raw_path:
         print(f"  No raw data found for {region_id}", flush=True)
@@ -598,18 +698,44 @@ This script will:
 
         # Re-validate the downloaded file
         print(f"  Validating...", flush=True)
-        raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
-        if not raw_path:
-            print(f"  Validation failed - file may be corrupted", flush=True)
-            # Show expected abstract filename
-            bounds = region_info.get('bounds')
-            if bounds:
-                expected_filename = bbox_filename_from_bounds(bounds, '30m')
-                print(f"  Expected: data/raw/srtm_30m/{expected_filename}", flush=True)
+        
+        if is_gmted2010:
+            # For GMTED2010, check for merged file
+            resolution_str = f"{min_required_resolution}m"
+            bounds = region_info['bounds']
+            from src.tile_geometry import merged_filename_from_region
+            merged_filename = merged_filename_from_region(region_id, bounds, resolution_str) + '.tif'
+            merged_path = Path(f"data/merged/gmted2010_{resolution_str}/{merged_filename}")
+            
+            if merged_path.exists():
+                from src.validation import validate_geotiff
+                if validate_geotiff(merged_path):
+                    raw_path = merged_path
+                    source = f'gmted2010_{resolution_str}'
+                    print(f"  Downloaded and validated successfully", flush=True)
+                else:
+                    print(f"  Validation failed - file may be corrupted", flush=True)
+                    return 1
             else:
-                print(f"  Expected: data/raw/srtm_30m/bbox_{{bounds}}_srtm_30m_30m.tif", flush=True)
-            return 1
-        print(f"  Downloaded successfully", flush=True)
+                print(f"  Validation failed - merged file not found after download", flush=True)
+                print(f"  Expected: {merged_path}", flush=True)
+                return 1
+        else:
+            # For standard resolutions, use find_raw_file
+            raw_path, source = find_raw_file(region_id, min_required_resolution_meters=min_required_resolution)
+            if not raw_path:
+                print(f"  Validation failed - file may be corrupted", flush=True)
+                # Show expected abstract filename
+                bounds = region_info.get('bounds')
+                if bounds:
+                    resolution_str = f"{min_required_resolution}m"
+                    expected_filename = bbox_filename_from_bounds(bounds, resolution_str)
+                    source_dir = {10: 'usa_3dep', 30: 'srtm_30m', 90: 'srtm_90m'}.get(min_required_resolution, 'srtm_30m')
+                    print(f"  Expected: data/raw/{source_dir}/{expected_filename}", flush=True)
+                else:
+                    print(f"  Expected: data/raw/{{source}}/bbox_{{bounds}}_{{dataset}}_{{res}}.tif", flush=True)
+                return 1
+            print(f"  Downloaded successfully", flush=True)
     else:
         print(f"  Found: {raw_path.name} ({source})", flush=True)
 

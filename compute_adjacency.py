@@ -80,7 +80,8 @@ def compute_adjacency():
                 region_geometries[region.id] = {
                     'geometry': state_row.iloc[0].geometry,
                     'name': region.name,
-                    'type': RegionType.USA_STATE
+                    'type': RegionType.USA_STATE,
+                    'bounds': region.bounds  # Store bounds for fallback containment check
                 }
             else:
                 print(f"Warning: Could not find boundary for US state {region.name}")
@@ -100,7 +101,8 @@ def compute_adjacency():
                 region_geometries[region.id] = {
                     'geometry': country_row.iloc[0].geometry,
                     'name': region.name,
-                    'type': RegionType.COUNTRY
+                    'type': RegionType.COUNTRY,
+                    'bounds': region.bounds  # Store bounds for fallback containment check
                 }
             else:
                 print(f"Warning: Could not find boundary for country {region.name}")
@@ -183,13 +185,23 @@ def compute_adjacency():
             area_geom = area_data['geometry']
             
             # Check if the area is contained or intersects with this region
-            # Two conditions:
-            # 1. Centroid is within the region (fully contained)
-            # 2. Bounding box intersects the region (partial overlap)
+            # Three conditions (in order of preference):
+            # 1. Centroid is within the region geometry (fully contained)
+            # 2. Bounding box intersects the region geometry (partial overlap)
+            # 3. Area's bounding box is completely within region's bounding box (fallback for small islands/water features)
             centroid_inside = geom.contains(area_data['centroid'])
             bbox_intersects = geom.intersects(area_geom) and not geom.touches(area_geom)
             
-            if centroid_inside or bbox_intersects:
+            # Fallback: bounds-based check (for small islands/water features where geometry might not include them)
+            bounds_contained = False
+            if 'bounds' in region_data:
+                reg_west, reg_south, reg_east, reg_north = region_data['bounds']
+                area_west, area_south, area_east, area_north = area_data['geometry'].bounds
+                # Check if area's bounding box is completely within region's bounding box
+                bounds_contained = (area_west >= reg_west and area_east <= reg_east and 
+                                   area_south >= reg_south and area_north <= reg_north)
+            
+            if centroid_inside or bbox_intersects or bounds_contained:
                 # Add to this region's contained list
                 adjacency[region_id]['contained'].append(area_id)
                 # Add reverse relationship - this region contains the area
@@ -199,8 +211,10 @@ def compute_adjacency():
                     print(f"  contained: {area_data['name']} (centroid + overlap)")
                 elif centroid_inside:
                     print(f"  contained: {area_data['name']} (centroid)")
-                else:
+                elif bbox_intersects:
                     print(f"  contained: {area_data['name']} (intersects)")
+                else:
+                    print(f"  contained: {area_data['name']} (bounds check)")
         
         # Clean up empty directions
         adjacency[region_id] = {
@@ -278,6 +292,61 @@ def compute_adjacency():
         for region in adjacency.values()
     )
     print(f"[SUCCESS] Total contained areas: {contained_count}")
+
+def update_adjacency_if_needed(force: bool = False) -> bool:
+    """
+    Update adjacency data if needed.
+    
+    Checks if adjacency file exists and is up-to-date with regions_config.py.
+    If force=True, always updates regardless of file timestamps.
+    
+    Args:
+        force: If True, always recompute adjacency even if file exists
+        
+    Returns:
+        True if adjacency was updated successfully, False otherwise
+    """
+    from pathlib import Path
+    
+    adjacency_file = Path('generated/regions/region_adjacency.json')
+    regions_config_file = Path('src/regions_config.py')
+    
+    # Always update if forced
+    if force:
+        try:
+            compute_adjacency()
+            return True
+        except Exception as e:
+            print(f"  Warning: Could not update adjacency: {e}")
+            return False
+    
+    # Check if adjacency file exists
+    if not adjacency_file.exists():
+        print(f"  Adjacency file not found, computing...")
+        try:
+            compute_adjacency()
+            return True
+        except Exception as e:
+            print(f"  Warning: Could not compute adjacency: {e}")
+            return False
+    
+    # Check if regions_config.py is newer than adjacency file
+    if regions_config_file.exists():
+        config_mtime = regions_config_file.stat().st_mtime
+        adjacency_mtime = adjacency_file.stat().st_mtime
+        
+        if config_mtime > adjacency_mtime:
+            print(f"  Regions config updated, recomputing adjacency...")
+            try:
+                compute_adjacency()
+                return True
+            except Exception as e:
+                print(f"  Warning: Could not update adjacency: {e}")
+                return False
+    
+    # Adjacency is up-to-date (silently return True - no message needed)
+    return True
+
 
 if __name__ == '__main__':
     compute_adjacency()

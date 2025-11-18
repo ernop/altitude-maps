@@ -330,7 +330,7 @@ def group_tiles_into_chunks(tiles: List[Tuple[float, float, float, float]],
 
 
 def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], target_pixels: int) -> Dict:
-    """Calculate final visible pixel size in meters after downsampling to target_pixels.
+    """Calculate final visible pixel size in meters after downsampling to target total pixel count.
     
     This helps determine if 30m or 90m source data is appropriate:
     - If visible pixels will be >90m, 90m source data is sufficient
@@ -338,7 +338,8 @@ def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], targ
     
     Args:
         bounds: (west, south, east, north) in degrees
-        target_pixels: Target output dimension (e.g., 2048)
+        target_pixels: Target dimension for total pixel count calculation (total pixels = target_pixels²)
+                      e.g., 1024 means up to 1,048,576 total pixels (1024×1024 for square regions)
     
     Returns:
         dict with keys:
@@ -363,14 +364,19 @@ def calculate_visible_pixel_size(bounds: Tuple[float, float, float, float], targ
     width_m = width_deg * meters_per_deg_lon
     height_m = height_deg * meters_per_deg_lat
     
-    # Calculate output pixels preserving aspect ratio (same logic as downsampling code)
+    # Calculate output pixels preserving aspect ratio, targeting total pixel count = target_pixels²
+    # This ensures we use the full pixel budget (e.g., 1024² = 1,048,576 pixels)
     aspect = width_deg / height_deg if height_deg > 0 else 1.0
     if width_deg >= height_deg:
-        output_width = target_pixels
-        output_height = max(1, int(round(target_pixels / aspect)))
+        # Wider than tall: width = target_pixels * sqrt(aspect), height = target_pixels / sqrt(aspect)
+        sqrt_aspect = math.sqrt(aspect)
+        output_width = max(1, int(round(target_pixels * sqrt_aspect)))
+        output_height = max(1, int(round(target_pixels / sqrt_aspect)))
     else:
-        output_height = target_pixels
-        output_width = max(1, int(round(target_pixels * aspect)))
+        # Taller than wide: height = target_pixels / sqrt(aspect), width = target_pixels * sqrt(aspect)
+        sqrt_aspect = math.sqrt(aspect)
+        output_height = max(1, int(round(target_pixels / sqrt_aspect)))
+        output_width = max(1, int(round(target_pixels * sqrt_aspect)))
     
     # Calculate meters per pixel in final output
     m_per_pixel_x = width_m / output_width

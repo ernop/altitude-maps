@@ -107,16 +107,28 @@ def download_srtm(
 
         total_size = int(response.headers.get('content-length', 0))
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        import time
+        start_time = time.time()
 
         with open(output_path, 'wb') as f:
-            with tqdm(total=total_size, unit='B', unit_scale=True, desc=f" {output_path.name}") as pbar:
+            with tqdm(
+                total=total_size, 
+                unit='B', 
+                unit_scale=True, 
+                unit_divisor=1024,
+                desc=f" Downloading",
+                bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+            ) as pbar:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         pbar.update(len(chunk))
 
+        elapsed_time = time.time() - start_time
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f" Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+        download_speed = file_size_mb / elapsed_time if elapsed_time > 0 else 0
+        print(f" Downloaded: {output_path.name} ({file_size_mb:.1f} MB in {elapsed_time:.1f}s, {download_speed:.1f} MB/s)", flush=True)
 
         # Record successful request in shared state
         record_successful_request()
@@ -225,16 +237,28 @@ def download_copernicus(
 
         total_size = int(response.headers.get('content-length', 0))
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        import time
+        start_time = time.time()
 
         with open(output_path, 'wb') as f:
-            with tqdm(total=total_size, unit='B', unit_scale=True, desc=f" {output_path.name}") as pbar:
+            with tqdm(
+                total=total_size, 
+                unit='B', 
+                unit_scale=True, 
+                unit_divisor=1024,
+                desc=f" Downloading",
+                bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+            ) as pbar:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         pbar.update(len(chunk))
 
+        elapsed_time = time.time() - start_time
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f" Downloaded: {output_path.name} ({file_size_mb:.1f} MB)", flush=True)
+        download_speed = file_size_mb / elapsed_time if elapsed_time > 0 else 0
+        print(f" Downloaded: {output_path.name} ({file_size_mb:.1f} MB in {elapsed_time:.1f}s, {download_speed:.1f} MB/s)", flush=True)
 
         # Record successful request in shared state
         record_successful_request()

@@ -179,11 +179,8 @@ def download_aw3d30_tiles(
         tile_filename = tile_filename_from_bounds(tile_bounds, "30m")
         tile_path = tiles_dir / tile_filename
         
-        # Skip if cached
-        if tile_path.exists():
-            print(f"  [{idx}/{len(tiles)}] Cached: {tile_filename}")
-            downloaded_paths.append(tile_path)
-            continue
+        # Skip tile reuse - always download fresh region-specific data
+        # (Tile directories remain for reference but are not reused)
         
         print(f"  [{idx}/{len(tiles)}] Downloading: {tile_filename}", end=" ", flush=True)
         

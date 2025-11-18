@@ -274,22 +274,38 @@ else:
 
 **ABSOLUTE RULE**: Elevation data resolution is NEVER hardcoded by region type. It is ALWAYS dynamically determined using Nyquist sampling.
 
-**Process** (see `src/downloaders/orchestrator.determine_min_required_resolution()`):
-1. Calculate visible pixel size: `visible_m_per_pixel = geographic_span_meters / target_pixels`
-2. Apply Nyquist rule: `min_resolution <= visible_m_per_pixel / 2.0`
-3. Select coarsest available resolution that meets requirement
+**Process** (see `src/downloaders/orchestrator.determine_required_resolution_and_dataset()`):
+1. **FIRST**: Calculate visible pixel size from geographic bounds + target_pixels
+   - `visible_m_per_pixel = geographic_span_meters / target_pixels`
+   - This determines what resolution we'll have in the final output
+2. **THEN**: Apply Nyquist rule to determine minimum required source resolution
+   - `min_resolution <= visible_m_per_pixel / 2.0`
+   - Selects coarsest available resolution that meets requirement (prevents over-downloading)
+3. **FINALLY**: Map resolution to dataset code (USA_3DEP, SRTMGL1, etc.)
+
+**CRITICAL**: This order ensures we don't over-download. If final output needs 200m/pixel, we select 90m source (not 10m), because 200/90 = 2.22x > 2.0x Nyquist requirement.
 
 **Available Elevation Data Resolutions** (NOT border resolutions - see "Resolution Naming Convention" section):
-- `RegionType.USA_STATE`: `[10m, 30m, 90m]` (USGS 3DEP + OpenTopography)
-- `RegionType.COUNTRY`: `[30m, 90m]` (OpenTopography only)
-- `RegionType.AREA`: `[30m, 90m]` (OpenTopography only)
+- `RegionType.USA_STATE`: `[10m, 30m, 90m, 250m, 500m, 1000m]` (USGS 3DEP + OpenTopography + GMTED2010)
+- `RegionType.COUNTRY`: `[30m, 90m, 250m, 500m, 1000m]` (OpenTopography + GMTED2010)
+- `RegionType.AREA`: `[10m, 30m, 90m, 250m, 500m, 1000m]` if US, else `[30m, 90m, 250m, 500m, 1000m]`
+
+**GOAL**: Always deliver the right amount of accurate pixels for regions of all sizes (large, medium, small, tiny). The system automatically selects the coarsest resolution that meets Nyquist requirements, preventing over-downloading while ensuring quality.
+
+**GMTED2010 Status**: GMTED2010 downloaders (250m, 500m, 1000m) support pre-downloaded files. Automated download not yet implemented - users can manually download from USGS EarthExplorer and place tiles in `data/raw/gmted2010_{resolution}/tiles/`. The system will automatically detect and use them. This enables efficient handling of very large regions (e.g., California with 1005m/pixel → selects 500m GMTED2010 instead of 90m SRTM).
 
 **Example (Idaho)**:
 ```
---target-pixels 512:  visible=1292m/px -> requires 90m (1292/90=14x > 2x OK)
---target-pixels 2048: visible=323m/px  -> requires 90m (323/90=3.6x > 2x OK)
---target-pixels 4096: visible=162m/px  -> requires 30m (162/30=5.4x > 2x OK)
---target-pixels 8192: visible=81m/px   -> requires 10m (81/10=8.1x > 2x OK) [US only]
+--target-pixels 512:  visible=1292m/px -> requires 1000m (1292/1000=1.29x < 2x) -> requires 500m (1292/500=2.58x > 2x OK)
+--target-pixels 2048: visible=323m/px  -> requires 250m (323/250=1.29x < 2x) -> requires 90m (323/90=3.6x > 2x OK)
+--target-pixels 4096: visible=162m/px  -> requires 90m (162/90=1.8x < 2x) -> requires 30m (162/30=5.4x > 2x OK)
+--target-pixels 8192: visible=81m/px   -> requires 30m (81/30=2.7x > 2x OK) [US can use 10m but 30m sufficient]
+```
+
+**Example (California - large region)**:
+```
+--target-pixels 1024: visible=1005m/px -> requires 500m (1005/500=2.01x > 2x OK) [Perfect match!]
+--target-pixels 2048: visible=502m/px  -> requires 250m (502/250=2.01x > 2x OK) [Perfect match!]
 ```
 
 **FORBIDDEN ASSUMPTIONS**:
@@ -297,7 +313,12 @@ else:
 - [NO] "International regions always use 30m" - FALSE, depends on target_pixels
 - [NO] "Small states need high resolution" - FALSE, depends on output size, not geographic size
 
-**WHY THIS MATTERS**: Hardcoding resolutions wastes storage (downloading unnecessary 10m data) and breaks the quality model. The system is designed to automatically select optimal resolution based on actual viewer needs.
+**WHY THIS MATTERS**: 
+- Hardcoding resolutions wastes storage (downloading unnecessary 10m data when 500m would suffice for large regions)
+- Over-downloading wastes bandwidth and storage (1000m/pixel output doesn't need 10m source data)
+- The system automatically selects optimal resolution based on actual viewer needs (target_pixels + geographic bounds)
+- Single source of truth prevents duplication and ensures consistency
+- **GOAL**: Always deliver the right amount of accurate pixels for regions of all sizes (large, medium, small, tiny)
 
 ---
 
@@ -306,15 +327,15 @@ else:
 **TWO COMPLETELY SEPARATE CONCEPTS - NEVER CONFUSE THEM:**
 
 #### 1. **elevation_resolution** (also called "data resolution" or "elevation data resolution")
-- **Values**: `10m`, `30m`, `90m`
-- **What it is**: Elevation data quality/sampling density (e.g., SRTM 30m, USGS 3DEP 10m)
+- **Values**: `10m`, `30m`, `90m`, `250m`, `500m`, `1000m`
+- **What it is**: Elevation data quality/sampling density (e.g., SRTM 30m, USGS 3DEP 10m, GMTED2010 500m)
 - **How determined**: Dynamically by Nyquist sampling rule based on `target_pixels`
 - **Where used**: 
   - File naming (e.g., `bbox_N37_W114_N42_W109_srtm_30m_30m.tif`)
   - Dataset selection (which elevation source to download)
   - Quality requirements (minimum resolution needed)
 - **Variable naming**: Use `elevation_resolution` or `data_resolution` in code
-- **Function parameters**: `min_required_resolution` (int, in meters: 10, 30, 90)
+- **Function parameters**: `min_required_resolution` (int, in meters: 10, 30, 90, 250, 500, 1000)
 
 #### 2. **border_resolution** (also called "boundary detail level")
 - **Values**: `10m`, `50m`, `110m` (as strings: `'10m'`, `'50m'`, `'110m'`)
@@ -457,8 +478,8 @@ Update all imports - don't add defensive fallbacks to old paths.
 
 **Tile Size Standards**:
 - **ALWAYS use 1×1 degree standard tiles** for ALL data sources
-- Print in output: "Tile size: 1×1 degree (standard reusable grid)"
-- Print storage: "Storage: data/raw/{source}/tiles/ (content-based reuse)"
+- Print in output: "Tile size: 1×1 degree (standard grid)"
+- Print storage: "Storage: data/raw/{source}/tiles/ (region-specific downloads, no reuse)"
 - Never use arbitrary tile sizes - 1×1 degree is the universal standard
 
 **API Key Checking (BEFORE Downloads)**:
@@ -497,12 +518,12 @@ Update all imports - don't add defensive fallbacks to old paths.
 - Only GLO-30 and GLO-90 are publicly available via S3 (no GLO-10)
 
 #### Data Flow Directories
-- **`data/raw/{source}/tiles/`** - Pure reusable 1×1 degree tiles (never region-specific)
+- **`data/raw/{source}/tiles/`** - 1×1 degree tiles (region-specific downloads, no reuse)
 - **`data/merged/{source}/`** - Region-specific merged files (intermediate output from tile merging)
 - **`data/processed/{source}/`** - Clipped/reprojected files (pipeline intermediate stage)
 - **`data/borders/`** - Natural Earth border data (canonical, stable, not cache)
 - **`generated/regions/`** - Final JSON exports for web viewer
-- **Why separate directories**: Prevents mixing reusable upstream data with region-specific intermediate files
+- **Why separate directories**: Organizes data by processing stage (raw → merged → processed → exported)
 
 #### Resolution Requirements (CRITICAL)
 - **Universal rule**: ALL regions use Nyquist sampling rule based on visible pixel size
@@ -526,9 +547,9 @@ Update all imports - don't add defensive fallbacks to old paths.
 - **Utility scripts**: `download_borders.py` and `export_borders_for_viewer.py` may allow other resolutions for testing
 - **All border methods**: Use `border_resolution` parameter (see `src/borders.py` for examples)
 
-#### Tile System (Content-Based Reuse)
+#### Tile System (Region-Specific Downloads)
 
-**CANONICAL REFERENCE**: See `.cursorrules` - Section "Tile System (Content-Based Reuse)"
+**CANONICAL REFERENCE**: See `.cursorrules` - Section "Tile System (Region-Specific Downloads)"
 
 **Format**: `{NS}{lat}_{EW}{lon}_{elevation_resolution}.tif`
 **NOTE**: The `{elevation_resolution}` in filenames refers to elevation data resolution (10m/30m/90m), NOT border resolution.
@@ -542,7 +563,7 @@ Update all imports - don't add defensive fallbacks to old paths.
 - `data/raw/srtm_30m/tiles/` - 30m SRTM tiles
 - `data/raw/srtm_90m/tiles/` - 90m SRTM tiles
 
-**Key**: All regions use unified 1-degree tile system. No special cases.
+**Key**: All regions use unified 1-degree tile system for organization. Tiles are downloaded fresh for each region at the required resolution (no reuse).
 
 #### File Naming Philosophy: Abstract vs Specific
 
