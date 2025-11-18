@@ -8,6 +8,10 @@ class AxesIndicator {
     constructor() {
         this.group = null;
         this.labels = [];
+        this.dragHandle = null;
+        this.isDragging = false;
+        this.dragStart = { x: 0, y: 0 };
+        this.dragStartViewport = { x: 0, y: 0 };
     }
 
     /**
@@ -42,6 +46,16 @@ class AxesIndicator {
         });
         const originSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
         this.group.add(originSphere);
+
+        // Create invisible drag handle (slightly larger than sphere for easier grabbing)
+        const dragHandleGeometry = new THREE.SphereGeometry(size * 0.25, 16, 16);
+        const dragHandleMaterial = new THREE.MeshBasicMaterial({
+            visible: false, // Invisible but still pickable
+            transparent: true,
+            opacity: 0
+        });
+        this.dragHandle = new THREE.Mesh(dragHandleGeometry, dragHandleMaterial);
+        this.group.add(this.dragHandle);
 
         // Create thicker axes lines with 3D appearance
         const lineWidth = size * 0.08;
@@ -212,6 +226,101 @@ class AxesIndicator {
                 label.lookAt(window.camera.position);
             });
         };
+
+        // Load saved position from localStorage
+        const savedPosition = localStorage.getItem('axesIndicatorPosition');
+        if (savedPosition) {
+            try {
+                const pos = JSON.parse(savedPosition);
+                if (pos.x !== undefined && pos.y !== undefined) {
+                    this.viewportX = Math.max(0, Math.min(1, pos.x));
+                    this.viewportY = Math.max(0, Math.min(1, pos.y));
+                }
+            } catch (e) {
+                // Invalid saved position, use defaults
+            }
+        }
+
+        // Set up drag handlers
+        this.setupDragHandlers();
+    }
+
+    /**
+     * Set up mouse/touch drag handlers for repositioning
+     */
+    setupDragHandlers() {
+        if (!window.renderer || !this.dragHandle) return;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        const onMouseDown = (event) => {
+            if (!this.group || !window.camera || !window.renderer) return;
+
+            // Convert mouse position to normalized device coordinates
+            const rect = window.renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            // Raycast to check if we clicked on the drag handle
+            raycaster.setFromCamera(mouse, window.camera);
+            const intersects = raycaster.intersectObject(this.dragHandle, true);
+
+            if (intersects.length > 0) {
+                this.isDragging = true;
+                this.dragStart.x = event.clientX;
+                this.dragStart.y = event.clientY;
+                this.dragStartViewport.x = this.viewportX;
+                this.dragStartViewport.y = this.viewportY;
+                event.preventDefault();
+                event.stopPropagation(); // Prevent camera controls from receiving this event
+            }
+        };
+
+        const onMouseMove = (event) => {
+            if (!this.isDragging || !window.renderer) return;
+
+            const rect = window.renderer.domElement.getBoundingClientRect();
+            const deltaX = event.clientX - this.dragStart.x;
+            const deltaY = event.clientY - this.dragStart.y;
+
+            // Convert pixel movement to viewport coordinates (0-1)
+            // Sensitivity: 1:1 mapping - dragging across full screen width/height moves indicator by 1.0 viewport units
+            const sensitivityX = 1.0 / rect.width;
+            const sensitivityY = 1.0 / rect.height;
+            this.viewportX = Math.max(0, Math.min(1, this.dragStartViewport.x + deltaX * sensitivityX));
+            this.viewportY = Math.max(0, Math.min(1, this.dragStartViewport.y - deltaY * sensitivityY)); // Negative Y because screen Y increases downward
+
+            // Save position to localStorage
+            localStorage.setItem('axesIndicatorPosition', JSON.stringify({
+                x: this.viewportX,
+                y: this.viewportY
+            }));
+
+            event.preventDefault();
+            event.stopPropagation(); // Prevent camera controls from receiving this event
+        };
+
+        const onMouseUp = (event) => {
+            if (this.isDragging) {
+                this.isDragging = false;
+                event.preventDefault();
+                event.stopPropagation(); // Prevent camera controls from receiving this event
+            }
+        };
+
+        // Add event listeners with capture phase to intercept before camera controls
+        // This ensures we handle the events first and can stop propagation
+        window.renderer.domElement.addEventListener('mousedown', onMouseDown, true); // Capture phase
+        window.addEventListener('mousemove', onMouseMove, true); // Capture phase - window to catch moves outside canvas
+        window.addEventListener('mouseup', onMouseUp, true); // Capture phase - window to catch releases outside canvas
+
+        // Store handlers for cleanup
+        this._dragHandlers = {
+            mousedown: onMouseDown,
+            mousemove: onMouseMove,
+            mouseup: onMouseUp
+        };
     }
 
     /**
@@ -276,6 +385,14 @@ class AxesIndicator {
      * Remove from scene
      */
     dispose() {
+        // Clean up drag handlers
+        if (this._dragHandlers && window.renderer) {
+            window.renderer.domElement.removeEventListener('mousedown', this._dragHandlers.mousedown, true);
+            window.removeEventListener('mousemove', this._dragHandlers.mousemove, true);
+            window.removeEventListener('mouseup', this._dragHandlers.mouseup, true);
+            this._dragHandlers = null;
+        }
+
         if (this.group && this.group.parent) {
             this.group.parent.remove(this.group);
         }
@@ -289,6 +406,8 @@ class AxesIndicator {
         });
         this.group = null;
         this.labels = [];
+        this.dragHandle = null;
+        this.isDragging = false;
     }
 }
 

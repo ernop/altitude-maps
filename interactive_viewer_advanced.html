@@ -465,18 +465,23 @@
 						<input type="checkbox" id="showCameraControls" />
 						<label for="showCameraControls" style="margin: 0;">Show Camera Controls</label>
 					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showData" checked />
+						<label for="showData" style="margin: 0;">Show Data</label>
+					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showLoadLog" />
+						<label for="showLoadLog" style="margin: 0;">Show Load Log</label>
+					</div>
 				</div>
 			</div>
 
-			<h2>Camera Views</h2>
+			<h2 style="margin-bottom: 8px;">Camera</h2>
 
-			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+			<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
 				<button onclick="triggerOverheadView()" style="padding: 6px; font-size: 11px;">Overhead (V)</button>
 				<button onclick="triggerReframeView()" style="padding: 6px; font-size: 11px;">Reset Camera (F)</button>
-			</div>
-
-			<div style="margin-top: 8px;">
-				<button onclick="exportImage()" style="padding: 6px; font-size: 11px; width: 100%;">Screenshot</button>
+				<button onclick="exportImage()" style="padding: 6px; font-size: 11px;">Screenshot</button>
 			</div>
 
 			<div id="camera-controls-section" style="display: none;">
@@ -519,13 +524,15 @@
 				</div>
 			</div>
 
-			<h2>Load Log</h2>
-			<div style="font-size: 11px; color:#aaa; margin-bottom:6px;">
-				Saves significant events you can paste back into coding agents to explain what happened.
-				<button id="copy-logs-controls" title="Copy all logs" onclick="copyActivityLogs()"
-					style="font-size: 10px; padding: 2px 6px; margin-left: 8px;">Copy Logs</button>
+			<div id="load-log-controls" style="display: none;">
+				<h2>Load Log</h2>
+				<div style="font-size: 11px; color:#aaa; margin-bottom:6px;">
+					Saves significant events you can paste back into coding agents to explain what happened.
+					<button id="copy-logs-controls" title="Copy all logs" onclick="copyActivityLogs()"
+						style="font-size: 10px; padding: 2px 6px; margin-left: 8px;">Copy Logs</button>
+				</div>
+				<div id="activityLog"></div>
 			</div>
-			<div id="activityLog"></div>
 		</div>
 	</div>
 

@@ -1908,6 +1908,28 @@ function setupEventListeners() {
         });
     }
 
+    // Data info block show/hide toggle (camera-map-info)
+    const showDataCheckbox = document.getElementById('showData');
+    const cameraMapInfo = document.getElementById('camera-map-info');
+    if (showDataCheckbox && cameraMapInfo) {
+        // Load saved preference from localStorage (default: true)
+        const savedDataVisible = localStorage.getItem('dataVisible');
+        if (savedDataVisible !== null) {
+            showDataCheckbox.checked = savedDataVisible === 'true';
+        }
+
+        // Apply initial visibility state
+        cameraMapInfo.style.display = showDataCheckbox.checked ? 'block' : 'none';
+
+        // Add change listener
+        showDataCheckbox.addEventListener('change', () => {
+            const visible = showDataCheckbox.checked;
+            cameraMapInfo.style.display = visible ? 'block' : 'none';
+            // Save preference to localStorage
+            localStorage.setItem('dataVisible', String(visible));
+        });
+    }
+
     // Global Scale toggle - use consistent elevation range across all regions
     const useGlobalScaleCheckbox = document.getElementById('useGlobalScale');
     if (useGlobalScaleCheckbox) {
@@ -1956,6 +1978,33 @@ function setupEventListeners() {
             cameraControlsSection.style.display = visible ? 'block' : 'none';
             // Save preference to localStorage
             localStorage.setItem('cameraControlsVisible', String(visible));
+        });
+    }
+
+    // Load Log show/hide toggle (controls panel only, not loading overlay)
+    const showLoadLogCheckbox = document.getElementById('showLoadLog');
+    const loadLogControls = document.getElementById('load-log-controls');
+    if (showLoadLogCheckbox) {
+        // Load saved preference from localStorage (default: false)
+        const savedLoadLogVisible = localStorage.getItem('loadLogVisible');
+        if (savedLoadLogVisible !== null) {
+            showLoadLogCheckbox.checked = savedLoadLogVisible === 'true';
+        }
+
+        // Apply initial visibility state (only controls panel)
+        const visible = showLoadLogCheckbox.checked;
+        if (loadLogControls) {
+            loadLogControls.style.display = visible ? 'block' : 'none';
+        }
+
+        // Add change listener
+        showLoadLogCheckbox.addEventListener('change', () => {
+            const visible = showLoadLogCheckbox.checked;
+            if (loadLogControls) {
+                loadLogControls.style.display = visible ? 'block' : 'none';
+            }
+            // Save preference to localStorage
+            localStorage.setItem('loadLogVisible', String(visible));
         });
     }
 

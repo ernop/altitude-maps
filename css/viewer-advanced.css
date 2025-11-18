@@ -15,7 +15,7 @@ body {
 /* Color Scale Legend (lower-right corner) */
 .color-legend {
     position: absolute;
-    bottom: 120px;
+    bottom: 0px;
     right: 0;
     background: rgba(0, 0, 0, 0.8);
     padding: 0;
@@ -91,11 +91,11 @@ body {
     background: rgba(255, 255, 255, 0.18); /* Instant brighter background, NO MOVEMENT */
 }
 
-/* Camera and Map Info Display (lower-left corner, below region navigation) */
+/* Camera and Map Info Display (lower-right corner) */
 .camera-map-info {
     position: fixed;
-    bottom: 0;
-    left: 0;
+    bottom: 4px;
+    right: 0;
     background: rgba(0, 0, 0, 0.85);
     padding: 8px 12px;
     margin: 0;
@@ -106,7 +106,7 @@ body {
     font-size: 11px;
     line-height: 1.5;
     color: #ffffff;
-    border-top-right-radius: 4px;
+    border-top-left-radius: 4px;
     min-width: 300px;
     max-width: 400px;
 }
