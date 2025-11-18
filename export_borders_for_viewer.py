@@ -65,7 +65,7 @@ def export_borders_for_region(
             "top": float(bounds.top),
             "bottom": float(bounds.bottom)
         },
-        "resolution": resolution,
+        "resolution": border_resolution,
         "countries": []
     }
     

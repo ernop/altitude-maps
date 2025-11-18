@@ -32,7 +32,7 @@ if sys.platform == 'win32':
         pass
 
 # Import region definitions from centralized config
-from src.regions_config import ALL_REGIONS, get_us_state_names
+from src.region_config import ALL_REGIONS, get_us_state_names
 from src.types import RegionType
 
 # Pipeline dependencies
@@ -180,9 +180,11 @@ def process_region(region_id: str, raw_path: Path, source: str, force: bool, reg
             boundary_name = None
             boundary_type = None
     elif region_type == RegionType.AREA:
-        # For regions (islands, ranges, etc.), check if boundary clipping is enabled
+        # AREA regions: Always crop to rectangular bounds, optionally clip to boundary
+        # - CROP: Always performed (reduces raw tiles to rectangular area of interest)
+        # - CLIP: Only if clip_boundary=True (applies geometric boundary mask)
         if region_info.get('clip_boundary', False):
-            # Some regions may have boundaries defined
+            # Some AREA regions may have boundaries defined for clipping
             boundary_name = region_info['name']
             boundary_type = "country"  # Or custom boundary if available
         else:
@@ -216,6 +218,11 @@ def process_region(region_id: str, raw_path: Path, source: str, force: bool, reg
                         pass
 
     try:
+        # For AREA regions: Always pass bounds for cropping (reduce raw tiles to rectangular area)
+        # For other types: Pass bounds only if not clipping (fallback crop)
+        should_crop = (region_type == RegionType.AREA) or (boundary_name is None)
+        crop_bounds = region_info.get('bounds') if should_crop else None
+        
         success, result_paths = run_pipeline(
             raw_tif_path=raw_path,
             region_id=region_id,
@@ -223,9 +230,10 @@ def process_region(region_id: str, raw_path: Path, source: str, force: bool, reg
             boundary_name=boundary_name,
             boundary_type=boundary_type,
             target_total_pixels=target_total_pixels,
-            skip_clip=(boundary_name is None),
+            skip_clip=(boundary_name is None),  # Skip boundary clipping if no boundary_name
             border_resolution=border_resolution,
-            bounds=region_info.get('bounds') if boundary_name is None else None
+            bounds=crop_bounds,  # Always crop AREA regions; crop others if not clipping
+            region_type=region_type  # Pass region type so pipeline knows AREA always crops
         )
         return success, result_paths
 
@@ -383,7 +391,7 @@ This script will:
 
     # Handle --list-regions
     if args.list_regions:
-        from src.regions_config import US_STATES, COUNTRIES, REGIONS, check_region_data_available
+        from src.region_config import US_STATES, COUNTRIES, REGIONS, check_region_data_available
 
         def _status_tag(rid: str) -> str:
             try:

@@ -101,6 +101,21 @@ function formatPixelSize(meters) {
 }
 
 /**
+ * Format large numbers with abbreviations (k for thousands, m for millions)
+ * @param {number} num - Number to format
+ * @returns {string} Formatted number (e.g., "3.15m", "1.2k", "500")
+ */
+function formatAbbreviatedNumber(num) {
+    if (num >= 1000000) {
+        return `${(num / 1000000).toFixed(2)}m`;
+    } else if (num >= 1000) {
+        return `${(num / 1000).toFixed(2)}k`;
+    } else {
+        return num.toString();
+    }
+}
+
+/**
  * Simple debounce utility for coalescing rapid UI events
  * @param {Function} func - Function to debounce
  * @param {number} wait - Milliseconds to wait before calling func
@@ -121,6 +136,7 @@ window.FormatUtils = {
     formatDistance,
     formatFootprint,
     formatPixelSize,
+    formatAbbreviatedNumber,
     debounce
 };
 

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.config import DEFAULT_TARGET_TOTAL_PIXELS
 from src.pipeline import run_pipeline
-from src.regions_config import US_STATES, get_region
+from src.region_config import US_STATES, get_region
 from src.types import RegionType
 
 

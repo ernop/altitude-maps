@@ -18,7 +18,7 @@ from typing import Dict, Tuple, TYPE_CHECKING
 import requests
 from tqdm import tqdm
 
-from src.regions_config import ALL_REGIONS
+from src.region_config import ALL_REGIONS
 from src.tile_geometry import (
     calculate_visible_pixel_size,
     estimate_raw_file_size_mb,

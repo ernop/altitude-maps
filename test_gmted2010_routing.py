@@ -3,7 +3,7 @@ Test GMTED2010 download routing and error handling.
 """
 from pathlib import Path
 from src.downloaders.orchestrator import download_elevation_data
-from src.regions_config import get_region
+from src.region_config import get_region
 
 def test_gmted2010_routing():
     """Test that GMTED2010 datasets route correctly."""

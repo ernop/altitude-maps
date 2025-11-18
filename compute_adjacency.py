@@ -8,7 +8,7 @@ import gzip
 import geopandas as gpd
 from shapely.geometry import Point
 from src.borders import get_border_manager
-from src.regions_config import list_regions, get_region
+from src.region_config import list_regions, get_region
 from src.types import RegionType
 import math
 
@@ -297,7 +297,7 @@ def update_adjacency_if_needed(force: bool = False) -> bool:
     """
     Update adjacency data if needed.
     
-    Checks if adjacency file exists and is up-to-date with regions_config.py.
+    Checks if adjacency file exists and is up-to-date with region_config.py.
     If force=True, always updates regardless of file timestamps.
     
     Args:
@@ -309,7 +309,7 @@ def update_adjacency_if_needed(force: bool = False) -> bool:
     from pathlib import Path
     
     adjacency_file = Path('generated/regions/region_adjacency.json')
-    regions_config_file = Path('src/regions_config.py')
+    region_config_file = Path('src/region_config.py')
     
     # Always update if forced
     if force:
@@ -330,9 +330,9 @@ def update_adjacency_if_needed(force: bool = False) -> bool:
             print(f"  Warning: Could not compute adjacency: {e}")
             return False
     
-    # Check if regions_config.py is newer than adjacency file
-    if regions_config_file.exists():
-        config_mtime = regions_config_file.stat().st_mtime
+    # Check if region_config.py is newer than adjacency file
+    if region_config_file.exists():
+        config_mtime = region_config_file.stat().st_mtime
         adjacency_mtime = adjacency_file.stat().st_mtime
         
         if config_mtime > adjacency_mtime:

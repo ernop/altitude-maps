@@ -13,9 +13,9 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.downloaders.opentopography import download_srtm
-from src.regions_config import ALL_REGIONS
+from src.region_config import ALL_REGIONS
 
-# Regions now come from centralized config in src/regions_config.py
+# Regions now come from centralized config in src/region_config.py
 
 
 def print_manual_instructions(region_id: str, bounds: Tuple[float, float, float, float]) -> None:
@@ -109,7 +109,7 @@ Note: --auto uses OpenTopography (30m SRTM, global fallback)
                 print(f" {region_id:20s} - {config.name:30s}")
         print("="* 70)
         print("\nUsage: python downloaders/switzerland_swisstopo.py <region_id> [--auto|--manual]")
-        print("\nNote: Regions are from centralized config (src/regions_config.py)")
+        print("\nNote: Regions are from centralized config (src/region_config.py)")
         return 0
     
     if not args.region:

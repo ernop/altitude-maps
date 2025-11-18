@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.downloaders.opentopography import download_srtm
 from src.metadata import create_raw_metadata, save_metadata, get_metadata_path
 from src.pipeline import run_pipeline
-from src.regions_config import ALL_REGIONS, get_region
+from src.region_config import ALL_REGIONS, get_region
 
 
 def print_manual_instructions(region_id: str, bounds: Tuple[float, float, float, float]) -> None:

@@ -3,12 +3,18 @@ Automatic data processing pipeline for altitude-maps.
 
 This module orchestrates the full workflow from raw download to viewer-ready export:
 1. Download raw elevation data (bounding box)
-2. Clip to administrative boundaries (state/country)
+2. Crop/Clip: Reduce to area of interest
+   - CROP: Rectangular bounding box extraction (reduces raw tiles to region bounds)
+   - CLIP: Administrative boundary mask (geometric shape extraction for states/countries)
 3. Process/downsample for viewer
 4. Export to JSON format
 5. Update regions manifest
 
 User runs ONE command, pipeline handles everything automatically.
+
+TERMINOLOGY (industry standard):
+- CROP: Rectangular bounding box extraction (reduces raw downloaded tiles to area of interest)
+- CLIP: Geometric boundary mask extraction (administrative boundary shape)
 
 CRITICAL NAMING CONVENTION - Two distinct resolution types:
 
@@ -147,19 +153,23 @@ def merge_tiles(tile_paths: list[Path], output_path: Path) -> bool:
                 pass
 
 
-def clip_to_bounds(
+def crop_to_bounds(
     raw_tif_path: Path,
     bounds: Tuple[float, float, float, float],
     output_path: Path,
     source: str = "srtm_30m"
 ) -> bool:
     """
-    Clip raw elevation data to exact bounding box bounds.
+    Crop raw elevation data to rectangular bounding box.
+    
+    This reduces the raw downloaded tiles to the area of interest by extracting
+    a rectangular region. This is different from clipping to an administrative
+    boundary shape - this is a simple rectangular crop operation.
     
     Args:
         raw_tif_path: Path to raw bounding box TIF
         bounds: (west, south, east, north) in degrees (EPSG:4326)
-        output_path: Where to save clipped TIF
+        output_path: Where to save cropped TIF
         source: Data source name
         
     Returns:
@@ -178,7 +188,7 @@ def clip_to_bounds(
             with rasterio.open(output_path) as src:
                 if src.width > 0 and src.height > 0:
                     _ = src.read(1, window=((0, min(10, src.height)), (0, min(10, src.width))))
-                    print(f"  Already clipped to bounds (validated): {output_path.name}")
+                    print(f"  Already cropped to bounds (validated): {output_path.name}")
                     return True
         except Exception:
             try:
@@ -186,7 +196,7 @@ def clip_to_bounds(
             except Exception:
                 pass
     
-    print(f"  Clipping to bounding box...")
+    print(f"  Cropping to bounding box...")
     
     try:
         with rasterio.open(raw_tif_path) as src:
@@ -196,8 +206,8 @@ def clip_to_bounds(
             bbox_geom = box(west, south, east, north)
             geoms = [shapely_mapping(bbox_geom)]
             
-            # Clip the raster to the bounding box
-            print(f"  Applying bounding box mask...")
+            # Crop the raster to the bounding box (rectangular extraction)
+            print(f"  Applying rectangular crop...")
             out_image, out_transform = rasterio_mask(
                 src,
                 geoms,
@@ -227,11 +237,11 @@ def clip_to_bounds(
                 dst.write(out_image)
             
             file_size_mb = output_path.stat().st_size / (1024 * 1024)
-            print(f"  Clipped to bounds: {output_path.name} ({file_size_mb:.1f} MB)")
+            print(f"  Cropped to bounds: {output_path.name} ({file_size_mb:.1f} MB)")
             return True
             
     except Exception as e:
-        print(f"  Error clipping to bounds: {e}")
+        print(f"  Error cropping to bounds: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -248,10 +258,14 @@ def clip_to_boundary(
     boundary_required: bool = False
 ) -> bool:
     """
-    Clip raw elevation data to administrative boundary.
-
+    Clip raw elevation data to administrative boundary shape.
+    
+    This applies a geometric mask using the administrative boundary (state/country)
+    polygon. This is different from cropping to a rectangular bounding box - this
+    extracts data only within the boundary shape, masking out areas outside.
+    
     Args:
-        raw_tif_path: Path to raw bounding box TIF
+        raw_tif_path: Path to raw bounding box TIF (or cropped TIF)
         region_id: Region identifier (e.g., 'california')
         boundary_name: Boundary to clip to
             - If boundary_type="country": "United States of America"
@@ -259,7 +273,7 @@ def clip_to_boundary(
         output_path: Where to save clipped TIF
         source: Data source name
         boundary_type: "country" or "state"
-
+        
     Returns:
         True if successful
     """
@@ -458,7 +472,7 @@ def reproject_to_metric_crs(
     After this stage, data is treated as a pure 2D array everywhere else.
     
     Args:
-        input_tif_path: Path to clipped TIF (may be EPSG:4326)
+        input_tif_path: Path to cropped/clipped TIF (may be EPSG:4326)
         region_id: Region identifier
         output_path: Where to save reprojected TIF
         source: Data source name
@@ -1010,9 +1024,9 @@ def update_regions_manifest(generated_dir: Path) -> bool:
     Stage 11: Update the regions manifest with all available regions.
     
     CRITICAL RULES:
-    1. ONLY regions from regions_config.py that HAVE DATA FILES are included
+    1. ONLY regions from region_config.py that HAVE DATA FILES are included
     2. ALL regions MUST have a region_type parameter (enforced)
-    3. Region info (name, description, regionType) comes ONLY from regions_config
+    3. Region info (name, description, regionType) comes ONLY from region_config
     4. JSON manifest uses camelCase "regionType" (not snake_case "region_type")
     5. JSON files only provide: file path, bounds, stats, source
     6. Regions without data files are SKIPPED (not included in manifest)
@@ -1026,7 +1040,7 @@ def update_regions_manifest(generated_dir: Path) -> bool:
     print(f"  Updating regions manifest...")
     
     try:
-        from src.regions_config import ALL_REGIONS
+        from src.region_config import ALL_REGIONS
         
         manifest = {
             "regions": {}
@@ -1062,11 +1076,11 @@ def update_regions_manifest(generated_dir: Path) -> bool:
             except Exception:
                 continue
         
-        # Iterate ONLY through regions configured in regions_config.py
+        # Iterate ONLY through regions configured in region_config.py
         for region_id, cfg in sorted(ALL_REGIONS.items()):
             # ENFORCE: region_type is MANDATORY
             if not hasattr(cfg, 'region_type') or cfg.region_type is None:
-                print(f"  [SKIP] Region '{region_id}' missing region_type in regions_config - skipping")
+                print(f"  [SKIP] Region '{region_id}' missing region_type in region_config - skipping")
                 continue
             
             # Find matching JSON file(s) - use first available
@@ -1087,7 +1101,7 @@ def update_regions_manifest(generated_dir: Path) -> bool:
             if not json_file or not json_data:
                 continue
             
-            # Build entry using ONLY info from regions_config
+            # Build entry using ONLY info from region_config
             entry = {
                 "name": cfg.name,  # FROM CONFIG ONLY
                 "description": cfg.description or f"{cfg.name} elevation data",  # FROM CONFIG ONLY
@@ -1155,13 +1169,27 @@ def run_pipeline(
     target_total_pixels: int = ...,
     skip_clip: bool = False,
     border_resolution: str = "10m",
-    bounds: Optional[Tuple[float, float, float, float]] = None
+    bounds: Optional[Tuple[float, float, float, float]] = None,
+    region_type: Optional['RegionType'] = None
 ) -> tuple[bool, dict]:
     """
     Unified pipeline (Stages 6-11). Assumes raw download already completed.
     
+    Stage 6 Crop/Clip behavior:
+    - AREA regions: ALWAYS crop to rectangular bounds, then optionally clip if clip_boundary=True
+    - USA_STATE/COUNTRY: Clip to boundary (may also crop first if bounds provided and not clipping)
+    
     Args:
+        raw_tif_path: Path to raw downloaded TIF file
+        region_id: Region identifier
+        source: Data source name
+        boundary_name: Administrative boundary name (None = no boundary clipping)
+        boundary_type: "country" or "state"
         target_total_pixels: Target total pixel count (width × height) (required)
+        skip_clip: Skip boundary clipping even if boundary_name is set
+        border_resolution: Natural Earth border resolution ('10m', '50m', '110m')
+        bounds: Rectangular bounds (west, south, east, north) for cropping
+        region_type: RegionType enum - used to determine if AREA regions always crop
     """
     
     print(f"\n{'='*70}")
@@ -1183,38 +1211,55 @@ def run_pipeline(
     processed_dir = data_root / "processed" / source
     generated_dir = Path("generated/regions")
 
-    # Stage 6: clip
-    if skip_clip or not boundary_name:
-        # If bounds are provided but no boundary, clip to bounds
-        if bounds:
-            print(f"[STAGE 6/10] Clipping to bounding box bounds")
-            clipped_filename = abstract_filename_from_raw(raw_tif_path, 'clipped', source, 'bbox')
-            if clipped_filename is None:
-                raise ValueError(f"Could not generate abstract filename for clipped file - bounds extraction failed for {raw_tif_path}")
-            clipped_path = clipped_dir / clipped_filename
-            if not clip_to_bounds(raw_tif_path, bounds, clipped_path, source):
-                print(f"\n[STAGE 6/10] FAILED: Clipping to bounds failed.")
-                return False, result_paths
-        else:
-            print(f"[STAGE 6/10] Skipping clipping (using raw data)")
-            clipped_path = raw_tif_path
-    else:
-        print(f"[STAGE 6/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
+    # Stage 6: crop/clip
+    # Two distinct operations:
+    # - CROP: Reduce raw downloaded tiles to rectangular bounding box (area of interest)
+    # - CLIP: Apply geometric mask using administrative boundary shape (state/country polygon)
+    #
+    # Processing rules by region type:
+    # - USA_STATE/COUNTRY: Clip to boundary (may also crop first if needed)
+    # - AREA: ALWAYS crop to rectangular bounds, then optionally clip if clip_boundary=True
+    #
+    # Step 1: Crop to rectangular bounds (if needed)
+    # AREA regions ALWAYS crop; others crop only if not clipping
+    should_crop_first = (region_type == RegionType.AREA) or (bounds and (skip_clip or not boundary_name))
+    cropped_path = raw_tif_path
+    
+    if should_crop_first and bounds:
+        print(f"[STAGE 6a/10] Cropping to bounding box (rectangular region)")
+        cropped_filename = abstract_filename_from_raw(raw_tif_path, 'clipped', source, 'bbox')
+        if cropped_filename is None:
+            raise ValueError(f"Could not generate abstract filename for cropped file - bounds extraction failed for {raw_tif_path}")
+        cropped_path = clipped_dir / cropped_filename
+        if not crop_to_bounds(raw_tif_path, bounds, cropped_path, source):
+            print(f"\n[STAGE 6a/10] FAILED: Cropping to bounds failed.")
+            return False, result_paths
+    
+    # Step 2: Clip to boundary shape (if requested)
+    # AREA regions: Only if clip_boundary=True
+    # USA_STATE/COUNTRY: Always (unless skip_clip=True)
+    if boundary_name and not skip_clip:
+        print(f"[STAGE 6b/10] Clipping to {boundary_type} boundary: {boundary_name} ({border_resolution})")
         # Generate abstract filename based on raw file bounds (no region_id)
-        clipped_filename = abstract_filename_from_raw(raw_tif_path, 'clipped', source, boundary_name)
+        clipped_filename = abstract_filename_from_raw(cropped_path, 'clipped', source, boundary_name)
         if clipped_filename is None:
-            raise ValueError(f"Could not generate abstract filename for clipped file - bounds extraction failed for {raw_tif_path}")
+            raise ValueError(f"Could not generate abstract filename for clipped file - bounds extraction failed for {cropped_path}")
         clipped_path = clipped_dir / clipped_filename
         try:
             if not clip_to_boundary(
-                raw_tif_path, region_id, boundary_name, clipped_path,
+                cropped_path, region_id, boundary_name, clipped_path,
                 source, boundary_type, border_resolution, boundary_required=bool(boundary_name)
             ):
-                print(f"\n[STAGE 6/10] FAILED: Clipping failed and boundary was required ({boundary_name}).")
+                print(f"\n[STAGE 6b/10] FAILED: Clipping failed and boundary was required ({boundary_name}).")
                 return False, result_paths
         except PipelineError as e:
-            print(f"\n[STAGE 6/10] FAILED: {e}")
+            print(f"\n[STAGE 6b/10] FAILED: {e}")
             return False, result_paths
+    else:
+        # No boundary clipping - use cropped (or raw) data
+        clipped_path = cropped_path
+        if not boundary_name and not bounds:
+            print(f"[STAGE 6/10] Skipping crop/clip (using raw data)")
 
     result_paths["clipped"] = clipped_path
 

@@ -38,7 +38,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.371';
+const VIEWER_VERSION = '1.378';
 
 // RegionType enum is defined in state-connectivity.js (loaded before this file)
 // Values: RegionType.USA_STATE, RegionType.COUNTRY, RegionType.AREA
@@ -248,6 +248,14 @@ function applyParamsFromURL() {
 // Initialize
 async function init() {
     try {
+        // Update page title to indicate local development
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' || 
+                       window.location.hostname === '';
+        if (isLocal) {
+            document.title = '*Local ' + document.title;
+        }
+        
         setupScene();
         setupEventListeners();
 
@@ -913,13 +921,26 @@ async function loadRegion(regionId) {
         // CRITICAL: Preserve the user's multiplier choice across region changes
         // Store the current multiplier before recalculating trueScaleValue
         const oldTrueScale = trueScaleValue;
-        const currentMultiplier = oldTrueScale !== null ? params.verticalExaggeration / oldTrueScale : null;
+        let currentMultiplier = oldTrueScale !== null ? params.verticalExaggeration / oldTrueScale : null;
+        
+        // On initial load, check URL for multiplier if we don't have one from previous region
+        if (currentMultiplier === null) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlExag = urlParams.get('exag');
+            if (urlExag !== null) {
+                const urlMultiplier = parseFloat(urlExag);
+                if (!Number.isNaN(urlMultiplier) && urlMultiplier > 0) {
+                    currentMultiplier = urlMultiplier;
+                    console.log(`Extracted multiplier from URL: ${currentMultiplier.toFixed(1)}x`);
+                }
+            }
+        }
         
         const scale = calculateRealWorldScale();
         trueScaleValue = 1.0 / scale.metersPerPixelX;
         console.log(`True scale for this region: ${trueScaleValue.toFixed(6)}x`);
         
-        // If we had a previous multiplier, apply it to the new trueScaleValue
+        // If we have a multiplier (from previous region or URL), apply it to the new trueScaleValue
         // This keeps the user's chosen "10x" at 10x even when switching regions
         if (currentMultiplier !== null && currentMultiplier > 0) {
             params.verticalExaggeration = trueScaleValue * currentMultiplier;
@@ -998,6 +1019,11 @@ async function loadRegion(regionId) {
             updateColorLegend();
         }
 
+        // Initialize map size display if not already initialized
+        if (window.MapSizeDisplay && typeof window.MapSizeDisplay.init === 'function') {
+            window.MapSizeDisplay.init();
+        }
+        
         // Update map size display with loaded data
         if (window.MapSizeDisplay && typeof window.MapSizeDisplay.update === 'function') {
             window.MapSizeDisplay.update();
@@ -1314,6 +1340,11 @@ function rebucketData() {
 
     // Update Resolution header with footprint and rectangle count
     updateResolutionInfo();
+    
+    // Ensure map size display is updated after processedData is set
+    if (window.MapSizeDisplay && typeof window.MapSizeDisplay.update === 'function') {
+        window.MapSizeDisplay.update();
+    }
 }
 
 /**
@@ -1556,6 +1587,17 @@ function setupScene() {
 
     // Initialize Natural (Lambert) lighting
     try { updateLightingForShading(); } catch (_) { }
+
+    // Initialize axes indicator (industry standard: X=Red, Y=Green, Z=Blue)
+    // Positioned at bottom middle of viewport, rotates with camera
+    if (window.AxesIndicator && typeof window.AxesIndicator.create === 'function') {
+        window.AxesIndicator.create(scene, {
+            size: 0.3,       // 20% of original size
+            viewportX: 0.5,  // Center horizontally
+            viewportY: 0.08, // Bottom middle (8% from bottom)
+            distance: 3      // Closer to camera
+        });
+    }
 }
 
 // Track if controls have been set up to prevent duplicate initialization
@@ -2332,8 +2374,9 @@ function updateVertExagButtons(activeValue) {
         const tolerance = 0.000001;
         if (Math.abs(activeValue - flatValue) < tolerance) {
             flatBtn.classList.add('active');
-            flatBtn.style.outline = '2px solid#ffaa00';
+            flatBtn.style.outline = '2px solid #ffaa00';
             activeVertExagButton = flatBtn;
+            return; // Found match, done
         }
     }
 
@@ -2343,24 +2386,53 @@ function updateVertExagButtons(activeValue) {
         const tolerance = 0.000001;
         if (Math.abs(activeValue - trueScaleValue) < tolerance) {
             trueScaleBtn.classList.add('active');
-            trueScaleBtn.style.outline = '2px solid#ffaa00';
+            trueScaleBtn.style.outline = '2px solid #ffaa00';
             activeVertExagButton = trueScaleBtn;
+            return; // Found match, done
         }
     }
 
-    // Check multiplier buttons
+    // Check multiplier buttons - find closest match
+    let closestBtn = null;
+    let closestDiff = Infinity;
     buttons.forEach(btn => {
         const multiplier = btn.dataset.multiplier;
         if (multiplier && trueScaleValue !== null) {
             const btnValue = trueScaleValue * parseFloat(multiplier);
+            const diff = Math.abs(activeValue - btnValue);
             const tolerance = Math.max(0.0001, btnValue * 0.01); // 1% tolerance
-            if (Math.abs(activeValue - btnValue) < tolerance) {
-                btn.classList.add('active');
-                btn.style.outline = '2px solid#ffaa00';
-                activeVertExagButton = btn;
+            if (diff < tolerance && diff < closestDiff) {
+                closestBtn = btn;
+                closestDiff = diff;
             }
         }
     });
+    
+    // Highlight closest matching button (always highlight something if we have buttons)
+    if (closestBtn) {
+        closestBtn.classList.add('active');
+        closestBtn.style.outline = '2px solid #ffaa00';
+        activeVertExagButton = closestBtn;
+    } else if (buttons.length > 0 && trueScaleValue !== null) {
+        // Fallback: if no button matches, highlight the one closest to current multiplier
+        const currentMultiplier = internalToMultiplier(activeValue);
+        buttons.forEach(btn => {
+            const multiplier = btn.dataset.multiplier;
+            if (multiplier) {
+                const btnMultiplier = parseFloat(multiplier);
+                const diff = Math.abs(currentMultiplier - btnMultiplier);
+                if (diff < closestDiff) {
+                    closestBtn = btn;
+                    closestDiff = diff;
+                }
+            }
+        });
+        if (closestBtn) {
+            closestBtn.classList.add('active');
+            closestBtn.style.outline = '2px solid #ffaa00';
+            activeVertExagButton = closestBtn;
+        }
+    }
 }
 
 // Overhead view - looks directly down at terrain center
@@ -2890,24 +2962,29 @@ function formatPixelSize(meters) {
 }
 
 function updateResolutionInfo() {
-    const infoEl = document.getElementById('resolution-info');
-    if (!infoEl || !processedData) return;
+    // Update box size in camera-map-info panel
+    const boxSizeEl = document.getElementById('map-box-size');
+    
+    if (!processedData) {
+        if (boxSizeEl) {
+            boxSizeEl.textContent = '--';
+        }
+        return;
+    }
 
     const metersX = processedData.bucketSizeMetersX || 0;
     const metersY = processedData.bucketSizeMetersY || 0;
-    const totalRectangles = processedData.width * processedData.height;
 
     // Format as compact "123.4m" or "1.2km", with one decimal point
     const formattedX = formatPixelSize(metersX);
     const formattedY = formatPixelSize(metersY);
     const footprintText = (metersX === metersY) ? formattedX : `${formattedX}×${formattedY}`;
 
-    // Round total rectangles to nearest thousand
-    const roundedTotal = Math.round(totalRectangles / 1000);
-
-    infoEl.textContent = `${footprintText}, ${roundedTotal}k`;
+    if (boxSizeEl) {
+        boxSizeEl.textContent = footprintText;
+    }
     
-    // Also update map-size-display (which now includes resolution info)
+    // Also update map size display (extent, pixels, total)
     if (window.MapSizeDisplay && typeof window.MapSizeDisplay.update === 'function') {
         window.MapSizeDisplay.update();
     }
@@ -3075,6 +3152,12 @@ function animate() {
     }
 
     controls.update();
+    
+    // Update axes indicator labels to face camera
+    if (window.AxesIndicator && typeof window.AxesIndicator.update === 'function') {
+        window.AxesIndicator.update();
+    }
+    
     renderer.render(scene, camera);
     updateFPS();
     

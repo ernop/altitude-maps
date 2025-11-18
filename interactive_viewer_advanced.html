@@ -14,7 +14,7 @@
 	<link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
 
 	<!-- Removed Select2 CSS (not used; avoids CSS parse warnings) -->
-	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.371">
+	<link rel="stylesheet" href="css/viewer-advanced.css?v=1.378">
 </head>
 
 <body>
@@ -26,9 +26,6 @@
 				style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%; z-index: 5;">
 			</div>
 
-		<!-- Map Size Display (lower-right corner, above color legend) -->
-		<div id="map-size-display" class="map-size-display">--</div>
-
 		<!-- Color Scale Legend (lower-right corner) -->
 		<div id="color-legend" class="color-legend">
 			<div class="color-legend-content">
@@ -38,8 +35,8 @@
 			<div class="color-legend-title">Elevation</div>
 		</div>
 
-		<!-- Region Navigation Panel (lower-left corner) -->
-		<div id="region-navigation" class="region-navigation" style="display: none;">
+		<!-- Region Navigation Panel (upper-left corner) -->
+		<div id="region-navigation" class="region-navigation-upper-left" style="display: none;">
 			<div class="region-nav-columns">
 				<div class="region-nav-column" id="contains-column">
 					<div class="region-nav-header">Contains</div>
@@ -54,6 +51,18 @@
 
 		<!-- Camera and Map Info Display (lower-left corner, below region navigation) -->
 		<div id="camera-map-info" class="camera-map-info">
+			<div class="camera-map-row">
+				<span class="camera-map-label">Size:</span>
+				<span id="map-size-extent">--</span>
+			</div>
+			<div class="camera-map-row">
+				<span class="camera-map-label">Pixels:</span>
+				<span id="map-size-pixels">--</span>
+			</div>
+			<div class="camera-map-row">
+				<span class="camera-map-label">Box Size:</span>
+				<span id="map-box-size">--</span>
+			</div>
 			<div class="camera-map-row">
 				<span class="camera-map-label">Camera:</span>
 				<span id="camera-position">--</span>
@@ -163,6 +172,10 @@
 						<div class="shortcut-item">
 							<kbd>F</kbd>
 							<span>Reframe view (reset to overhead)</span>
+						</div>
+						<div class="shortcut-item">
+							<kbd>V</kbd>
+							<span>Overhead camera view (reframe view)</span>
 						</div>
 						<div class="shortcut-item">
 							<kbd>R</kbd>
@@ -305,8 +318,7 @@
 				<div id="recent-regions-list" class="recent-regions-list"></div>
 			</div>
 
-			<h2>Resolution <span id="resolution-info" style="font-size: 0.7em; margin-left: 8px; float: right;"></span>
-			</h2>
+			<h2>Resolution</h2>
 
 			<div class="control-group" style="position: relative;">
 				<!-- Loading overlay for resolution changes -->
@@ -514,69 +526,72 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 	<!-- Camera Control Schemes -->
-	<script src="js/camera-schemes.js?v=1.371"></script>
-	<script src="js/ground-plane-camera.js?v=1.371"></script>
-	<script src="js/ground-plane-google-earth.js?v=1.371"></script>
+	<script src="js/camera-schemes.js?v=1.378"></script>
+	<script src="js/ground-plane-camera.js?v=1.378"></script>
+	<script src="js/ground-plane-google-earth.js?v=1.378"></script>
 
 	<!-- jQuery -->
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 	<!-- Color schemes -->
-	<script src="js/color-schemes.js?v=1.371"></script>
+	<script src="js/color-schemes.js?v=1.378"></script>
 
 	<!-- Band editor for hypsometric-banded -->
-	<script src="js/band-editor.js?v=1.371"></script>
+	<script src="js/band-editor.js?v=1.378"></script>
 
 	<!-- Color scale legend -->
-	<script src="js/color-legend.js?v=1.371"></script>
+	<script src="js/color-legend.js?v=1.378"></script>
 
 	<!-- Geometry and spatial utilities -->
-	<script src="js/geometry-utils.js?v=1.371"></script>
+	<script src="js/geometry-utils.js?v=1.378"></script>
 
 	<!-- Data formatting utilities -->
-	<script src="js/format-utils.js?v=1.371"></script>
+	<script src="js/format-utils.js?v=1.378"></script>
 
 	<!-- Map size display -->
-	<script src="js/map-size-display.js?v=1.371"></script>
+	<script src="js/map-size-display.js?v=1.378"></script>
 
 	<!-- Activity log utilities -->
-	<script src="js/activity-log.js?v=1.371"></script>
+	<script src="js/activity-log.js?v=1.378"></script>
 
 	<!-- Edge markers (N/E/S/W directional labels) -->
-	<script src="js/edge-markers.js?v=1.371"></script>
+	<script src="js/edge-markers.js?v=1.378"></script>
 
 	<!-- UI loading states (loading screen and progress bar) -->
-	<script src="js/ui-loading.js?v=1.371"></script>
+	<script src="js/ui-loading.js?v=1.378"></script>
 
 	<!-- Resolution controls (bucket size slider and presets) -->
-	<script src="js/resolution-controls.js?v=1.371"></script>
+	<script src="js/resolution-controls.js?v=1.378"></script>
 
 	<!-- Keyboard shortcuts (global shortcuts like R, +, -) -->
-	<script src="js/keyboard-shortcuts.js?v=1.371"></script>
+	<script src="js/keyboard-shortcuts.js?v=1.378"></script>
 
 	<!-- State connectivity (US states only) -->
-	<script src="js/state-connectivity.js?v=1.371"></script>
+	<script src="js/state-connectivity.js?v=1.378"></script>
 
 	<!-- UI Controls Manager -->
-	<script src="js/ui-controls-manager.js?v=1.371"></script>
+	<script src="js/ui-controls-manager.js?v=1.378"></script>
 
 	<!-- HUD System -->
-	<script src="js/hud-system.js?v=1.371"></script>
+	<script src="js/hud-system.js?v=1.378"></script>
 
 	<!-- Camera and Map Info Display -->
-	<script src="js/camera-map-info.js?v=1.371"></script>
+	<script src="js/camera-map-info.js?v=1.378"></script>
 
 	<!-- Compass Rose -->
-	<script src="js/compass-rose.js?v=1.371"></script>
+	<script src="js/compass-rose.js?v=1.378"></script>
 
 	<!-- Map Shading -->
-	<script src="js/map-shading.js?v=1.371"></script>
+	<script src="js/map-shading.js?v=1.378"></script>
 
 	<!-- Terrain Renderer -->
-	<script src="js/terrain-renderer.js?v=1.371"></script>
+	<script src="js/terrain-renderer.js?v=1.378"></script>
+
+	<!-- Axes Indicator -->
+	<script src="js/axes-indicator.js?v=1.378"></script>
 
 	<!-- Main viewer application -->
-	<script src="js/viewer-advanced.js?v=1.371"></script>
+	<script src="js/viewer-advanced.js?v=1.378"></script>
 </body>
 
 </html>

@@ -1140,15 +1140,15 @@ record_successful_request()
 4. Use two-tier caching to balance flexibility and performance
 
 ### Centralized Region Configuration
-- **Single source of truth**: All regions defined in `src/regions_config.py`
+- **Single source of truth**: All regions defined in `src/region_config.py`
 - **Categories**: US_STATES, COUNTRIES, REGIONS (three categories only)
 - **Key principle**: Having a region configured does NOT mean data exists - check manifest/files separately
 - **Utility functions**: `check_region_data_available()`, `list_available_regions()`, `is_region_configured()`
-- **CRITICAL RULE**: NO scripts should store local copies of region lists. All region information must come from `src/regions_config.py` via imports. This was enforced across all download scripts to eliminate duplication and maintain consistency.
+- **CRITICAL RULE**: NO scripts should store local copies of region lists. All region information must come from `src/region_config.py` via imports. This was enforced across all download scripts to eliminate duplication and maintain consistency.
 
 ### Adding New Regions (Viewer and Pipeline)
 - **Quick path (viewer-focused):**
-  1. Add RegionConfig entry to appropriate category in `src/regions_config.py`:
+  1. Add RegionConfig entry to appropriate category in `src/region_config.py`:
      - `id`: lowercase with underscores (e.g., "japan")
      - `name`: Display name (e.g., "Japan")
      - `bounds`: Tuple(west, south, east, north) in degrees
@@ -1167,7 +1167,7 @@ record_successful_request()
   - US states → third group; ids in the hardcoded US set or prefixed with `usa_`.
 
 - Integrated pipeline path (unified CLI):
-  - Add region to `src/regions_config.py` if not already present.
+  - Add region to `src/region_config.py` if not already present.
   - Use: `python ensure_region.py <region_id>` to run the full `src/pipeline.py` (clip → reproject → downsample → export → manifest update).
 
 - Validation and consistency:

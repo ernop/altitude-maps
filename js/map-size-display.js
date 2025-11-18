@@ -22,7 +22,8 @@
     }
 
     let initialized = false;
-    let sizeDisplayEl = null;
+    let extentEl = null;
+    let pixelsEl = null;
 
     /**
      * Initialize map size display
@@ -33,9 +34,11 @@
             return;
         }
 
-        sizeDisplayEl = document.getElementById('map-size-display');
-        if (!sizeDisplayEl) {
-            console.warn('[MapSizeDisplay] Element #map-size-display not found');
+        extentEl = document.getElementById('map-size-extent');
+        pixelsEl = document.getElementById('map-size-pixels');
+
+        if (!extentEl || !pixelsEl) {
+            console.warn('[MapSizeDisplay] Required DOM elements not found');
             return;
         }
 
@@ -47,10 +50,11 @@
      * Update the map size display
      */
     function update() {
-        if (!initialized || !sizeDisplayEl) return;
+        if (!initialized || !extentEl || !pixelsEl) return;
 
         if (!window.rawElevationData || !window.GeometryUtils || !window.FormatUtils) {
-            sizeDisplayEl.innerHTML = '--';
+            extentEl.textContent = '--';
+            pixelsEl.textContent = '--';
             return;
         }
 
@@ -68,7 +72,7 @@
             const aspectRatio = widthMeters / heightMeters;
             if (Math.abs(aspectRatio - 1.0) < 0.01) {
                 // Square - show "square = x.y meters tall by z.q meters wide"
-                extentText = `square = ${heightMeters.toFixed(1)} meters tall by ${widthMeters.toFixed(1)} meters wide`;
+                extentText = `square = ${heightMeters.toFixed(1)}m tall by ${widthMeters.toFixed(1)}m wide`;
             } else {
                 // Not square - show "x miles wide by y miles tall"
                 const widthStr = widthMiles < 0.5 
@@ -80,21 +84,27 @@
                 extentText = `${widthStr} wide by ${heightStr} tall`;
             }
 
-            // Add resolution info below extent (pixel dimensions and total count)
-            let resolutionText = '';
+            extentEl.textContent = extentText;
+
+            // Format pixel dimensions with total in parentheses
             if (window.processedData) {
                 const pixelWidth = window.processedData.width || 0;
                 const pixelHeight = window.processedData.height || 0;
                 const totalPixels = pixelWidth * pixelHeight;
 
-                // Format as "X pixels wide, Y pixels tall" on one line, "Z total pixels" on next line
-                resolutionText = `<div style="margin-top: 4px; opacity: 0.9;">${pixelWidth} pixels wide, ${pixelHeight} pixels tall<br>${totalPixels.toLocaleString()} total pixels</div>`;
-            }
+                // Format total pixels with abbreviations (e.g., "3.15m")
+                const formattedTotal = window.FormatUtils && window.FormatUtils.formatAbbreviatedNumber
+                    ? window.FormatUtils.formatAbbreviatedNumber(totalPixels)
+                    : totalPixels.toLocaleString();
 
-            sizeDisplayEl.innerHTML = extentText + resolutionText;
+                pixelsEl.textContent = `${pixelWidth} × ${pixelHeight} (${formattedTotal})`;
+            } else {
+                pixelsEl.textContent = '--';
+            }
         } catch (error) {
             console.warn('[MapSizeDisplay] Error updating display:', error);
-            sizeDisplayEl.innerHTML = '--';
+            extentEl.textContent = '--';
+            pixelsEl.textContent = '--';
         }
     }
 

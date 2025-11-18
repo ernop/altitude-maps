@@ -15,7 +15,7 @@ import glob
 from pathlib import Path
 from typing import Tuple, Optional, Dict
 
-from src.regions_config import ALL_REGIONS
+from src.region_config import ALL_REGIONS
 from src.versioning import get_current_version
 from src.validation import check_pipeline_complete, find_raw_file, validate_json_export
 

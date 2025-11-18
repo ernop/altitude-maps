@@ -13,7 +13,7 @@ from pathlib import Path
 import rasterio
 from typing import Tuple, Optional
 
-from src.regions_config import get_region
+from src.region_config import get_region
 from src.tile_geometry import calculate_visible_pixel_size
 from src.downloaders.orchestrator import determine_min_required_resolution
 from src.validation import find_raw_file

@@ -585,7 +585,7 @@ COUNTRIES: Dict[str, RegionConfig] = {
         description="Faroe Islands - North Atlantic archipelago",
         region_type=RegionType.COUNTRY,
         country="Faroe Islands",
-        clip_boundary=True,
+        clip_boundary=False,
     ),
 }
 
@@ -1153,5 +1153,4 @@ def should_clip_boundary(region_id: str) -> bool:
     """Check if a region should be clipped to administrative boundaries."""
     config = get_region(region_id)
     return config.clip_boundary if config else True  # Default to True
-
 

@@ -4,7 +4,7 @@ Validates that the system selects appropriate resolutions for all region types.
 """
 from src.tile_geometry import calculate_visible_pixel_size
 from src.downloaders.orchestrator import determine_min_required_resolution, determine_required_resolution_and_dataset
-from src.regions_config import get_region
+from src.region_config import get_region
 from src.types import RegionType
 
 def test_resolution_selection():

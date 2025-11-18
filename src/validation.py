@@ -15,7 +15,7 @@ import gzip
 from pathlib import Path
 from typing import Tuple, Optional, Dict
 
-from src.regions_config import ALL_REGIONS
+from src.region_config import ALL_REGIONS
 
 
 def validate_elevation_range(

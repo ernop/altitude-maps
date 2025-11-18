@@ -35,7 +35,7 @@ This folder contains documentation about completed migrations and one-time trans
 
 **What was done**: Fixed incorrectly swapped region display names in exported JSON files.
 
-**Knowledge preserved in**: Region names now centrally managed in `src/regions_config.py`
+**Knowledge preserved in**: Region names now centrally managed in `src/region_config.py`
 
 ### Deployment Script Updates (Completed)
 **Status**: ✓ Completed - All obsolete scripts have been removed.
@@ -81,7 +81,7 @@ This folder preserves:
 For current functionality, see:
 - **Version management**: `bump_version.py`
 - **Deployment**: `deploy.ps1`, `deploy.sh`, `DEPLOY_README.md`
-- **Region management**: `src/regions_config.py`, `ensure_region.py`
+- **Region management**: `src/region_config.py`, `ensure_region.py`
 - **Pipeline**: `src/pipeline.py`, `ensure_region.py`
 - **Documentation**: `.cursorrules`, `tech/` folder
 

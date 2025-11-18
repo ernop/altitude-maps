@@ -3,7 +3,7 @@ Test multi-source download coordinator with corrected Copernicus S3 downloader.
 """
 
 from src.downloaders.source_coordinator import download_tiles_for_region
-from src.regions_config import get_region
+from src.region_config import get_region
 
 # Get Minnesota config (small test region)
 region = get_region('minnesota')

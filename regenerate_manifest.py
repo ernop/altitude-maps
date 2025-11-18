@@ -16,16 +16,16 @@ def update_manifest_directly(generated_dir: Path) -> bool:
     Update manifest without relying on pipeline import.
     
     CRITICAL RULES:
-    1. ONLY regions from regions_config.py that HAVE DATA FILES are included
+    1. ONLY regions from region_config.py that HAVE DATA FILES are included
     2. ALL regions MUST have a region_type parameter (enforced)
-    3. Region info (name, description, regionType) comes ONLY from regions_config
+    3. Region info (name, description, regionType) comes ONLY from region_config
     4. JSON manifest uses camelCase "regionType" (not snake_case "region_type")
     5. JSON files only provide: file path, bounds, stats, source
     6. Regions without data files are SKIPPED (not included in manifest)
     """
     try:
         # Import region categories from centralized config
-        from src.regions_config import ALL_REGIONS
+        from src.region_config import ALL_REGIONS
 
         manifest = {
             "version": get_current_version('export'),
@@ -66,11 +66,11 @@ def update_manifest_directly(generated_dir: Path) -> bool:
             except Exception:
                 continue
         
-        # Iterate ONLY through regions configured in regions_config.py
+        # Iterate ONLY through regions configured in region_config.py
         for region_id, cfg in sorted(ALL_REGIONS.items()):
             # ENFORCE: region_type is MANDATORY
             if not hasattr(cfg, 'region_type') or cfg.region_type is None:
-                print(f"      [SKIP] Region '{region_id}' missing region_type in regions_config - skipping", flush=True)
+                print(f"      [SKIP] Region '{region_id}' missing region_type in region_config - skipping", flush=True)
                 continue
             
             # Find matching JSON file(s) - ONLY accept v2 format (NO FALLBACKS)
@@ -121,7 +121,7 @@ def update_manifest_directly(generated_dir: Path) -> bool:
             if not json_file or not json_data:
                 continue
             
-            # Build entry using ONLY info from regions_config
+            # Build entry using ONLY info from region_config
             entry = {
                 "name": cfg.name,  # FROM CONFIG ONLY
                 "description": cfg.description or f"{cfg.name} elevation data",  # FROM CONFIG ONLY
