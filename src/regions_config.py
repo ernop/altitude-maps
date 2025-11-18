@@ -930,6 +930,15 @@ REGIONS: Dict[str, RegionConfig] = {
         country="United States of America",
         clip_boundary=False,
     ),
+    "morro_rock": RegionConfig(
+        id="morro_rock",
+        name="Morro Rock (Ultra High Resolution)",
+        bounds=(-120.860502, 35.369102, -120.858298, 35.370898),
+        description="California - Ultra high-resolution 200m×200m region centered on Morro Rock (volcanic plug), maximum detail for fine-scale terrain visualization",
+        region_type=RegionType.AREA,
+        country="United States of America",
+        clip_boundary=False,
+    ),
     "pennsylvania_ridge_valley": RegionConfig(
         id="pennsylvania_ridge_valley",
         name="Pennsylvania Ridge and Valley",

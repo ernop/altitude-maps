@@ -156,7 +156,7 @@ def _download_from_source(
         elif source.source_id.startswith('gmted2010'):
             from src.downloaders.gmted2010 import download_gmted2010_tile
             success = download_gmted2010_tile(tile_bounds, source.resolution_m, source_output_path)
-            return success, "Success" if success else "Not implemented yet"
+            return success, "Success" if success else "Download failed (check logs above)"
         
         elif source.source_id == 'globe_1km':
             from src.downloaders.globe import download_globe_tile

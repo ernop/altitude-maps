@@ -419,12 +419,10 @@ def determine_required_resolution_and_dataset(
     # CANONICAL REFERENCE: tech/DATA_PIPELINE.md - Stage 2 & 3
     if region_type == RegionType.USA_STATE:
         # US regions: Full range from 10m (USGS 3DEP) to 1km (GMTED2010) for optimal selection
-        # TEMPORARY: Restricting to 10m, 30m, 90m only (250m, 500m, 1000m GMTED2010 disabled)
-        # Available: 10m, 30m, 90m (normally: 10m, 30m, 90m, 250m, 500m, 1000m)
         try:
             min_required = determine_min_required_resolution(
                 visible['avg_m_per_pixel'],
-                available_resolutions=[10, 30, 90]  # TEMPORARY: Restricted from [10, 30, 90, 250, 500, 1000]
+                available_resolutions=[10, 30, 90, 250, 500, 1000]
             )
             
             # Map resolution to dataset code
@@ -511,9 +509,8 @@ def determine_required_resolution_and_dataset(
             base_name = 'SRTM'
         
         # Calculate minimum required resolution
-        # TEMPORARY: Restricting to 10m, 30m, 90m only (250m, 500m, 1000m GMTED2010 disabled)
-        # US AREA regions: 10m-90m range (normally: 10m-1km), international: 30m-90m range (normally: 30m-1km)
-        available_resolutions = [10, 30, 90] if is_us_region else [30, 90]  # TEMPORARY: Restricted from [10, 30, 90, 250, 500, 1000] / [30, 90, 250, 500, 1000]
+        # US AREA regions: 10m-1km range, international: 30m-1km range
+        available_resolutions = [10, 30, 90, 250, 500, 1000] if is_us_region else [30, 90, 250, 500, 1000]
         
         try:
             min_required = determine_min_required_resolution(

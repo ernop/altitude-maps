@@ -532,9 +532,8 @@ This script will:
     print(f"  Quality: {oversampling_msg}", flush=True)
     
     # Show available resolutions for context
-    # TEMPORARY: Restricting to 10m, 30m, 90m only (250m, 500m, 1000m GMTED2010 disabled)
     if region_type == RegionType.USA_STATE:
-        available = [10, 30, 90]
+        available = [10, 30, 90, 250, 500, 1000]
     elif region_type == RegionType.AREA:
         is_us_region = False
         try:
@@ -543,11 +542,11 @@ This script will:
                 is_us_region = True
         except Exception:
             pass
-        available = [10, 30, 90] if is_us_region else [30, 90]
+        available = [10, 30, 90, 250, 500, 1000] if is_us_region else [30, 90, 250, 500, 1000]
     elif region_type == RegionType.COUNTRY:
-        available = [30, 90]
+        available = [30, 90, 250, 500, 1000]
     else:
-        available = [30, 90]
+        available = [30, 90, 250, 500, 1000]
     
     print(f"  Available resolutions: {', '.join(f'{r}m' for r in available)}", flush=True)
     print(f"  Rationale: Selected coarsest resolution that meets quality requirements", flush=True)
