@@ -135,37 +135,174 @@ $fileCount = $filesToDeploy.Count
 Write-Host "Files to deploy: $fileCount ($totalSizeMB MB)" -ForegroundColor Cyan
 Write-Host ""
 
+# Check remote file modification dates and sizes to skip unchanged files
+Write-Host "Checking remote file modification dates and sizes..." -ForegroundColor Yellow
+$remoteFileInfo = @{}
+$filesToCheck = @()
+
+foreach ($localFile in $filesToDeploy) {
+    $relativePath = Resolve-Path -Relative $localFile
+    $relativePath = $relativePath -replace '^\.\\', ''
+    $relativePath = $relativePath -replace '\\', '/'
+    $remoteFile = "$remotePath/$relativePath"
+    $filesToCheck += $remoteFile
+}
+
+# Batch check all remote files in one SSH call (much faster)
+if ($filesToCheck.Count -gt 0) {
+    $checkScript = @"
+files=(
+$($filesToCheck | ForEach-Object { "  '$_'" } | Out-String)
+)
+for file in "`${files[@]}"; do
+  if [ -f "`$file" ]; then
+    stat -c "%Y|%s|%n" "`$file" 2>/dev/null || echo "0|0|`$file"
+  else
+    echo "0|0|`$file"
+  fi
+done
+"@
+    
+    try {
+        if ($useMultiplexing) {
+            $remoteStats = ssh -o ControlMaster=auto -o ControlPath=$controlPath -o ConnectTimeout=10 "$remote" $checkScript 2>&1
+        } else {
+            $remoteStats = ssh -o ConnectTimeout=10 "$remote" $checkScript 2>&1
+        }
+        
+        if ($LASTEXITCODE -eq 0) {
+            $remoteStats | ForEach-Object {
+                if ($_ -match '^(\d+)\|(\d+)\|(.+)$') {
+                    $timestamp = [int64]$matches[1]
+                    $fileSize = [int64]$matches[2]
+                    $filePath = $matches[3]
+                    if ($timestamp -gt 0) {
+                        $remoteFileInfo[$filePath] = @{
+                            ModDate = [DateTimeOffset]::FromUnixTimeSeconds($timestamp).DateTime
+                            Size = $fileSize
+                        }
+                    }
+                }
+            }
+        }
+    } catch {
+        Write-Host "  Warning: Could not check remote files (will upload all)" -ForegroundColor Yellow
+    }
+}
+
+# Filter files that haven't changed
+$filesChanged = @()
+$filesSkipped = @()
+$skippedSize = 0
+
+foreach ($localFile in $filesToDeploy) {
+    $relativePath = Resolve-Path -Relative $localFile
+    $relativePath = $relativePath -replace '^\.\\', ''
+    $relativePath = $relativePath -replace '\\', '/'
+    $remoteFile = "$remotePath/$relativePath"
+    
+    $localModDate = (Get-Item $localFile).LastWriteTime
+    $localSize = (Get-Item $localFile).Length
+    
+    if ($remoteFileInfo.ContainsKey($remoteFile)) {
+        $remoteInfo = $remoteFileInfo[$remoteFile]
+        $remoteModDate = $remoteInfo.ModDate
+        $remoteSize = $remoteInfo.Size
+        
+        # Skip if modification date matches (within 1 second tolerance) AND size matches
+        $timeDiff = ($localModDate - $remoteModDate).TotalSeconds
+        $sizeMatches = ($localSize -eq $remoteSize)
+        
+        if ($timeDiff -le 1 -and $timeDiff -ge -1 -and $sizeMatches) {
+            $filesSkipped += $localFile
+            $skippedSize += $localSize
+            Write-Host "  Skipping (identical): $relativePath" -ForegroundColor DarkGray
+            continue
+        }
+    }
+    
+    $filesChanged += $localFile
+}
+
+$changedCount = $filesChanged.Count
+$skippedCount = $filesSkipped.Count
+$changedSizeMB = [math]::Round(($totalSize - $skippedSize) / 1MB, 2)
+$skippedSizeMB = [math]::Round($skippedSize / 1MB, 2)
+
+Write-Host "  Changed: $changedCount files ($changedSizeMB MB)" -ForegroundColor Green
+if ($skippedCount -gt 0) {
+    Write-Host "  Skipped (unchanged): $skippedCount files ($skippedSizeMB MB)" -ForegroundColor DarkGray
+}
+Write-Host ""
+
 # Preview mode
 if ($Preview) {
     Write-Host "Preview - files that would be uploaded:" -ForegroundColor Yellow
     Write-Host ""
     
-    $byDirectory = $filesToDeploy | Group-Object { Split-Path $_ -Parent }
-    foreach ($group in $byDirectory | Sort-Object Name) {
-        $dir = if ($group.Name) { $group.Name } else { "." }
-        Write-Host "$dir/" -ForegroundColor Cyan
-        foreach ($file in $group.Group | Sort-Object) {
-            $name = Split-Path $file -Leaf
-            $size = (Get-Item $file).Length
-            $sizeKB = [math]::Round($size / 1KB, 1)
-            Write-Host "  $name ($sizeKB KB)" -ForegroundColor DarkGray
+    if ($filesChanged.Count -gt 0) {
+        $byDirectory = $filesChanged | Group-Object { Split-Path $_ -Parent }
+        foreach ($group in $byDirectory | Sort-Object Name) {
+            $dir = if ($group.Name) { $group.Name } else { "." }
+            Write-Host "$dir/" -ForegroundColor Cyan
+            foreach ($file in $group.Group | Sort-Object) {
+                $name = Split-Path $file -Leaf
+                $size = (Get-Item $file).Length
+                $sizeKB = [math]::Round($size / 1KB, 1)
+                Write-Host "  $name ($sizeKB KB)" -ForegroundColor DarkGray
+            }
+        }
+    } else {
+        Write-Host "  (no files changed)" -ForegroundColor DarkGray
+    }
+    
+    if ($filesSkipped.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Skipped (unchanged):" -ForegroundColor DarkGray
+        $byDirectory = $filesSkipped | Group-Object { Split-Path $_ -Parent }
+        foreach ($group in $byDirectory | Sort-Object Name) {
+            $dir = if ($group.Name) { $group.Name } else { "." }
+            Write-Host "$dir/" -ForegroundColor DarkGray
+            foreach ($file in $group.Group | Sort-Object) {
+                $name = Split-Path $file -Leaf
+                $size = (Get-Item $file).Length
+                $sizeKB = [math]::Round($size / 1KB, 1)
+                Write-Host "  $name ($sizeKB KB) [skipped]" -ForegroundColor DarkGray
+            }
         }
     }
     
     Write-Host ""
-    Write-Host "Total: $fileCount files, $totalSizeMB MB" -ForegroundColor Green
+    Write-Host "Total: $fileCount files ($totalSizeMB MB)" -ForegroundColor Cyan
+    Write-Host "  Changed: $changedCount files ($changedSizeMB MB)" -ForegroundColor Green
+    if ($skippedCount -gt 0) {
+        Write-Host "  Skipped: $skippedCount files ($skippedSizeMB MB)" -ForegroundColor DarkGray
+    }
     Write-Host ""
     Write-Host "Run with -Deploy to upload" -ForegroundColor Yellow
     exit 0
 }
 
 # Deploy mode - upload files
-Write-Host "Uploading files..." -ForegroundColor Yellow
+if ($filesChanged.Count -eq 0) {
+    Write-Host "No files to upload - all files are up to date" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "=" * 70 -ForegroundColor Green
+    Write-Host "DEPLOYMENT COMPLETE" -ForegroundColor Green
+    Write-Host "=" * 70 -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Uploaded: 0 files" -ForegroundColor Green
+    Write-Host "Skipped: $skippedCount files ($skippedSizeMB MB)" -ForegroundColor DarkGray
+    Write-Host ""
+    exit 0
+}
+
+Write-Host "Uploading $changedCount changed files..." -ForegroundColor Yellow
 Write-Host ""
 
 # Pre-create all needed directories (one SSH call instead of 116)
 Write-Host "Creating remote directories..." -ForegroundColor Yellow
-$uniqueDirs = $filesToDeploy | ForEach-Object {
+$uniqueDirs = $filesChanged | ForEach-Object {
     $relativePath = Resolve-Path -Relative $_
     $relativePath = $relativePath -replace '^\.\\', ''
     $relativePath = $relativePath -replace '\\', '/'
@@ -189,7 +326,7 @@ $uploaded = 0
 $failed = 0
 $startTime = Get-Date
 
-foreach ($localFile in $filesToDeploy) {
+foreach ($localFile in $filesChanged) {
     $uploaded++
     
     # Calculate relative path
@@ -200,11 +337,11 @@ foreach ($localFile in $filesToDeploy) {
     $remoteFile = "$remotePath/$relativePath"
     
     # Progress
-    $percent = [math]::Round(($uploaded / $fileCount) * 100, 1)
+    $percent = [math]::Round(($uploaded / $changedCount) * 100, 1)
     $fileSize = (Get-Item $localFile).Length
     $fileSizeMB = [math]::Round($fileSize / 1MB, 2)
     
-    Write-Host "[$uploaded/$fileCount - $percent%] " -NoNewline -ForegroundColor Cyan
+    Write-Host "[$uploaded/$changedCount - $percent%] " -NoNewline -ForegroundColor Cyan
     Write-Host "Uploading: $relativePath " -NoNewline -ForegroundColor Gray
     Write-Host "($fileSizeMB MB)" -ForegroundColor DarkGray
     Write-Host "  Remote: $remoteFile" -ForegroundColor DarkGray
@@ -242,7 +379,10 @@ Write-Host "=" * 70 -ForegroundColor Green
 Write-Host "DEPLOYMENT COMPLETE" -ForegroundColor Green
 Write-Host "=" * 70 -ForegroundColor Green
 Write-Host ""
-Write-Host "Uploaded: $uploaded files" -ForegroundColor Green
+Write-Host "Uploaded: $uploaded files ($changedSizeMB MB)" -ForegroundColor Green
+if ($skippedCount -gt 0) {
+    Write-Host "Skipped (unchanged): $skippedCount files ($skippedSizeMB MB)" -ForegroundColor DarkGray
+}
 if ($failed -gt 0) {
     Write-Host "Failed: $failed files" -ForegroundColor Red
 }

@@ -245,213 +245,12 @@ def process_region(region_id: str, raw_path: Path, source: str, force: bool, reg
 
 
 
-def main():
-    # CRITICAL: Check venv FIRST before any imports
-    check_venv()
-
-    sys.path.insert(0, str(Path(__file__).parent))
-
-    parser = argparse.ArgumentParser(
-        description='One command to ensure a region is ready to view (US states and international regions)',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # US States
-    python ensure_region.py ohio  # Single word state
-    python ensure_region.py new_hampshire  # Multi-word with underscore
-    python ensure_region.py "new hampshire"  # Multi-word with quotes
-    python ensure_region.py tennessee --force-reprocess  # Force full rebuild
-    python ensure_region.py california
-
-  # International Regions
-    python ensure_region.py iceland  # Iceland
-    python ensure_region.py japan  # Japan
-    python ensure_region.py switzerland  # Switzerland
-    python ensure_region.py new_zealand  # New Zealand
-    
-  # Update adjacency after adding a new region
-    python ensure_region.py montana --update-adjacency  # Add Montana and update neighbors
-
-This script will:
-    1. Detect region type (US state or international)
-    2. Check if raw data exists
-    3. Download if missing (auto-download for US states and supported international regions)
-    4. Run the full pipeline (clip, downsample, export)
-    5. Optionally regenerate adjacency data (with --update-adjacency flag)
-    6. Report status
-        """
-    )
-    parser.add_argument('region_id', nargs='?', help='Region ID (e.g., ohio, iceland, japan)')
-    parser.add_argument('--force-reprocess', action='store_true',
-                        help='Force reprocessing even if files exist')
-    parser.add_argument('--check-only', action='store_true',
-                        help='Only check status, do not download or process')
-    parser.add_argument('--list-regions', action='store_true',
-                        help='List all available regions')
-    parser.add_argument('--yes', action='store_true',
-                        help='Auto-accept lower quality data prompts')
-    parser.add_argument('--update-adjacency', action='store_true',
-                        help='Regenerate adjacency data after processing (run after adding new regions)')
-
-    args = parser.parse_args()
-    
-    # Pseudo-region: all
-    # Allows: python ensure_region.py all --check-only
-    if args.region_id and args.region_id.strip().lower() in ("all",):
-        all_ids = _iter_all_region_ids()
-        if not all_ids:
-            print("No regions found in configuration.")
-            return 1
-        print("\nRUNNING FOR ALL REGIONS\n" + "="*70)
-        problems: list[tuple[str, str]] = []
-        processed_count = 0
-        for rid in all_ids:
-            processed_count += 1
-            # Summary line per region
-            has_valid = check_pipeline_complete(rid)
-            version_ok, found_v, expected_v = check_export_version(rid)
-            status = []
-            if has_valid:
-                status.append("export_present")
-            else:
-                status.append("missing_export")
-            if version_ok:
-                status.append("version_ok")
-            else:
-                status.append(f"old_format(found={found_v}, expected={expected_v})")
-                problems.append((rid, f"old_format(found={found_v}, expected={expected_v})"))
-            print(f"- {rid}: {', '.join(status)}")
-
-            if not args.check_only and (not has_valid or not version_ok):
-                # In non-check mode, attempt to fix by ensuring per-region
-                # Re-enter main flow by simulating single-region processing
-                region_type, region_info = get_region_info(rid)
-                if region_type is None:
-                    print(f"  Skipping unknown region: {rid}")
-                    continue
-                # Determine minimum required resolution for this region
-                # All regions use dynamic resolution determination based on Nyquist rule
-                visible = calculate_visible_pixel_size(region_info['bounds'], DEFAULT_TARGET_TOTAL_PIXELS)
-                
-                if region_type == RegionType.USA_STATE:
-                    # US states: 10m, 30m, or 90m based on requirements
-                    min_req_res = determine_min_required_resolution(
-                        visible['avg_m_per_pixel'],
-                        available_resolutions=[10, 30, 90]
-                    )
-                else:
-                    # International regions: 30m or 90m
-                    min_req_res = determine_min_required_resolution(
-                        visible['avg_m_per_pixel'],
-                        available_resolutions=[30, 90]
-                    )
-                
-                raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
-                if not raw_path:
-                    dataset_override = determine_dataset_override(rid, region_type, region_info)
-                    try:
-                        if not download_region(rid, region_type, region_info, dataset_override, DEFAULT_TARGET_TOTAL_PIXELS):
-                            print(f"  Download failed for {rid}")
-                            continue
-                    except OpenTopographyRateLimitError as e:
-                        print(f"\n{'='*70}")
-                        print(f"  RATE LIMIT ERROR: Stopping batch download")
-                        print(f"{'='*70}")
-                        print(f"  OpenTopography returned 401 Unauthorized")
-                        print(f"  Processed {processed_count} regions before hitting limit")
-                        print(f"\n  What to do:")
-                        print(f"  - Wait 15-30 minutes and run the same command again")
-                        print(f"  - Already downloaded regions are cached and won't re-download")
-                        print(f"  - The script will resume where it left off")
-                        print(f"{'='*70}\n")
-                        break  # Stop processing more regions
-                    raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
-                    if not raw_path:
-                        print(f"  Validation failed after download for {rid}")
-                        continue
-                success, result_paths = process_region(rid, raw_path, source,
-                                                      True if args.force_reprocess else False,
-                                                      region_type, region_info, '10m')
-                if success:
-                    _ = verify_and_auto_fix(rid, result_paths, source,
-                                            region_type, region_info, '10m')
-        # Summary of problems for check-only
-        if args.check_only:
-            print("\n" + "="*70)
-            if problems:
-                print("Regions requiring rebuild due to old format:")
-                for rid, msg in problems:
-                    print(f"  - {rid}: {msg}")
-                return 2
-            else:
-                print("All regions are on the current export format.")
-                return 0
-        # Non-check path falls through to completion
-        return 0
-
-    # Handle --list-regions
-    if args.list_regions:
-        from src.region_config import US_STATES, COUNTRIES, REGIONS, check_region_data_available
-
-        def _status_tag(rid: str) -> str:
-            try:
-                st = check_region_data_available(rid)
-                return "[ready]" if st.get('in_manifest') else "[not ready]"
-            except Exception:
-                return "[unknown]"
-
-        def _format_size(bounds: Tuple[float, float, float, float]) -> str:
-            """Format region size for display."""
-            import math
-            west, south, east, north = bounds
-            width_deg = east - west
-            height_deg = north - south
-            center_lat = (north + south) / 2.0
-            meters_per_deg_lat = 111_320
-            meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
-            width_m = width_deg * meters_per_deg_lon
-            height_m = height_deg * meters_per_deg_lat
-            width_mi = width_m / 1609.344
-            height_mi = height_m / 1609.344
-            if width_mi < 0.1:
-                return f"{int(width_mi * 5280)}×{int(height_mi * 5280)} ft"
-            elif width_mi < 1:
-                return f"{width_mi:.2f}×{height_mi:.2f} mi"
-            else:
-                return f"{width_mi:.0f}×{height_mi:.0f} mi"
-
-        print("\n  AVAILABLE REGIONS:")
-        print("="*70)
-        print("\n  US STATES:")
-        for state_id in sorted(US_STATES.keys()):
-            config = US_STATES[state_id]
-            tag = _status_tag(state_id)
-            size = _format_size(config.bounds)
-            print(f"    - {state_id:20s} -> {config.name:30s} {size:15s} {tag}")
-        print(f"\n  COUNTRIES:")
-        for country_id in sorted(COUNTRIES.keys()):
-            config = COUNTRIES[country_id]
-            tag = _status_tag(country_id)
-            size = _format_size(config.bounds)
-            print(f"    - {country_id:20s} -> {config.name:30s} {size:15s} {tag}")
-        print(f"\n  REGIONS:")
-        for region_id in sorted(REGIONS.keys()):
-            config = REGIONS[region_id]
-            tag = _status_tag(region_id)
-            size = _format_size(config.bounds)
-            print(f"    - {region_id:20s} -> {config.name:30s} {size:15s} {tag}")
-        print(f"\n{'='*70}")
-        print("Legend: [ready] = appears in viewer manifest; [not ready] = not exported yet")
-        print(f"Total: {len(US_STATES)} US states + {len(COUNTRIES)} countries + {len(REGIONS)} regions = {len(US_STATES) + len(COUNTRIES) + len(REGIONS)} total")
-        print(f"\nUsage: python ensure_region.py <region_id>")
-        return 0
-
-    # Check if region_id was provided
-    if not args.region_id:
-        parser.error("region_id is required (or use --list-regions to see available regions)")
-
+def process_single_region(region_id: str, args) -> int:
+    """
+    Process a single region. Returns 0 on success, 1 on failure.
+    """
     # Normalize region ID: convert spaces to underscores, lowercase
-    region_id = args.region_id.lower().replace(' ', '_').replace('-', '_')
+    region_id = region_id.lower().replace(' ', '_').replace('-', '_')
 
     # Detect region type
     region_type, region_info = get_region_info(region_id)
@@ -766,45 +565,304 @@ This script will:
             print("="*70)
             return 1
         
-        # Step 4 (optional): Update adjacency data if requested
-        if args.update_adjacency:
-            print("\n" + "="*70)
-            print("  Updating adjacency data...")
-            print("="*70)
-            try:
-                import subprocess
-                result = subprocess.run(
-                    [sys.executable, 'compute_adjacency.py'],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                print(result.stdout)
-                print("  Adjacency data updated successfully")
-            except subprocess.CalledProcessError as e:
-                print(f"  WARNING: Failed to update adjacency data")
-                print(f"  You may need to run: python compute_adjacency.py")
-                if e.stdout:
-                    print(f"  Output: {e.stdout}")
-                if e.stderr:
-                    print(f"  Error: {e.stderr}")
-        
         print("\n" + "="*70)
         print(f"  SUCCESS: {region_info['display_name']} is ready to view!")
         print("="*70)
-        print(f"\nNext steps:")
-        print(f"  1. python serve_viewer.py")
-        print(f"  2. Visit http://localhost:8001/interactive_viewer_advanced.html")
-        print(f"  3. Select '{region_id}' from dropdown")
-        if not args.update_adjacency and region_type in [RegionType.USA_STATE, RegionType.COUNTRY]:
-            print(f"\nNote: To update neighbor connections, run:")
-            print(f"  python compute_adjacency.py")
         return 0
     else:
         print("\n" + "="*70)
         print(f"  FAILED: Could not process {region_info['display_name']}")
         print("="*70)
         return 1
+
+
+def main():
+    # CRITICAL: Check venv FIRST before any imports
+    check_venv()
+
+    sys.path.insert(0, str(Path(__file__).parent))
+
+    parser = argparse.ArgumentParser(
+        description='One command to ensure a region is ready to view (US states and international regions)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Single Region
+    python ensure_region.py ohio  # Single word state
+    python ensure_region.py new_hampshire  # Multi-word with underscore
+    python ensure_region.py "new hampshire"  # Multi-word with quotes
+    python ensure_region.py tennessee --force-reprocess  # Force full rebuild
+    python ensure_region.py california
+
+  # Multiple Regions
+    python ensure_region.py ohio kentucky tennessee  # Space-separated list
+    python ensure_region.py iceland japan switzerland  # Multiple countries
+    python ensure_region.py ohio california --force-reprocess  # Force rebuild multiple
+
+  # International Regions
+    python ensure_region.py iceland  # Iceland
+    python ensure_region.py japan  # Japan
+    python ensure_region.py switzerland  # Switzerland
+    python ensure_region.py new_zealand  # New Zealand
+    
+  # Update adjacency after adding a new region
+    python ensure_region.py montana --update-adjacency  # Add Montana and update neighbors
+
+This script will:
+    1. Detect region type (US state or international)
+    2. Check if raw data exists
+    3. Download if missing (auto-download for US states and supported international regions)
+    4. Run the full pipeline (clip, downsample, export)
+    5. Optionally regenerate adjacency data (with --update-adjacency flag)
+    6. Report status
+        """
+    )
+    parser.add_argument('region_id', nargs='*', help='Region ID(s) - can specify multiple space-separated regions (e.g., ohio iceland japan)')
+    parser.add_argument('--force-reprocess', action='store_true',
+                        help='Force reprocessing even if files exist')
+    parser.add_argument('--check-only', action='store_true',
+                        help='Only check status, do not download or process')
+    parser.add_argument('--list-regions', action='store_true',
+                        help='List all available regions')
+    parser.add_argument('--yes', action='store_true',
+                        help='Auto-accept lower quality data prompts')
+    parser.add_argument('--update-adjacency', action='store_true',
+                        help='Regenerate adjacency data after processing (run after adding new regions)')
+
+    args = parser.parse_args()
+    
+    # Pseudo-region: all
+    # Allows: python ensure_region.py all --check-only
+    if args.region_id and len(args.region_id) == 1 and args.region_id[0].strip().lower() in ("all",):
+        all_ids = _iter_all_region_ids()
+        if not all_ids:
+            print("No regions found in configuration.")
+            return 1
+        print("\nRUNNING FOR ALL REGIONS\n" + "="*70)
+        problems: list[tuple[str, str]] = []
+        processed_count = 0
+        for rid in all_ids:
+            processed_count += 1
+            # Summary line per region
+            has_valid = check_pipeline_complete(rid)
+            version_ok, found_v, expected_v = check_export_version(rid)
+            status = []
+            if has_valid:
+                status.append("export_present")
+            else:
+                status.append("missing_export")
+            if version_ok:
+                status.append("version_ok")
+            else:
+                status.append(f"old_format(found={found_v}, expected={expected_v})")
+                problems.append((rid, f"old_format(found={found_v}, expected={expected_v})"))
+            print(f"- {rid}: {', '.join(status)}")
+
+            if not args.check_only and (not has_valid or not version_ok):
+                # In non-check mode, attempt to fix by ensuring per-region
+                # Re-enter main flow by simulating single-region processing
+                region_type, region_info = get_region_info(rid)
+                if region_type is None:
+                    print(f"  Skipping unknown region: {rid}")
+                    continue
+                # Determine minimum required resolution for this region
+                # All regions use dynamic resolution determination based on Nyquist rule
+                visible = calculate_visible_pixel_size(region_info['bounds'], DEFAULT_TARGET_TOTAL_PIXELS)
+                
+                if region_type == RegionType.USA_STATE:
+                    # US states: 10m, 30m, or 90m based on requirements
+                    min_req_res = determine_min_required_resolution(
+                        visible['avg_m_per_pixel'],
+                        available_resolutions=[10, 30, 90]
+                    )
+                else:
+                    # International regions: 30m or 90m
+                    min_req_res = determine_min_required_resolution(
+                        visible['avg_m_per_pixel'],
+                        available_resolutions=[30, 90]
+                    )
+                
+                raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
+                if not raw_path:
+                    dataset_override = determine_dataset_override(rid, region_type, region_info)
+                    try:
+                        if not download_region(rid, region_type, region_info, dataset_override, DEFAULT_TARGET_TOTAL_PIXELS):
+                            print(f"  Download failed for {rid}")
+                            continue
+                    except OpenTopographyRateLimitError as e:
+                        print(f"\n{'='*70}")
+                        print(f"  RATE LIMIT ERROR: Stopping batch download")
+                        print(f"{'='*70}")
+                        print(f"  OpenTopography returned 401 Unauthorized")
+                        print(f"  Processed {processed_count} regions before hitting limit")
+                        print(f"\n  What to do:")
+                        print(f"  - Wait 15-30 minutes and run the same command again")
+                        print(f"  - Already downloaded regions are cached and won't re-download")
+                        print(f"  - The script will resume where it left off")
+                        print(f"{'='*70}\n")
+                        break  # Stop processing more regions
+                    raw_path, source = find_raw_file(rid, min_required_resolution_meters=min_req_res)
+                    if not raw_path:
+                        print(f"  Validation failed after download for {rid}")
+                        continue
+                success, result_paths = process_region(rid, raw_path, source,
+                                                      True if args.force_reprocess else False,
+                                                      region_type, region_info, '10m')
+                if success:
+                    _ = verify_and_auto_fix(rid, result_paths, source,
+                                            region_type, region_info, '10m')
+        # Summary of problems for check-only
+        if args.check_only:
+            print("\n" + "="*70)
+            if problems:
+                print("Regions requiring rebuild due to old format:")
+                for rid, msg in problems:
+                    print(f"  - {rid}: {msg}")
+                return 2
+            else:
+                print("All regions are on the current export format.")
+                return 0
+        # Non-check path falls through to completion
+        return 0
+
+    # Handle --list-regions
+    if args.list_regions:
+        from src.region_config import US_STATES, COUNTRIES, REGIONS, check_region_data_available
+
+        def _status_tag(rid: str) -> str:
+            try:
+                st = check_region_data_available(rid)
+                return "[ready]" if st.get('in_manifest') else "[not ready]"
+            except Exception:
+                return "[unknown]"
+
+        def _format_size(bounds: Tuple[float, float, float, float]) -> str:
+            """Format region size for display."""
+            import math
+            west, south, east, north = bounds
+            width_deg = east - west
+            height_deg = north - south
+            center_lat = (north + south) / 2.0
+            meters_per_deg_lat = 111_320
+            meters_per_deg_lon = 111_320 * math.cos(math.radians(center_lat))
+            width_m = width_deg * meters_per_deg_lon
+            height_m = height_deg * meters_per_deg_lat
+            width_mi = width_m / 1609.344
+            height_mi = height_m / 1609.344
+            if width_mi < 0.1:
+                return f"{int(width_mi * 5280)}×{int(height_mi * 5280)} ft"
+            elif width_mi < 1:
+                return f"{width_mi:.2f}×{height_mi:.2f} mi"
+            else:
+                return f"{width_mi:.0f}×{height_mi:.0f} mi"
+
+        print("\n  AVAILABLE REGIONS:")
+        print("="*70)
+        print("\n  US STATES:")
+        for state_id in sorted(US_STATES.keys()):
+            config = US_STATES[state_id]
+            tag = _status_tag(state_id)
+            size = _format_size(config.bounds)
+            print(f"    - {state_id:20s} -> {config.name:30s} {size:15s} {tag}")
+        print(f"\n  COUNTRIES:")
+        for country_id in sorted(COUNTRIES.keys()):
+            config = COUNTRIES[country_id]
+            tag = _status_tag(country_id)
+            size = _format_size(config.bounds)
+            print(f"    - {country_id:20s} -> {config.name:30s} {size:15s} {tag}")
+        print(f"\n  REGIONS:")
+        for region_id in sorted(REGIONS.keys()):
+            config = REGIONS[region_id]
+            tag = _status_tag(region_id)
+            size = _format_size(config.bounds)
+            print(f"    - {region_id:20s} -> {config.name:30s} {size:15s} {tag}")
+        print(f"\n{'='*70}")
+        print("Legend: [ready] = appears in viewer manifest; [not ready] = not exported yet")
+        print(f"Total: {len(US_STATES)} US states + {len(COUNTRIES)} countries + {len(REGIONS)} regions = {len(US_STATES) + len(COUNTRIES) + len(REGIONS)} total")
+        print(f"\nUsage: python ensure_region.py <region_id> [region_id ...]")
+        return 0
+
+    # Check if region_id was provided
+    if not args.region_id:
+        parser.error("region_id is required (or use --list-regions to see available regions)")
+
+    # Process multiple regions
+    region_ids = args.region_id
+    total_regions = len(region_ids)
+    successful_regions = []
+    failed_regions = []
+    
+    if total_regions > 1:
+        print("\n" + "="*70)
+        print(f"  PROCESSING {total_regions} REGIONS", flush=True)
+        print("="*70)
+        print(f"  Regions: {', '.join(region_ids)}", flush=True)
+        print("="*70 + "\n", flush=True)
+    
+    for idx, region_id_arg in enumerate(region_ids, 1):
+        if total_regions > 1:
+            print(f"\n{'='*70}")
+            print(f"  REGION {idx}/{total_regions}: {region_id_arg}")
+            print(f"{'='*70}\n")
+        
+        result = process_single_region(region_id_arg, args)
+        
+        if result == 0:
+            successful_regions.append(region_id_arg)
+        else:
+            failed_regions.append(region_id_arg)
+            # Continue processing other regions even if one fails
+            if total_regions > 1:
+                print(f"\n  Continuing with remaining regions...")
+    
+    # Summary
+    if total_regions > 1:
+        print("\n" + "="*70)
+        print("  SUMMARY")
+        print("="*70)
+        print(f"  Total regions: {total_regions}")
+        print(f"  Successful: {len(successful_regions)}")
+        print(f"  Failed: {len(failed_regions)}")
+        
+        if successful_regions:
+            print(f"\n  Successful regions:")
+            for rid in successful_regions:
+                print(f"    - {rid}")
+        
+        if failed_regions:
+            print(f"\n  Failed regions:")
+            for rid in failed_regions:
+                print(f"    - {rid}")
+        
+        print("="*70)
+    
+    # Update adjacency data if requested (only once after all regions are processed)
+    if args.update_adjacency and successful_regions:
+        print("\n" + "="*70)
+        print("  Updating adjacency data...")
+        print("="*70)
+        try:
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, 'compute_adjacency.py'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            print(result.stdout)
+            print("  Adjacency data updated successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"  WARNING: Failed to update adjacency data")
+            print(f"  You may need to run: python compute_adjacency.py")
+            if e.stdout:
+                print(f"  Output: {e.stdout}")
+            if e.stderr:
+                print(f"  Error: {e.stderr}")
+    
+    # Return appropriate exit code
+    if failed_regions:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

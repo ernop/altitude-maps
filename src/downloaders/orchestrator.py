@@ -414,52 +414,60 @@ def determine_required_resolution_and_dataset(
     visible = calculate_visible_pixel_size(region_info['bounds'], target_total_pixels)
     
     # STEP 2: Determine minimum required source resolution using Nyquist rule
-    # This ensures we don't over-download (selects coarsest that meets requirement)
+    # Philosophy: Always download MORE resolution than needed, then downsample
+    # - If Nyquist can be met: Select coarsest resolution that meets requirement (minimizes download)
+    # - If Nyquist can't be met: Use finest available resolution (ensures best quality)
     
     # CANONICAL REFERENCE: tech/DATA_PIPELINE.md - Stage 2 & 3
     if region_type == RegionType.USA_STATE:
         # US regions: Full range from 10m (USGS 3DEP) to 1km (GMTED2010) for optimal selection
-        try:
-            min_required = determine_min_required_resolution(
-                visible['avg_m_per_pixel'],
-                available_resolutions=[10, 30, 90, 250, 500, 1000]
-            )
-            
-            # Map resolution to dataset code
-            if min_required == 1000:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 1000m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: GMTED2010 1km")
-                return (1000, 'GMTED2010_1KM')
-            elif min_required == 500:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 500m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: GMTED2010 500m")
-                return (500, 'GMTED2010_500M')
-            elif min_required == 250:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 250m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: GMTED2010 250m")
-                return (250, 'GMTED2010_250M')
-            elif min_required == 90:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 90m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: SRTM 90m")
-                return (90, 'SRTMGL3')
-            elif min_required == 30:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 30m (required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: SRTM 30m")
-                return (30, 'SRTMGL1')
-            else:  # min_required == 10
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 10m (required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m")
-                return (10, 'USA_3DEP')
-        except ValueError:
-            # Region too small for standard resolutions - use finest available (10m for US)
+        # CRITICAL: Always use finest available resolution when Nyquist can't be met
+        # This ensures we download MORE resolution than needed, then downsample
+        min_required = determine_min_required_resolution(
+            visible['avg_m_per_pixel'],
+            available_resolutions=[10, 30, 90, 250, 500, 1000],
+            allow_lower_quality=True  # Always use finest available, even if below Nyquist
+        )
+        
+        # Check if Nyquist requirement was met
+        oversampling = visible['avg_m_per_pixel'] / min_required
+        meets_nyquist = oversampling >= 2.0
+        
+        # Map resolution to dataset code
+        if min_required == 1000:
             if verbose:
-                print(f"[STAGE 2/10] Resolution: 10m (region requires high detail)")
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 1000m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: GMTED2010 1km")
+            return (1000, 'GMTED2010_1KM')
+        elif min_required == 500:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 500m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: GMTED2010 500m")
+            return (500, 'GMTED2010_500M')
+        elif min_required == 250:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 250m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: GMTED2010 250m")
+            return (250, 'GMTED2010_250M')
+        elif min_required == 90:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 90m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: SRTM 90m")
+            return (90, 'SRTMGL3')
+        elif min_required == 30:
+            if verbose:
+                quality_msg = f"required for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x - will downsample)"
+                print(f"[STAGE 2/10] Resolution: 30m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: SRTM 30m")
+            return (30, 'SRTMGL1')
+        else:  # min_required == 10
+            if verbose:
+                quality_msg = f"required for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x - will downsample)"
+                print(f"[STAGE 2/10] Resolution: 10m ({quality_msg})")
                 print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m")
             return (10, 'USA_3DEP')
 
@@ -512,54 +520,56 @@ def determine_required_resolution_and_dataset(
         # US AREA regions: 10m-1km range, international: 30m-1km range
         available_resolutions = [10, 30, 90, 250, 500, 1000] if is_us_region else [30, 90, 250, 500, 1000]
         
-        try:
-            min_required = determine_min_required_resolution(
-                visible['avg_m_per_pixel'],
-                available_resolutions=available_resolutions
-            )
-            # Map resolution to dataset code
-            if min_required == 1000:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 1000m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: GMTED2010 1km")
-                return (1000, 'GMTED2010_1KM')
-            elif min_required == 500:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 500m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: GMTED2010 500m")
-                return (500, 'GMTED2010_500M')
-            elif min_required == 250:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 250m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: GMTED2010 250m")
-                return (250, 'GMTED2010_250M')
-            elif min_required == 90:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 90m (sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: {base_name} 90m")
-                return (90, base_90m)
-            elif min_required == 30:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 30m (required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: {base_name} 30m")
-                return (30, base_30m)
-            else:  # min_required == 10 (only for US regions)
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 10m (required for {visible['avg_m_per_pixel']:.0f}m visible pixels)")
-                    print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m")
-                return (10, 'USA_3DEP')
-        except ValueError:
-            # Region too small for standard resolutions
-            if is_us_region:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 10m (region requires high detail)")
-                    print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m")
-                return (10, 'USA_3DEP')
-            else:
-                if verbose:
-                    print(f"[STAGE 2/10] Resolution: 30m (region requires high detail)")
-                    print(f"[STAGE 2/10] Dataset: {base_name} 30m")
-                return (30, base_30m)
+        # CRITICAL: Always use finest available resolution when Nyquist can't be met
+        # This ensures we download MORE resolution than needed, then downsample
+        # Philosophy: Better to have too much data and downsample than too little and get aliasing
+        min_required = determine_min_required_resolution(
+            visible['avg_m_per_pixel'],
+            available_resolutions=available_resolutions,
+            allow_lower_quality=True  # Always use finest available, even if below Nyquist
+        )
+        
+        # Check if Nyquist requirement was met
+        oversampling = visible['avg_m_per_pixel'] / min_required
+        meets_nyquist = oversampling >= 2.0
+        
+        # Map resolution to dataset code
+        if min_required == 1000:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 1000m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: GMTED2010 1km")
+            return (1000, 'GMTED2010_1KM')
+        elif min_required == 500:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 500m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: GMTED2010 500m")
+            return (500, 'GMTED2010_500M')
+        elif min_required == 250:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 250m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: GMTED2010 250m")
+            return (250, 'GMTED2010_250M')
+        elif min_required == 90:
+            if verbose:
+                quality_msg = f"sufficient for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x)"
+                print(f"[STAGE 2/10] Resolution: 90m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: {base_name} 90m")
+            return (90, base_90m)
+        elif min_required == 30:
+            if verbose:
+                quality_msg = f"required for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x - will downsample)"
+                print(f"[STAGE 2/10] Resolution: 30m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: {base_name} 30m")
+            return (30, base_30m)
+        else:  # min_required == 10 (only for US regions)
+            if verbose:
+                quality_msg = f"required for {visible['avg_m_per_pixel']:.0f}m visible pixels" if meets_nyquist else f"finest available (below Nyquist: {oversampling:.2f}x - will downsample)"
+                print(f"[STAGE 2/10] Resolution: 10m ({quality_msg})")
+                print(f"[STAGE 2/10] Dataset: USGS 3DEP 10m")
+            return (10, 'USA_3DEP')
     
     else:
         raise ValueError(f"Unknown region type: {region_type}")
