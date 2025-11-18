@@ -1589,7 +1589,7 @@ function setupScene() {
     try { updateLightingForShading(); } catch (_) { }
 
     // Initialize axes indicator (industry standard: X=Red, Y=Green, Z=Blue)
-    // Positioned at bottom middle of viewport, rotates with camera
+    // Positioned at bottom middle of viewport, rotates with world
     if (window.AxesIndicator && typeof window.AxesIndicator.create === 'function') {
         window.AxesIndicator.create(scene, {
             size: 0.3,       // 20% of original size
@@ -1597,6 +1597,12 @@ function setupScene() {
             viewportY: 0.08, // Bottom middle (8% from bottom)
             distance: 3      // Closer to camera
         });
+        // Set initial visibility from localStorage (default: visible)
+        const savedOrientationVisible = localStorage.getItem('orientationVisible');
+        const shouldBeVisible = savedOrientationVisible === null || savedOrientationVisible === 'true';
+        if (window.AxesIndicator && typeof window.AxesIndicator.setVisible === 'function') {
+            window.AxesIndicator.setVisible(shouldBeVisible);
+        }
     }
 }
 
@@ -1874,6 +1880,31 @@ function setupEventListeners() {
             }
             // Save preference to localStorage
             localStorage.setItem('colorScaleVisible', String(visible));
+        });
+    }
+
+    // Orientation indicator show/hide toggle
+    const showOrientationCheckbox = document.getElementById('showOrientation');
+    if (showOrientationCheckbox && window.AxesIndicator) {
+        // Load saved preference from localStorage (default: true)
+        const savedOrientationVisible = localStorage.getItem('orientationVisible');
+        if (savedOrientationVisible !== null) {
+            showOrientationCheckbox.checked = savedOrientationVisible === 'true';
+        }
+
+        // Apply initial visibility state
+        if (window.AxesIndicator && typeof window.AxesIndicator.setVisible === 'function') {
+            window.AxesIndicator.setVisible(showOrientationCheckbox.checked);
+        }
+
+        // Add change listener
+        showOrientationCheckbox.addEventListener('change', () => {
+            const visible = showOrientationCheckbox.checked;
+            if (window.AxesIndicator && typeof window.AxesIndicator.setVisible === 'function') {
+                window.AxesIndicator.setVisible(visible);
+            }
+            // Save preference to localStorage
+            localStorage.setItem('orientationVisible', String(visible));
         });
     }
 

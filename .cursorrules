@@ -1450,6 +1450,21 @@ Always ignore these directories and file types to keep git lean:
 - **Flat lighting**: Simple checkbox "Flat lighting (no shading)" under Color Scheme.
   - Default off; URL `flat=1` turns it on.
   - Uses unlit materials and ambient-only lighting when on.
+- **Axes Indicator**: 3D axes helper showing world orientation (X/Y/Z axes and Pitch/Yaw/Roll rotations).
+  - **Position**: Fixed screen-space position at bottom middle of viewport (8% from bottom, centered horizontally).
+  - **World-space object**: Positioned in 3D world space, rotates with terrain/world to show actual world axes orientation.
+  - **Visual design**:
+    - Origin: White sphere at center (radius: `size * 0.18`).
+    - Arrows: Shortened to 2/3 length (`size * 0.333`), start just outside sphere.
+    - Arrowheads: Large and clearly directional (60% of arrow length, `size * 0.2` length, `size * 0.08` radius).
+    - Negative directions: Gray semi-transparent lines (no arrows).
+  - **Colors**: Industry standard RGB=XYZ (X=Red, Y=Green, Z=Blue).
+  - **Labels**: 
+    - X/Y/Z labels: Large (`size * 1.5`), positioned with gap after arrow tip, transparent background.
+    - Pitch/Yaw/Roll labels: Match axis colors (Pitch=Red/X, Yaw=Green/Y, Roll=Blue/Z), positioned further along arrow direction with gap after X/Y/Z labels.
+  - **Layout sequence**: Origin sphere → Arrow shaft → Arrowhead → [gap] → X/Y/Z label → [gap] → Pitch/Yaw/Roll label.
+  - **Rotation**: Rotates with `terrainGroup.quaternion` to show world orientation, not camera orientation.
+  - **Implementation**: `js/axes-indicator.js` module, initialized in `setupScene()`, updated each frame in `animate()`.
 
 ### Rendering & Performance
 - **GPU-first updates**: Use shader uniforms for continuous changes (exaggeration, tile gap). Rebuild geometry only when baselines change.

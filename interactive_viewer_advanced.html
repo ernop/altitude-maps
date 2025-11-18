@@ -171,11 +171,11 @@
 						</div>
 						<div class="shortcut-item">
 							<kbd>F</kbd>
-							<span>Reframe view (reset to overhead)</span>
+							<span>Reset camera</span>
 						</div>
 						<div class="shortcut-item">
 							<kbd>V</kbd>
-							<span>Overhead camera view (reframe view)</span>
+							<span>Overhead camera view</span>
 						</div>
 						<div class="shortcut-item">
 							<kbd>R</kbd>
@@ -440,32 +440,38 @@
 		</div>
 
 			<div class="control-group">
-				<div style="display: flex; align-items: center; gap: 8px;">
-					<input type="checkbox" id="showHUD" />
-					<label for="showHUD" style="margin: 0;">Show HUD Overlay</label>
-				</div>
-				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-					<input type="checkbox" id="showEdgeMarkers" checked />
-					<label for="showEdgeMarkers" style="margin: 0;">Show Edge Markers</label>
-				</div>
-				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-					<input type="checkbox" id="showColorScale" checked />
-					<label for="showColorScale" style="margin: 0;">Show Scale</label>
-				</div>
-				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-					<input type="checkbox" id="useGlobalScale" />
-					<label for="useGlobalScale" style="margin: 0;" title="Use consistent elevation range across all regions for comparison">Global Scale</label>
-				</div>
-				<div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-					<input type="checkbox" id="showCameraControls" />
-					<label for="showCameraControls" style="margin: 0;">Show Camera Controls</label>
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: start;">
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showHUD" />
+						<label for="showHUD" style="margin: 0;">Show HUD Overlay</label>
+					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showEdgeMarkers" checked />
+						<label for="showEdgeMarkers" style="margin: 0;">Show Edge Markers</label>
+					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showColorScale" checked />
+						<label for="showColorScale" style="margin: 0;">Show Scale</label>
+					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showOrientation" checked />
+						<label for="showOrientation" style="margin: 0;">Show Orientation</label>
+					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="useGlobalScale" />
+						<label for="useGlobalScale" style="margin: 0;" title="Use consistent elevation range across all regions for comparison">Global Scale</label>
+					</div>
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<input type="checkbox" id="showCameraControls" />
+						<label for="showCameraControls" style="margin: 0;">Show Camera Controls</label>
+					</div>
 				</div>
 			</div>
 
 			<h2>Camera Views</h2>
 
 			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-				<button onclick="triggerOverheadView()" style="padding: 6px; font-size: 11px;">Overhead</button>
+				<button onclick="triggerOverheadView()" style="padding: 6px; font-size: 11px;">Overhead (V)</button>
 				<button onclick="triggerReframeView()" style="padding: 6px; font-size: 11px;">Reset Camera (F)</button>
 			</div>
 

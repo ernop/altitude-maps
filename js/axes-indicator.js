@@ -33,8 +33,8 @@ class AxesIndicator {
         const yColor = 0x00ff00; // Green
         const zColor = 0x0088ff; // Blue
 
-        // Create origin sphere for 3D feel
-        const sphereGeometry = new THREE.SphereGeometry(size * 0.15, 16, 16);
+        // Create origin sphere for 3D feel (slightly larger)
+        const sphereGeometry = new THREE.SphereGeometry(size * 0.18, 16, 16);
         const sphereMaterial = new THREE.MeshStandardMaterial({
             color: 0xffffff,
             metalness: 0.3,
@@ -45,44 +45,49 @@ class AxesIndicator {
 
         // Create thicker axes lines with 3D appearance
         const lineWidth = size * 0.08;
-        const arrowLength = size * 0.4;
-        const arrowRadius = size * 0.06;
+        const sphereRadius = size * 0.18; // Updated to match sphere geometry
+        const totalArrowLength = size * 0.333; // 2/3 of original length
+        const arrowheadLength = size * 0.2; // Larger arrowhead for clearer direction (60% of total)
+        const arrowheadRadius = size * 0.08; // Larger arrowhead radius for clearer direction
+        const arrowStartOffset = sphereRadius * 1.2; // Start arrow just outside sphere
+        const labelGap = size * 0.15; // Gap between arrow tip and X/Y/Z labels
+        const rotationLabelGap = size * 0.26; // Gap between X/Y/Z labels and English labels (30% larger)
 
         // X axis (Red) - positive direction only
         const xArrow = new THREE.ArrowHelper(
             new THREE.Vector3(1, 0, 0),
-            new THREE.Vector3(0, 0, 0),
-            size,
+            new THREE.Vector3(arrowStartOffset, 0, 0), // Start outside sphere
+            totalArrowLength, // Total arrow length
             xColor,
-            arrowLength,
-            arrowRadius
+            arrowheadLength, // Smaller arrowhead
+            arrowheadRadius  // Smaller arrowhead radius
         );
         this.group.add(xArrow);
 
         // Y axis (Green) - positive direction only
         const yArrow = new THREE.ArrowHelper(
             new THREE.Vector3(0, 1, 0),
-            new THREE.Vector3(0, 0, 0),
-            size,
+            new THREE.Vector3(0, arrowStartOffset, 0), // Start outside sphere
+            totalArrowLength, // Total arrow length
             yColor,
-            arrowLength,
-            arrowRadius
+            arrowheadLength, // Smaller arrowhead
+            arrowheadRadius  // Smaller arrowhead radius
         );
         this.group.add(yArrow);
 
         // Z axis (Blue) - positive direction only
         const zArrow = new THREE.ArrowHelper(
             new THREE.Vector3(0, 0, 1),
-            new THREE.Vector3(0, 0, 0),
-            size,
+            new THREE.Vector3(0, 0, arrowStartOffset), // Start outside sphere
+            totalArrowLength, // Total arrow length
             zColor,
-            arrowLength,
-            arrowRadius
+            arrowheadLength, // Smaller arrowhead
+            arrowheadRadius  // Smaller arrowhead radius
         );
         this.group.add(zArrow);
 
         // Create negative direction lines (dashed, thinner, gray)
-        const negLineLength = size * 0.85;
+        const negLineLength = (arrowStartOffset + totalArrowLength) * 0.85; // Scale with arrow length
         const negLineMaterial = new THREE.LineBasicMaterial({
             color: 0x666666,
             linewidth: 1,
@@ -119,45 +124,49 @@ class AxesIndicator {
 
         // Industry standard labels: X, Y, Z closer to arrow tips
         const labelDistance = size * 1.15; // Closer to arrows
-        const labelSize = size * 0.3;
+        const labelSize = size * 1.5; // Much larger for readability
 
-        // X label (Red) - positioned at arrow tip
+        // X label (Red) - positioned with gap after arrow tip
         const xLabel = this.createLabel('X', xColor, labelSize);
-        xLabel.position.set(size, 0, 0);
+        xLabel.position.set(arrowStartOffset + totalArrowLength + labelGap, 0, 0);
         this.group.add(xLabel);
         this.labels.push(xLabel);
 
-        // Y label (Green) - positioned at arrow tip
+        // Y label (Green) - positioned with gap after arrow tip
         const yLabel = this.createLabel('Y', yColor, labelSize);
-        yLabel.position.set(0, size, 0);
+        yLabel.position.set(0, arrowStartOffset + totalArrowLength + labelGap, 0);
         this.group.add(yLabel);
         this.labels.push(yLabel);
 
-        // Z label (Blue) - positioned at arrow tip
+        // Z label (Blue) - positioned with gap after arrow tip
         const zLabel = this.createLabel('Z', zColor, labelSize);
-        zLabel.position.set(0, 0, size);
+        zLabel.position.set(0, 0, arrowStartOffset + totalArrowLength + labelGap);
         this.group.add(zLabel);
         this.labels.push(zLabel);
 
         // Rotation labels: Pitch (X-axis), Yaw (Y-axis), Roll (Z-axis)
-        const rotationLabelDistance = size * 1.35;
-        const rotationLabelSize = size * 0.25;
+        // Colors match their corresponding axes
+        // Positioned further along arrow direction (after X/Y/Z labels) with gap
+        const rotationLabelSize = size * 1.0; // Much larger for readability
 
-        // Pitch label (rotation around X axis) - positioned near X axis
-        const pitchLabel = this.createLabel('Pitch', 0xffaa00, rotationLabelSize);
-        pitchLabel.position.set(rotationLabelDistance * 0.7, rotationLabelDistance * 0.3, 0);
+        // Pitch label (rotation around X axis) - matches X color (red)
+        // Positioned along X axis, with gap after X label
+        const pitchLabel = this.createLabel('Pitch', xColor, rotationLabelSize);
+        pitchLabel.position.set(arrowStartOffset + totalArrowLength + labelGap + rotationLabelGap, 0, 0);
         this.group.add(pitchLabel);
         this.labels.push(pitchLabel);
 
-        // Yaw label (rotation around Y axis) - positioned near Y axis
-        const yawLabel = this.createLabel('Yaw', 0xaa00ff, rotationLabelSize);
-        yawLabel.position.set(rotationLabelDistance * 0.3, rotationLabelDistance * 0.7, rotationLabelDistance * 0.3);
+        // Yaw label (rotation around Y axis) - matches Y color (green)
+        // Positioned along Y axis, with gap after Y label
+        const yawLabel = this.createLabel('Yaw', yColor, rotationLabelSize);
+        yawLabel.position.set(0, arrowStartOffset + totalArrowLength + labelGap + rotationLabelGap, 0);
         this.group.add(yawLabel);
         this.labels.push(yawLabel);
 
-        // Roll label (rotation around Z axis) - positioned near Z axis
-        const rollLabel = this.createLabel('Roll', 0x00ffaa, rotationLabelSize);
-        rollLabel.position.set(rotationLabelDistance * 0.3, rotationLabelDistance * 0.3, rotationLabelDistance * 0.7);
+        // Roll label (rotation around Z axis) - matches Z color (blue)
+        // Positioned along Z axis, with gap after Z label
+        const rollLabel = this.createLabel('Roll', zColor, rotationLabelSize);
+        rollLabel.position.set(0, 0, arrowStartOffset + totalArrowLength + labelGap + rotationLabelGap);
         this.group.add(rollLabel);
         this.labels.push(rollLabel);
 
@@ -169,8 +178,11 @@ class AxesIndicator {
             if (!this.group || !window.camera || !window.renderer) return;
 
             // Convert viewport coordinates (0-1) to normalized device coordinates (-1 to +1)
+            // viewportX: 0=left, 1=right -> ndcX: -1=left, +1=right
             const ndcX = (this.viewportX * 2) - 1; // 0.5 -> 0 (center)
-            const ndcY = -((this.viewportY * 2) - 1); // 0.08 -> 0.84 (bottom, flipped)
+            // viewportY: 0=top, 1=bottom -> ndcY: +1=top, -1=bottom
+            // But we want viewportY to mean "distance from bottom", so flip it
+            const ndcY = -1 + (this.viewportY * 2); // 0.08 -> -0.84 (8% from bottom)
 
             // Create a raycaster from camera through the viewport point
             const raycaster = new THREE.Raycaster();
@@ -208,15 +220,16 @@ class AxesIndicator {
     createLabel(text, color, size) {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.width = 128;
-        canvas.height = 32;
+        // Scale canvas size with label size for better quality
+        const canvasScale = Math.max(1, size / 0.3); // Base scale on original size
+        canvas.width = 256 * canvasScale; // Larger canvas for bigger fonts
+        canvas.height = 64 * canvasScale; // Larger canvas for bigger fonts
 
-        // Semi-transparent dark background for readability
-        context.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
+        // No background - completely transparent (text only)
 
-        // Text
-        context.font = 'Bold 24px Arial';
+        // Text - font size scales with label size (much larger for readability)
+        const fontSize = 48 * (size / 0.3); // Scale from base size 0.3, larger base font
+        context.font = `Bold ${fontSize}px Arial`;
         context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
         context.textAlign = 'center';
         context.textBaseline = 'middle';

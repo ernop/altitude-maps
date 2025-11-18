@@ -18,8 +18,8 @@
  * - Shift + +: Zoom in (simulates mouse wheel scroll up)
  * - Shift + -: Zoom out (simulates mouse wheel scroll down)
  * - ? or /: Toggle keyboard shortcuts help overlay
- * - V: Overhead camera view (reframe view)
- * - F: Reframe view (handled by camera scheme)
+ * - V: Overhead camera view (same as "Overhead" button)
+ * - F: Reset camera (same as "Reset Camera" button)
  * - WASD/QE: Movement (handled by camera scheme, but tracked here)
  * 
  * USAGE:
@@ -129,16 +129,23 @@ function handleGlobalShortcuts(event, keyboard) {
         return;
     }
 
-    // V key: Overhead camera view (reframe view)
+    // V key: Overhead camera view (same as "Overhead" button)
     if (event.key === 'v' || event.key === 'V') {
         event.preventDefault();
-        if (typeof triggerReframeView === 'function') {
-            triggerReframeView();
+        if (typeof triggerOverheadView === 'function') {
+            triggerOverheadView();
         }
         return;
     }
 
-    // F key: Handled by camera scheme (reframeView), don't duplicate here
+    // F key: Reset camera (same as "Reset Camera" button)
+    if (event.key === 'f' || event.key === 'F') {
+        event.preventDefault();
+        if (typeof resetCamera === 'function') {
+            resetCamera();
+        }
+        return;
+    }
     // Arrow keys: Disabled for now
     // if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     //     event.preventDefault(); // Prevent page scrolling

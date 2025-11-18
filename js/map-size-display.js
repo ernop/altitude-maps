@@ -97,7 +97,7 @@
                     ? window.FormatUtils.formatAbbreviatedNumber(totalPixels)
                     : totalPixels.toLocaleString();
 
-                pixelsEl.textContent = `${pixelWidth} × ${pixelHeight} (${formattedTotal})`;
+                pixelsEl.textContent = `${pixelWidth} × ${pixelHeight} (${formattedTotal} total)`;
             } else {
                 pixelsEl.textContent = '--';
             }
