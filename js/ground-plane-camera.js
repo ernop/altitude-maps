@@ -335,13 +335,16 @@ class GroundPlaneCamera extends CameraScheme {
             // Start from initial rotation
             let newRotation = this.state.terrainStartRotationQuaternion.clone();
 
-            // HORIZONTAL MOVEMENT: Rotate around world Y axis (vertical/turntable spin)
+            // HORIZONTAL MOVEMENT: Rotate around axis parallel to camera up (screen vertical)
             if (Math.abs(deltaX) > 0) {
-                const yAxis = new THREE.Vector3(0, 1, 0);
-                const angleY = -deltaX * rotationSpeed;
-                const rotationY = new THREE.Quaternion();
-                rotationY.setFromAxisAngle(yAxis, angleY);
-                newRotation = new THREE.Quaternion().multiplyQuaternions(rotationY, newRotation);
+                const cameraUpAxis = this.camera.up.clone().applyQuaternion(this.camera.quaternion).normalize();
+                if (cameraUpAxis.lengthSq() < 1e-6) {
+                    cameraUpAxis.set(0, 1, 0);
+                }
+                const angleUp = deltaX * rotationSpeed;
+                const rotationUp = new THREE.Quaternion();
+                rotationUp.setFromAxisAngle(cameraUpAxis, angleUp);
+                newRotation = new THREE.Quaternion().multiplyQuaternions(rotationUp, newRotation);
             }
 
             // VERTICAL MOVEMENT: Rotate around camera's horizontal axis (screen-relative tilt)
