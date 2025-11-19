@@ -57,8 +57,17 @@ $useMultiplexing = $false
 if (-not $Preview) {
     Write-Host "Setting up SSH connection multiplexing..." -ForegroundColor Yellow
     try {
-        # Open master connection
-        ssh -o ControlMaster=yes -o ControlPath=$controlPath -o ControlPersist=300 -f -N "$remote" 2>&1 | Out-Null
+        # Open master connection with explicit timeout to prevent hanging
+        $multiplexArgs = @(
+            "-o", "ControlMaster=yes",
+            "-o", "ControlPath=$controlPath",
+            "-o", "ControlPersist=300",
+            "-o", "ConnectTimeout=10",
+            "-o", "BatchMode=yes",
+            "-f", "-N",
+            "$remote"
+        )
+        ssh $multiplexArgs 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             $useMultiplexing = $true
             Write-Host "  Connection multiplexing enabled (reusing connection for all files)" -ForegroundColor Green
@@ -74,19 +83,34 @@ if (-not $Preview) {
 # Test SSH connection
 Write-Host "Testing SSH connection..." -ForegroundColor Yellow
 try {
+    # Use explicit timeout and batch mode to prevent hanging
+    $sshArgs = @(
+        "-o", "ConnectTimeout=10",
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=no"
+    )
+    
     if ($useMultiplexing) {
-        $sshTest = ssh -o ControlMaster=auto -o ControlPath=$controlPath -o ConnectTimeout=10 "$remote" "echo 'connected'" 2>&1
-    } else {
-        $sshTest = ssh -o ConnectTimeout=10 -o BatchMode=yes "$remote" "echo 'connected'" 2>&1
+        $sshArgs += "-o", "ControlMaster=auto", "-o", "ControlPath=$controlPath"
     }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: SSH connection failed" -ForegroundColor Red
+    
+    $sshArgs += "$remote", "echo 'connected'"
+    
+    $sshTest = & ssh $sshArgs 2>&1
+    $exitCode = $LASTEXITCODE
+    
+    if ($exitCode -ne 0) {
+        Write-Host "ERROR: SSH connection failed (exit code: $exitCode)" -ForegroundColor Red
+        if ($sshTest) {
+            Write-Host "Output: $sshTest" -ForegroundColor DarkGray
+        }
         Write-Host "Test manually with: ssh $remote" -ForegroundColor Yellow
         exit 1
     }
     Write-Host "  Connection OK" -ForegroundColor Green
 } catch {
     Write-Host "ERROR: SSH connection test failed" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor DarkGray
     exit 1
 }
 
@@ -148,12 +172,93 @@ foreach ($localFile in $filesToDeploy) {
     $filesToCheck += $remoteFile
 }
 
+# Helper function to run SSH with PowerShell-level timeout
+function Invoke-SSHWithTimeout {
+    param(
+        [string[]]$Arguments,
+        [int]$TimeoutSeconds = 15
+    )
+    
+    $output = ""
+    $exitCode = 0
+    
+    $job = Start-Job -ScriptBlock {
+        param($sshArgs)
+        $output = & ssh $sshArgs 2>&1
+        $exitCode = $LASTEXITCODE
+        return @{
+            Output = $output
+            ExitCode = $exitCode
+        }
+    } -ArgumentList (,$Arguments)
+    
+    $result = Wait-Job -Job $job -Timeout $TimeoutSeconds
+    
+    if ($result) {
+        $jobResult = Receive-Job -Job $job
+        Remove-Job -Job $job -Force
+        return $jobResult
+    } else {
+        Stop-Job -Job $job -ErrorAction SilentlyContinue
+        Remove-Job -Job $job -Force
+        throw "SSH command timed out after $TimeoutSeconds seconds"
+    }
+}
+
 # Batch check all remote files in one SSH call (much faster)
 if ($filesToCheck.Count -gt 0) {
+    # First, test that we can run commands on remote
+    Write-Host "  Testing remote command execution..." -ForegroundColor Yellow
+    # Test with a simple command first, then check if stat exists
+    $testCmd = "which stat >/dev/null 2>&1 && echo 'stat-found' || echo 'stat-not-found'"
+    
+    $testArgs = @(
+        "-o", "ConnectTimeout=10",
+        "-o", "BatchMode=yes"
+    )
+    
+    if ($useMultiplexing) {
+        $testArgs += "-o", "ControlMaster=auto", "-o", "ControlPath=$controlPath"
+    }
+    
+    $testArgs += "$remote", $testCmd
+    
+    try {
+        $testResult = Invoke-SSHWithTimeout -Arguments $testArgs -TimeoutSeconds 15
+        $testOutput = if ($testResult.Output -is [array]) { $testResult.Output -join "`n" } else { $testResult.Output }
+        $testExitCode = $testResult.ExitCode
+    } catch {
+        Write-Host "  ERROR: SSH command timed out or failed" -ForegroundColor Red
+        Write-Host "  $($_.Exception.Message)" -ForegroundColor DarkGray
+        Write-Host "  ERROR: Cannot proceed without file comparison - aborting" -ForegroundColor Red
+        exit 1
+    }
+    
+    if ($testExitCode -ne 0) {
+        Write-Host "  ERROR: Cannot execute commands on remote server (exit code: $testExitCode)" -ForegroundColor Red
+        if ($testOutput) {
+            Write-Host "  Test output: $testOutput" -ForegroundColor DarkGray
+        }
+        Write-Host "  ERROR: Cannot proceed without file comparison - aborting" -ForegroundColor Red
+        exit 1
+    }
+    
+    if ($testOutput -match 'stat-not-found') {
+        Write-Host "  ERROR: 'stat' command not found on remote server" -ForegroundColor Red
+        Write-Host "  ERROR: Cannot proceed without file comparison - aborting" -ForegroundColor Red
+        exit 1
+    }
+    
+    # Build bash script with proper escaping
+    $fileList = $filesToCheck | ForEach-Object {
+        # Escape single quotes in paths: ' becomes '\''
+        $escaped = $_ -replace "'", "'\''"
+        "  '$escaped'"
+    } | Out-String
+    
     $checkScript = @"
 files=(
-$($filesToCheck | ForEach-Object { "  '$_'" } | Out-String)
-)
+$fileList)
 for file in "`${files[@]}"; do
   if [ -f "`$file" ]; then
     stat -c "%Y|%s|%n" "`$file" 2>/dev/null || echo "0|0|`$file"
@@ -164,15 +269,68 @@ done
 "@
     
     try {
-        if ($useMultiplexing) {
-            $remoteStats = ssh -o ControlMaster=auto -o ControlPath=$controlPath -o ConnectTimeout=10 "$remote" $checkScript 2>&1
-        } else {
-            $remoteStats = ssh -o ConnectTimeout=10 "$remote" $checkScript 2>&1
+        # Use temp file approach for reliability (PowerShell piping can be unreliable)
+        $tempScript = [System.IO.Path]::GetTempFileName()
+        $checkScript | Out-File -FilePath $tempScript -Encoding UTF8 -NoNewline
+        
+        try {
+            # Copy script to remote, execute it, then remove it
+            $randomSuffix = Get-Random -Minimum 10000 -Maximum 99999
+            $remoteScriptPath = "/tmp/deploy_check_$randomSuffix.sh"
+            $scpArgs = @(
+                "-o", "ConnectTimeout=10",
+                "-o", "BatchMode=yes"
+            )
+            
+            if ($useMultiplexing) {
+                $scpArgs += "-o", "ControlMaster=auto", "-o", "ControlPath=$controlPath"
+            }
+            
+            $scpArgs += "$tempScript", "${remote}:${remoteScriptPath}"
+            
+            $scpOutput = & scp $scpArgs 2>&1
+            $scpExitCode = $LASTEXITCODE
+            
+            if ($scpExitCode -ne 0) {
+                Write-Host "  ERROR: Failed to copy script to remote (exit code: $scpExitCode)" -ForegroundColor Red
+                if ($scpOutput) {
+                    Write-Host "  SCP output: $scpOutput" -ForegroundColor DarkGray
+                }
+                throw "Failed to copy script to remote"
+            }
+            
+            # Execute script on remote (always clean up script afterwards)
+            $execArgs = @(
+                "-o", "ConnectTimeout=10",
+                "-o", "BatchMode=yes"
+            )
+            
+            if ($useMultiplexing) {
+                $execArgs += "-o", "ControlMaster=auto", "-o", "ControlPath=$controlPath"
+            }
+            
+            $execCmd = "bash $remoteScriptPath; rm -f $remoteScriptPath"
+            $execArgs += "$remote", $execCmd
+            
+            try {
+                $execResult = Invoke-SSHWithTimeout -Arguments $execArgs -TimeoutSeconds 60
+                $remoteStats = if ($execResult.Output -is [array]) { $execResult.Output } else { @($execResult.Output) }
+                $exitCode = $execResult.ExitCode
+            } catch {
+                Write-Host "  ERROR: Script execution timed out or failed" -ForegroundColor Red
+                Write-Host "  $($_.Exception.Message)" -ForegroundColor DarkGray
+                throw "Failed to execute script on remote"
+            }
+        } finally {
+            # Clean up local temp file
+            Remove-Item -Path $tempScript -ErrorAction SilentlyContinue
         }
         
-        if ($LASTEXITCODE -eq 0) {
+        if ($exitCode -eq 0) {
+            $parsedCount = 0
             $remoteStats | ForEach-Object {
-                if ($_ -match '^(\d+)\|(\d+)\|(.+)$') {
+                $line = $_.Trim()
+                if ($line -match '^(\d+)\|(\d+)\|(.+)$') {
                     $timestamp = [int64]$matches[1]
                     $fileSize = [int64]$matches[2]
                     $filePath = $matches[3]
@@ -181,12 +339,25 @@ done
                             ModDate = [DateTimeOffset]::FromUnixTimeSeconds($timestamp).DateTime
                             Size = $fileSize
                         }
+                        $parsedCount++
                     }
                 }
             }
+            Write-Host "  Checked $parsedCount remote files" -ForegroundColor Green
+        } else {
+            Write-Host "  ERROR: Remote file check failed (exit code: $exitCode)" -ForegroundColor Red
+            Write-Host "  Output:" -ForegroundColor Yellow
+            $remoteStats | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+            Write-Host "  ERROR: Cannot proceed without file comparison - aborting" -ForegroundColor Red
+            Write-Host "  Fix the SSH connection or remote path and try again" -ForegroundColor Yellow
+            exit 1
         }
     } catch {
-        Write-Host "  Warning: Could not check remote files (will upload all)" -ForegroundColor Yellow
+        Write-Host "  ERROR: Exception during remote file check" -ForegroundColor Red
+        Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  ERROR: Cannot proceed without file comparison - aborting" -ForegroundColor Red
+        Write-Host "  Fix the SSH connection or remote path and try again" -ForegroundColor Yellow
+        exit 1
     }
 }
 

@@ -38,7 +38,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.380';
+const VIEWER_VERSION = '1.382';
 
 // RegionType enum is defined in state-connectivity.js (loaded before this file)
 // Values: RegionType.USA_STATE, RegionType.COUNTRY, RegionType.AREA
