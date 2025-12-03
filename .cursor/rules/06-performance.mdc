@@ -1,0 +1,102 @@
+---
+description: Performance patterns and optimization guidelines
+globs: ["**/*.js", "**/*.py"]
+alwaysApply: false
+---
+
+# Performance Patterns
+
+## Core Principle
+Before implementing ANY feature, ask:
+1. Am I doing expensive work unnecessarily?
+2. Am I duplicating computation?
+3. Can I consolidate operations?
+4. Should I precompute common operations?
+5. Have I quantified the trade-offs?
+
+## Question Inefficiency Upfront
+- "This will do X raycasts per mousemove - should we consolidate?"
+- "The HUD might be hidden - should we skip this work?"
+- "This rebuilds geometry on every change - can we use uniforms instead?"
+
+Don't implement first, ask later.
+
+## Event Handlers
+These fire 60+ times per second. Every millisecond counts.
+
+### Skip Unnecessary Work
+```javascript
+// WRONG
+function onMouseMove(e) {
+    const world = raycastToWorld(e);  // Always runs
+    if (hudVisible) updateHUD(world);  // Might be false
+}
+
+// CORRECT
+function onMouseMove(e) {
+    if (!hudVisible) return;  // Early exit
+    const world = raycastToWorld(e);
+    updateHUD(world);
+}
+```
+
+### Consolidate Operations
+```javascript
+// WRONG - Three raycasts
+element.addEventListener('mousemove', e => updateHUD(e));
+element.addEventListener('mousemove', e => checkHover(e));
+element.addEventListener('mousemove', e => updateCursor(e));
+
+// CORRECT - Single raycast
+element.addEventListener('mousemove', e => {
+    const intersects = raycaster.intersectObjects(scene.children);
+    updateHUD(intersects);
+    checkHover(intersects);
+    updateCursor(intersects);
+});
+```
+
+### Coalesce Rapid Updates
+```javascript
+let pendingUpdate = null;
+
+function requestTerrainUpdate(newValue) {
+    pendingUpdate = newValue;
+}
+
+function animate() {
+    if (pendingUpdate !== null) {
+        applyUpdate(pendingUpdate);
+        pendingUpdate = null;
+    }
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+```
+
+## GPU-First Updates
+- Prefer shader uniforms over CPU loops
+- Vertical exaggeration: `uExaggeration = currentInternal / baselineInternal`
+- Tile gap: `uTileScale = currentTileSize / baselineTileSize`
+- Rebuild geometry only when baselines change
+
+## Precomputation
+- Trade small memory cost (~10-15 MB) for instant UX
+- Example: Bucket size cache allows instant switching without recomputation
+
+## UI Performance
+- Default bucket size targets ~3,900 buckets for fast initial load
+- Start conservative; let users increase detail if wanted
+- Better to load fast with decent quality than slow with perfect quality
+
+## When to Raise Concerns
+- BEFORE implementing
+- When you see duplication
+- In event handlers (mousemove/wheel/scroll)
+- When conditionals exist (system might be disabled)
+
+## Code Quality
+- Question defensive patterns if dependencies are guaranteed
+- Consolidate before optimizing
+- Use data-driven patterns instead of hardcoding cases
+- Complexity must solve a real problem

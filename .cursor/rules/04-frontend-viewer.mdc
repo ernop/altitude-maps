@@ -1,0 +1,116 @@
+---
+description: Three.js rendering, camera controls, and UI patterns
+globs: ["js/**/*.js", "css/**/*.css", "**/*.html"]
+alwaysApply: false
+---
+
+# Frontend & Viewer
+
+## Architecture
+- Pure client-side web application
+- External dependencies from CDN (Three.js, jQuery)
+- Window globals: `window.scene`, `window.camera`, `window.params`, `window.processedData`
+- Script loading order: Libraries -> utilities -> modules -> main viewer
+
+## Three.js Rendering
+
+### Camera Near/Far Planes
+- Ratio < 1,000,000:1 (current: `near=1, far=100000`)
+- Never use `near < 0.1` or `far > 1,000,000`
+
+### Coordinate Space
+- Hierarchy: `scene -> terrainGroup -> terrainMesh -> bars`
+- Objects rotating with terrain: `terrainGroup.add(object)`
+- World-fixed objects: `scene.add(object)`
+
+### Rendering
+- Bars mode only (instanced meshes with GPU uniforms)
+- Use rectangular bars matching grid spacing
+- Enable frustum culling; GPU depth testing is automatic
+- Prefer shader uniforms over CPU loops for continuous updates
+
+## Ground Plane Camera System
+
+### Core Architecture
+- Fixed ground plane at y=0 (map surface)
+- Focus point anchored ON the plane
+- `camera.lookAt()` called ONLY in update() loop (once per frame)
+- NEVER call `camera.lookAt()` in mouse event handlers
+
+### Control Behaviors
+1. **Left Drag** = Pan on ground plane
+2. **Shift + Left Drag** = Tilt view (pitch adjustment)
+3. **Middle Drag** = Rotate map around origin
+4. **Right Drag** = Look around (rotate view in place)
+5. **Alt + Left Drag** = Rotate view around focus point
+6. **Mouse Wheel** = Zoom toward/away from cursor
+7. **WASD/QE** = Keyboard movement; **F** = Reframe view
+8. **Touch gestures** = Pan, pinch zoom
+
+### Implementation Pattern
+```javascript
+// Mouse handlers only update positions
+this.camera.position.copy(newPosition);
+this.focusPoint.copy(newFocusPoint);
+this.controls.target.copy(this.focusPoint);
+// DO NOT call camera.lookAt() here
+
+// update() loop handles orientation
+update() {
+    if (this.enabled && this.focusPoint) {
+        this.camera.lookAt(this.focusPoint);
+    }
+}
+```
+
+### Zoom Behavior
+- Bidirectional focus shift: zoom IN moves focus toward cursor, zoom OUT moves away
+- Camera AND focus move in same direction (no conflict)
+
+## UI Patterns
+
+### Region Selector
+- Three groups in order: Countries -> Areas -> US States
+- Visible divider between groups
+- Alphabetical within each group
+
+### Controls
+- Conceptual labels ("Resolution" not "Bucket Size")
+- Provide MAX/DEFAULT quick actions
+- Bidirectional controls in two columns (HIGHER DETAIL vs LOWER DETAIL)
+
+### HUD Overlay
+- Hidden by default; toggleable via checkbox
+- Draggable; position persists in localStorage
+- Tabular layout prevents value jitter
+
+### Button Styling
+- White text (#ffffff) in normal and hover states
+- On hover, change background only, never text color
+- Smooth transitions (0.2s)
+
+## Performance
+
+### GPU-Driven Updates
+- Use shader uniforms for exaggeration and tile gap
+- Rebuild geometry only when baselines change
+- Store uniform references in `material.userData`
+
+### Debouncing
+- Debounce expensive operations (~50-120ms)
+- Apply lightweight updates immediately
+- Settle once on input end
+
+### Lifecycle
+- Clear marker arrays when destroying terrain
+- Destroy old terrainGroup first, then clear arrays, then create new
+
+## Versioning
+- Filename-based: `{region}_{source}_{pixels}px_v2.json`
+- Strict v2-only selection; fail-fast on version mismatch
+- No redundant version fields inside JSON
+
+## Color Schemes
+- Include `auto-stretch` with percentile bounds
+- Global Scale toggle for cross-region comparison
+- Flat lighting option reduces shading cost

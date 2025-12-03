@@ -53,25 +53,27 @@ class SourceCapability:
 
 # Registry of all available data sources
 # Order in this list determines default priority (user can override)
+# TEMPORARY: Only OpenTopography sources enabled (90m, 30m)
+# All other sources temporarily disabled for testing
 SOURCE_REGISTRY: List[SourceCapability] = [
-    # 10m sources
-    SourceCapability(
-        source_id='usgs_3dep',
-        name='USGS 3DEP',
-        resolution_m=10,
-        coverage_lat=(18.0, 72.0),      # Approximate US coverage
-        coverage_lon=(-180.0, -60.0),   # Approximate US coverage (including Alaska)
-        tile_dir='usa_3dep',
-        merged_dir='usa_3dep',
-        requires_auth=False,
-        auth_key_name=None,
-        notes='High-quality LiDAR for United States'
-    ),
+    # TEMPORARILY DISABLED - 10m sources
+    # SourceCapability(
+    #     source_id='usgs_3dep',
+    #     name='USGS 3DEP',
+    #     resolution_m=10,
+    #     coverage_lat=(18.0, 72.0),      # Approximate US coverage
+    #     coverage_lon=(-180.0, -60.0),   # Approximate US coverage (including Alaska)
+    #     tile_dir='usa_3dep',
+    #     merged_dir='usa_3dep',
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='High-quality LiDAR for United States'
+    # ),
     
     # NOTE: Copernicus GLO-10 is NOT publicly available via S3
     # Only GLO-30 and GLO-90 are public
     
-    # 30m sources
+    # 30m sources - OpenTopography ONLY
     SourceCapability(
         source_id='opentopo_srtm_30m',
         name='SRTM 30m (OpenTopography)',
@@ -98,33 +100,34 @@ SOURCE_REGISTRY: List[SourceCapability] = [
         notes='Copernicus DEM via OpenTopography API'
     ),
     
-    SourceCapability(
-        source_id='copernicus_s3_30m',
-        name='Copernicus GLO-30 (S3)',
-        resolution_m=30,
-        coverage_lat=(-90.0, 90.0),     # True global
-        coverage_lon=None,              # Global longitude
-        tile_dir='copernicus_s3_30m',
-        merged_dir='srtm_30m',          # Merge into same dir (same resolution)
-        requires_auth=False,
-        auth_key_name=None,
-        notes='Direct S3 access, no rate limits'
-    ),
+    # TEMPORARILY DISABLED - Other 30m sources
+    # SourceCapability(
+    #     source_id='copernicus_s3_30m',
+    #     name='Copernicus GLO-30 (S3)',
+    #     resolution_m=30,
+    #     coverage_lat=(-90.0, 90.0),     # True global
+    #     coverage_lon=None,              # Global longitude
+    #     tile_dir='copernicus_s3_30m',
+    #     merged_dir='srtm_30m',          # Merge into same dir (same resolution)
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='Direct S3 access, no rate limits'
+    # ),
     
-    SourceCapability(
-        source_id='aw3d30',
-        name='ALOS AW3D30',
-        resolution_m=30,
-        coverage_lat=(-82.0, 82.0),     # AW3D coverage
-        coverage_lon=None,              # Global longitude
-        tile_dir='aw3d30',
-        merged_dir='aw3d30',
-        requires_auth=True,
-        auth_key_name='opentopography.api_key',
-        notes='High-quality Japanese satellite data via OpenTopography'
-    ),
+    # SourceCapability(
+    #     source_id='aw3d30',
+    #     name='ALOS AW3D30',
+    #     resolution_m=30,
+    #     coverage_lat=(-82.0, 82.0),     # AW3D coverage
+    #     coverage_lon=None,              # Global longitude
+    #     tile_dir='aw3d30',
+    #     merged_dir='aw3d30',
+    #     requires_auth=True,
+    #     auth_key_name='opentopography.api_key',
+    #     notes='High-quality Japanese satellite data via OpenTopography'
+    # ),
     
-    # 90m sources
+    # 90m sources - OpenTopography ONLY
     SourceCapability(
         source_id='opentopo_srtm_90m',
         name='SRTM 90m (OpenTopography)',
@@ -151,71 +154,72 @@ SOURCE_REGISTRY: List[SourceCapability] = [
         notes='Copernicus 90m via OpenTopography API'
     ),
     
-    SourceCapability(
-        source_id='copernicus_s3_90m',
-        name='Copernicus GLO-90 (S3)',
-        resolution_m=90,
-        coverage_lat=(-90.0, 90.0),     # True global
-        coverage_lon=None,              # Global longitude
-        tile_dir='copernicus_s3_90m',
-        merged_dir='srtm_90m',          # Merge into same dir (same resolution)
-        requires_auth=False,
-        auth_key_name=None,
-        notes='Direct S3 access, no rate limits'
-    ),
+    # TEMPORARILY DISABLED - Other 90m sources
+    # SourceCapability(
+    #     source_id='copernicus_s3_90m',
+    #     name='Copernicus GLO-90 (S3)',
+    #     resolution_m=90,
+    #     coverage_lat=(-90.0, 90.0),     # True global
+    #     coverage_lon=None,              # Global longitude
+    #     tile_dir='copernicus_s3_90m',
+    #     merged_dir='srtm_90m',          # Merge into same dir (same resolution)
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='Direct S3 access, no rate limits'
+    # ),
     
-    # Coarse sources (250m, 500m, 1km)
-    SourceCapability(
-        source_id='gmted2010_250m',
-        name='GMTED2010 250m',
-        resolution_m=250,
-        coverage_lat=(-90.0, 90.0),
-        coverage_lon=None,
-        tile_dir='gmted2010_250m',
-        merged_dir='gmted2010_250m',
-        requires_auth=False,
-        auth_key_name=None,
-        notes='Coarse global DEM'
-    ),
+    # TEMPORARILY DISABLED - Coarse sources (250m, 500m, 1km)
+    # SourceCapability(
+    #     source_id='gmted2010_250m',
+    #     name='GMTED2010 250m',
+    #     resolution_m=250,
+    #     coverage_lat=(-90.0, 90.0),
+    #     coverage_lon=None,
+    #     tile_dir='gmted2010_250m',
+    #     merged_dir='gmted2010_250m',
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='Coarse global DEM'
+    # ),
     
-    SourceCapability(
-        source_id='gmted2010_500m',
-        name='GMTED2010 500m',
-        resolution_m=500,
-        coverage_lat=(-90.0, 90.0),
-        coverage_lon=None,
-        tile_dir='gmted2010_500m',
-        merged_dir='gmted2010_500m',
-        requires_auth=False,
-        auth_key_name=None,
-        notes='Coarse global DEM'
-    ),
+    # SourceCapability(
+    #     source_id='gmted2010_500m',
+    #     name='GMTED2010 500m',
+    #     resolution_m=500,
+    #     coverage_lat=(-90.0, 90.0),
+    #     coverage_lon=None,
+    #     tile_dir='gmted2010_500m',
+    #     merged_dir='gmted2010_500m',
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='Coarse global DEM'
+    # ),
     
-    SourceCapability(
-        source_id='gmted2010_1km',
-        name='GMTED2010 1km',
-        resolution_m=1000,
-        coverage_lat=(-90.0, 90.0),
-        coverage_lon=None,
-        tile_dir='gmted2010_1km',
-        merged_dir='gmted2010_1km',
-        requires_auth=False,
-        auth_key_name=None,
-        notes='Very coarse global DEM'
-    ),
+    # SourceCapability(
+    #     source_id='gmted2010_1km',
+    #     name='GMTED2010 1km',
+    #     resolution_m=1000,
+    #     coverage_lat=(-90.0, 90.0),
+    #     coverage_lon=None,
+    #     tile_dir='gmted2010_1km',
+    #     merged_dir='gmted2010_1km',
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='Very coarse global DEM'
+    # ),
     
-    SourceCapability(
-        source_id='globe_1km',
-        name='GLOBE 1km',
-        resolution_m=1000,
-        coverage_lat=(-90.0, 90.0),
-        coverage_lon=None,
-        tile_dir='globe_1km',
-        merged_dir='globe_1km',
-        requires_auth=False,
-        auth_key_name=None,
-        notes='Simple global DEM'
-    ),
+    # SourceCapability(
+    #     source_id='globe_1km',
+    #     name='GLOBE 1km',
+    #     resolution_m=1000,
+    #     coverage_lat=(-90.0, 90.0),
+    #     coverage_lon=None,
+    #     tile_dir='globe_1km',
+    #     merged_dir='globe_1km',
+    #     requires_auth=False,
+    #     auth_key_name=None,
+    #     notes='Simple global DEM'
+    # ),
 ]
 
 

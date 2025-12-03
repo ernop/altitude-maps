@@ -533,6 +533,15 @@ COUNTRIES: Dict[str, RegionConfig] = {
         country="Kyrgyzstan",
         clip_boundary=True,
     ),
+    "oman": RegionConfig(
+        id="oman",
+        name="Oman",
+        bounds=(51.0, 16.0, 60.0, 27.0),
+        description="Sultanate of Oman",
+        region_type=RegionType.COUNTRY,
+        country="Oman",
+        clip_boundary=True,
+    ),
     "singapore": RegionConfig(
         id="singapore",
         name="Singapore",

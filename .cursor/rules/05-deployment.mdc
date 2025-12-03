@@ -1,0 +1,104 @@
+---
+description: Deployment procedures, commands, and git management
+globs: ["*.ps1", "*.sh"]
+alwaysApply: false
+---
+
+# Deployment & Operations
+
+## Common Commands
+```powershell
+# Setup
+.\setup.ps1
+
+# Viewer
+python serve_viewer.py  # http://localhost:8001
+
+# Region processing
+python ensure_region.py ohio
+python ensure_region.py iceland
+python ensure_region.py --list-regions
+
+# Caches
+python clear_caches.py
+
+# Deployment
+.\deploy.ps1 -Preview
+.\deploy.ps1 -Deploy
+
+# Version bumping
+python bump_version.py        # Patch
+python bump_version.py minor  # Minor
+python bump_version.py major  # Major
+```
+
+## Deployment
+
+### Production Files (deploy these)
+- `interactive_viewer_advanced.html`
+- `js/`, `css/`
+- `generated/` (only `.json.gz` files)
+- Favicons
+
+### Development Only (do not deploy)
+- `data/` (raw GeoTIFFs, 10+ GB)
+- `src/`, `*.py`
+- `venv/`
+- Documentation files
+
+### Deployment Method
+Native Windows SCP via OpenSSH:
+- Config in `deploy-config.ps1` (gitignored)
+- Template: `deploy-config.example.ps1`
+
+### Smart Features
+- Batch file comparison in one SSH call
+- Skips unchanged files (size + MD5)
+- Uploads manifests/code first, then data
+- Compression and fast cipher for high-latency
+
+### File Formats
+- Viewer loads `.json.gz` only (compressed)
+- Never deploy raw `.json` files
+- Deploy script filters automatically
+
+## Version Bumping
+Run `python bump_version.py` after user-facing changes:
+1. Updates `VIEWER_VERSION` in `js/viewer-advanced.js`
+2. Syncs HTML cache busters
+3. Ready to deploy
+
+## Pre-Deployment Checklist
+1. Run `ensure_region.py` for new/updated regions
+2. Run `bump_version.py`
+3. Run `.\deploy.ps1 -Preview`
+4. Run `.\deploy.ps1 -Deploy`
+
+## Git Management
+
+### Always Ignore
+- `data/` - Raw elevation data (10GB+)
+- `generated/` - Exported JSON
+- `rasters/`, `output/` - Intermediate files
+- `*.tif`, `*.hgt`, `*.pkl`, `*.zip`, `*.gz`
+- `__pycache__/`, `venv/`, `.pytest_cache/`
+
+### Large Files
+- Geospatial data grows quickly
+- Add new data directories to `.gitignore` immediately
+- Only code, small manifests, and docs belong in version control
+
+## Cache Invalidation
+After format changes:
+```powershell
+Remove-Item -Recurse -Force data\.cache\*
+Remove-Item -Recurse -Force generated\*
+python ensure_region.py <region_id> --force-reprocess
+```
+
+## Data Format Versioning
+When changing export format:
+1. Update format version number in export scripts
+2. Add version validation on data load
+3. Document the change
+4. Re-export all data; never mix old and new formats

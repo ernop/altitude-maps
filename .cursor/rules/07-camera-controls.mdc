@@ -1,0 +1,106 @@
+---
+description: Detailed camera control reference for Ground Plane Camera System
+globs: ["js/ground-plane-camera.js", "js/camera-*.js"]
+alwaysApply: false
+---
+
+# Camera Controls Reference
+
+## Ground Plane Camera System
+Custom default camera controls, tested and confirmed smooth. Alternative schemes available (Google Earth, Roblox Studio, Flying, Blender, Unity Editor).
+
+## Core Architecture (Critical for Smoothness)
+- Fixed ground plane at y=0 (the map surface)
+- Focus point anchored ON the plane (where camera looks)
+- All operations relative to this plane
+- `camera.lookAt()` called ONLY in update() loop (once per frame, synchronized with rendering)
+- NEVER call `camera.lookAt()` in mouse event handlers (causes high-frequency jitter)
+- Mouse handlers only update positions; render loop handles orientation
+
+## Control Behaviors
+
+### 1. Left Drag = Pan on Ground Plane
+- "Grab and drag" the map surface
+- Screen-space movement for smoothness (not continuous raycasting)
+- Speed: Adaptive based on distance from focus point (`distance * 0.001`)
+- Camera and focus point move together
+
+### 2. Shift + Left Drag = Tilt View (Pitch)
+- Drag DOWN = tilt down (see more land/horizon)
+- Drag UP = tilt up (more overhead view)
+- Spherical coordinate adjustment around focus point
+- Angle limits: 0.1 to PI/2 - 0.01 radians
+- Tilt speed: 0.005 radians per pixel
+- Cancels smoothly if Shift released mid-drag
+
+### 3. Middle Drag = Rotate Map Around Origin
+- Orbit camera around origin (0,0,0)
+- Horizontal drag = rotate around vertical axis
+- Vertical drag = change viewing angle
+- Rotation speed: 0.005 radians per pixel
+- Angle limits: 0.1 to PI - 0.1 radians
+
+### 4. Right Drag = Look Around (Rotate View in Place)
+- Camera position stays fixed
+- Only view direction changes
+- Horizontal = turn left/right (yaw)
+- Vertical = look up/down (pitch)
+- Max pitch: +/- 89 degrees
+
+### 5. Alt + Left Drag = Rotate View Around Focus Point
+- Spherical coordinate transformation
+- Maintains constant distance from focus point
+- Same angle limits as tilt
+
+### 6. Mouse Wheel = Zoom Toward/Away From Cursor
+- Scroll UP = zoom IN (camera moves toward cursor)
+- Scroll DOWN = zoom OUT (camera moves away)
+- Zoom factor: 10% of distance per tick
+- Minimum distance: 5 meters
+- Bidirectional focus shift (critical):
+  - Zoom IN: Focus moves toward cursor (focusShift = +0.1)
+  - Zoom OUT: Focus moves away (focusShift = -0.1)
+
+### 7. WASD/QE/F Keys = Keyboard Movement
+- W/S = forward/backward
+- A/D = strafe left/right
+- Q/E = down/up
+- F = Reframe view (reset to fixed overhead position)
+- Disabled when typing in input fields
+- Speed: Base 4.0 units/frame with acceleration
+
+### 8. Touch/Trackpad Gestures
+- Single finger drag = Pan (mobile)
+- Two-finger drag = Pan (trackpad)
+- Two-finger pinch = Zoom
+- Simultaneous pan + zoom supported
+- Zoom sensitivity: 1% per pixel of pinch change
+
+## Implementation Pattern (Do Not Deviate)
+```javascript
+// Mouse handlers:
+this.camera.position.copy(newPosition);
+this.focusPoint.copy(newFocusPoint);
+this.controls.target.copy(this.focusPoint);
+// DO NOT call camera.lookAt() here
+
+// update() loop:
+update() {
+    if (this.enabled && this.focusPoint) {
+        this.camera.lookAt(this.focusPoint);
+    }
+}
+```
+
+## Why This Works
+- Single source of truth for camera orientation
+- Synchronized with render loop (60fps)
+- Predictable timing regardless of input frequency
+- Standard pattern from Three.js OrbitControls
+
+## Avoid These Mistakes
+- Calling camera.lookAt() in mouse handlers (causes jitter)
+- Continuous raycasting for pan (too slow)
+- Unidirectional focus shift (breaks zoom out)
+- Forgetting to cancel operations if modifier keys released
+- Processing keyboard shortcuts while typing

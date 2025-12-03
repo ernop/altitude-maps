@@ -1,0 +1,64 @@
+---
+description: Abstract coding preferences and style conventions
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: false
+---
+
+# Code Style & Conventions
+
+## Python
+- Use 1-space indentation (project convention for compactness).
+- Use type hints for function parameters and returns.
+- Keep functions focused and single-purpose.
+- Use meaningful variable names (`elevation_data` over `ed`).
+- Document complex data transformations with inline comments.
+- Use `pathlib.Path` for cross-platform paths.
+- Wrap stdout/stderr with UTF-8 TextIOWrapper on Windows.
+
+## JavaScript/TypeScript
+- Separate HTML and JS into different files.
+- Avoid inline styles; use rationally-named CSS classes.
+- Inline styles (`element.style.property`) override CSS with highest specificity; check JS when CSS changes don't apply.
+- Keep jQuery; it's widely cached and readable. Avoid Select2.
+
+## Comments & Headers
+- Use compact section headers: `//-------SECTION NAME-------`
+- Skip comments that restate parameter names.
+- Comments explain why, not what.
+
+## Formatting
+- Constants for magic values even if used 2-3 times.
+- Organize by purpose, not type (CORE STATE, DATA STATE).
+- Cache expensive computations, not simple lookups.
+
+## Import Safety
+Never use defensive imports with fallbacks. Let imports fail hard.
+
+```python
+# WRONG - Defensive import
+try:
+    import rasterio
+except ImportError:
+    print("Install rasterio")
+    sys.exit(1)
+
+# CORRECT - Direct import
+import rasterio
+```
+
+If an import fails:
+1. Check `requirements.txt` for the package.
+2. Run `pip install -r requirements.txt`.
+3. Fix the import path.
+4. Never add try/except as a workaround.
+
+## Type Safety & Enums
+- Use enums for closed sets of string values.
+- String enums inherit from `str` for JSON compatibility: `class MyEnum(str, Enum)`
+- Place project-wide enums in `src/types.py`.
+- Use `typing.Literal['value1', 'value2']` for type hints without runtime overhead.
+- Never use enums for open-ended values (resolutions that may expand).
+
+## Terminology
+- One term per concept; never use synonyms for the same thing.
+- Unify immediately when dual terminology appears.

@@ -1,0 +1,114 @@
+---
+description: Elevation data handling, resolution selection, and border processing
+globs: ["src/**/*.py", "**/*.py"]
+alwaysApply: false
+---
+
+# Data Processing
+
+## Core Principle: Preserve Real-World Proportions
+Wide states like Tennessee must appear wide. Tall states must appear tall. Crop output to actual shape boundaries, not rectangular bounding box.
+
+## Standard Pipeline Flow
+1. **Download** raw elevation data (bounding box, EPSG:4326)
+2. **Clip** to boundary using `rasterio_mask()` with `crop=True` and `filled=False`
+3. **Reproject** all EPSG:4326 regions to EPSG:3857 (Web Mercator) to fix longitude compression
+4. **Downsample** to target resolution with same step size for both dimensions
+5. **Export** to JSON with bounds converted back to EPSG:4326
+
+## Resolution Naming Convention (Critical)
+Two separate concepts:
+
+**elevation_resolution** (data quality):
+- Values: `10m`, `30m`, `90m`, `250m`, `500m`, `1000m`
+- Dynamically determined by Nyquist sampling rule
+- Variable naming: `elevation_resolution` or `data_resolution`
+
+**border_resolution** (boundary detail):
+- Values: `10m`, `50m`, `110m` (strings)
+- Always `10m` in production pipeline
+- Variable naming: Always `border_resolution` (never just `resolution`)
+
+Never use ambiguous `resolution` parameter; always specify which type.
+
+## Resolution Determination (Nyquist Rule)
+Elevation resolution is NEVER hardcoded by region type. Always dynamically determined:
+
+1. Calculate visible pixel size: `visible_m_per_pixel = geographic_span_meters / sqrt(target_total_pixels)`
+2. Apply Nyquist rule: `source_resolution <= visible_m_per_pixel / 2.0`
+3. Select coarsest available resolution meeting requirement
+
+Available resolutions:
+- USA_STATE: `[10m, 30m, 90m, 250m, 500m, 1000m]`
+- COUNTRY: `[30m, 90m, 250m, 500m, 1000m]`
+- AREA: US areas get 10m option; others start at 30m
+
+Forbidden assumptions:
+- "US states always use 10m" - FALSE
+- "International regions always use 30m" - FALSE
+- "Small states need high resolution" - FALSE
+
+## Downsampling Pattern
+Always use same step size for both dimensions:
+
+```python
+# CORRECT
+base_dimension = int(round(math.sqrt(target_total_pixels)))
+step_size = max(1, int(math.ceil(max_dim / base_dimension)))
+downsampled = elevation[::step_size, ::step_size]
+
+# WRONG - Distorts aspect ratio
+step_y = height // target_height
+step_x = width // target_width
+downsampled = elevation[::step_y, ::step_x]
+```
+
+## Border Resolution
+- Always use 10m borders for production (Natural Earth 10m dataset)
+- 110m borders miss islands and coastline details
+- All border methods use `border_resolution` parameter
+
+## Tile System
+- All resolutions use 1-degree tile system
+- Format: `{NS}{lat}_{EW}{lon}_{elevation_resolution}.tif`
+- Storage: `data/raw/{source}/tiles/`
+
+## File Naming
+**Abstract naming** (for reusable data):
+- `bbox_{bounds}_{dataset}_{resolution}.tif`
+
+**Region-specific naming** (for viewer exports):
+- `{region_id}_{source}_{pixels}px_v2.json`
+
+## Data Directories
+- `data/raw/{source}/tiles/` - 1x1 degree tiles
+- `data/merged/{source}/` - Region-specific merged files
+- `data/processed/{source}/` - Clipped/reprojected files
+- `data/borders/` - Natural Earth border data
+- `generated/regions/` - Final JSON exports
+
+## Reprojection Pattern
+- Initialize arrays with nodata before reprojecting
+- Always pass `src_nodata` and `dst_nodata` to `reproject()`
+- Uninitialized arrays cause data corruption
+
+## JSON Export Performance
+```python
+# CORRECT - Vectorized (28x faster)
+mask = np.isnan(arr)
+arr_obj = arr.astype(object)
+arr_obj[mask] = None
+result = arr_obj.tolist()
+
+# WRONG - Nested loops
+```
+
+## OpenTopography Rate Limits
+All downloaders check shared state: `data/.opentopography_rate_limit.json`
+- 10 minutes initial backoff, doubles each 401
+- 0.5s delay between requests
+- CLI utility: `python check_rate_limit.py`
+
+## Data Sources Priority
+**USA**: USGS 3DEP first (1-10m resolution)
+**Global**: National agency data first, then OpenTopography SRTM/Copernicus

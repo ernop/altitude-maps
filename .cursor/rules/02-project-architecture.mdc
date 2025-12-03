@@ -1,0 +1,81 @@
+---
+description: Project structure, region system, and type definitions
+globs: ["src/**/*.py", "**/*.py"]
+alwaysApply: false
+---
+
+# Project Architecture
+
+## Overview
+Global landscape visualization project showing altitude across 50 US states, 8 countries, and 31 custom regions (89 total).
+
+## Directory Structure
+```
+.cursor/rules/      - Cursor rules (this directory)
+README.md           - Features only, no technical language
+DEPLOY_README.md    - Deployment guide
+install.md          - Installation instructions
+technicalDetails.md - Technical specifications
+src/                - Python processing code
+js/                 - Client-side JavaScript
+css/                - Stylesheets
+data/               - Raw data (gitignored)
+generated/          - Exported JSON for viewer
+```
+
+## Environment
+- Python 3.13 virtual environment (`venv`)
+- Activate: `.\venv\Scripts\Activate.ps1` in PowerShell
+- Setup: `.\setup.ps1` installs Python 3.13 via winget
+- IDE config: `.vscode/settings.json` points to venv interpreter
+
+## Configuration Pattern
+Use gitignored config files with checked-in examples:
+- `settings.json` (gitignored) - API keys and secrets
+- `settings.example.json` (checked in) - Template
+- Code reads from config file, not `os.environ`
+
+## Region Type System (Mandatory)
+All code handling region types MUST use the `RegionType` enum from `src/types.py`:
+
+```python
+from src.types import RegionType
+
+class RegionType(str, Enum):
+    USA_STATE = "usa_state"
+    COUNTRY = "country"
+    AREA = "area"
+```
+
+Enforcement:
+1. Import `RegionType` at top of file.
+2. Use enum values: `RegionType.USA_STATE` (not string literals).
+3. Check all three cases exhaustively with if/elif/elif/else.
+4. Raise `ValueError` for unknown types (never silent fallback).
+
+```python
+# CORRECT
+if region_type == RegionType.USA_STATE:
+    boundary_name = f"United States of America/{state_name}"
+elif region_type == RegionType.COUNTRY:
+    boundary_name = country_name if clip_boundary else None
+elif region_type == RegionType.AREA:
+    boundary_name = region_name if clip_boundary else None
+else:
+    raise ValueError(f"Unknown region type: {region_type}")
+```
+
+## Centralized Region Configuration
+- Single source of truth: `src/region_config.py`
+- Categories: US_STATES, COUNTRIES, REGIONS
+- Having a region configured does NOT mean data exists; check manifest separately.
+- No scripts store local copies of region lists; all region info comes from imports.
+
+## Adding New Regions
+1. Add `RegionConfig` entry to `src/region_config.py`:
+   - `id`: lowercase with underscores (e.g., "japan")
+   - `name`: Display name
+   - `bounds`: Tuple(west, south, east, north) in degrees
+   - `clip_boundary`: True for countries/states, False for custom areas
+2. Run `python ensure_region.py <region_id>` for full pipeline.
+3. Start viewer: `python serve_viewer.py`

@@ -1,0 +1,104 @@
+---
+description: Elevation data sources and download strategies
+globs: ["src/downloaders/**/*.py"]
+alwaysApply: false
+---
+
+# Data Sources
+
+## Priority Order
+
+### USA
+**USGS 3DEP first** (1-10m resolution)
+- Source: USGS 3D Elevation Program
+- Coverage: Full USA
+- Workflow: Download bounding box -> Clip to state boundaries -> Cache both
+- URL: https://elevation.nationalmap.gov/
+
+### Global
+**National agency data first** (if available):
+- Australia (Geoscience)
+- Japan (GSI)
+- Germany (BKG)
+- UK (Ordnance Survey)
+
+**Global fallback sources**:
+1. OpenTopography SRTM (30m, 60N to 56S)
+2. Copernicus DEM (30m/90m, global, 2021)
+3. ASTER GDEM (30m, 83N to 83S)
+4. ALOS World 3D (30m free, 5m paid)
+
+### Other Sources
+- ERA5 Climate Reanalysis
+- WorldClim (bioclimatic variables)
+- Natural Earth (country borders, 10m/50m/110m)
+
+## Download Rules
+
+### Tile Standards
+- Always 1x1 degree standard tiles
+- Print: "Tile size: 1x1 degree (standard grid)"
+- Storage: `data/raw/{source}/tiles/`
+
+### API Key Checking
+- Check keys BEFORE starting downloads
+- Print warning if missing
+- Show setup URL: https://portal.opentopography.org/
+- Continue with sources not requiring keys
+
+### Error Reporting
+Every failure must print:
+- Reason
+- URL (if applicable)
+- Full details
+
+Return `(success: bool, error_message: str)` from download functions.
+
+Format:
+```
+ALL SOURCES FAILED FOR TILE
+Tile: (-98, 43, -97.0, 44.0) (1x1 degree standard tile)
+Errors by source:
+  - SRTM 90m: No API key configured
+  - Copernicus S3: Tile not available (404): https://...
+```
+
+### Critical Failure
+If all sources fail for a tile:
+- Abort immediately
+- Don't continue downloading (merge will fail)
+- Print clear error message
+
+## Copernicus S3 Structure
+- Tiles in DIRECTORIES, not direct files
+- URL: `https://copernicus-dem-{res}m.s3.amazonaws.com/{tile_name}/{tile_name}.tif`
+- Resolution in path is ARC-SECONDS, not meters:
+  - GLO-30 (30m data) = `10` arc-seconds
+  - GLO-90 (90m data) = `30` arc-seconds
+- Only GLO-30 and GLO-90 publicly available (no GLO-10)
+
+## OpenTopography Rate Limits
+Shared state: `data/.opentopography_rate_limit.json`
+- Automatic coordination across all downloaders
+- Initial backoff: 10 minutes, doubles each 401
+- Request spacing: 0.5s delay
+- Thread-safe file locking
+
+```python
+from src.downloaders.rate_limit import check_rate_limit, record_rate_limit_hit, record_successful_request
+
+ok, reason = check_rate_limit()
+if not ok:
+    return False
+
+# After 401
+record_rate_limit_hit(response.status_code)
+
+# After success
+record_successful_request()
+```
+
+CLI: `python check_rate_limit.py`
+
+## GMTED2010 Status
+Downloaders (250m, 500m, 1000m) support pre-downloaded files. Automated download not yet implemented. Users download from USGS EarthExplorer and place tiles in `data/raw/gmted2010_{resolution}/tiles/`.
