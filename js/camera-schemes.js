@@ -927,6 +927,426 @@ class JumpingScheme extends CameraScheme {
     }
 }
 
+// ==================== BEYOND ALL REASON (Spring Engine RTS) STYLE ====================
+// Precise replica of BAR's default "Spring Camera" mode
+// Reference: Spring Engine SpringController.cpp, OverheadController.cpp
+class BeyondAllReasonScheme extends CameraScheme {
+    constructor() {
+        super('Beyond All Reason', 'MMB = pan, Scroll = zoom to cursor, Ctrl+Scroll = tilt, Alt+Scroll = instant zoom, Arrow keys = pan, Shift = fast, Screen edge = pan');
+        this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        this.raycaster = new THREE.Raycaster();
+
+        // BAR-style camera state
+        this.keys = {};
+        this.focusPoint = new THREE.Vector3(0, 0, 0);
+        this.curDist = 1000; // Distance from focus point
+        this.maxDist = 50000; // Maximum zoom out distance
+        this.oldDist = 0; // For instant zoom toggle
+        this.zoomBack = false; // Track if we should zoom back
+        this.angle = Math.PI * 0.6; // Viewing angle (phi in spherical coords)
+
+        // Movement speeds (matching Spring Engine defaults)
+        this.scrollSpeed = 1.0; // CamSpringScrollSpeed * 0.1
+        this.fastMultiplier = 3.0; // CameraMoveFastMult
+        this.slowMultiplier = 0.3; // Slow movement factor
+        this.edgeScrollSpeed = 0.8; // Screen edge scroll speed
+        this.edgeScrollMargin = 20; // Pixels from edge to trigger
+
+        // Screen edge state
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+        this.edgeScrollActive = false;
+    }
+
+    raycast(x, y) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const ndcX = ((x - rect.left) / rect.width) * 2 - 1;
+        const ndcY = -((y - rect.top) / rect.height) * 2 + 1;
+
+        this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+        const point = new THREE.Vector3();
+        this.raycaster.ray.intersectPlane(this.groundPlane, point);
+        return point;
+    }
+
+    activate(camera, controls, renderer) {
+        super.activate(camera, controls, renderer);
+
+        // Initialize focus point from current camera state
+        const cameraDir = new THREE.Vector3();
+        camera.getWorldDirection(cameraDir);
+        const ray = new THREE.Ray(camera.position, cameraDir);
+        const focusPoint = new THREE.Vector3();
+        ray.intersectPlane(this.groundPlane, focusPoint);
+
+        if (focusPoint) {
+            this.focusPoint.copy(focusPoint);
+        }
+        this.curDist = camera.position.distanceTo(this.focusPoint);
+        this.controls.target.copy(this.focusPoint);
+
+        // Set up keyboard listeners
+        this.keydownHandler = (e) => this.onKeyDown(e);
+        this.keyupHandler = (e) => this.onKeyUp(e);
+        window.addEventListener('keydown', this.keydownHandler);
+        window.addEventListener('keyup', this.keyupHandler);
+
+        // Mouse move for screen edge scrolling
+        this.mouseMoveHandler = (e) => this.onMouseMoveEdge(e);
+        renderer.domElement.addEventListener('mousemove', this.mouseMoveHandler);
+
+        appendActivityLog('BAR camera: MMB=pan, Scroll=zoom (Ctrl=tilt, Alt=instant), Arrows=pan, Shift=fast');
+    }
+
+    cleanup() {
+        if (this.keydownHandler) {
+            window.removeEventListener('keydown', this.keydownHandler);
+            window.removeEventListener('keyup', this.keyupHandler);
+        }
+        if (this.mouseMoveHandler && this.renderer) {
+            this.renderer.domElement.removeEventListener('mousemove', this.mouseMoveHandler);
+        }
+    }
+
+    onKeyDown(event) {
+        // Don't process keys if user is typing
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'SELECT' ||
+            activeElement.isContentEditable
+        );
+        if (isTyping) return;
+
+        this.keys[event.key.toLowerCase()] = true;
+        this.keys[event.code] = true;
+
+        // Track modifier states
+        this.keys['shift'] = event.shiftKey;
+        this.keys['ctrl'] = event.ctrlKey;
+        this.keys['alt'] = event.altKey;
+    }
+
+    onKeyUp(event) {
+        this.keys[event.key.toLowerCase()] = false;
+        this.keys[event.code] = false;
+        this.keys['shift'] = event.shiftKey;
+        this.keys['ctrl'] = event.ctrlKey;
+        this.keys['alt'] = event.altKey;
+    }
+
+    onMouseMoveEdge(event) {
+        this.lastMouseX = event.clientX;
+        this.lastMouseY = event.clientY;
+    }
+
+    onMouseDown(event) {
+        if (event.button === 1) { // Middle mouse button = Pan (BAR default)
+            this.state.panning = true;
+            this.state.panStart = { x: event.clientX, y: event.clientY };
+            this.state.cameraStart = this.camera.position.clone();
+            this.state.focusStart = this.focusPoint.clone();
+        } else if (event.button === 2) { // Right mouse button = alternative rotate (optional)
+            // In BAR, RMB is used for unit commands, but we allow rotation here
+            this.state.rotating = true;
+            this.state.rotateStart = { x: event.clientX, y: event.clientY };
+            this.state.cameraStart = this.camera.position.clone();
+        }
+    }
+
+    onMouseMove(event) {
+        // Middle mouse button pan (BAR's primary pan method)
+        if (this.state.panning && this.state.panStart) {
+            const deltaX = event.clientX - this.state.panStart.x;
+            const deltaY = event.clientY - this.state.panStart.y;
+
+            // Speed modifier based on current distance
+            const pixelSize = (this.camera.fov * Math.PI / 180) / this.renderer.domElement.clientHeight * this.curDist * 2.0;
+            let moveSpeed = pixelSize * this.scrollSpeed * 0.5;
+
+            // Apply Shift (fast) or Ctrl (slow) modifier
+            if (this.keys['shift']) {
+                moveSpeed *= this.fastMultiplier;
+            } else if (this.keys['ctrl']) {
+                moveSpeed *= this.slowMultiplier;
+            }
+
+            // Get camera-relative directions (BAR uses flat forward direction)
+            const forward = new THREE.Vector3();
+            this.camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+
+            const right = new THREE.Vector3();
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+            // Apply movement (inverted for natural drag feel)
+            const movement = new THREE.Vector3();
+            movement.addScaledVector(right, -deltaX * moveSpeed);
+            movement.addScaledVector(forward, deltaY * moveSpeed);
+
+            // Move focus point
+            this.focusPoint.copy(this.state.focusStart).add(movement);
+            this.focusPoint.y = 0; // Keep on ground plane
+
+            // Update camera position to maintain distance
+            this.updateCameraFromFocus();
+
+            // Update pan start for incremental movement
+            this.state.panStart.x = event.clientX;
+            this.state.panStart.y = event.clientY;
+            this.state.focusStart.copy(this.focusPoint);
+        }
+
+        // Optional rotation (RMB)
+        if (this.state.rotating && this.state.rotateStart) {
+            const deltaX = event.clientX - this.state.rotateStart.x;
+            const deltaY = event.clientY - this.state.rotateStart.y;
+
+            const offset = new THREE.Vector3().subVectors(this.state.cameraStart, this.focusPoint);
+            const spherical = new THREE.Spherical().setFromVector3(offset);
+
+            // Horizontal rotation
+            spherical.theta -= deltaX * 0.005;
+
+            // Vertical rotation with limits
+            spherical.phi = Math.max(0.1, Math.min(Math.PI * 0.49, spherical.phi - deltaY * 0.005));
+            this.angle = spherical.phi;
+
+            offset.setFromSpherical(spherical);
+            this.camera.position.copy(this.focusPoint).add(offset);
+            this.camera.lookAt(this.focusPoint);
+            this.controls.target.copy(this.focusPoint);
+        }
+    }
+
+    onMouseUp(event) {
+        if (event.button === 1) {
+            this.state.panning = false;
+        } else if (event.button === 2) {
+            this.state.rotating = false;
+        }
+    }
+
+    // Cancel all drag operations (called when mouse leaves canvas)
+    cancelAllDrags() {
+        this.state.panning = false;
+        this.state.rotating = false;
+    }
+
+    // Override deactivate to ensure cleanup is called
+    deactivate() {
+        this.cleanup();
+        super.deactivate();
+    }
+
+    onWheel(event) {
+        const moveTilt = this.keys['ctrl'] || event.ctrlKey; // Ctrl+Scroll = tilt
+        const moveReset = this.keys['alt'] || event.altKey; // Alt+Scroll = instant zoom
+        const moveFast = this.keys['shift'] || event.shiftKey; // Shift = fast zoom
+
+        const shiftSpeed = moveFast ? this.fastMultiplier * 0.2 : 1.0;
+        // STANDARD: Scroll UP (negative delta) = zoom IN
+        const move = event.deltaY > 0 ? 1 : -1; // Positive = scroll down = zoom out
+        const scaledMove = 1.0 + (move * shiftSpeed * 0.1);
+
+        if (moveTilt) {
+            // Ctrl+Scroll: Tilt camera angle (BAR's movetilt behavior)
+            this.angle -= (move * shiftSpeed * 0.05);
+            this.angle = Math.max(0.1, Math.min(Math.PI * 0.49, this.angle));
+            this.updateCameraFromFocus();
+            return;
+        }
+
+        // Get cursor position for zoom-to-cursor
+        const cursorPoint = this.raycast(event.clientX, event.clientY);
+        if (!cursorPoint) return;
+
+        const curDistPre = this.curDist;
+
+        if (moveReset) {
+            // Alt+Scroll: Instant zoom toggle (BAR's movereset behavior)
+            if (move < 0) {
+                // Zoom in with Alt = instant return to old distance
+                if (this.zoomBack) {
+                    this.curDist = this.oldDist;
+                    this.zoomBack = false;
+                }
+            } else {
+                // Zoom out with Alt = instant zoom to max height
+                if (!this.zoomBack) {
+                    this.oldDist = curDistPre;
+                    this.zoomBack = true;
+                }
+                // Reset to overview position
+                this.angle = Math.PI * 0.6;
+                this.focusPoint.set(0, 0, 0);
+                this.curDist = this.maxDist * 0.5;
+            }
+        } else if (move < 0) {
+            // ZOOM IN - toward cursor position (BAR's cursorZoomIn behavior)
+            const curCamPos = this.camera.position.clone();
+            const newDir = new THREE.Vector3().subVectors(cursorPoint, curCamPos).normalize();
+
+            // Calculate distance to cursor point
+            const curGroundDist = curCamPos.distanceTo(cursorPoint);
+            if (curGroundDist <= 0) return;
+
+            // Move toward cursor
+            const wantedPos = curCamPos.clone().addScaledVector(newDir, curGroundDist * (1 - scaledMove));
+
+            // Calculate new distance to ground
+            const newDist = wantedPos.y / Math.sin(this.angle);
+            if (newDist > 5 && newDist < this.maxDist) {
+                this.curDist = newDist;
+                // Adjust focus point toward cursor
+                this.focusPoint.lerp(cursorPoint, 0.1);
+                this.focusPoint.y = 0;
+            }
+
+            this.zoomBack = false;
+        } else {
+            // ZOOM OUT - from center (BAR default behavior)
+            this.curDist *= scaledMove;
+            this.curDist = Math.min(this.curDist, this.maxDist);
+            this.zoomBack = false;
+        }
+
+        this.curDist = Math.max(5, Math.min(this.maxDist, this.curDist));
+        this.updateCameraFromFocus();
+    }
+
+    // Update camera position based on focus point, distance, and angle
+    updateCameraFromFocus() {
+        // Calculate camera position from spherical coordinates around focus
+        const offset = new THREE.Vector3();
+        const currentSpherical = new THREE.Spherical();
+
+        // Get current horizontal angle from camera direction
+        const currentOffset = new THREE.Vector3().subVectors(this.camera.position, this.focusPoint);
+        currentSpherical.setFromVector3(currentOffset);
+
+        // Create new position at current theta (horizontal) but with updated distance and phi (vertical)
+        const spherical = new THREE.Spherical(this.curDist, this.angle, currentSpherical.theta);
+        offset.setFromSpherical(spherical);
+
+        this.camera.position.copy(this.focusPoint).add(offset);
+
+        // Ensure minimum height above ground
+        const minHeight = 5;
+        if (this.camera.position.y < minHeight) {
+            this.camera.position.y = minHeight;
+        }
+
+        this.camera.lookAt(this.focusPoint);
+        this.controls.target.copy(this.focusPoint);
+    }
+
+    update() {
+        if (!this.enabled) return;
+
+        // Arrow key panning (BAR's primary keyboard navigation)
+        const arrowUp = this.keys['arrowup'] || this.keys['ArrowUp'];
+        const arrowDown = this.keys['arrowdown'] || this.keys['ArrowDown'];
+        const arrowLeft = this.keys['arrowleft'] || this.keys['ArrowLeft'];
+        const arrowRight = this.keys['arrowright'] || this.keys['ArrowRight'];
+        const pageUp = this.keys['pageup'] || this.keys['PageUp'];
+        const pageDown = this.keys['pagedown'] || this.keys['PageDown'];
+
+        // Speed based on distance (BAR behavior)
+        const pixelSize = (this.camera.fov * Math.PI / 180) / this.renderer.domElement.clientHeight * this.curDist * 2.0;
+        let moveSpeed = pixelSize * this.scrollSpeed * 0.02;
+
+        // Apply Shift (fast) or Ctrl (slow) modifier
+        if (this.keys['shift']) {
+            moveSpeed *= this.fastMultiplier;
+        } else if (this.keys['ctrl']) {
+            moveSpeed *= this.slowMultiplier;
+        }
+
+        // Get camera-relative directions
+        const forward = new THREE.Vector3();
+        this.camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        const movement = new THREE.Vector3();
+
+        // Arrow key movement (BAR uses arrow keys, not WASD)
+        if (arrowUp) movement.addScaledVector(forward, moveSpeed);
+        if (arrowDown) movement.addScaledVector(forward, -moveSpeed);
+        if (arrowRight) movement.addScaledVector(right, moveSpeed);
+        if (arrowLeft) movement.addScaledVector(right, -moveSpeed);
+
+        // PageUp/PageDown for height adjustment (zoom)
+        if (pageUp) {
+            this.curDist *= 0.98; // Zoom in
+            this.curDist = Math.max(5, this.curDist);
+        }
+        if (pageDown) {
+            this.curDist *= 1.02; // Zoom out
+            this.curDist = Math.min(this.maxDist, this.curDist);
+        }
+
+        // Screen edge scrolling (BAR feature)
+        if (this.renderer) {
+            const rect = this.renderer.domElement.getBoundingClientRect();
+            const edgeX = this.lastMouseX - rect.left;
+            const edgeY = this.lastMouseY - rect.top;
+            const width = rect.width;
+            const height = rect.height;
+
+            // Check if mouse is near edges
+            const margin = this.edgeScrollMargin;
+            const edgeSpeed = moveSpeed * this.edgeScrollSpeed;
+
+            if (edgeX < margin && edgeX >= 0) {
+                movement.addScaledVector(right, -edgeSpeed * (1 - edgeX / margin));
+            } else if (edgeX > width - margin && edgeX <= width) {
+                movement.addScaledVector(right, edgeSpeed * (1 - (width - edgeX) / margin));
+            }
+
+            if (edgeY < margin && edgeY >= 0) {
+                movement.addScaledVector(forward, edgeSpeed * (1 - edgeY / margin));
+            } else if (edgeY > height - margin && edgeY <= height) {
+                movement.addScaledVector(forward, -edgeSpeed * (1 - (height - edgeY) / margin));
+            }
+        }
+
+        // Apply movement if any
+        if (movement.length() > 0 || pageUp || pageDown) {
+            this.focusPoint.add(movement);
+            this.focusPoint.y = 0; // Keep on ground plane
+            this.updateCameraFromFocus();
+        }
+    }
+
+    // Reframe view (F key) - reset to default overview position
+    reframeView() {
+        // Reset to centered overview position (BAR-style default view)
+        this.focusPoint.set(0, 0, 0);
+        this.curDist = 2000; // Default viewing distance
+        this.angle = Math.PI * 0.6; // Default tilt angle (about 35 degrees from vertical)
+        this.zoomBack = false;
+
+        // Reset terrain rotation if present
+        if (window.terrainGroup) {
+            window.terrainGroup.rotation.set(0, 0, 0);
+        }
+
+        this.updateCameraFromFocus();
+
+        // Clear key state
+        this.keys = {};
+
+        console.log('BAR camera: View reset to default overview');
+    }
+}
+
 // Export schemes
 window.CameraSchemes = {
     'google-maps': new GoogleMapsScheme(),
@@ -935,6 +1355,7 @@ window.CameraSchemes = {
     'roblox': new RobloxScheme(),
     'unity': new UnityScheme(),
     'flying': new FlyingScheme(),
-    'jumping': new JumpingScheme()
+    'jumping': new JumpingScheme(),
+    'beyond-all-reason': new BeyondAllReasonScheme()
 };
 
