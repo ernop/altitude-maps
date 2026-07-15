@@ -42,7 +42,22 @@ python --version
 python -c "import rasterio, numpy, geopandas; print('OK')"
 ```
 
-## Next Steps
+## Quick Start Without the Pipeline
+
+A fresh checkout has no elevation data (`data/` and `generated/` are
+gitignored). The fastest way to get a working viewer is to pull ready-made
+exports from the production deployment - no API keys or GIS dependencies
+needed, only the Python standard library:
+
+```bash
+python fetch_sample_data.py              # california + estonia
+python fetch_sample_data.py --list      # see all available region ids
+python fetch_sample_data.py oregon japan # fetch specific regions
+python serve_viewer.py
+# open http://localhost:8001/interactive_viewer_advanced.html
+```
+
+## Next Steps (Full Pipeline)
 
 1. Download a region: `python ensure_region.py ohio`
 2. Start viewer: `python serve_viewer.py`
