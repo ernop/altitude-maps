@@ -47,7 +47,16 @@ function calculateRealWorldScale(data) {
 
 /**
  * Raycast from screen coordinates to world coordinates (on ground plane)
- * Depends on globals: renderer, camera, raycaster, terrainMesh, groundPlane
+ * Depends on globals: renderer, camera, raycaster, groundPlane
+ * 
+ * NOTE: This intersects only the y=0 ground plane, never the terrain mesh.
+ * The terrain is a single InstancedMesh with up to hundreds of thousands of
+ * instances; THREE.Raycaster tests every instance individually, which costs
+ * tens of milliseconds per call and previously made the HUD mousemove path
+ * the most expensive code in the viewer. All camera schemes already treat the
+ * ground plane as the interaction surface, and every caller flattened the hit
+ * to y=0 anyway, so the plane intersection gives equivalent results for a
+ * tiny fixed cost.
  * 
  * @param {number} screenX - Screen X coordinate
  * @param {number} screenY - Screen Y coordinate
@@ -61,17 +70,7 @@ function raycastToWorld(screenX, screenY) {
     const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
     const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
 
-    // Set up raycaster
     raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-
-    // Prefer terrain intersection; fall back to ground plane
-    if (terrainMesh) {
-        const hits = raycaster.intersectObject(terrainMesh, true);
-        if (hits && hits.length > 0) {
-            const p = hits[0].point;
-            return new THREE.Vector3(p.x, 0, p.z);
-        }
-    }
 
     const planeIntersect = new THREE.Vector3();
     const intersected = raycaster.ray.intersectPlane(groundPlane, planeIntersect);

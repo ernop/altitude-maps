@@ -24,6 +24,11 @@
  * 
  * @param {string} message - Message to log
  */
+// Cap DOM entries per log container. Console output mirrors into this log, so
+// without a cap a long session accumulates thousands of nodes and every append
+// pays for a full scrollHeight layout on an ever-growing element.
+const MAX_LOG_ENTRIES = 400;
+
 function appendActivityLog(message) {
     const logEls = document.querySelectorAll('#activityLog');
     if (!logEls || logEls.length === 0) return;
@@ -35,6 +40,9 @@ function appendActivityLog(message) {
         const row = document.createElement('div');
         row.textContent = text;
         logEl.appendChild(row);
+        while (logEl.childElementCount > MAX_LOG_ENTRIES) {
+            logEl.removeChild(logEl.firstElementChild);
+        }
         // Natural auto-scroll to bottom
         logEl.scrollTop = logEl.scrollHeight;
     });

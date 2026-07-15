@@ -216,7 +216,7 @@
                     const row = window.barsIndexToRow[i];
                     const col = window.barsIndexToCol[i];
                     let z = (window.processedData.elevation[row] && window.processedData.elevation[row][col]);
-                    if (z === null || z === undefined) z = 0;
+                    if (!Number.isFinite(z)) z = 0; // NaN = nodata (typed rows)
                     const c = getColor(z, row, col);
                     const idx = i * 3;
                     arr[idx] = c.r;
