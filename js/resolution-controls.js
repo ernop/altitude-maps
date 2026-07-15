@@ -439,7 +439,7 @@ function setDefaultResolution() {
 
 /**
  * Automatically calculate and set optimal bucket size for performance
- * Targets ~3,900 buckets for good balance of detail and speed
+ * Targets TARGET_BUCKET_COUNT buckets for good balance of detail and speed
  * 
  * PRESERVATION RULE: If bucketSize is explicitly set in URL, respect it.
  * Only auto-adjust if no explicit URL parameter exists.
@@ -475,7 +475,8 @@ function autoAdjustBucketSize(preserveTransform = true) {
     }
 
     const { width, height } = rawElevationData;
-    // Reduced from 10000 to ~3900 (60% larger bucket size means ~40% of original bucket count)
+    // Default grid budget: ~390k buckets (about 200k visible bars for a typical
+    // clipped region). One instanced draw call; renders fine on modern GPUs.
     const TARGET_BUCKET_COUNT = 390000;
 
     // Calculate optimal bucket size to stay within TARGET_BUCKET_COUNT constraint

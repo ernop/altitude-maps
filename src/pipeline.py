@@ -831,9 +831,14 @@ def export_for_viewer(
             
             # Convert to list - VECTORIZED for performance (~28x faster)
             print(f"  Converting to JSON format...", flush=True)
-            # Convert NaN to None using vectorized operations
+            # Round to 1 cm before serializing. Serializing raw float32 values
+            # through float64 produces strings like 24.239999771118164, which
+            # roughly triples JSON size for non-integer DEMs (e.g. reprojected
+            # SRTM). 0.01 m is far below any source data's vertical accuracy.
+            # Round in float64 so the decimal representation is exact.
             mask = np.isnan(elevation_clean)
-            elevation_object = elevation_clean.astype(object)
+            elevation_rounded = np.round(elevation_clean.astype(np.float64), 2)
+            elevation_object = elevation_rounded.astype(object)
             elevation_object[mask] = None
             elevation_list = elevation_object.tolist()
             

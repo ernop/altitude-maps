@@ -85,7 +85,10 @@ function animate() {
 - Example: Bucket size cache allows instant switching without recomputation
 
 ## UI Performance
-- Default bucket size targets ~3,900 buckets for fast initial load
+- Default bucket size targets ~390,000 buckets (TARGET_BUCKET_COUNT in
+  resolution-controls.js); one instanced draw call handles this easily
+- Elevation grids are Float32Array rows with NaN for nodata; validity checks
+  use `v === v` in hot loops or Number.isFinite() elsewhere - never `!== null`
 - Start conservative; let users increase detail if wanted
 - Better to load fast with decent quality than slow with perfect quality
 

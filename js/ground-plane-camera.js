@@ -125,6 +125,11 @@ class GroundPlaneCamera extends CameraScheme {
             this.state.panStart = { x: event.clientX, y: event.clientY };
             this.state.focusStart = this.focusPoint.clone();
             this.state.cameraStart = this.camera.position.clone();
+            // Anchored pan: remember the ground-plane point under the cursor.
+            // While dragging, the camera translates so this point stays under
+            // the cursor (true "grab the map" behavior). Null when pointing at
+            // the sky - we fall back to incremental pan in that case.
+            this.state.grabPoint = this.raycastToPlane(event.clientX, event.clientY);
 
         } else if (event.button === 1) { // Middle = Rotate Head (your head moves, camera position fixed)
             this.state.rotatingCamera = true;
@@ -150,59 +155,66 @@ class GroundPlaneCamera extends CameraScheme {
 
     onMouseMove(event) {
         if (this.state.panning && this.state.panStart) {
-            // Pan: Camera moves incrementally with mouse
-            // Calculate delta from LAST position (not initial click)
-            const deltaX = event.clientX - this.state.panStart.x;
-            const deltaY = event.clientY - this.state.panStart.y;
-
-            // Natural head movement: only pitch and yaw, NO ROLL
-            // Use world up vector (0,1,0) to ensure no roll is introduced
             const worldUp = new THREE.Vector3(0, 1, 0);
 
-            // Get camera forward direction (view direction)
-            const forward = new THREE.Vector3();
-            this.camera.getWorldDirection(forward);
+            if (this.state.grabPoint) {
+                // ANCHORED PAN: keep the grabbed ground point under the cursor.
+                // Translation preserves ray direction, so applying
+                // (grabPoint - currentHit) makes the same pixel hit grabPoint
+                // exactly - no drift, no speed tuning needed at any zoom/tilt.
+                const currentHit = this.raycastToPlane(event.clientX, event.clientY);
+                if (currentHit) {
+                    const movement = new THREE.Vector3().subVectors(this.state.grabPoint, currentHit);
+                    movement.y = 0;
 
-            // Calculate right vector using world up (prevents roll)
-            // Match existing codebase pattern: crossVectors(forward, up) gives left vector
-            // We'll use it as-is for consistency with existing code
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, worldUp).normalize();
+                    // Near the horizon the ray grazes the plane and the hit point
+                    // can jump enormous distances. Clamp the per-event translation
+                    // to a multiple of the camera-to-grab-point distance.
+                    const maxStep = this.camera.position.distanceTo(this.state.grabPoint) * 2;
+                    if (movement.length() > maxStep) {
+                        movement.setLength(maxStep);
+                    }
 
-            // Recalculate forward as horizontal projection (for ground plane movement)
-            const forwardHorizontal = new THREE.Vector3();
-            forwardHorizontal.copy(forward);
-            forwardHorizontal.y = 0; // Project onto ground plane
-            forwardHorizontal.normalize();
+                    this.camera.position.add(movement);
+                    this.focusPoint.add(movement);
+                    this.focusPoint.y = 0;
+                    this.controls.target.copy(this.focusPoint);
+                    this.camera.up.copy(worldUp);
+                }
+            } else {
+                // FALLBACK (grab started while pointing at sky): incremental
+                // screen-space pan scaled by distance to focus.
+                const deltaX = event.clientX - this.state.panStart.x;
+                const deltaY = event.clientY - this.state.panStart.y;
 
-            // Calculate movement speed based on distance from focus point
-            const distance = this.camera.position.distanceTo(this.focusPoint);
-            const moveSpeed = distance * 0.0005; // Adaptive speed (50% slower than before)
+                const forward = new THREE.Vector3();
+                this.camera.getWorldDirection(forward);
 
-            // Calculate incremental movement
-            // Mouse left → camera moves right (reversed sense)
-            // Mouse up → camera moves up (already working correctly)
-            const movement = new THREE.Vector3();
-            movement.addScaledVector(right, -deltaX * moveSpeed);      // Mouse left = camera right (reversed)
-            movement.addScaledVector(forwardHorizontal, deltaY * moveSpeed);    // Mouse down = camera back (was already correct)
-            movement.y = 0; // Keep movement on ground plane
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, worldUp).normalize();
 
-            // Apply incremental movement
-            this.focusPoint.add(movement);
-            this.focusPoint.y = 0; // Keep on plane
+                const forwardHorizontal = new THREE.Vector3();
+                forwardHorizontal.copy(forward);
+                forwardHorizontal.y = 0;
+                forwardHorizontal.normalize();
 
-            this.camera.position.add(movement);
+                const distance = this.camera.position.distanceTo(this.focusPoint);
+                const moveSpeed = distance * 0.0005;
 
-            // Update controls target
-            this.controls.target.copy(this.focusPoint);
+                const movement = new THREE.Vector3();
+                movement.addScaledVector(right, -deltaX * moveSpeed);
+                movement.addScaledVector(forwardHorizontal, deltaY * moveSpeed);
+                movement.y = 0;
 
-            // Ensure camera up vector stays aligned with world up (prevents roll accumulation)
-            // This maintains natural head orientation (no tilt/roll)
-            this.camera.up.copy(worldUp);
+                this.focusPoint.add(movement);
+                this.focusPoint.y = 0;
+                this.camera.position.add(movement);
+                this.controls.target.copy(this.focusPoint);
+                this.camera.up.copy(worldUp);
 
-            // Update pan start to current position for next frame (incremental)
-            this.state.panStart.x = event.clientX;
-            this.state.panStart.y = event.clientY;
+                this.state.panStart.x = event.clientX;
+                this.state.panStart.y = event.clientY;
+            }
         }
 
         if (this.state.tilting) {
@@ -383,6 +395,7 @@ class GroundPlaneCamera extends CameraScheme {
                 this.state.rotatingWithAlt = false;
             }
             this.state.panning = false;
+            this.state.grabPoint = null;
         } else if (event.button === 1) {
             this.state.rotatingCamera = false;
         } else if (event.button === 2) {
@@ -393,6 +406,7 @@ class GroundPlaneCamera extends CameraScheme {
     // Cancel all active drag operations (called when mouse leaves canvas or on cleanup)
     cancelAllDrags() {
         this.state.panning = false;
+        this.state.grabPoint = null;
         this.state.tilting = false;
         this.state.rotating = false;
         this.state.rotatingWithAlt = false;
@@ -409,10 +423,16 @@ class GroundPlaneCamera extends CameraScheme {
         // Get distance from camera to the cursor point on the plane
         const distance = this.camera.position.distanceTo(cursorPoint);
 
-        // Zoom speed based on distance
-        const zoomSpeed = 0.1;
+        // Device-independent zoom: scale the step by the wheel delta instead of
+        // a fixed 10% per event. Classic wheels report ~100 per notch (~1.1x,
+        // same feel as before); trackpads fire many small deltas which now
+        // produce proportionally small, smooth steps instead of huge jumps.
+        let deltaY = event.deltaY;
+        if (event.deltaMode === 1) deltaY *= 33;       // lines -> approx pixels
+        else if (event.deltaMode === 2) deltaY *= 300; // pages -> approx pixels
+        deltaY = Math.max(-300, Math.min(300, deltaY));
         // STANDARD: Scroll UP (negative delta) = zoom IN = get closer
-        const factor = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+        const factor = Math.pow(1.1, deltaY / 100);
 
         const newDistance = distance * factor;
         if (newDistance < 5) return; // Don't get too close

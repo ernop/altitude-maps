@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Altitude Maps - Side by Side Comparison</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        background: #1a1a2e;
+        color: #e0e0e0;
+        display: flex;
+        flex-direction: column;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: #16213e;
+        border-bottom: 1px solid #0f3460;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+    }
+    header .title { font-size: 14px; font-weight: 600; margin-right: 8px; white-space: nowrap; }
+    header label { font-size: 12px; color: #9fb3c8; white-space: nowrap; }
+    header input[type="text"] {
+        background: #0f1a30;
+        border: 1px solid #2a3f5f;
+        color: #e0e0e0;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-family: Consolas, monospace;
+    }
+    #params { flex: 1 1 260px; min-width: 180px; }
+    button {
+        background: #0f3460;
+        border: 1px solid #2a5298;
+        color: #e0e0e0;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    button:hover { background: #1a4a80; }
+    main { flex: 1; display: flex; min-height: 0; }
+    .pane {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .pane + .pane { border-left: 2px solid #0f3460; }
+    .pane-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        background: #10182c;
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    .pane-header .tag {
+        font-weight: 700;
+        padding: 1px 7px;
+        border-radius: 3px;
+        font-size: 11px;
+    }
+    .pane-header .tag.old { background: #5c3a1e; color: #f0c48a; }
+    .pane-header .tag.new { background: #1e5c38; color: #8af0b8; }
+    .pane-header .version { color: #9fb3c8; font-family: Consolas, monospace; }
+    .pane-header .src {
+        color: #6a7f96;
+        font-family: Consolas, monospace;
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+    }
+    .pane-header a { color: #6fa8dc; font-size: 11px; white-space: nowrap; }
+    iframe { flex: 1; border: none; width: 100%; background: #000; }
+    #status {
+        font-size: 11px;
+        color: #d4a86a;
+        white-space: nowrap;
+    }
+</style>
+</head>
+<body>
+<header>
+    <span class="title">Side by Side</span>
+    <label>Params <input type="text" id="params" placeholder="region=california&amp;bucketSize=3&amp;exag=6" spellcheck="false"></label>
+    <button id="loadBoth" title="Reload both panes with the shared params">Load both</button>
+    <button id="mirrorAB" title="Copy the left pane's current view (camera, region, settings) to the right pane">Mirror left to right</button>
+    <button id="mirrorBA" title="Copy the right pane's current view to the left pane">Mirror right to left</button>
+    <span id="status"></span>
+</header>
+<main>
+    <div class="pane">
+        <div class="pane-header">
+            <span class="tag old">OLD</span>
+            <span class="version" id="verA">v?</span>
+            <span class="src" id="srcA"></span>
+            <a id="openA" href="#" target="_blank" rel="noopener">open in tab</a>
+        </div>
+        <iframe id="frameA" title="Old viewer"></iframe>
+    </div>
+    <div class="pane">
+        <div class="pane-header">
+            <span class="tag new">NEW</span>
+            <span class="version" id="verB">v?</span>
+            <span class="src" id="srcB"></span>
+            <a id="openB" href="#" target="_blank" rel="noopener">open in tab</a>
+        </div>
+        <iframe id="frameB" title="New viewer"></iframe>
+    </div>
+</main>
+<script>
+(() => {
+    'use strict';
+
+    // Base pages: ?a= and ?b= override; everything else in the query string is
+    // treated as shared viewer params (region, bucketSize, exag, camera, ...).
+    const ownParams = new URLSearchParams(location.search);
+    const pathA = ownParams.get('a') || 'snapshots/baseline/interactive_viewer_advanced.html';
+    const pathB = ownParams.get('b') || 'interactive_viewer_advanced.html';
+    ownParams.delete('a');
+    ownParams.delete('b');
+
+    const paramsInput = document.getElementById('params');
+    const frameA = document.getElementById('frameA');
+    const frameB = document.getElementById('frameB');
+    const status = document.getElementById('status');
+
+    paramsInput.value = ownParams.toString() || 'region=california&bucketSize=3&exag=6';
+    document.getElementById('srcA').textContent = pathA;
+    document.getElementById('srcB').textContent = pathB;
+
+    function buildUrl(path, search) {
+        const qs = search.replace(/^\?/, '');
+        return qs ? `${path}?${qs}` : path;
+    }
+
+    function loadBoth() {
+        const search = paramsInput.value.trim();
+        frameA.src = buildUrl(pathA, search);
+        frameB.src = buildUrl(pathB, search);
+        updateOpenLinks(search, search);
+        status.textContent = '';
+    }
+
+    function updateOpenLinks(searchA, searchB) {
+        document.getElementById('openA').href = buildUrl(pathA, searchA);
+        document.getElementById('openB').href = buildUrl(pathB, searchB);
+    }
+
+    // Both panes are same-origin, so we can read each iframe's live query
+    // string. The viewer writes camera state (cx/cy/cz, focus, rotation) into
+    // its URL whenever the camera comes to rest, so mirroring is just copying
+    // the source pane's current search string onto the target pane's path.
+    function mirror(fromFrame, toFrame, toPath) {
+        let search;
+        try {
+            search = fromFrame.contentWindow.location.search;
+        } catch (e) {
+            status.textContent = 'Cannot read pane state (not same-origin?)';
+            return;
+        }
+        if (!search) {
+            status.textContent = 'Source pane has no URL state yet; move the camera and let it settle.';
+            return;
+        }
+        toFrame.src = buildUrl(toPath, search);
+        paramsInput.value = search.replace(/^\?/, '');
+        status.textContent = '';
+    }
+
+    function readVersion(frame, el) {
+        try {
+            const doc = frame.contentWindow.document;
+            const v = doc.getElementById('version-display');
+            if (v && v.textContent) el.textContent = v.textContent;
+        } catch (e) { /* leave placeholder */ }
+    }
+
+    frameA.addEventListener('load', () => {
+        // Version label is filled in by the viewer shortly after load
+        setTimeout(() => readVersion(frameA, document.getElementById('verA')), 1500);
+    });
+    frameB.addEventListener('load', () => {
+        setTimeout(() => readVersion(frameB, document.getElementById('verB')), 1500);
+    });
+
+    document.getElementById('loadBoth').addEventListener('click', loadBoth);
+    document.getElementById('mirrorAB').addEventListener('click', () => mirror(frameA, frameB, pathB));
+    document.getElementById('mirrorBA').addEventListener('click', () => mirror(frameB, frameA, pathA));
+    paramsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadBoth(); });
+
+    loadBoth();
+})();
+</script>
+</body>
+</html>

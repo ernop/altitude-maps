@@ -119,6 +119,7 @@ Write-Host ""
 # Files to deploy
 $deployItems = @(
     "interactive_viewer_advanced.html",
+    "compare.html",
     "js",
     "css",
     "generated",

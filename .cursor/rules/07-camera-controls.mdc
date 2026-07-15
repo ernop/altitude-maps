@@ -20,9 +20,12 @@ Custom default camera controls, tested and confirmed smooth. Alternative schemes
 ## Control Behaviors
 
 ### 1. Left Drag = Pan on Ground Plane
-- "Grab and drag" the map surface
-- Screen-space movement for smoothness (not continuous raycasting)
-- Speed: Adaptive based on distance from focus point (`distance * 0.001`)
+- Anchored "grab and drag": the ground-plane point under the cursor at
+  mousedown stays under the cursor for the whole drag
+- Implemented with a single ray-plane intersection per mousemove (cheap
+  arithmetic; NOT a terrain-mesh raycast, which would be too slow)
+- Per-event translation clamped near the horizon to prevent runaway jumps
+- Falls back to incremental screen-space pan if the grab ray misses the plane
 - Camera and focus point move together
 
 ### 2. Shift + Left Drag = Tilt View (Pitch)
@@ -55,7 +58,9 @@ Custom default camera controls, tested and confirmed smooth. Alternative schemes
 ### 6. Mouse Wheel = Zoom Toward/Away From Cursor
 - Scroll UP = zoom IN (camera moves toward cursor)
 - Scroll DOWN = zoom OUT (camera moves away)
-- Zoom factor: 10% of distance per tick
+- Device-independent: factor = 1.1^(deltaY/100), deltaY normalized by
+  deltaMode and clamped to +/-300 per event (classic wheel notch = ~10%,
+  trackpad micro-deltas = proportionally small smooth steps)
 - Minimum distance: 5 meters
 - Bidirectional focus shift (critical):
   - Zoom IN: Focus moves toward cursor (focusShift = +0.1)
@@ -100,7 +105,8 @@ update() {
 
 ## Avoid These Mistakes
 - Calling camera.lookAt() in mouse handlers (causes jitter)
-- Continuous raycasting for pan (too slow)
+- Raycasting the terrain InstancedMesh in event handlers (tests every
+  instance; use the y=0 ground plane intersection instead)
 - Unidirectional focus shift (breaks zoom out)
 - Forgetting to cancel operations if modifier keys released
 - Processing keyboard shortcuts while typing

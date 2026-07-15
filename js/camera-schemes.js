@@ -853,7 +853,7 @@ class JumpingScheme extends CameraScheme {
 
         const { i, j } = idx;
         const elevation = processedData.elevation[i] && processedData.elevation[i][j];
-        if (elevation === null || elevation === undefined) return 0;
+        if (!Number.isFinite(elevation)) return 0; // NaN = nodata (typed rows)
 
         // Return TOP of terrain/bar (elevation * vertical exaggeration)
         // This is the top surface of the bar (solid collision)

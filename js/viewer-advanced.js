@@ -6,7 +6,6 @@
  * This file coordinates between specialized modules, each handling a specific domain:
  * 
  * - activity-log.js              → UI activity log (timestamped events, copy to clipboard)
- * - bucketing.js                 → Data aggregation and downsampling
  * - camera-schemes.js            → Camera control implementations (Google Maps, Blender, etc.)
  * - color-legend.js              → Color scale legend UI component
  * - color-schemes.js             → Color palettes and descriptions
@@ -38,7 +37,7 @@
  */
 
 // Version tracking
-const VIEWER_VERSION = '1.382';
+const VIEWER_VERSION = '1.383';
 
 // RegionType enum is defined in state-connectivity.js (loaded before this file)
 // Values: RegionType.USA_STATE, RegionType.COUNTRY, RegionType.AREA
@@ -135,8 +134,6 @@ let barsInstancedMesh = null;
 let barsIndexToRow = null;
 let barsIndexToCol = null;
 let barsTileSize = 0;
-const barsDummy = new THREE.Object3D();
-let pendingVertExagRaf = null;
 let pendingBucketTimeout = null;
 let lastBarsExaggerationInternal = null;
 let lastAutoResolutionAdjustTime = 0;
@@ -146,7 +143,6 @@ window.barsInstancedMesh = null;
 window.barsIndexToRow = null;
 window.barsIndexToCol = null;
 window.barsTileSize = 0;
-window.barsDummy = barsDummy;
 window.lastBarsExaggerationInternal = null;
 window.lastBarsTileSize = null;
 
@@ -344,6 +340,9 @@ async function init() {
         
         // Initialize shortcuts overlay
         initShortcutsOverlay();
+
+        // Wire on-screen keyboard control buttons
+        initKeyboardControlButtons();
         
         // Rebuild dropdown for initial interaction (uses rebuildRegionDropdown function)
         rebuildRegionDropdown();
@@ -388,25 +387,64 @@ async function init() {
     }
 }
 
-async function loadElevationData(url) {
+/**
+ * Convert a parsed elevation grid (arrays of numbers with null for nodata)
+ * into Float32Array rows with NaN for nodata.
+ *
+ * Why: typed rows use a fraction of the memory of generic JS arrays, are much
+ * faster to scan during bucketing/coloring, and free the parsed JSON arrays
+ * for garbage collection. All consumers use Number.isFinite() to test validity,
+ * which treats NaN (nodata) and Infinity uniformly.
+ * Indexing stays elevation[row][col] so downstream code is unchanged.
+ */
+function toTypedElevationRows(elevation, width, height) {
+    const rows = new Array(height);
+    for (let i = 0; i < height; i++) {
+        const src = elevation[i];
+        const row = new Float32Array(width);
+        if (src) {
+            for (let j = 0; j < width; j++) {
+                const v = src[j];
+                row[j] = (v === null || v === undefined) ? NaN : v;
+            }
+        } else {
+            row.fill(NaN);
+        }
+        rows[i] = row;
+    }
+    return rows;
+}
+
+async function loadElevationData(url, cacheKey) {
     const gzUrl = url.endsWith('.json') ? url + '.gz' : url;
     if (!gzUrl.endsWith('.gz')) {
         throw new Error(`Elevation data URL must end with .json or .gz, got: ${url}`);
     }
     const tStart = performance.now();
-    
-    // Force fresh fetch - no browser caching allowed
-    const response = await fetch(gzUrl, {
-        cache: 'no-store',
-        headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        }
-    });
+
+    // Region files can be regenerated in place under the same filename, so a plain
+    // cached fetch could go stale. When the manifest provides stats, we use them as
+    // a content fingerprint in the query string: same content = cache hit, changed
+    // content = new URL = fresh download. Without a fingerprint, force a fresh fetch.
+    let fetchUrl = gzUrl;
+    let fetchOptions;
+    if (cacheKey) {
+        fetchUrl = `${gzUrl}?k=${encodeURIComponent(cacheKey)}`;
+        fetchOptions = { cache: 'default' };
+    } else {
+        fetchOptions = {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        };
+    }
+    const response = await fetch(fetchUrl, fetchOptions);
 
     if (!response.ok) {
-        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${gzUrl}`);
+        throw new Error(`Failed to load elevation data. HTTP ${response.status} ${response.statusText} for ${fetchUrl}`);
     }
 
     const filename = gzUrl.split('/').pop();
@@ -419,11 +457,16 @@ async function loadElevationData(url) {
     const text = await decompressedResponse.text();
     const data = JSON.parse(text);
 
+    // Convert to typed rows immediately (see toTypedElevationRows for rationale)
+    const tConvert = performance.now();
+    data.elevation = toTypedElevationRows(data.elevation, data.width, data.height);
+    console.log(`[loadElevationData] Typed conversion: ${(performance.now() - tConvert).toFixed(1)}ms for ${data.width}x${data.height}`);
+
     const versionMatch = filename.match(/_v(\d+)\.json/);
     const fileVersion = versionMatch ? versionMatch[1] : 'unknown';
     appendActivityLog(`[OK] Data format v${fileVersion} from filename`);
 
-    try { window.ActivityLog.logResourceTiming(gzUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
+    try { window.ActivityLog.logResourceTiming(fetchUrl, 'Loaded JSON', tStart, performance.now()); } catch (e) { }
     return data;
 }
 
@@ -480,13 +523,7 @@ function computeGlobalElevationStats(manifest) {
         // Expose on window for modules
         window.globalElevationStats = globalElevationStats;
         
-        console.log('[computeGlobalElevationStats] ======== GLOBAL ELEVATION STATS ========');
-        console.log(`  Min elevation: ${globalMin.toFixed(1)}m`);
-        console.log(`  Max elevation: ${globalMax.toFixed(1)}m`);
-        console.log(`  Auto-stretch low: ${globalElevationStats.autoLow.toFixed(1)}m`);
-        console.log(`  Auto-stretch high: ${globalElevationStats.autoHigh.toFixed(1)}m`);
-        console.log(`  Regions processed: ${regionsProcessed}`);
-        console.log(`  Regions with auto-stretch: ${regionsWithAutoStats}`);
+        console.log(`[computeGlobalElevationStats] Range ${globalMin.toFixed(1)}m to ${globalMax.toFixed(1)}m across ${regionsProcessed} regions`);
     } else {
         console.warn('[computeGlobalElevationStats] Failed to compute valid global stats');
     }
@@ -496,8 +533,6 @@ async function loadRegionsManifest() {
     const manifestUrl = `generated/regions/regions_manifest.json.gz?v=${VIEWER_VERSION}`;
     const tStart = performance.now();
     
-    console.log(`[loadRegionsManifest] ======== LOADING MANIFEST ========`);
-    console.log(`[loadRegionsManifest] URL: ${manifestUrl}`);
     
     // Force fresh fetch - no browser caching allowed
     const response = await fetch(manifestUrl, {
@@ -522,53 +557,17 @@ async function loadRegionsManifest() {
     const text = await decompressedResponse.text();
     const json = JSON.parse(text);
 
-    console.log(`[loadRegionsManifest] Successfully loaded from: ${manifestUrl}`);
     try { window.ActivityLog.logResourceTiming(manifestUrl, 'Loaded manifest', tStart, performance.now()); } catch (e) { }
-    
-    // Log detailed manifest statistics
+
     const totalRegions = Object.keys(json?.regions || {}).length;
-    console.log(`[loadRegionsManifest] ======== MANIFEST LOADED ========`);
-    console.log(`[loadRegionsManifest] Total regions in manifest: ${totalRegions}`);
-    console.log(`[loadRegionsManifest] Manifest version: ${json?.version || 'unknown'}`);
-    
-    // Count by regionType
-    const typeCounts = {};
-    const samplesByType = {};
-    
-    for (const [regionId, regionInfo] of Object.entries(json?.regions || {})) {
-        const regionType = regionInfo.regionType || 'undefined';
-        typeCounts[regionType] = (typeCounts[regionType] || 0) + 1;
-        
-        if (!samplesByType[regionType]) {
-            samplesByType[regionType] = [];
-        }
-        if (samplesByType[regionType].length < 3) {
-            samplesByType[regionType].push({ id: regionId, name: regionInfo.name });
-        }
-    }
-    
-    console.log(`[loadRegionsManifest] ======== REGION TYPE COUNTS ========`);
-    Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).forEach(([type, count]) => {
-        console.log(`  ${type}: ${count} regions`);
-        console.log(`    Samples: ${samplesByType[type].map(r => r.name).join(', ')}`);
-    });
-    
-    // Check for any regions without files
-    const missingFiles = [];
-    for (const [regionId, regionInfo] of Object.entries(json?.regions || {})) {
-        if (!regionInfo.file) {
-            missingFiles.push(regionId);
-        }
-    }
-    
+    const missingFiles = Object.entries(json?.regions || {})
+        .filter(([, info]) => !info.file)
+        .map(([id]) => id);
+    console.log(`[loadRegionsManifest] Loaded ${totalRegions} regions (version: ${json?.version || 'unknown'})`);
     if (missingFiles.length > 0) {
         console.warn(`[loadRegionsManifest] ${missingFiles.length} regions without file paths:`, missingFiles);
-    } else {
-        console.log(`[loadRegionsManifest] All regions have file paths`);
     }
-    
-    console.log(`[loadRegionsManifest] ======== MANIFEST READY ========`);
-    
+
     // Compute global elevation statistics for global scale mode
     computeGlobalElevationStats(json);
     
@@ -666,19 +665,12 @@ function buildRegionOptions() {
         return [];
     }
 
-    const totalRegions = Object.keys(manifest.regions).length;
-    console.log(`[buildRegionOptions] ======== STARTING REGION GROUPING ========`);
-    console.log(`[buildRegionOptions] Total regions in manifest: ${totalRegions}`);
-
     // Group regions by their RegionType enum value
     const regionTypeGroups = {
         [RegionType.COUNTRY]: { header: 'COUNTRIES', regions: [] },
         [RegionType.AREA]: { header: 'AREAS', regions: [] },
         [RegionType.USA_STATE]: { header: 'US STATES', regions: [] }
     };
-
-    // Track for detailed logging
-    const classificationLog = [];
 
     for (const [regionId, regionInfo] of Object.entries(manifest.regions)) {
         let regionType = regionInfo.regionType;
@@ -693,40 +685,12 @@ function buildRegionOptions() {
         }
         
         regionTypeGroups[regionType].regions.push({ id: regionId, name: regionInfo.name });
-        
-        // Log every single region
-        classificationLog.push({
-            id: regionId,
-            name: regionInfo.name,
-            regionType: regionType,
-            hasFile: !!regionInfo.file
-        });
     }
-
-    // Log detailed classification info
-    console.log(`[buildRegionOptions] ======== REGION CLASSIFICATION DETAILS ========`);
-    console.table(classificationLog);
-    
-    console.log(`[buildRegionOptions] ======== GROUP COUNTS ========`);
-    console.log(`  COUNTRIES: ${regionTypeGroups[RegionType.COUNTRY].regions.length} regions`);
-    console.log(`  AREAS: ${regionTypeGroups[RegionType.AREA].regions.length} regions`);
-    console.log(`  USA STATES: ${regionTypeGroups[RegionType.USA_STATE].regions.length} regions`);
-    
-    // Log sample regions from each group
-    console.log(`[buildRegionOptions] ======== SAMPLE REGIONS PER GROUP ========`);
-    Object.values(RegionType).forEach(regionType => {
-        const samples = regionTypeGroups[regionType].regions.slice(0, 3);
-        console.log(`  ${regionType.toUpperCase()}: ${samples.map(r => r.name).join(', ')}${regionTypeGroups[regionType].regions.length > 3 ? '...' : ''}`);
-    });
 
     const options = [];
     // Order: COUNTRY, AREA, USA_STATE
     const typeOrder = [RegionType.COUNTRY, RegionType.AREA, RegionType.USA_STATE];
     const groups = typeOrder.map(type => regionTypeGroups[type]).filter(g => g.regions.length > 0);
-
-    console.log(`[buildRegionOptions] ======== BUILDING DROPDOWN OPTIONS ========`);
-    console.log(`  Number of groups (should be 3): ${groups.length}`);
-    console.log(`  Groups that will be shown: ${groups.map(g => g.header).join(', ')}`);
 
     groups.forEach((group, index) => {
         group.regions.sort((a, b) => a.name.localeCompare(b.name));
@@ -739,8 +703,8 @@ function buildRegionOptions() {
         }
     });
 
-    console.log(`[buildRegionOptions] Total dropdown options created: ${options.length} (includes headers, dividers, regions)`);
-    console.log(`[buildRegionOptions] ======== REGION GROUPING COMPLETE ========`);
+    console.log(`[buildRegionOptions] Grouped ${Object.keys(manifest.regions).length} regions: `
+        + groups.map(g => `${g.header}=${g.regions.length}`).join(', '));
 
     return options;
 }
@@ -918,7 +882,15 @@ async function loadRegion(regionId) {
         }
         const dataUrl = `generated/regions/${filename}`;
 
-        rawElevationData = await loadElevationData(dataUrl);
+        // Content fingerprint from manifest stats: lets the browser cache region
+        // files across visits while still picking up regenerated data (the manifest
+        // itself is always fetched fresh).
+        const regionStats = regionsManifest.regions[regionId].stats;
+        const cacheKey = regionStats && typeof regionStats.min === 'number'
+            ? `${regionStats.min},${regionStats.max},${regionStats.mean}`
+            : null;
+
+        rawElevationData = await loadElevationData(dataUrl, cacheKey);
         window.rawElevationData = rawElevationData; // Sync to window
         currentRegionId = regionId;
         updateRegionInfo(regionId);
@@ -979,7 +951,7 @@ async function loadRegion(regionId) {
         // Update URL parameter so the link is shareable (only if not navigating history)
         // When navigating history, the URL is already correct, so we don't want to push another state
         if (!isNavigatingHistory) {
-            updateURLParameter('region', regionId);
+            updateURLParameter('region', regionId, true); // push: back/forward steps through regions
         }
 
         // Update native input to show the loaded region without triggering load
@@ -1161,25 +1133,33 @@ function syncUIControls() {
 // Compute percentile-based auto stretch bounds from current bucketed elevation
 function computeAutoStretchStats() {
     if (!processedData || !processedData.elevation) return;
-    if (!params.autoStretchEnabled) { if (processedData.stats) { delete processedData.stats.autoLow; delete processedData.stats.autoHigh; } return; }
+    // Only needed for the auto-stretch color scheme.
+    // (Historical note: this used to check params.autoStretchEnabled, which was
+    // never set anywhere, so auto-stretch silently fell back to min/max.)
+    if (params.colorScheme !== 'auto-stretch') {
+        if (processedData.stats) { delete processedData.stats.autoLow; delete processedData.stats.autoHigh; }
+        return;
+    }
     const lowPct = Math.max(0, Math.min(100, params.autoStretchLowPct || 2));
     const highPct = Math.max(0, Math.min(100, params.autoStretchHighPct || 98));
-    const values = [];
     const elev = processedData.elevation;
-    for (let i = 0; i < elev.length; i++) {
+    const w = processedData.width;
+    const h = processedData.height;
+    // Collect valid values into a typed array, then sort for percentiles
+    const values = new Float32Array(w * h);
+    let n = 0;
+    for (let i = 0; i < h; i++) {
         const row = elev[i];
-        for (let j = 0; j < row.length; j++) {
+        for (let j = 0; j < w; j++) {
             const v = row[j];
-            if (v !== null && v !== undefined && isFinite(v)) values.push(v);
+            if (v === v) values[n++] = v; // skip NaN nodata
         }
     }
     if (!processedData.stats) processedData.stats = {};
-    if (values.length < 10) { delete processedData.stats.autoLow; delete processedData.stats.autoHigh; return; }
-    values.sort((a, b) => a - b);
-    const p = (q) => {
-        const idx = Math.max(0, Math.min(values.length - 1, Math.round((q / 100) * (values.length - 1))));
-        return values[idx];
-    };
+    if (n < 10) { delete processedData.stats.autoLow; delete processedData.stats.autoHigh; return; }
+    const valid = values.subarray(0, n);
+    valid.sort();
+    const p = (q) => valid[Math.max(0, Math.min(n - 1, Math.round((q / 100) * (n - 1))))];
     processedData.stats.autoLow = p(lowPct);
     processedData.stats.autoHigh = p(highPct);
 }
@@ -1206,72 +1186,52 @@ function computeBucketedData(bucketSize) {
     const bucketSizeMetersX = scale.metersPerPixelX * bucketSize;
     const bucketSizeMetersY = scale.metersPerPixelY * bucketSize;
 
-    // Pre-allocate array for better performance
+    // Output rows are Float32Array with NaN for nodata (same convention as raw data)
     const bucketedElevation = new Array(bucketedHeight);
 
-    // Pre-allocate buffer for collecting values
-    const maxBucketPixels = Math.ceil(bucketSize * bucketSize * 1.5); // 1.5x safety margin
-    const buffer = new Float32Array(maxBucketPixels);
+    const maxPossiblePixels = bucketSize * bucketSize;
+    // BOUNDARY PRESERVATION: Require at least 50% of bucket pixels to be valid.
+    // This prevents "healing" of clipped state/country boundaries where edge
+    // buckets would otherwise fill in from sparse valid pixels.
+    const minValidPixels = maxPossiblePixels * 0.5;
+    let noneCount = 0;
 
     for (let by = 0; by < bucketedHeight; by++) {
-        const row = new Array(bucketedWidth);
+        const row = new Float32Array(bucketedWidth);
+        const pixelY0 = by * bucketSize;
+        const pixelY1 = Math.min(pixelY0 + bucketSize, height);
 
         for (let bx = 0; bx < bucketedWidth; bx++) {
-            // Calculate pixel range for this bucket (now always integer aligned)
             const pixelX0 = bx * bucketSize;
-            const pixelX1 = (bx + 1) * bucketSize;
-            const pixelY0 = by * bucketSize;
-            const pixelY1 = (by + 1) * bucketSize;
+            const pixelX1 = Math.min(pixelX0 + bucketSize, width);
 
-            // Collect all values in this bucket (bucketSize x bucketSize pixels)
+            // Single pass: track max and valid count ('max' aggregation, highest point wins)
             let count = 0;
-            for (let py = pixelY0; py < pixelY1 && py < height; py++) {
-                for (let px = pixelX0; px < pixelX1 && px < width; px++) {
-                    const val = elevation[py] && elevation[py][px];
-                    if (val !== null && val !== undefined) {
-                        buffer[count++] = val;
+            let max = -Infinity;
+            for (let py = pixelY0; py < pixelY1; py++) {
+                const srcRow = elevation[py];
+                for (let px = pixelX0; px < pixelX1; px++) {
+                    const val = srcRow[px];
+                    if (val === val) { // fast NaN check
+                        count++;
+                        if (val > max) max = val;
                     }
                 }
             }
 
-            // Always use 'max' aggregation (highest point in bucket)
-            // BOUNDARY PRESERVATION: Only create a bar if enough pixels in the bucket are valid
-            // This preserves clipped state/country boundaries during bucketing
-            let value = null;
-            const maxPossiblePixels = bucketSize * bucketSize;
-            const validPixelRatio = count / maxPossiblePixels;
-            
-            // Require at least 50% of bucket pixels to be valid (not None/nodata)
-            // This prevents "healing" of clipped boundaries where edge buckets
-            // would otherwise fill in with aggregated values from sparse valid pixels
-            if (validPixelRatio >= 0.5) {
-                value = buffer[0];
-                for (let i = 1; i < count; i++) {
-                    if (buffer[i] > value) value = buffer[i];
-                }
+            if (count >= minValidPixels) {
+                row[bx] = max;
+            } else {
+                row[bx] = NaN;
+                noneCount++;
             }
-
-            row[bx] = value;
         }
         bucketedElevation[by] = row;
     }
 
-    // Count None values to verify boundary preservation
-    let noneCount = 0;
-    let validCount = 0;
-    for (let by = 0; by < bucketedHeight; by++) {
-        for (let bx = 0; bx < bucketedWidth; bx++) {
-            if (bucketedElevation[by][bx] === null || bucketedElevation[by][bx] === undefined) {
-                noneCount++;
-            } else {
-                validCount++;
-            }
-        }
-    }
     const totalBuckets = bucketedWidth * bucketedHeight;
     const nonePercentage = (100 * noneCount / totalBuckets).toFixed(2);
-    
-    console.log(`[BUCKETING] Boundary preservation: ${noneCount.toLocaleString()} None buckets (${nonePercentage}% of ${totalBuckets.toLocaleString()} total)`);
+    console.log(`[BUCKETING] Boundary preservation: ${noneCount.toLocaleString()} empty buckets (${nonePercentage}% of ${totalBuckets.toLocaleString()} total)`);
 
     return {
         width: bucketedWidth,
@@ -1289,9 +1249,6 @@ function computeBucketedData(bucketSize) {
  */
 function rebucketData() {
     const startTime = performance.now();
-    const stack = new Error().stack;
-    const caller = stack.split('\n')[2]?.trim() || 'unknown';
-    console.log(`[BUCKETING] rebucketData() called from: ${caller}`);
 
     if (!rawElevationData) {
         console.warn('[BUCKETING] No raw elevation data available');
@@ -1372,33 +1329,35 @@ function pregenerateCommonBucketSizes() {
 
     // Add current size if not in common list
     const sizesToGenerate = [...new Set([...commonSizes, currentSize])].sort((a, b) => a - b);
+    const sourceData = rawElevationData; // Detect region change mid-generation
 
-    console.log(`[BUCKETING] Pregenerating ${sizesToGenerate.length} bucket sizes...`);
+    console.log(`[BUCKETING] Pregenerating ${sizesToGenerate.length} bucket sizes (cooperative)...`);
     const pregenStart = performance.now();
-
     let generated = 0;
-    for (const size of sizesToGenerate) {
-        const cacheKey = `${size}`; // No aggregation in key since always 'max'
+
+    // Generate one size per timeout slice so the main thread stays responsive
+    // during the seconds right after a region load.
+    const generateNext = (index) => {
+        if (index >= sizesToGenerate.length) {
+            const pregenDuration = (performance.now() - pregenStart).toFixed(2);
+            const cacheSize = Object.keys(bucketedDataCache).length;
+            console.log(`[BUCKETING] Pregenerated ${generated} bucket sizes (${cacheSize} total cached) in ${pregenDuration}ms`);
+            return;
+        }
+        // Abort if the user switched regions while we were working
+        if (rawElevationData !== sourceData) {
+            console.log('[BUCKETING] Pregeneration aborted: region changed');
+            return;
+        }
+        const size = sizesToGenerate[index];
+        const cacheKey = `${size}`;
         if (!bucketedDataCache[cacheKey]) {
             bucketedDataCache[cacheKey] = computeBucketedData(size);
             generated++;
         }
-    }
-
-    const pregenDuration = (performance.now() - pregenStart).toFixed(2);
-    const cacheSize = Object.keys(bucketedDataCache).length;
-    console.log(`[BUCKETING] Pregenerated ${generated} bucket sizes (${cacheSize} total cached) in ${pregenDuration}ms`);
-
-    // Estimate memory usage
-    const { width, height } = rawElevationData;
-    const rawSizeMB = (width * height * 8) / (1024 * 1024); // Approximate
-    let cachedSizeMB = rawSizeMB; // Start with raw data
-    for (const size of sizesToGenerate) {
-        const bucketedWidth = Math.floor(width / size);
-        const bucketedHeight = Math.floor(height / size);
-        cachedSizeMB += (bucketedWidth * bucketedHeight * 8) / (1024 * 1024);
-    }
-    console.log(`[BUCKETING] Estimated cache memory: ~${cachedSizeMB.toFixed(2)} MB`);
+        setTimeout(() => generateNext(index + 1), 0);
+    };
+    generateNext(0);
 }
 
 // Edge markers now in edge-markers.js
@@ -1713,24 +1672,9 @@ function setupEventListeners() {
         raycaster.setFromCamera(mouse, camera);
         // Raycast specifically against connectivity labels (like compass rose does with edgeMarkers)
         const intersects = raycaster.intersectObjects(window.connectivityLabels, false);
-        
-        console.log('[Connectivity] Click detected:', {
-            mouseNDC: { x: mouse.x.toFixed(3), y: mouse.y.toFixed(3) },
-            labelCount: window.connectivityLabels.length,
-            intersects: intersects.length,
-            labels: window.connectivityLabels.map(l => ({ 
-                name: l.userData.neighborName, 
-                position: l.position.toArray(),
-                scale: l.scale.toArray()
-            }))
-        });
 
         for (const intersect of intersects) {
-            console.log('[Connectivity] Intersection found:', {
-                object: intersect.object,
-                userData: intersect.object.userData,
-                distance: intersect.distance
-            });
+            console.log(`[Connectivity] Label clicked: ${intersect.object.userData?.neighborName}`);
             // handleConnectivityClick is defined in state-connectivity.js (required module)
             if (handleConnectivityClick(intersect.object)) {
                 e.preventDefault();
@@ -1815,8 +1759,17 @@ function setupEventListeners() {
         updateURLParameter('camera', e.target.value);
     });
 
-    // Initialize default scheme (Google Maps Ground Plane)
-    switchCameraScheme('ground-plane');
+    // Initialize camera scheme: honor ?camera= URL parameter, else default.
+    // (The parameter was previously written on scheme change but never read back.)
+    const urlScheme = new URLSearchParams(window.location.search).get('camera');
+    const initialScheme = (urlScheme && window.CameraSchemes && window.CameraSchemes[urlScheme])
+        ? urlScheme
+        : 'ground-plane';
+    const schemeSelect = document.getElementById('cameraScheme');
+    if (schemeSelect && initialScheme !== schemeSelect.value) {
+        schemeSelect.value = initialScheme;
+    }
+    switchCameraScheme(initialScheme);
 
     // Mobile/UI controls toggle
     const mobileToggleBtn = document.getElementById('mobile-ui-toggle');
@@ -2074,118 +2027,6 @@ function setupEventListeners() {
     // HUD initialization handled by HUDSystem module (called above)
 }
 
-// HUD functions moved to hud-system.js module
-// Keeping thin wrappers for backward compatibility
-function initHudDragging() {
-    // Delegated to HUDSystem module
-    if (window.HUDSystem && typeof window.HUDSystem.init === 'function') {
-        window.HUDSystem.init();
-    }
-}
-
-function saveHudPosition() {
-    // Delegated to HUDSystem module (called internally)
-}
-
-function loadHudPosition() {
-    // Delegated to HUDSystem module (called internally)
-}
-
-// OLD CAMERA CONTROL CODE - REPLACED BY SCHEMES
-// Keeping these functions temporarily for reference/backwards compatibility
-function linearZoom_OLD(delta) {
-    if (!camera) return;
-
-    // Try to get the 3D point under the cursor
-    const targetPoint = raycastToWorld(currentMouseX, currentMouseY);
-
-    if (!targetPoint) {
-        // Fallback: move in view direction if raycast fails
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        forward.normalize();
-
-        const baseSpeed = 50;
-        const moveAmount = -1 * (delta > 0 ? baseSpeed : -baseSpeed);
-        const movement = forward.multiplyScalar(moveAmount);
-
-        // Move camera AND target together to maintain orientation
-        camera.position.add(movement);
-        controls.target.add(movement);
-        return;
-    }
-
-    // Calculate zoom factor based on distance and scroll delta
-    const distanceToTarget = camera.position.distanceTo(targetPoint);
-
-    // Zoom speed: percentage of distance per scroll tick
-    let zoomSpeed = 0.15; // 15% of distance per tick
-
-    // Shift modifier for precise zoom
-    if (keyboard.shift) {
-        zoomSpeed = 0.03; // 3% for precise control
-    }
-
-    // Scroll UP (negative delta) = zoom IN (move toward target)
-    // Scroll DOWN (positive delta) = zoom OUT (move away from target)
-    const zoomDirection = delta > 0 ? 1 : -1; // positive = zoom out, negative = zoom in
-    const zoomFactor = 1.0 + (zoomSpeed * zoomDirection);
-
-    // Don't zoom too close
-    const newDistance = distanceToTarget * zoomFactor;
-    if (newDistance < 1.0) {
-        return;
-    }
-
-    // Calculate direction from camera to target point
-    const direction = new THREE.Vector3();
-    direction.subVectors(targetPoint, camera.position);
-    direction.normalize();
-
-    // Move camera toward/away from target point
-    const moveAmount = distanceToTarget * (1.0 - zoomFactor);
-    camera.position.addScaledVector(direction, moveAmount);
-
-    // Also move the orbit target slightly toward the cursor point
-    // This keeps the view centered on what you're looking at
-    controls.target.addScaledVector(direction, moveAmount * 0.05);
-}
-
-// Create a visual marker showing rotation pivot point
-function createPivotMarker(position) {
-    // Remove old marker
-    if (pivotMarker) {
-        scene.remove(pivotMarker);
-    }
-
-    // Scale marker based on terrain size
-    const scale = rawElevationData ? calculateRealWorldScale() : { widthMeters: 1000, heightMeters: 1000 };
-    const avgSize = (scale.widthMeters + scale.heightMeters) / 2;
-    const markerSize = avgSize * 0.01; // 1% of average terrain dimension
-
-    // Create a bright sphere at the pivot point
-    const geometry = new THREE.SphereGeometry(markerSize, 16, 16);
-    const material = new THREE.MeshBasicMaterial({
-        color: 0xff00ff,
-        transparent: true,
-        opacity: 0.9,
-        depthTest: false // Always visible
-    });
-    pivotMarker = new THREE.Mesh(geometry, material);
-    pivotMarker.position.copy(position);
-    scene.add(pivotMarker);
-
-    console.log(`Pivot marker created at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)}) with size ${markerSize.toFixed(0)}m`);
-
-    // Auto-remove after 3 seconds
-    setTimeout(() => {
-        if (pivotMarker) {
-            scene.remove(pivotMarker);
-            pivotMarker = null;
-        }
-    }, 3000);
-}
-
 // Geometry utilities now in js/geometry-utils.js
 function calculateRealWorldScale(data) {
     return window.GeometryUtils.calculateRealWorldScale(data);
@@ -2217,19 +2058,6 @@ function updateTerrainHeight() {
         console.error('[updateTerrainHeight] TerrainRenderer not available');
     }
 }
-
-// Terrain creation functions moved to TerrainRenderer module
-// Keeping thin wrappers for backward compatibility
-function createBarsTerrain(width, height, elevation, scale) {
-    // Delegated to TerrainRenderer.create() which calls createBars internally
-    console.warn('[createBarsTerrain] This function is deprecated - use TerrainRenderer.create()');
-    if (window.TerrainRenderer && typeof window.TerrainRenderer.create === 'function') {
-        window.TerrainRenderer.create();
-    }
-}
-
-
-// Old terrain creation implementations removed - now in terrain-renderer.js module
 
 // Helpers for per-cell derived values during colorization
 // Delegated to MapShading module, keeping wrappers for backward compatibility
@@ -2313,15 +2141,18 @@ function computeDerivedGrids() {
     const elev = processedData.elevation;
     const slope = new Array(h);
     const aspect = new Array(h);
+    // Nodata is NaN; substitute the center value (or 0) so gradients degrade
+    // gracefully at region edges instead of propagating NaN.
+    const pick = (v, fallback) => (v === v ? v : fallback);
     for (let i = 0; i < h; i++) {
-        slope[i] = new Array(w);
-        aspect[i] = new Array(w);
+        slope[i] = new Float32Array(w);
+        aspect[i] = new Float32Array(w);
         for (let j = 0; j < w; j++) {
-            const zc = elev[i][j] ?? 0;
-            const zl = elev[i][Math.max(0, j - 1)] ?? zc;
-            const zr = elev[i][Math.min(w - 1, j + 1)] ?? zc;
-            const zu = elev[Math.max(0, i - 1)][j] ?? zc;
-            const zd = elev[Math.min(h - 1, i + 1)][j] ?? zc;
+            const zc = pick(elev[i][j], 0);
+            const zl = pick(elev[i][Math.max(0, j - 1)], zc);
+            const zr = pick(elev[i][Math.min(w - 1, j + 1)], zc);
+            const zu = pick(elev[Math.max(0, i - 1)][j], zc);
+            const zd = pick(elev[Math.min(h - 1, i + 1)][j], zc);
             const dzdx = (zr - zl) / (2 * dx);
             const dzdy = (zd - zu) / (2 * dy);
             const gradMag = Math.sqrt(dzdx * dzdx + dzdy * dzdy);
@@ -2393,42 +2224,6 @@ function updateStats() {
  <span class="stat-value">${terrainStats.bars?.toLocaleString() || 'N/A'}</span>
  </div>
  `;
-}
-
-function setView(preset) {
-    if (!rawElevationData || !processedData) {
-        resetCamera();
-        return;
-    }
-
-    // Calculate distances based on UNIFORM GRID extents (no geographic scaling)
-    const gridWidth = processedData.width;
-    const gridHeight = processedData.height;
-
-    // Use pixel-grid extents to preserve proportions established by the pipeline
-    const bucketMultiplier = params.bucketSize;
-    const xExtent = (gridWidth - 1) * bucketMultiplier;
-    const zExtent = (gridHeight - 1) * bucketMultiplier;
-
-    const maxDim = Math.max(xExtent, zExtent);
-    const distance = maxDim * 2.0; // Increased from 0.8 for better overview
-    const height = maxDim * 1.2; // Increased from 0.5 for better viewing angle
-
-    const views = {
-        overhead: { x: 0, y: distance * 1.2, z: 0, target: [0, 0, 0] },
-        north: { x: 0, y: height, z: distance, target: [0, 0, 0] },
-        south: { x: 0, y: height, z: -distance, target: [0, 0, 0] },
-        east: { x: distance, y: height, z: 0, target: [0, 0, 0] },
-        west: { x: -distance, y: height, z: 0, target: [0, 0, 0] },
-        isometric: { x: distance * 0.8, y: distance * 0.8, z: distance * 0.8, target: [0, maxDim * 0.01, 0] }
-    };
-
-    const view = views[preset];
-    if (view) {
-        camera.position.set(view.x, view.y, view.z);
-        controls.target.set(...view.target);
-        controls.update();
-    }
 }
 
 // Track active vertical exaggeration button
@@ -2915,70 +2710,6 @@ function onKeyUp(event) {
 }
 
 
-function handleKeyboardMovement() {
-    if (!camera || !controls) return;
-
-    // Check if any key is pressed
-    const isMoving = keyboard.w || keyboard.s || keyboard.a || keyboard.d || keyboard.q || keyboard.e;
-    if (!isMoving) return;
-
-    // Speed adjustments with modifiers
-    const baseSpeed = 1.5;
-    const rotateSpeed = 0.02; // Radians per frame for rotation
-    let moveSpeed = baseSpeed;
-
-    if (keyboard.shift) {
-        moveSpeed *= 2.5; // Shift = faster
-    }
-    if (keyboard.ctrl) {
-        moveSpeed *= 0.3; // Ctrl = slower/precise
-    }
-    if (keyboard.alt) {
-        moveSpeed *= 4.0; // Alt = very fast
-    }
-
-    // Get camera direction vectors
-    const forward = new THREE.Vector3();
-    const right = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.normalize();
-    right.crossVectors(forward, camera.up).normalize();
-
-    // Movement delta
-    const delta = new THREE.Vector3();
-
-    // W/S: Move camera FORWARD/BACKWARD (in view direction)
-    if (keyboard.w) {
-        delta.addScaledVector(forward, moveSpeed);
-    }
-    if (keyboard.s) {
-        delta.addScaledVector(forward, -moveSpeed);
-    }
-
-    // Q/E: Move camera DOWN/UP (vertical relative to camera view)
-    if (keyboard.q) {
-        delta.addScaledVector(camera.up, -moveSpeed);
-    }
-    if (keyboard.e) {
-        delta.addScaledVector(camera.up, moveSpeed);
-    }
-
-    // A/D: Strafe camera LEFT/RIGHT (relative to view direction)
-    if (keyboard.a) {
-        delta.addScaledVector(right, -moveSpeed);
-    }
-    if (keyboard.d) {
-        delta.addScaledVector(right, moveSpeed);
-    }
-
-    // Apply positional movement
-    camera.position.add(delta);
-    controls.target.add(delta);
-
-    // No rotation via A/D with new scheme
-    camera.lookAt(controls.target);
-}
-
 // Check if camera is currently being moved by user
 function isCameraMoving() {
     // Check keyboard movement
@@ -3059,34 +2790,6 @@ function worldToGridIndex(worldX, worldZ) {
     return window.GeometryUtils.worldToGridIndex(worldX, worldZ);
 }
 
-// HUD functions moved to hud-system.js module
-// Keeping thin wrappers for backward compatibility
-function updateCursorHUD(clientX, clientY) {
-    if (window.HUDSystem && typeof window.HUDSystem.update === 'function') {
-        window.HUDSystem.update(clientX, clientY);
-    }
-}
-
-function loadHudSettings() {
-    if (window.HUDSystem && typeof window.HUDSystem.loadSettings === 'function') {
-        window.HUDSystem.loadSettings();
-    }
-}
-
-function saveHudSettings() {
-    if (window.HUDSystem && typeof window.HUDSystem.saveSettings === 'function') {
-        window.HUDSystem.saveSettings();
-    }
-}
-
-function applyHudSettingsToUI() {
-    // Delegated to HUDSystem module (called internally during init)
-}
-
-function bindHudSettingsHandlers() {
-    // Delegated to HUDSystem module (called internally during init)
-}
-
 function formatElevation(meters, units) {
     return window.FormatUtils.formatElevation(meters, units);
 }
@@ -3136,153 +2839,12 @@ function getMetersScalePerWorldUnit() {
     return window.GeometryUtils.getMetersScalePerWorldUnit();
 }
 
-function computeDistanceToDataEdgeMeters(worldX, worldZ) {
-    if (!processedData) return null;
-    const w = processedData.width;
-    const h = processedData.height;
-    let xMin, xMax, zMin, zMax;
-    const bucket = params.bucketSize;
-    xMin = -(w - 1) * bucket / 2; xMax = (w - 1) * bucket / 2;
-    zMin = -(h - 1) * bucket / 2; zMax = (h - 1) * bucket / 2;
-    const { mx, mz } = getMetersScalePerWorldUnit();
-    const x = worldX, z = worldZ;
-    const insideX = (x >= xMin && x <= xMax);
-    const insideZ = (z >= zMin && z <= zMax);
-    if (insideX && insideZ) {
-        const dxLeft = (x - xMin) * mx;
-        const dxRight = (xMax - x) * mx;
-        const dzBottom = (z - zMin) * mz;
-        const dzTop = (zMax - z) * mz;
-        return Math.min(dxLeft, dxRight, dzBottom, dzTop);
-    }
-    // Outside rectangle: distance to closest point on rect
-    const clampedX = Math.max(xMin, Math.min(xMax, x));
-    const clampedZ = Math.max(zMin, Math.min(zMax, z));
-    const dx = (x - clampedX) * mx;
-    const dz = (z - clampedZ) * mz;
-    return Math.hypot(dx, dz);
-}
-
 function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
     return window.GeometryUtils.distancePointToSegment2D(px, pz, ax, az, bx, bz);
 }
 
 function isWorldInsideData(worldX, worldZ) {
     return window.GeometryUtils.isWorldInsideData(worldX, worldZ);
-}
-
-function onMouseDown(event) {
-    event.preventDefault();
-
-    // Left button = Pan
-    if (event.button === 0 && !event.ctrlKey) {
-        isPanning = true;
-        panStartMouse.set(event.clientX, event.clientY);
-
-        // Raycast to find world point under cursor
-        panStartWorldPoint = raycastToWorld(event.clientX, event.clientY);
-
-        if (panStartWorldPoint) {
-            panStartCameraPos = camera.position.clone();
-            panStartTargetPos = controls.target.clone();
-            console.log('Pan started');
-        } else {
-            console.warn('Failed to raycast world point');
-            isPanning = false;
-        }
-    }
-    // Right button or Ctrl+Left = Rotate
-    else if (event.button === 2 || (event.button === 0 && event.ctrlKey)) {
-        isRotating = true;
-        rotateStart.set(event.clientX, event.clientY);
-        rotateStartCameraPos = camera.position.clone();
-        rotateStartTargetPos = controls.target.clone();
-        console.log('Rotation started');
-    }
-}
-
-function onMouseMove(event) {
-    // Always track mouse position for zoom-to-cursor
-    currentMouseX = event.clientX;
-    currentMouseY = event.clientY;
-
-    // Handle panning
-    if (isPanning && panStartWorldPoint) {
-        event.preventDefault();
-
-        const currentWorldPoint = raycastToWorld(event.clientX, event.clientY);
-
-        if (currentWorldPoint) {
-            // Calculate offset: how much did the world point move?
-            const worldDelta = new THREE.Vector3();
-            worldDelta.subVectors(panStartWorldPoint, currentWorldPoint);
-
-            // Apply offset to camera and target to keep picked point under cursor
-            // DON'T call lookAt - just translate position and target together
-            camera.position.copy(panStartCameraPos).add(worldDelta);
-            controls.target.copy(panStartTargetPos).add(worldDelta);
-        }
-    }
-
-    // Handle rotation
-    if (isRotating) {
-        event.preventDefault();
-
-        const deltaX = event.clientX - rotateStart.x;
-        const deltaY = event.clientY - rotateStart.y;
-
-        const rotateSpeed = 0.005;
-
-        // Get vector from target to camera
-        const offset = new THREE.Vector3();
-        offset.copy(rotateStartCameraPos).sub(rotateStartTargetPos);
-
-        // Rotate horizontally (around Y axis)
-        const theta = -deltaX * rotateSpeed;
-        const sinTheta = Math.sin(theta);
-        const cosTheta = Math.cos(theta);
-        const x = offset.x * cosTheta - offset.z * sinTheta;
-        const z = offset.x * sinTheta + offset.z * cosTheta;
-        offset.x = x;
-        offset.z = z;
-
-        // Rotate vertically (around horizontal axis)
-        const phi = -deltaY * rotateSpeed;
-        const radius = Math.sqrt(offset.x * offset.x + offset.z * offset.z);
-        const currentPhi = Math.atan2(offset.y, radius);
-        const newPhi = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, currentPhi + phi));
-        offset.y = Math.sin(newPhi) * Math.sqrt(offset.x * offset.x + offset.y * offset.y + offset.z * offset.z);
-
-        const horizontalRadius = Math.cos(newPhi) * Math.sqrt(offset.x * offset.x + offset.y * offset.y + offset.z * offset.z);
-        const angle = Math.atan2(offset.z, offset.x);
-        offset.x = horizontalRadius * Math.cos(angle);
-        offset.z = horizontalRadius * Math.sin(angle);
-
-        // Update camera position
-        camera.position.copy(rotateStartTargetPos).add(offset);
-        camera.lookAt(controls.target);
-    }
-    // Update HUD values at cursor
-    if (window.HUDSystem && typeof window.HUDSystem.update === 'function') {
-        window.HUDSystem.update(event.clientX, event.clientY);
-    }
-}
-
-function onMouseUp(event) {
-    if (isPanning) {
-        console.log('Pan ended');
-        isPanning = false;
-        panStartWorldPoint = null;
-        panStartCameraPos = null;
-        panStartTargetPos = null;
-    }
-
-    if (isRotating) {
-        console.log('Rotation ended');
-        isRotating = false;
-        rotateStartCameraPos = null;
-        rotateStartTargetPos = null;
-    }
 }
 
 function animate() {
@@ -3315,18 +2877,35 @@ function animate() {
     // This prevents double-updates and improves performance
 }
 
-// Toggle controls help window
-function toggleControlsHelp() {
-    const window = document.getElementById('controls-help-window');
-    const button = document.getElementById('controls-help-toggle');
+// Toggle the collapsible Keyboard Controls section (called from HTML onclick)
+function toggleKeyboardControls() {
+    const content = document.getElementById('keyboard-controls-content');
+    const arrow = document.getElementById('keyboard-controls-arrow');
+    if (!content) return;
+    const isHidden = content.style.display === 'none' || !content.style.display;
+    content.style.display = isHidden ? 'block' : 'none';
+    if (arrow) arrow.style.transform = isHidden ? 'rotate(180deg)' : '';
+}
 
-    if (window.classList.contains('open')) {
-        window.classList.remove('open');
-        button.textContent = 'Close';
-    } else {
-        window.classList.add('open');
-        button.textContent = 'Close';
-    }
+// Wire the on-screen keyboard buttons (W/A/S/D/E/Q, Zoom+/-) to camera actions.
+// Buttons dispatch synthetic key events so the active camera scheme handles
+// them exactly like physical keys; press-and-hold works via mousedown/mouseup.
+function initKeyboardControlButtons() {
+    document.querySelectorAll('.keyboard-btn').forEach((btn) => {
+        const key = btn.dataset.key;
+        const action = btn.dataset.action;
+        if (key) {
+            const down = (e) => { e.preventDefault(); window.dispatchEvent(new KeyboardEvent('keydown', { key })); };
+            const up = () => { window.dispatchEvent(new KeyboardEvent('keyup', { key })); };
+            btn.addEventListener('mousedown', down);
+            btn.addEventListener('mouseup', up);
+            btn.addEventListener('mouseleave', up);
+            btn.addEventListener('touchstart', down, { passive: false });
+            btn.addEventListener('touchend', up);
+        } else if (action === 'zoom-in' || action === 'zoom-out') {
+            btn.addEventListener('click', () => keyboardZoom(action === 'zoom-in' ? -1 : 1));
+        }
+    });
 }
 
 // Toggle keyboard shortcuts overlay
@@ -3394,7 +2973,10 @@ function initShortcutsOverlay() {
 }
 
 // Update URL parameter without reloading page (for shareable links)
-function updateURLParameter(key, value) {
+// Uses replaceState by default so slider tweaks (bucketSize, exag, toggles...)
+// don't flood browser history. Pass pushHistory=true only for navigation-level
+// changes (region), which back/forward should step through (see popstate handler).
+function updateURLParameter(key, value, pushHistory = false) {
     const url = new URL(window.location);
     const currentValue = url.searchParams.get(key);
     const newValue = String(value);
@@ -3405,7 +2987,11 @@ function updateURLParameter(key, value) {
     }
 
     url.searchParams.set(key, newValue);
-    window.history.pushState({}, '', url);
+    if (pushHistory) {
+        window.history.pushState({}, '', url);
+    } else {
+        window.history.replaceState({}, '', url);
+    }
 }
 
 // Copy current view URL to clipboard

@@ -27,7 +27,7 @@
  * 
  * DEPENDS ON:
  * - Global: window.scene, window.terrainGroup, window.terrainMesh
- * - Global: window.barsInstancedMesh, window.barsIndexToRow, window.barsIndexToCol, window.barsTileSize, window.barsDummy
+ * - Global: window.barsInstancedMesh, window.barsIndexToRow, window.barsIndexToCol, window.barsTileSize
  * - Global: window.lastBarsExaggerationInternal, window.lastBarsTileSize
  * - Global: window.terrainStats, window.processedData, window.params
  * - Global: window.edgeMarkers, window.controls
@@ -176,21 +176,17 @@
         // Base unit cube (1x1x1)
         const baseGeometry = new THREE.BoxGeometry(1, 1, 1, 1, 1, 1);
 
-        console.log(`PURE 2D GRID: ${width} x ${height} bars (spacing: ${bucketMultiplier}x, no gap)`);
-        console.log(`Tile XZ footprint: ${tileSize.toFixed(2)} x ${tileSize.toFixed(2)} (uniform squares, NEVER changes with Y scale)`);
-        console.log(`Grid spacing: X=${bucketMultiplier}, Z=${bucketMultiplier} (uniform, INDEPENDENT of height)`);
-        console.log(`Vertical exaggeration: ${window.params.verticalExaggeration.toFixed(5)}x (affects ONLY Y-axis)`);
-        console.log(`Grid approach: Each data point [i,j] -> one square tile, no distortion`);
+        console.log(`Bars grid: ${width} x ${height}, tile ${tileSize.toFixed(2)}, exaggeration ${window.params.verticalExaggeration.toFixed(5)}x`);
 
-        // First pass: count valid (non-null) samples to preallocate buffers
+        // First pass: count valid samples to preallocate buffers
+        // Nodata cells are NaN (typed Float32Array rows); NaN !== NaN
         let barCount = 0;
         for (let i = 0; i < height; i++) {
             const row = elevation[i];
             if (!row) continue;
             for (let j = 0; j < width; j++) {
                 const z = row[j];
-                if (z === null || z === undefined) continue;
-                barCount++;
+                if (z === z) barCount++;
             }
         }
         // Always use Natural (Lambert) shading
@@ -209,29 +205,43 @@
         window.barsIndexToRow = new Int32Array(barCount);
         window.barsIndexToCol = new Int32Array(barCount);
 
+        // Write instance matrices directly into the attribute buffer.
+        // Each bar is scale(tileSize, elev, tileSize) + translation - no rotation -
+        // so composing a full Matrix4 via Object3D per instance is wasted work.
+        // Column-major layout: [0]=scaleX, [5]=scaleY, [10]=scaleZ, [12..14]=x,y,z, [15]=1
+        const matrixArray = instancedMesh.instanceMatrix.array;
+        const exaggeration = window.params.verticalExaggeration;
+        const hasColorFn = typeof getColorForElevation === 'function';
+
         let idx = 0;
         for (let i = 0; i < height; i++) {
             const row = elevation[i];
             if (!row) continue;
+            const zPos = i * bucketMultiplier;
             for (let j = 0; j < width; j++) {
-                let z = row[j];
-                if (z === null || z === undefined) continue;
+                const z = row[j];
+                if (z !== z) continue; // NaN = nodata
 
-                const elev = Math.max(z * window.params.verticalExaggeration, 0.1);
-                const xPos = j * bucketMultiplier;
-                const zPos = i * bucketMultiplier;
-                const yPos = elev * 0.5;
+                const elev = Math.max(z * exaggeration, 0.1);
+                const base = idx * 16;
+                matrixArray[base] = tileSize;
+                matrixArray[base + 5] = elev;
+                matrixArray[base + 10] = tileSize;
+                matrixArray[base + 12] = j * bucketMultiplier;
+                matrixArray[base + 13] = elev * 0.5;
+                matrixArray[base + 14] = zPos;
+                matrixArray[base + 15] = 1;
 
-                window.barsDummy.rotation.set(0, 0, 0);
-                window.barsDummy.position.set(xPos, yPos, zPos);
-                window.barsDummy.scale.set(tileSize, elev, tileSize);
-                window.barsDummy.updateMatrix();
-                instancedMesh.setMatrixAt(idx, window.barsDummy.matrix);
-
-                const c = typeof getColorForElevation === 'function' ? getColorForElevation(z) : new THREE.Color(0x808080);
-                colorArray[idx * 3] = c.r;
-                colorArray[idx * 3 + 1] = c.g;
-                colorArray[idx * 3 + 2] = c.b;
+                if (hasColorFn) {
+                    const c = getColorForElevation(z);
+                    colorArray[idx * 3] = c.r;
+                    colorArray[idx * 3 + 1] = c.g;
+                    colorArray[idx * 3 + 2] = c.b;
+                } else {
+                    colorArray[idx * 3] = 0.5;
+                    colorArray[idx * 3 + 1] = 0.5;
+                    colorArray[idx * 3 + 2] = 0.5;
+                }
 
                 window.barsIndexToRow[idx] = i;
                 window.barsIndexToCol[idx] = j;
@@ -300,27 +310,12 @@
         if (window.terrainMesh.material && window.terrainMesh.material.userData && window.terrainMesh.material.userData.uTileScaleUniform) {
             window.terrainMesh.material.userData.uTileScaleUniform.value = 1.0;
         }
-        console.log(`Created ${barCount.toLocaleString()} instanced bars (OPTIMIZED)`);
-        console.log(`Scene now has ${window.scene.children.length} total objects`);
+        console.log(`Created ${barCount.toLocaleString()} instanced bars`);
 
-        // DEBUG: List all meshes in scene
-        let meshCount = 0;
-        let instancedMeshCount = 0;
-        window.scene.traverse((obj) => {
-            if (obj instanceof THREE.Mesh) meshCount++;
-            if (obj instanceof THREE.InstancedMesh) {
-                instancedMeshCount++;
-            }
-        });
-        console.log(`Total meshes: ${meshCount}, InstancedMeshes: ${instancedMeshCount}`);
-
-        // Performance warning and suggestion
-        if (barCount > 15000) {
-            console.warn(`Very high bar count (${barCount.toLocaleString()})! Consider:
- - Increase bucket multiplier to ${Math.ceil(window.params.bucketSize * 1.5)}x+
- - Current: ${Math.floor(100 * barCount / (width * height))}% of bucketed grid has data`);
-        } else if (barCount > 8000) {
-            console.warn(`High bar count (${barCount.toLocaleString()}). Increase bucket multiplier if laggy.`);
+        // At very high counts the single instanced draw call is still fine on the
+        // GPU, but CPU-side rebuilds (bucketing + this function) get slow.
+        if (barCount > 2000000) {
+            console.warn(`Very high bar count (${barCount.toLocaleString()}). Increase bucket multiplier if interaction is laggy.`);
         }
     }
 
@@ -351,11 +346,6 @@
      */
     function recreate(preserveTransform = true) {
         const startTime = performance.now();
-
-        // Log call stack to understand where recreations are coming from
-        const stack = new Error().stack;
-        const caller = stack.split('\n')[2]?.trim() || 'unknown';
-        console.log(`[TERRAIN] recreateTerrain() called from: ${caller} (preserveTransform=${preserveTransform})`);
 
         // Preserve terrain position and rotation before recreating (only if requested)
         let oldTerrainPos = null;

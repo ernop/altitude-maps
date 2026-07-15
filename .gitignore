@@ -36,6 +36,10 @@ generated/
 *.jpg
 *.html
 !interactive_viewer_advanced.html
+!compare.html
+
+# Baseline snapshots for side-by-side comparison (snapshot_baseline.py)
+snapshots/
 
 # IDE
 .vscode/
