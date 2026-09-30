@@ -1,0 +1,18 @@
+{
+  "host": "127.0.0.1",
+  "port": 8002,
+  "cache_dir": "data/cache",
+  "import_dir": "data/tracks/imported",
+  "track_dirs": [
+    { "path": "samples", "kind": "walked" },
+    { "path": "data/tracks/planned", "kind": "planned" }
+  ],
+  "terrain": {
+    "mapterhorn_url": "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
+    "max_zoom": 16,
+    "usgs_3dep_fill": true,
+    "usgs_3dep_max_zoom": 16
+  },
+  "profile_zoom": 15,
+  "user_agent": "altitude-maps-fly/1.0 (personal terrain viewer; https://github.com/ernop/altitude-maps)"
+}
