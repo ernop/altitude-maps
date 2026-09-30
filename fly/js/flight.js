@@ -14,6 +14,8 @@ const BOOST = 5;
 const SPEED_FACTOR_MIN = 0.1;
 const SPEED_FACTOR_MAX = 20;
 const WHEEL_SPEED_STEP = 1.2;
+const WHEEL_NOTCH_PX = 100;
+const WHEEL_LINE_PX = 33;
 const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export function isTypingTarget(target) {
@@ -174,7 +176,9 @@ export class FlightController {
         canvas.addEventListener('wheel', (event) => {
             if (this.mode !== 'fly') return;
             event.preventDefault();
-            const factor = event.deltaY < 0 ? WHEEL_SPEED_STEP : 1 / WHEEL_SPEED_STEP;
+            // Trackpads send many small deltas; scale by distance so one mouse notch (~100 px) is one step.
+            const pixels = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PX : 1);
+            const factor = Math.pow(WHEEL_SPEED_STEP, -pixels / WHEEL_NOTCH_PX);
             this.speedFactor = Math.min(Math.max(this.speedFactor * factor, SPEED_FACTOR_MIN), SPEED_FACTOR_MAX);
             this.onModeChange(this.mode);
         }, { passive: false });
