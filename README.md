@@ -2,6 +2,8 @@
 
 **3D visualization toolkit for elevation data from anywhere on Earth.**
 
+> **Start here for walking and flying over real terrain:** [`fly/`](fly/README.md) is the current viewer. It streams 1 m terrain for most of the US (global fallback), drapes your GPS tracks with slope coloring and an elevation profile, and supports orbit, free flight, and fly-along playback with 1-10x vertical exaggeration. Requirements and decisions live in [`PRODUCT.md`](PRODUCT.md). The rest of this README describes the older region-based bar viewer, which is kept as is.
+
 ![Continental USA Example](Screenshot_20251021115239.png)
 
 ## What Is This?
