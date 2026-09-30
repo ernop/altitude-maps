@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Altitude Maps - Flyover</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="/css/fly.css">
+    <script type="module" src="/js/main.js"></script>
+</head>
+<body>
+<div id="app">
+    <aside id="panel">
+        <header class="panel-title">
+            <h1>Flyover</h1>
+            <span class="panel-subtitle">1 m terrain where it exists</span>
+        </header>
+
+        <section class="panel-section">
+            <h2>Place</h2>
+            <form id="search-form" class="search-form">
+                <input id="search-input" type="search" placeholder="Place name or lat, lon" autocomplete="off">
+                <button type="submit">Go</button>
+            </form>
+            <ul id="search-results" class="row-list"></ul>
+        </section>
+
+        <section class="panel-section">
+            <h2>Terrain</h2>
+            <div id="exaggeration-slot"></div>
+            <label class="field">
+                <span class="field-label">Base map</span>
+                <select id="basemap"></select>
+            </label>
+            <label class="check"><input id="toggle-hillshade" type="checkbox"> Hillshade</label>
+            <label class="check" id="relief-fit-row"><input id="toggle-relief-fit" type="checkbox"> Fit colors to view</label>
+            <label class="check"><input id="toggle-slope" type="checkbox"> Slope steepness (grade)</label>
+            <div id="slope-legend" class="legend" hidden></div>
+        </section>
+
+        <section class="panel-section">
+            <h2>Camera</h2>
+            <div class="segmented">
+                <button id="mode-orbit" class="active" type="button">Orbit</button>
+                <button id="mode-fly" type="button">Fly</button>
+            </div>
+            <table class="keys">
+                <tr><th>W A S D</th><td>move</td><th>Q / E</th><td>down / up</td></tr>
+                <tr><th>Arrows</th><td>turn, tilt</td><th>Shift</th><td>5x speed</td></tr>
+                <tr><th>F</th><td>fly mode</td><th>Space</th><td>fly along</td></tr>
+                <tr><th>R</th><td>reframe</td><th>Esc</th><td>orbit mode</td></tr>
+                <tr><th>Wheel</th><td>fly speed</td><th>Drag</th><td>look (fly)</td></tr>
+            </table>
+        </section>
+
+        <section class="panel-section panel-section-grow">
+            <div class="section-head">
+                <h2>Tracks</h2>
+                <span id="track-count" class="count"></span>
+            </div>
+            <div class="track-tools">
+                <input id="track-filter" type="search" placeholder="Filter" autocomplete="off">
+                <select id="track-kind">
+                    <option value="all">All</option>
+                    <option value="walked">Walked</option>
+                    <option value="planned">Planned</option>
+                </select>
+            </div>
+            <div class="track-tools">
+                <button id="tracks-show-all" type="button">Show all</button>
+                <button id="tracks-rescan" type="button">Rescan</button>
+                <label class="button-like">Import<input id="track-import" type="file" multiple accept=".gpx,.tcx,.kml,.geojson,.json,.csv" hidden></label>
+            </div>
+            <ul id="track-list" class="row-list track-list"></ul>
+        </section>
+
+        <div id="status" class="status" hidden></div>
+    </aside>
+
+    <main id="stage">
+        <div id="map"></div>
+        <div id="hud" class="hud">
+            <div class="hud-item"><span class="hud-value" id="hud-cursor">-</span><span class="hud-label">cursor elevation</span></div>
+            <div class="hud-item"><span class="hud-value" id="hud-height">-</span><span class="hud-label">camera above ground</span></div>
+            <div class="hud-item"><span class="hud-value" id="hud-scale">-</span><span class="hud-label">screen detail</span></div>
+            <div class="hud-item"><span class="hud-value" id="hud-mode">Orbit</span><span class="hud-label">camera</span></div>
+        </div>
+
+        <section id="profile" class="profile" hidden>
+            <div class="profile-head">
+                <h3 id="profile-name"></h3>
+                <div class="stats">
+                    <span class="stat"><span class="stat-value" id="stat-distance"></span><span class="stat-label">distance</span></span>
+                    <span class="stat"><span class="stat-value stat-up" id="stat-gain"></span><span class="stat-label">gain</span></span>
+                    <span class="stat"><span class="stat-value stat-down" id="stat-loss"></span><span class="stat-label">loss</span></span>
+                    <span class="stat"><span class="stat-value" id="stat-high"></span><span class="stat-label">high</span></span>
+                    <span class="stat"><span class="stat-value" id="stat-low"></span><span class="stat-label">low</span></span>
+                    <span class="stat"><span class="stat-value" id="stat-grade"></span><span class="stat-label">max grade</span></span>
+                    <span class="stat"><span class="stat-value" id="stat-duration"></span><span class="stat-label">duration</span></span>
+                </div>
+                <button id="profile-close" class="close" type="button" title="Close track">Close</button>
+            </div>
+            <div class="profile-body">
+                <div class="profile-controls">
+                    <button id="play" type="button" class="play">Fly along</button>
+                    <div class="position">
+                        <span class="stat"><span class="stat-value" id="pos-distance">-</span><span class="stat-label">at</span></span>
+                        <span class="stat"><span class="stat-value" id="pos-elevation">-</span><span class="stat-label">elevation</span></span>
+                        <span class="stat"><span class="stat-value" id="pos-grade">-</span><span class="stat-label">grade</span></span>
+                    </div>
+                    <div id="speed-slot"></div>
+                    <div id="height-slot"></div>
+                </div>
+                <canvas id="profile-canvas"></canvas>
+            </div>
+        </section>
+    </main>
+</div>
+<div id="drop-overlay" class="drop-overlay" hidden>Drop GPX, TCX, KML, GeoJSON, or CSV files to import them</div>
+</body>
+</html>

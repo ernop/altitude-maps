@@ -36,6 +36,7 @@ generated/
 *.jpg
 *.html
 !interactive_viewer_advanced.html
+!fly/index.html
 
 # IDE
 .vscode/
