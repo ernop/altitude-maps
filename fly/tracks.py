@@ -29,7 +29,7 @@ GRADE_WINDOW_M = 30.0
 GAIN_HYSTERESIS_M = 1.0
 PROFILE_ZOOM = 15
 INDEX_FORMAT_VERSION = 1
-PROFILE_FORMAT_VERSION = 1
+PROFILE_FORMAT_VERSION = 2
 METERS_PER_DEGREE = 111320.0
 
 CSV_LAT_NAMES = ('lat', 'latitude')
@@ -335,24 +335,28 @@ def summarize(track: ParsedTrack) -> dict:
 
 #-------PROFILE-------
 def densify(segment: list[Point], spacing_m: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
- """Resample a segment at <= spacing_m, interpolating time; returns lons, lats, times (NaN when absent)."""
+ """
+ Resample a segment uniformly at <= spacing_m, interpolating time; returns lons, lats, times (NaN when absent).
+ Uniform spacing keeps distance-window smoothing unbiased; corners are cut by at most spacing_m / 2.
+ """
  lons, lats = segment_arrays(segment)
  times = np.array([p.time if p.time is not None else np.nan for p in segment])
  step = haversine_m(lons[:-1], lats[:-1], lons[1:], lats[1:])
  along = np.concatenate([[0.0], np.cumsum(step)])
  if along[-1] == 0:
   return lons[:1], lats[:1], times[:1]
- samples = np.unique(np.concatenate([np.arange(0.0, along[-1], spacing_m), [along[-1]], along]))
+ samples = np.linspace(0.0, along[-1], int(math.ceil(along[-1] / spacing_m)) + 1)
  has_time = np.isfinite(times)
  sampled_times = np.interp(samples, along[has_time], times[has_time]) if has_time.sum() >= 2 else np.full(len(samples), np.nan)
  return np.interp(samples, along, lons), np.interp(samples, along, lats), sampled_times
 
 
 def smooth_by_distance(distance: np.ndarray, values: np.ndarray, window_m: float) -> np.ndarray:
- half = window_m / 2
+ # Windows shrink symmetrically near the ends so a straight slope stays unbiased.
+ half = np.minimum(window_m / 2, np.minimum(distance - distance[0], distance[-1] - distance))
  cumulative = np.concatenate([[0.0], np.cumsum(values)])
- lo = np.searchsorted(distance, distance - half, side='left')
- hi = np.searchsorted(distance, distance + half, side='right')
+ lo = np.searchsorted(distance, distance - half - 1e-9, side='left')
+ hi = np.searchsorted(distance, distance + half + 1e-9, side='right')
  return (cumulative[hi] - cumulative[lo]) / (hi - lo)
 
 
@@ -443,7 +447,7 @@ class TrackLibrary:
   return self.cache_dir / f'{track_id}.geometry.json'
 
  def _profile_path(self, track_id: str) -> Path:
-  return self.cache_dir / f'{track_id}.profile.z{self.profile_zoom}.json'
+  return self.cache_dir / f'{track_id}.profile.v{PROFILE_FORMAT_VERSION}.z{self.profile_zoom}.json'
 
  def scan(self) -> dict:
   with self._lock:
