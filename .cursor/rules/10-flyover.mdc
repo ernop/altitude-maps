@@ -1,0 +1,23 @@
+---
+description: Flyover viewer (fly/) architecture and conventions
+globs: ["fly/**"]
+alwaysApply: false
+---
+
+# Flyover (fly/)
+
+Primary direction of the project since September 2026. Requirements and decisions live in `PRODUCT.md`; update it in the same change as any requirement or decision.
+
+## Architecture
+- `fly/server.py`: stdlib ThreadingHTTPServer. Static viewer, `/tiles/terrain/{z}/{x}/{y}`, `/tiles/slope/{z}/{x}/{y}.png`, `/api/config`, `/api/tracks...`.
+- `fly/terrain.py`: tile math, terrarium codec, tiered source policy: Mapterhorn, then USGS 3DEP for US gaps, then ancestor upsampling. Disk cache in `fly/data/cache/terrain/`. Upstream 404s are negative-cached; transient failures are never cached.
+- `fly/tracks.py`: parsers, Douglas-Peucker simplification, DEM-based profiles. Bump `PROFILE_FORMAT_VERSION` or `INDEX_FORMAT_VERSION` when their output changes.
+- `fly/prefetch.py`: cache warming CLI.
+- Viewer: MapLibre GL JS 6 (ES modules only, named exports: `import * as maplibregl`). The production build mangles `map.transform`; compute camera position from public getters (see `FlightController.cameraState`).
+- Nothing in `fly/` imports from `src/`; the old region pipeline is frozen.
+
+## Conventions
+- Python: 1-space indentation, type hints, pathlib, no defensive imports.
+- Config only in `fly/settings.json` (gitignored), from `fly/settings.example.json`. No environment variables.
+- Tests: `python -m pytest fly/tests`; no network access in tests (monkeypatch `terrain.http_get`).
+- UI: pure white text on dark surfaces, values larger and heavier than labels, one line per list row, sliders with labeled notches at both ends and the current value shown, fluid widths.
