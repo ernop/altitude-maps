@@ -123,7 +123,7 @@ export function buildStyle(config, { basemap, exaggeration, hillshade, slope }) 
         {
             id: 'slope', type: 'raster', source: 'slope',
             layout: { visibility: slope ? 'visible' : 'none' },
-            paint: { 'raster-opacity': 0.75, 'raster-resampling': 'nearest' },
+            paint: { 'raster-opacity': 0.75, 'raster-resampling': 'linear' },
         },
         {
             id: 'tracks-overview-casing', type: 'line', source: 'tracks-overview',
